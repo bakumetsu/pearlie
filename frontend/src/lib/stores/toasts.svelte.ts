@@ -5,7 +5,10 @@ export type Toast = { id: number; kind: ToastKind; message: string; actionLabel?
 const DURATIONS: Record<ToastKind, number> = { info: 4000, error: 6000, undo: 10000 };
 
 export function createToasts(timers?: { set: typeof setTimeout; clear: typeof clearTimeout }) {
-  const timer = timers ?? { set: setTimeout, clear: clearTimeout };
+  const timer = timers ?? {
+    set: ((...a: Parameters<typeof setTimeout>) => setTimeout(...a)) as typeof setTimeout,
+    clear: ((...a: Parameters<typeof clearTimeout>) => clearTimeout(...a)) as typeof clearTimeout,
+  };
   let nextId = 1;
   let current: Toast | null = $state(null);
   const queue: Toast[] = $state([]);

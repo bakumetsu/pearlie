@@ -248,7 +248,7 @@
           <div class="series">
             <SeriesGrid
               books={view.detail.books ?? []}
-              onopen={(b) => router.navigate("/read/" + encodeURIComponent(b.id))}
+              onopen={(b) => router.navigate("/read/" + encodeURIComponent(b.id) + "?series=" + encodeURIComponent(view.detail!.id))}
             />
           </div>
         {:else if view.detail.kind === "book"}

@@ -18,6 +18,10 @@ export type RestoreResult = S["RestoreResult"];
 export type RulesBody = S["RulesBody"];
 export type RulesPut = S["RulesPut"];
 export type Tag = S["Tag"];
+export type Job = S["Job"];
+export type JobList = S["JobList"];
+export type RulesTestResult = S["RulesTestResult"];
+export type ProgressResult = S["ProgressResult"];
 
 export type Kind = "images" | "videos" | "series" | "books";
 
@@ -62,6 +66,12 @@ export interface Api {
   restore(token: string, signal?: AbortSignal): Promise<RestoreResult>;
   getRules(signal?: AbortSignal): Promise<RulesBody>;
   putRules(body: RulesPut, signal?: AbortSignal): Promise<RulesBody>;
+  jobs(p: { state?: string[] }, signal?: AbortSignal): Promise<JobList>;
+  retryJob(id: string, signal?: AbortSignal): Promise<Job>;
+  removeJob(id: string, signal?: AbortSignal): Promise<void>;
+  testRules(tags: string[], signal?: AbortSignal): Promise<RulesTestResult>;
+  saveProgress(bookId: string, page: number, signal?: AbortSignal): Promise<ProgressResult>;
+  pageUrl(bookId: string, n: number): string;
 }
 
 const KIND_PATHS: Record<Kind, string> = {
@@ -106,6 +116,7 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
       throw new ApiError(res.status, code, message, libraryRef);
     }
 
+    if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   }
 
@@ -204,6 +215,54 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         },
         signal,
       );
+    },
+    jobs(p, signal) {
+      return request<JobList>(
+        buildUrl("/api/jobs", {
+          state: p.state?.length ? p.state.join(",") : undefined,
+        }),
+        undefined,
+        signal,
+      );
+    },
+    retryJob(id, signal) {
+      return request<Job>(
+        baseUrl + "/api/jobs/" + encodeURIComponent(id) + "/retry",
+        { method: "POST" },
+        signal,
+      );
+    },
+    removeJob(id, signal) {
+      return request<void>(
+        baseUrl + "/api/jobs/" + encodeURIComponent(id),
+        { method: "DELETE" },
+        signal,
+      );
+    },
+    testRules(tags, signal) {
+      return request<RulesTestResult>(
+        baseUrl + "/api/rules/test",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tags }),
+        },
+        signal,
+      );
+    },
+    saveProgress(bookId, page, signal) {
+      return request<ProgressResult>(
+        baseUrl + "/api/library/komga/books/" + encodeURIComponent(bookId) + "/progress",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ page }),
+        },
+        signal,
+      );
+    },
+    pageUrl(bookId, n) {
+      return baseUrl + "/api/media/komga/books/" + encodeURIComponent(bookId) + "/pages/" + n;
     },
   };
 }

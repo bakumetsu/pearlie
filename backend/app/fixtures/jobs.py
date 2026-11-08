@@ -218,6 +218,7 @@ class JobBoard:
                 "target": j["target"],
             }
         )
+        self.jobs.pop()  # _new_from_post appended d; replace in place instead
         self.jobs[idx] = d
         return self._to_model(d)
 
