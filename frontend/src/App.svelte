@@ -8,6 +8,7 @@
   import { createJobs } from "./lib/stores/jobs.svelte";
   import Queue from "./routes/Queue.svelte";
   import Rules from "./routes/Rules.svelte";
+  import Reader from "./routes/Reader.svelte";
   import { setApi, createApi } from "./lib/api/client";
   import Nav from "./lib/components/Nav.svelte";
   import Toast from "./lib/components/Toast.svelte";
@@ -53,7 +54,7 @@
     {:else if match.name === "item"}
       <Item {match} />
     {:else if match.name === "read"}
-      <section class="placeholder"><h1 tabindex="-1">Reader</h1><p>Coming in a later step.</p></section>
+      <Reader {match} />
     {:else if match.name === "queue"}
       <Queue {match} />
     {:else if match.name === "rules"}
