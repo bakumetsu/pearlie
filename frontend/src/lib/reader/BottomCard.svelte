@@ -1,8 +1,8 @@
 <script lang="ts">
   import Icon from "../components/Icon.svelte";
   import PageBar from "./PageBar.svelte";
-  import type { Mode, Fit, Dir } from "./pages";
-  import type { LibraryItem } from "../api/client";
+import type { Dir } from "./pages";
+
 
   let {
     count,

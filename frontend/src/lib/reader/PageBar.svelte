@@ -60,7 +60,7 @@
 >
   {#if layout.kind === "segments"}
     <div class="segs" class:rtl={dir === "rtl"}>
-      {#each Array.from({ length: layout.count }, (_, i) => i + 1) as p}
+      {#each Array.from({ length: layout.count }, (_, i) => i + 1) as p (p)}
         <div
           class="seg"
           class:read={p <= maxShown && !shownSet.has(p)}

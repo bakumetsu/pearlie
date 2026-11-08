@@ -19,6 +19,7 @@
 <div
   role="dialog"
   aria-label="Books"
+  tabindex="-1"
   class="bk"
   onkeydown={(e: KeyboardEvent) => {
     if (e.key === "Escape") onclose();

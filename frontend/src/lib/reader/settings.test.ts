@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Settings } from "./settings";
 import {
   SETTINGS_KEY,
-  OLD_MODE_KEY,
+
   DEFAULT_SETTINGS,
   parseSettings,
   loadSettings,

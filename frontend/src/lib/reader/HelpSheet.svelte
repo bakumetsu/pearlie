@@ -41,7 +41,8 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={() => onclose()}>
-  <div class="sheet" role="dialog" aria-label="Keyboard shortcuts" aria-modal="true" onclick={(e) => e.stopPropagation()}>
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <div class="sheet" role="dialog" tabindex="-1" aria-label="Keyboard shortcuts" aria-modal="true" onclick={(e) => e.stopPropagation()}>
     <div class="header">
       <h3>Keyboard shortcuts</h3>
       <button aria-label="Close" onclick={() => onclose()}>
@@ -50,7 +51,7 @@
     </div>
     <table>
       <tbody>
-        {#each keys as [key, desc]}
+        {#each keys as [key, desc] (key)}
           <tr>
             <td class="key">{key}</td>
             <td class="desc">{desc}</td>

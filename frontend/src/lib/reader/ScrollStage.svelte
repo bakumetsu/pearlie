@@ -75,7 +75,8 @@
 	});
 </script>
 
-<div class="stage" bind:this={stage} bind:clientWidth={vw} bind:clientHeight={vh} onscroll={onScroll} onclick={ontoggle}>
+
+<div class="stage" role="presentation" bind:this={stage} bind:clientWidth={vw} bind:clientHeight={vh} onscroll={onScroll} onclick={ontoggle}>
 	<div class="col">
 		{#each Array.from({ length: count }, (_, i) => i + 1) as n (n)}
 			<div data-page={n}>

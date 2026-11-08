@@ -43,7 +43,7 @@
   ];
 </script>
 
-<div role="dialog" aria-label="View" class="popover" onkeydown={handleKey}>
+<div role="dialog" aria-label="View" tabindex="-1" class="popover" onkeydown={handleKey}>
   <h4>View</h4>
 
   <div class="row">

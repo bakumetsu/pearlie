@@ -16,6 +16,7 @@
   let lo = $state(0);
   let hi = $state(0);
   let broken = $state<Record<number, boolean>>({});
+  // svelte-ignore state_referenced_locally
   let prevTpl = $state(template);
 
   function computeRange() {
