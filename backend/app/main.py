@@ -7,11 +7,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import fixture as fixture_api
-from app.api import jobs, library, media, rules, search
+from app.api import jobs, library, media, rules, search, search_real
 from app.api.errors import install as install_errors
 from app.api.health import router as health_router
 from app.config import ConfigError, Settings, load_settings
 from app.db import init_db
+from app.sources.danbooru import Danbooru
 
 FIXTURE_ROUTERS = {
     "search": search.router,
@@ -20,7 +21,7 @@ FIXTURE_ROUTERS = {
     "jobs": jobs.router,
     "rules": rules.router,
 }
-REAL_ROUTERS: dict[str, APIRouter] = {}
+REAL_ROUTERS: dict[str, APIRouter] = {"search": search_real.router}
 
 logger = logging.getLogger("pearlie")
 
@@ -33,6 +34,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI()
     install_errors(app)
     app.state.settings = settings
+    app.state.sources = {"danbooru": Danbooru()}
 
     real = {n.strip() for n in settings.real.split(",") if n.strip()}
     for name in real:
