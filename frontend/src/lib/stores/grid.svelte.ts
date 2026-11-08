@@ -142,6 +142,17 @@ export function createGrid<T>(keyOf: (t: T) => string) {
     if (typeof state.total === "number") state.total++;
   }
 
+  function removeById(id: string): { item: T; index: number } | null {
+    const index = indexOf(id);
+    if (index === -1) return null;
+    const item = removeAt(index);
+    return item === undefined ? null : { item, index };
+  }
+
+  function restore(entry: { item: T; index: number }) {
+    insertAt(entry.item, entry.index);
+  }
+
   function reset() {
     resetState();
   }
@@ -164,6 +175,8 @@ export function createGrid<T>(keyOf: (t: T) => string) {
     neighbors,
     removeAt,
     insertAt,
+    removeById,
+    restore,
     reset,
   };
 }

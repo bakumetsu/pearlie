@@ -11,6 +11,13 @@ export type SaveBody = S["SaveBody"];
 export type SaveAccepted = S["SaveAccepted"];
 export type Health = S["Health"];
 export type LibraryPage = S["Page_LibraryItem_"];
+export type LibraryItemDetail = S["LibraryItemDetail"];
+export type PatchBody = S["PatchBody"];
+export type TrashResult = S["TrashResult"];
+export type RestoreResult = S["RestoreResult"];
+export type RulesBody = S["RulesBody"];
+export type RulesPut = S["RulesPut"];
+export type Tag = S["Tag"];
 
 export type Kind = "images" | "videos" | "series" | "books";
 
@@ -49,6 +56,12 @@ export interface Api {
   list(kind: Kind, p: ListParams, signal?: AbortSignal): Promise<LibraryPage>;
   save(body: SaveBody, signal?: AbortSignal): Promise<SaveAccepted>;
   health(signal?: AbortSignal): Promise<Health>;
+  getItem(kind: Kind, id: string, signal?: AbortSignal): Promise<LibraryItemDetail>;
+  patchItem(kind: Kind, id: string, body: PatchBody, signal?: AbortSignal): Promise<LibraryItemDetail>;
+  deleteItem(kind: Kind, id: string, signal?: AbortSignal): Promise<TrashResult>;
+  restore(token: string, signal?: AbortSignal): Promise<RestoreResult>;
+  getRules(signal?: AbortSignal): Promise<RulesBody>;
+  putRules(body: RulesPut, signal?: AbortSignal): Promise<RulesBody>;
 }
 
 const KIND_PATHS: Record<Kind, string> = {
@@ -145,6 +158,52 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     },
     health(signal) {
       return request<Health>(baseUrl + "/api/health", undefined, signal);
+    },
+    getItem(kind, id, signal) {
+      return request<LibraryItemDetail>(
+        baseUrl + "/api/library/" + kind + "/" + encodeURIComponent(id),
+        undefined,
+        signal,
+      );
+    },
+    patchItem(kind, id, body, signal) {
+      return request<LibraryItemDetail>(
+        baseUrl + "/api/library/" + kind + "/" + encodeURIComponent(id),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        signal,
+      );
+    },
+    deleteItem(kind, id, signal) {
+      return request<TrashResult>(
+        baseUrl + "/api/library/" + kind + "/" + encodeURIComponent(id),
+        { method: "DELETE" },
+        signal,
+      );
+    },
+    restore(token, signal) {
+      return request<RestoreResult>(
+        baseUrl + "/api/trash/" + encodeURIComponent(token) + "/restore",
+        { method: "POST" },
+        signal,
+      );
+    },
+    getRules(signal) {
+      return request<RulesBody>(baseUrl + "/api/rules", undefined, signal);
+    },
+    putRules(body, signal) {
+      return request<RulesBody>(
+        baseUrl + "/api/rules",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        signal,
+      );
     },
   };
 }

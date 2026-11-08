@@ -20,9 +20,9 @@ describe("matchRoute", () => {
   });
 
   it("matches a param route via custom routes arg and decodes values", () => {
-    const routes = [...ROUTES, { name: "item", pattern: "/item/:kind/:id" }];
-    const m = matchRoute("/item/photo/a%20b", "", routes);
-    expect(m.name).toBe("item");
+    const routes = [...ROUTES, { name: "thing", pattern: "/thing/:kind/:id" }];
+    const m = matchRoute("/thing/photo/a%20b", "", routes);
+    expect(m.name).toBe("thing");
     expect(m.params).toEqual({ kind: "photo", id: "a b" });
   });
 
