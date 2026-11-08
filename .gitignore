@@ -12,3 +12,4 @@ data/
 
 # generated placeholder media
 backend/fixtures/media/
+_stub.log
