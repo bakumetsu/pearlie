@@ -78,7 +78,12 @@ class LibraryItemDetail(LibraryItem):
     source_url_text: str | None = None
     page_url: str | None = Field(
         default=None,
-        description="Book detail only. URL template with a literal {n} placeholder for the 1-based page number, e.g. /api/media/komga/books/7/pages/{n}. Replace {n} to get a page image.",
+        description=(
+            "Book detail only. URL template with a "
+            "literal {n} placeholder for the 1-based "
+            "page number, e.g. /api/media/komga/books/7/"
+            "pages/{n}. Replace {n} to get a page image."
+        ),
     )
 
 
