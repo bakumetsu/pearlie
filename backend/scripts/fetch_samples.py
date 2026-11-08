@@ -23,7 +23,7 @@ if str(_BACKEND) not in sys.path:
 
 from app.fixtures import mediagen  # noqa: E402
 
-THROTTLE_SECONDS = 2.5
+THROTTLE_SECONDS = 5.0
 REQUEST_TIMEOUT = 60
 USER_AGENT = "PearlieFixtureFetch/0.1 (local dev)"
 ALLOWED_HOSTS = {"commons.wikimedia.org", "upload.wikimedia.org"}
@@ -122,8 +122,14 @@ def save_comic(item: dict[str, Any], index: int, out: Path) -> tuple[Path, Path,
     first_img: Image.Image | None = None
     with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for page_no, title in enumerate(files, start=1):
-            url = _photo_url(title, 1280)
-            img = _resize_long(_open_image(fetch_bytes(url)), 1280)
+            cache = out / ".cache" / f"{index}_{page_no}.bin"
+            if cache.exists():
+                raw = cache.read_bytes()
+            else:
+                raw = fetch_bytes(_photo_url(title, 1280))
+                cache.parent.mkdir(parents=True, exist_ok=True)
+                cache.write_bytes(raw)
+            img = _resize_long(_open_image(raw), 1280)
             if first_img is None:
                 first_img = img
             buf = BytesIO()
