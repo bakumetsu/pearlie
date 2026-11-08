@@ -87,7 +87,7 @@
   {@const info = stateInfo(job.state)}
   {@const eta = etaLabel(job)}
   <li class="row">
-    <img src={job.thumb_url} alt="" loading="lazy" />
+    <img src={job.thumb_url} alt="" decoding="async" />
     <div class="text">
       <span class="title">
         {#if route !== null && job.state === "done"}
@@ -148,6 +148,10 @@
     margin: 0;
   }
 
+  h1:focus-visible {
+    outline: none;
+  }
+
   h2 {
     font-size: var(--t-14);
     margin: 0;
@@ -187,6 +191,8 @@
     height: 56px;
     border-radius: var(--r-sm);
     object-fit: cover;
+    background: var(--line);
+    flex-shrink: 0;
   }
 
   .text {

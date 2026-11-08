@@ -446,9 +446,14 @@
     justify-content: space-between;
   }
 
+  h1:focus-visible {
+    outline: none;
+  }
+
   .savebar,
   .leave {
     position: sticky;
+    z-index: 5;
     bottom: var(--s-4);
     display: flex;
     align-items: center;
@@ -458,6 +463,7 @@
     border: 1px solid var(--line-strong);
     border-radius: var(--r-md);
     padding: var(--s-3) var(--s-4);
+    margin-top: var(--s-4);
   }
 
   .chip {
