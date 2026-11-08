@@ -26,9 +26,7 @@ def media(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return d
 
 
-def test_ensure_media_completes_partial(
-    media: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_ensure_media_completes_partial(media: Path, monkeypatch: pytest.MonkeyPatch):
     """A dir with only images (no .complete) gets books finished and marker written."""
     monkeypatch.setattr(mediagen, "_ffmpeg", lambda: None)
 
@@ -45,9 +43,7 @@ def test_ensure_media_completes_partial(
     assert (media / ".complete").exists()
 
 
-def test_ensure_media_second_call_no_regen(
-    media: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_ensure_media_second_call_no_regen(media: Path, monkeypatch: pytest.MonkeyPatch):
     """Second ensure_media call returns early; mtimes are unchanged."""
     monkeypatch.setattr(mediagen, "_ffmpeg", lambda: None)
 
