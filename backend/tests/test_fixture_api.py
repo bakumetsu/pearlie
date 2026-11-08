@@ -8,6 +8,7 @@ from app.models import (
     Page,
     SearchResponse,
     TrashResult,
+    WebItem,
 )
 
 
@@ -158,9 +159,8 @@ def test_save_flow(client):
     blocked = {
         (j["source"], j["post_id"]) for j in store.jobs.jobs if j["state"] in ("queued", "running")
     }
-    target = next(
-        i for i in sr.sections[0].items if not i.saved and ("danbooru", i.post_id) not in blocked
-    )
+    web_items = [i for i in sr.sections[0].items if isinstance(i, WebItem)]
+    target = next(i for i in web_items if not i.saved and ("danbooru", i.post_id) not in blocked)
     r = client.post(
         "/api/save",
         json={"source": "danbooru", "post_id": target.post_id},
@@ -235,7 +235,9 @@ def test_scenario_errors(client):
     sr = SearchResponse.model_validate(
         client.get("/api/search", params={"sources": "danbooru"}).json()
     )
-    assert sr.sections[0].error.code == "upstream_error"
+    err = sr.sections[0].error
+    assert err is not None
+    assert err.code == "upstream_error"
     assert client.patch("/api/library/images/3", json={"rating": 4}).status_code == 502
 
 
@@ -276,5 +278,12 @@ def test_fixture_router_absent_when_real(tmp_path):
     from app.config import Settings
     from app.main import create_app
 
-    app = create_app(Settings(mode="real", data_dir=tmp_path))
+    app = create_app(
+        Settings(
+            mode="real",
+            db_path=tmp_path / "p.db",
+            static_dir=tmp_path / "nostatic",
+            _env_file=None,  # pyright: ignore[reportCallIssue]
+        )
+    )
     assert TestClient(app).post("/api/_fixture/reset").status_code == 404
