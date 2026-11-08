@@ -13,6 +13,7 @@
 		stepKey,
 		zoneAction,
 		preloadPages,
+		pageSrc,
 
 		parseMode,
 		DEFAULT_MODE,
@@ -38,6 +39,7 @@
 	let wide = $state(false);
 	let width = $state(0);
 	let bust = $state(0);
+	let pageTpl = $state("");
 
 	// ── derived ────────────────────────────────────────────────────────
 	const series = $derived(match.query.get("series"));
@@ -62,6 +64,7 @@
 			const d = await api.getItem("books", bookId);
 			title = d.title;
 			count = d.page_count ?? 0;
+			pageTpl = d.page_url ?? "";
 			const p = Number(match.query.get("p"));
 			const start = match.query.get("p") ? p : (d.read_page ?? 1);
 			page = clampPage(start, count);
@@ -122,17 +125,7 @@
 		}
 		try {
 			const lastShownPage = shown[shown.length - 1];
-			// keepalive POST on pagehide is not possible through the api client
-			// eslint-disable-next-line no-restricted-globals
-			fetch(
-				"/api/library/komga/books/" + encodeURIComponent(bookId) + "/progress",
-				{
-					method: "POST",
-					keepalive: true,
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ page: lastShownPage })
-				}
-			);
+			void api.saveProgress(bookId, lastShownPage, undefined, { keepalive: true }).catch(() => {});
 		} catch { /* ignore */ }
 	}
 
@@ -290,7 +283,7 @@
 						</button>
 					{:else}
 						<img
-							src={api.pageUrl(bookId, n) + "?r=" + bust}
+							src={pageSrc(pageTpl, n) + "?r=" + bust}
 							alt="Page {n}"
 							class:fitw={mode.fit === "width"}
 							onerror={() => (failed = new Set([...failed, n]))}
@@ -300,7 +293,7 @@
 				</div>
 			{/each}
 			{#each pre as n (n)}
-				<img class="preload" src={api.pageUrl(bookId, n)} alt="" aria-hidden="true" />
+				<img class="preload" src={pageSrc(pageTpl, n)} alt="" aria-hidden="true" />
 			{/each}
 			{#if page === count && nextBook}
 				<button
