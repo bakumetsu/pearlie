@@ -10,7 +10,7 @@
     onfit,
     ondir,
     onclose,
-  } = $props<{
+  }: {
     mode: Mode;
     fit: Fit;
     dir: Dir;
@@ -18,7 +18,7 @@
     onfit: (f: Fit) => void;
     ondir: (d: Dir) => void;
     onclose: () => void;
-  }>();
+  } = $props();
 
   function handleKey(e: KeyboardEvent) {
     if (e.key === "Escape") onclose();
