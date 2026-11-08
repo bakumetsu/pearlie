@@ -5,7 +5,7 @@
   import type { Match } from "../lib/router";
   import type { Kind, LibraryItem, WebItem } from "../lib/api/client";
   import { ApiError as ApiErrorClass } from "../lib/api/client";
-  import { createGrid } from "../lib/stores/grid.svelte";
+  import { seeAllGrid, keyOf } from "../lib/stores/shared.svelte";
   import Tile from "../lib/components/Tile.svelte";
   import Icon from "../lib/components/Icon.svelte";
   import { toasts } from "../lib/stores/toasts.svelte";
@@ -60,11 +60,7 @@
     }
   });
 
-  function keyOf(t: LibraryItem | WebItem): string {
-    return "post_id" in t ? t.source + ":" + t.post_id : t.kind + ":" + t.id;
-  }
-
-  const grid = createGrid<LibraryItem | WebItem>(keyOf);
+  const grid = seeAllGrid;
 
   const listKey = $derived(
     [source, q, sort, favorite ? "1" : "0", seed ?? ""].join("|"),
