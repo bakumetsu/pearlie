@@ -12,7 +12,7 @@
   const SLOT = 78; // 70 px button + 8 px gap
   const INSET = 4; // strip padding
 
-  let stripEl: HTMLDivElement | null = $state();
+  let stripEl: HTMLDivElement | null = $state(null);
   let lo = $state(0);
   let hi = $state(0);
   let broken = $state<Record<number, boolean>>({});

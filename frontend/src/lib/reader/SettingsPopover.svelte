@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Mode, Fit, Dir } from "./pages";
-  import Icon from "../components/Icon.svelte";
+  import Icon, { type IconName } from "../components/Icon.svelte";
 
   let {
     mode,
@@ -24,13 +24,13 @@
     if (e.key === "Escape") onclose();
   }
 
-  const modeOptions: { value: Mode; label: string; icon: string }[] = [
+  const modeOptions: { value: Mode; label: string; icon: IconName }[] = [
     { value: "single", label: "Single page", icon: "mode-single" },
     { value: "spread", label: "Spread", icon: "mode-spread" },
     { value: "scroll", label: "Scroll", icon: "mode-scroll" },
   ];
 
-  const fitOptions: { value: Fit; label: string; icon: string }[] = [
+  const fitOptions: { value: Fit; label: string; icon: IconName }[] = [
     { value: "width", label: "Fit width", icon: "fit-width" },
     { value: "height", label: "Fit height", icon: "fit-height" },
     { value: "both", label: "Fit both", icon: "fit-both" },

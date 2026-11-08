@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Icon from "../components/Icon.svelte";
+  import Icon, { type IconName } from "../components/Icon.svelte";
   import type { Mode, Fit } from "./pages";
 
   let {
@@ -46,7 +46,7 @@
     title="Fit (f)"
     onclick={onfit}
   >
-    <Icon name={"fit-" + fit} size={20} />
+    <Icon name={`fit-${fit}` as IconName} size={20} />
   </button>
   <button
     class="btn"
@@ -54,7 +54,7 @@
     title="Mode (m)"
     onclick={onmode}
   >
-    <Icon name={"mode-" + mode} size={20} />
+    <Icon name={`mode-${mode}` as IconName} size={20} />
   </button>
   <button
     class="btn"

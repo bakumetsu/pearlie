@@ -7,13 +7,13 @@
     notice,
     onpick,
     onclose,
-  } = $props<{
+  }: {
     books: LibraryItem[];
     currentId: string;
     notice: string | null;
     onpick: (book: LibraryItem) => void;
     onclose: () => void;
-  }>();
+  } = $props();
 </script>
 
 <div
