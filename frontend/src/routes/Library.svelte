@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
+  import { itemHref } from "../lib/item/kinds";
   import { linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
   import type { Kind, LibraryItem } from "../lib/api/client";
@@ -136,7 +137,7 @@
           {/each}
         {:else}
           {#each rs.items as item (item.id)}
-            <Tile item={item} href={`/item/${item.kind}/${item.id}`} onnavigate={onNav} />
+            <Tile item={item} href={itemHref(item)} onnavigate={onNav} />
           {/each}
         {/if}
       </SectionRow>

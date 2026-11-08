@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
+  import { itemHref } from "../lib/item/kinds";
   import { linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
   import type { Kind, LibraryItem, WebItem } from "../lib/api/client";
@@ -232,7 +233,7 @@
           {@const l = item as LibraryItem}
           <Tile
             item={l}
-            href={`/item/${l.kind}/${l.id}`}
+            href={itemHref(l)}
             onnavigate={onNav}
           />
         {/if}

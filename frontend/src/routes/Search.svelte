@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
+  import { itemHref, toPlural } from "../lib/item/kinds";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { createSearch } from "../lib/stores/search.svelte";
   import { parseSearchParams, buildSearchParams, serialiseQuery, sectionsFor, webNeedsQuery } from "../lib/query";
@@ -69,17 +70,17 @@
   function tileSavedHref(item: WebItem): string | undefined {
     const ss = search.saveStateOf(item);
     if (ss?.state === "in_library") {
-      if (ss.ref) return `/item/${ss.ref.kind}/${ss.ref.id}`;
+      if (ss.ref) return `/item/${toPlural(ss.ref.kind) ?? ss.ref.kind}/${ss.ref.id}`;
       const saved = (item as Record<string, unknown>).saved;
       if (saved && typeof saved === "object" && "kind" in saved && "id" in saved) {
         const ref = saved as { kind: string; id: string };
-        return `/item/${ref.kind}/${ref.id}`;
+        return `/item/${toPlural(ref.kind) ?? ref.kind}/${ref.id}`;
       }
     }
     const saved = (item as Record<string, unknown>).saved;
     if (saved && typeof saved === "object" && "kind" in saved && "id" in saved) {
       const ref = saved as { kind: string; id: string };
-      return `/item/${ref.kind}/${ref.id}`;
+      return `/item/${toPlural(ref.kind) ?? ref.kind}/${ref.id}`;
     }
     return undefined;
   }
@@ -172,7 +173,7 @@
           onretry={() => search.retrySection(id)}
           onnavigate={(e) => linkClick(e, router)}
         >
-          {#each (entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (lightbox = item)} />{:else}<Tile item={item} href={`/item/${item.kind}/${item.id}`} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
+          {#each (entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (lightbox = item)} />{:else}<Tile item={item} href={itemHref(item)} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
         </SectionRow>
       {/if}
     {/each}
