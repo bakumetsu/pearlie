@@ -7,6 +7,7 @@
   import { setRouter, setJobs } from "./lib/ctx";
   import { createJobs } from "./lib/stores/jobs.svelte";
   import Queue from "./routes/Queue.svelte";
+  import Rules from "./routes/Rules.svelte";
   import { setApi, createApi } from "./lib/api/client";
   import Nav from "./lib/components/Nav.svelte";
   import Toast from "./lib/components/Toast.svelte";
@@ -56,7 +57,7 @@
     {:else if match.name === "queue"}
       <Queue {match} />
     {:else if match.name === "rules"}
-      <section class="placeholder"><h1 tabindex="-1">Rules</h1><p>Coming in a later step.</p></section>
+      <Rules {match} />
     {:else}
       <section class="placeholder">
         <h1 tabindex="-1">Page not found</h1>
