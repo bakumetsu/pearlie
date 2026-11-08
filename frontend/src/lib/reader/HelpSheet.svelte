@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { trapFocus } from "./focus";
   import Icon from "../components/Icon.svelte";
 
   interface Props {
@@ -42,7 +43,7 @@
 
 <div class="backdrop" role="presentation" onclick={() => onclose()}>
   <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <div class="sheet" role="dialog" tabindex="-1" aria-label="Keyboard shortcuts" aria-modal="true" onclick={(e) => e.stopPropagation()}>
+  <div class="sheet" role="dialog" tabindex="-1" aria-label="Keyboard shortcuts" aria-modal="true" use:trapFocus onclick={(e) => e.stopPropagation()}>
     <div class="header">
       <h3>Keyboard shortcuts</h3>
       <button aria-label="Close" onclick={() => onclose()}>

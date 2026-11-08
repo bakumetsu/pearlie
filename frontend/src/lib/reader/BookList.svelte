@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { trapFocus } from "./focus";
   import type { LibraryItem } from "../api/client";
 
   let {
@@ -20,6 +21,7 @@
   role="dialog"
   aria-label="Books"
   tabindex="-1"
+  use:trapFocus
   class="bk"
   onkeydown={(e: KeyboardEvent) => {
     if (e.key === "Escape") onclose();

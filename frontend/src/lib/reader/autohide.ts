@@ -34,6 +34,7 @@ export function createAutoHide(opts: {
     set(true);
   }
 
+  start();
   return {
     poke() { set(false); start(); },
     toggle() { if (hidden) { set(false); start(); } else { this.hide(); } },
