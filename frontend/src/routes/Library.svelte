@@ -7,6 +7,7 @@
   import SectionRow from "../lib/components/SectionRow.svelte";
   import Tile from "../lib/components/Tile.svelte";
   import { onMount } from "svelte";
+  import { SvelteURLSearchParams } from "svelte/reactivity";
 
   let { match }: { match: Match } = $props();
 
@@ -53,7 +54,7 @@
       if (signal?.aborted) return;
       rowStates[kind] = {
         status: "done",
-        items: result.items,
+        items: result.items ?? [],
         total: result.total ?? null,
         next_page: result.next_page ?? null,
       };
@@ -76,7 +77,7 @@
   );
 
   function toggleFav(value: boolean) {
-    const qs = new URLSearchParams(match.query);
+    const qs = new SvelteURLSearchParams(match.query);
     if (value) qs.set("favorite", "true");
     else qs.delete("favorite");
     const search = qs.toString();
@@ -130,7 +131,7 @@
         onretry={() => loadRow(row.kind)}
       >
         {#if rs.status === "loading"}
-          {#each Array(6) as _}
+          {#each Array.from({ length: 6 }, (_, i) => i) as i (i)}
             <div class="skeleton"></div>
           {/each}
         {:else}

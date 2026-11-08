@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/svelte";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { render, screen, cleanup } from "@testing-library/svelte";
 import App from "./App.svelte";
 
 beforeEach(() => {
@@ -13,6 +13,10 @@ beforeEach(() => {
       }),
     ),
   );
+});
+
+afterEach(() => {
+  cleanup();
 });
 
 describe("App shell", () => {

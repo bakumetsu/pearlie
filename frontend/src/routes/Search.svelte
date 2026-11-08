@@ -29,11 +29,11 @@
     nhentai: "nhentai",
   };
 
-  const state = $derived(parseSearchParams("?" + match.query.toString()));
+  const query = $derived(parseSearchParams("?" + match.query.toString()));
 
   let first = true;
   $effect(() => {
-    search.run(state, { immediate: first });
+    search.run(query, { immediate: first });
     first = false;
     return () => search.cancel();
   });
@@ -47,16 +47,16 @@
     router.navigate("/" + buildSearchParams(next), { replace: true });
   }
 
-  function handleChipsChange(chips: typeof state.chips): void {
-    navigateState({ ...state, chips });
+  function handleChipsChange(chips: typeof query.chips): void {
+    navigateState({ ...query, chips });
   }
 
-  function handlePillChange(pill: typeof state.pill): void {
-    navigateState({ ...state, pill });
+  function handlePillChange(pill: typeof query.pill): void {
+    navigateState({ ...query, pill });
   }
 
   function handleSitesChange(sites: SiteId[]): void {
-    navigateState({ ...state, sites });
+    navigateState({ ...query, sites });
   }
 
   function tileSaveState(item: WebItem): "idle" | "queued" | "in_library" {
@@ -111,8 +111,8 @@
   }
 
   const webSitesToHint = $derived(
-    webNeedsQuery(state)
-      ? sectionsFor(state.pill, state.sites).filter(
+    webNeedsQuery(query)
+      ? sectionsFor(query.pill, query.sites).filter(
           (id): id is SiteId =>
             (WEB_IDS as string[]).includes(id) && !(id in search.sections)
         )
@@ -134,10 +134,10 @@
 <div class="page">
   <header class="header">
     <h1 class="sr-only" tabindex="-1" bind:this={h1}>Search</h1>
-    <ChipField chips={state.chips} onchange={handleChipsChange} />
+    <ChipField chips={query.chips} onchange={handleChipsChange} />
     <PillBar
-      pill={state.pill}
-      sites={state.sites}
+      pill={query.pill}
+      sites={query.sites}
       onpill={handlePillChange}
       onsites={handleSitesChange}
     />
@@ -156,7 +156,7 @@
         <div class="skeleton-row">
           <div class="skeleton-title"></div>
           <div class="skeleton-items">
-            {#each SKELETONS as _}
+            {#each SKELETONS as s (s)}
               <div class="skeleton"></div>
             {/each}
           </div>
@@ -165,7 +165,7 @@
         <SectionRow
           title={(entry.section as { title?: string })?.title ?? id}
           count={(entry.section as { total?: number })?.total}
-          seeAllHref={hrefOf("/see-all", { source: id, q: serialiseQuery(state.chips) })}
+          seeAllHref={hrefOf("/see-all", { source: id, q: serialiseQuery(query.chips) })}
           hidden={(entry.section as { hidden?: number })?.hidden}
           rulesHref="/rules"
           error={entry.error}
@@ -198,7 +198,7 @@
     item={lightbox}
     saveState={lightboxSaveState}
     savedHref={lightboxSavedHref}
-    onsave={() => doSave(lightbox)}
+    onsave={() => { if (lightbox) doSave(lightbox); }}
     onclose={() => (lightbox = null)}
   />
 {/if}

@@ -15,7 +15,7 @@
     children: Snippet;
   } = $props();
 
-  let strip: HTMLDivElement | undefined = undefined;
+  let strip = $state<HTMLDivElement | undefined>();
   let scrollLeft = $state(0);
   let clientWidth = $state(0);
   let scrollWidth = $state(0);
@@ -38,7 +38,7 @@
 
   onMount(() => {
     updateMetrics();
-    if (strip) {
+    if (strip && typeof ResizeObserver !== "undefined") {
       const ro = new ResizeObserver(updateMetrics);
       ro.observe(strip);
       return () => ro.disconnect();

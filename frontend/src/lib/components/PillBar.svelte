@@ -37,7 +37,7 @@
     onsites(ordered);
   }
 
-  const showSites = pill === "all" || pill === "web";
+  const showSites = $derived(pill === "all" || pill === "web");
 </script>
 
 <div class="pillbar">

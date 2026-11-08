@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 import { createSearch } from "./search.svelte";
 import { ApiError } from "../api/client";
-import { parseChip, type Chip } from "../query";
+import { parseChip, type Chip, type SearchState } from "../query";
 import type { Api, Section } from "../api/client";
 
 function chip(raw: string) {
@@ -18,10 +18,10 @@ function makeApi(): Api & { search: Mock; save: Mock } {
   return { search: vi.fn(), list: vi.fn(), save: vi.fn(), health: vi.fn() } as unknown as Api & { search: Mock; save: Mock };
 }
 
-const state = (over: Partial<{ chips: string | Chip[] | false; pill: string; sites: string[] }> = {}) => ({
+const state = (over: Partial<{ chips: string | Chip[] | false; pill: string; sites: SearchState["sites"] }> = {}): SearchState => ({
   chips: over.chips === false ? [] : (Array.isArray(over.chips) ? over.chips : [chip(over.chips ?? "test")]),
-  pill: (over.pill ?? "all") as any,
-  sites: (over.sites ?? ["danbooru"]) as any,
+  pill: (over.pill ?? "all") as SearchState["pill"],
+  sites: (over.sites ?? ["danbooru"]) as SearchState["sites"],
 });
 
 describe("createSearch", () => {
@@ -136,7 +136,7 @@ describe("createSearch", () => {
   it("save handles 409 / 422 / 500 / success", async () => {
     const api = makeApi();
     const s = createSearch(api);
-    const item = { source: "danbooru", post_id: "123" } as any;
+    const item = { source: "danbooru", post_id: "123" } as unknown as Parameters<ReturnType<typeof createSearch>["save"]>[0];
 
     api.save.mockRejectedValueOnce(new ApiError(409, "conflict", "In library", { kind: "image", id: "7" }));
     expect(await s.save(item)).toEqual({ result: "in_library", ref: { kind: "image", id: "7" } });
@@ -150,7 +150,7 @@ describe("createSearch", () => {
     expect(await s.save(item)).toEqual({ result: "error", message: "Server error" });
     expect(s.saveStateOf(item)).toBeUndefined();
 
-    api.save.mockResolvedValueOnce({} as any);
+    api.save.mockResolvedValueOnce({} as unknown);
     expect(await s.save(item)).toEqual({ result: "queued" });
     expect(s.saveStateOf(item)).toEqual({ state: "queued" });
   });

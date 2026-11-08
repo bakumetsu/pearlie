@@ -1,14 +1,16 @@
 <script lang="ts">
-  import { getApi, getRouter } from "../lib/ctx";
+  import { getApi } from "../lib/api/client";
+  import { getRouter } from "../lib/ctx";
   import { linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
-  import type { Kind, LibraryItem, WebItem, ApiError } from "../lib/api/client";
+  import type { Kind, LibraryItem, WebItem } from "../lib/api/client";
   import { ApiError as ApiErrorClass } from "../lib/api/client";
   import { createGrid } from "../lib/stores/grid.svelte";
   import Tile from "../lib/components/Tile.svelte";
   import Icon from "../lib/components/Icon.svelte";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { onMount } from "svelte";
+  import { SvelteURLSearchParams } from "svelte/reactivity";
 
   let { match }: { match: Match } = $props();
 
@@ -16,7 +18,7 @@
   const router = getRouter();
 
   let h1: HTMLHeadingElement | undefined;
-  let sentinel: HTMLDivElement | undefined;
+  let sentinel = $state<HTMLDivElement | undefined>();
 
   onMount(() => {
     h1?.focus();
@@ -76,8 +78,8 @@
     const fav = favorite;
 
     if (k) {
-      const loader = (page: number, signal: AbortSignal) =>
-        api.list(
+      const loader = async (page: number, signal: AbortSignal) => {
+        const r = await api.list(
           k,
           {
             page,
@@ -88,11 +90,13 @@
           },
           signal,
         );
+        return { items: r.items, total: r.total ?? null, next_page: r.next_page ?? null };
+      };
       grid.open(listKey, loader);
     } else {
       const loader = async (page: number, signal: AbortSignal) => {
         const r = await api.search({ q: qq, sources: [src], page }, signal);
-        const s = r.sections?.find((x) => x.id === src);
+        const s = r.sections?.find((x: { id: string }) => x.id === src);
         return {
           items: s?.items ?? [],
           total: s?.total ?? null,
@@ -124,7 +128,7 @@
 
   // --- URL query updates ---
   function onSortChange(value: string) {
-    const qs = new URLSearchParams(match.query);
+    const qs = new SvelteURLSearchParams(match.query);
     if (value) {
       qs.set("sort", value);
       if (value === "random") {
@@ -141,7 +145,7 @@
   }
 
   function onFavToggle() {
-    const qs = new URLSearchParams(match.query);
+    const qs = new SvelteURLSearchParams(match.query);
     if (favorite) qs.delete("favorite");
     else qs.set("favorite", "true");
     const search = qs.toString();
@@ -206,7 +210,7 @@
 
   {#if grid.status === "loading" || grid.status === "idle"}
     <div class="grid">
-      {#each Array(12) as _}
+      {#each Array.from({ length: 12 }, (_unused, n) => n) as n (n)}
         <div class="skeleton"></div>
       {/each}
     </div>
@@ -227,3 +231,39 @@
             item={w}
             saveState={saveStates[saveKey] ?? "idle"}
             onsave={() => handleSave(w)}
+/>
+        {:else}
+          {@const l = item as LibraryItem}
+          <Tile
+            item={l}
+            href={`/item/${l.kind}/${l.id}`}
+            onnavigate={onNav}
+          />
+        {/if}
+      {/each}
+    </div>
+    <div class="sentinel" bind:this={sentinel}></div>
+    {#if grid.hasMore}
+      <button class="load-more" onclick={() => grid.loadMore()}>Load more</button>
+    {/if}
+  {/if}
+</div>
+
+<style>
+  .content { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--s-4); }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  .sticky-header { position: sticky; top: 0; background: var(--surface); z-index: 10; padding: var(--s-4) 0; }
+  .header-row { display: flex; align-items: center; gap: var(--s-4); }
+  .back-btn { min-width: 44px; min-height: 44px; display: grid; place-items: center; border: none; background: none; cursor: pointer; color: var(--text); }
+  .header-title { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text); }
+  .controls { display: flex; gap: var(--s-4); margin-top: var(--s-4); }
+  .sort-select { padding: var(--s-2) var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: var(--surface); color: var(--text); }
+  .fav-toggle { min-height: 44px; display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: none; color: var(--text); cursor: pointer; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--s-4); padding: var(--s-4) 0; }
+  .skeleton { aspect-ratio: 3/4; background: var(--surface); border-radius: var(--s-2); }
+  .error-box { padding: var(--s-4); text-align: center; color: var(--text); }
+  .retry-btn { margin-top: var(--s-4); padding: var(--s-2) var(--s-4); border: none; border-radius: var(--s-2); background: var(--text); color: var(--surface); cursor: pointer; }
+  .empty { text-align: center; padding: var(--s-8); color: var(--text); }
+  .load-more { display: block; margin: var(--s-4) auto; padding: var(--s-2) var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: none; color: var(--text); cursor: pointer; }
+  .sentinel { height: 1px; }
+</style>

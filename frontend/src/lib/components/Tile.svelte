@@ -12,7 +12,7 @@
     onopen?: () => void;
   } = $props();
 
-  const isWeb = "post_id" in item;
+  const isWeb = $derived("post_id" in item);
   let revealed = $state(false);
   const blurred = $derived(!revealed && item.blur != null);
 
@@ -21,6 +21,16 @@
       e.preventDefault();
       e.stopPropagation();
       revealed = true;
+    }
+  }
+
+  function handleMediaKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (blurred) {
+        revealed = true;
+      }
     }
   }
 
@@ -89,7 +99,7 @@
 {:else}
   {@const l = item as LibraryItem}
   <a class="tile lib" href={href} onclick={onnavigate}>
-    <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick}>
+    <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick} role="button" tabindex="0" onkeydown={handleMediaKeydown}>
       <img src={l.thumb_url} alt="" loading="lazy" class:blur-img={blurred} />
       {#if l.favorite}
         <span class="fav"><Icon name="heart-filled" size={14} /></span>

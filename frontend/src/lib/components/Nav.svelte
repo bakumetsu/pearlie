@@ -26,7 +26,7 @@
 </script>
 
 <nav class="nav {variant}" aria-label="Main">
-  {#each items as item}
+  {#each items as item (item.name)}
     <a
       href={item.path}
       class="nav-item {isActive(item.name) ? "active" : ""}"
