@@ -62,7 +62,8 @@ def fetch_bytes(url: str) -> bytes:
         except (urllib.error.URLError, TimeoutError) as exc:
             last_exc = exc
             if attempt < 3:
-                time.sleep(15.0 * attempt)
+                limited = isinstance(exc, urllib.error.HTTPError) and exc.code == 429
+                time.sleep((90.0 if limited else 15.0) * attempt)
     raise last_exc  # type: ignore[misc]
 
 
@@ -177,6 +178,8 @@ def cut_clip(ff: str, item: dict[str, Any], index: int, out: Path) -> tuple[Path
         "96k",
         "-movflags",
         "+faststart",
+        "-f",
+        "mp4",
         str(tmp_path),
     ]
     subprocess.run(cmd, check=True, capture_output=True, timeout=600)
@@ -184,12 +187,8 @@ def cut_clip(ff: str, item: dict[str, Any], index: int, out: Path) -> tuple[Path
     poster_cmd = [
         ff,
         "-y",
-        "-user_agent",
-        USER_AGENT,
         "-i",
-        item["url"],
-        "-ss",
-        str(item["start"]),
+        str(out_path),
         "-frames:v",
         "1",
         "-vf",
@@ -255,7 +254,10 @@ def _process_video(
     try:
         path, _poster = cut_clip(ff, item, index, out)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-        print(f"video {index} failed: {exc}")
+        tail = ""
+        if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
+            tail = " | " + exc.stderr.decode("utf-8", "replace")[-300:]
+        print(f"video {index} failed: {exc}{tail}")
         return None
     return {
         "file": path.relative_to(out).as_posix(),
