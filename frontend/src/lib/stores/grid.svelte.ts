@@ -62,6 +62,7 @@ export function createGrid<T>(keyOf: (t: T) => string) {
       if (mode === "loading") {
         state.items = result.items;
       } else {
+        // eslint-disable-next-line svelte/prefer-svelte-reactivity
         const existing = new Set(state.items.map(keyOf));
         const fresh = result.items.filter((item) => !existing.has(keyOf(item)));
         state.items = [...state.items, ...fresh];

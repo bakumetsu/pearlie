@@ -8,7 +8,7 @@ export function createToasts(timers?: { set: typeof setTimeout; clear: typeof cl
   const timer = timers ?? { set: setTimeout, clear: clearTimeout };
   let nextId = 1;
   let current: Toast | null = $state(null);
-  let queue: Toast[] = $state([]);
+  const queue: Toast[] = $state([]);
   let timerHandle: ReturnType<typeof setTimeout> | null = null;
   let remainingMs: number | null = null;
   let startAt: number | null = null;
