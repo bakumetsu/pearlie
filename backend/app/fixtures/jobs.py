@@ -32,6 +32,7 @@ class JobBoard:
     def reset(self) -> None:
         self.jobs = []
         self._counter = 0
+        self.seed()
 
     def _next_id(self) -> str:
         self._counter += 1

@@ -72,20 +72,20 @@ class Rules:
                 scope, val = name.split(":", 1)
                 parsed.append(Tag(name=val, scope=scope))
             else:
-                parsed.append(Tag(name=name, scope=""))
+                parsed.append(Tag(name=name, scope=None))
         for base_tag in data.BASE_LIST:
             if _hit(base_tag, parsed):
                 return RulesTestResult(decision="reject", layer="base", rule=base_tag)
         for rule in self.reject:
             if _hit(rule, parsed):
-                return RulesTestResult(decision="reject", rule=rule)
+                return RulesTestResult(decision="reject", layer="reject", rule=rule)
         if self.require and not any(_hit(r, parsed) for r in self.require):
             return RulesTestResult(
                 decision="require_missing", layer="require", rule=self.require[0]
             )
         for rule in self.warn:
             if _hit(rule, parsed):
-                return RulesTestResult(decision="warn", rule=rule)
+                return RulesTestResult(decision="warn", layer="warn", rule=rule)
         return RulesTestResult(decision="allow")
 
 
