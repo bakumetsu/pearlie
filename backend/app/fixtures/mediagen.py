@@ -146,6 +146,22 @@ def read_cbz_page(cbz: Path, n: int) -> bytes:
         return zf.read(pages[n - 1])
 
 
+def _font_file() -> str | None:
+    """Return the first existing font path formatted for an ffmpeg filter string."""
+    candidates = (
+        Path("C:/Windows/Fonts/arial.ttf"),
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+    )
+    for p in candidates:
+        if p.exists():
+            s = p.as_posix()
+            # Escape the drive-letter colon for Windows ffmpeg filter syntax
+            if len(s) >= 2 and s[1] == ":":
+                s = s[0] + "\\" + s[1:]
+            return s
+    return None
+
+
 def generate(out_dir: Path, *, force: bool = False) -> dict[str, bool]:
     """Generate all fixture media into *out_dir*.
 
@@ -186,10 +202,15 @@ def generate(out_dir: Path, *, force: bool = False) -> dict[str, bool]:
         for i in range(VIDEO_COUNT):
             mp4 = videos_dir / f"{i}.mp4"
             if not _skip(mp4, force):
-                vf = (
-                    f"drawtext=text='Video {i}':"
-                    f"fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2"
-                )
+                font = _font_file()
+                if font is not None:
+                    vf = (
+                        f"drawtext=text='Video {i}':"
+                        f"fontfile='{font}':"
+                        f"fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2"
+                    )
+                else:
+                    vf = "null"
                 src = f"testsrc2=size={VIDEO_W}x{VIDEO_H}:rate={VIDEO_FPS}"
                 subprocess.run(
                     [
