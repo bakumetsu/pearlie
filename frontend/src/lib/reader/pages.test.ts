@@ -10,6 +10,7 @@ import {
   preloadPages,
   isCompleted,
   parseMode,
+  pageSrc,
 } from "./pages";
 
 describe("clampPage", () => {
@@ -222,6 +223,12 @@ describe("parseMode", () => {
       rtl: true,
       fit: "height",
     });
+  });
+});
+
+describe("pageSrc", () => {
+  it("replaces {n} with the page number", () => {
+    expect(pageSrc("/x/pages/{n}", 7)).toBe("/x/pages/7");
   });
 });
 

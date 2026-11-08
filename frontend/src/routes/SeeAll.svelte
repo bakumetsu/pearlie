@@ -20,6 +20,7 @@
 
   let h1: HTMLHeadingElement | undefined;
   let sentinel = $state<HTMLDivElement | undefined>();
+  let notice = $state<string | null>(null);
 
   onMount(() => {
     h1?.focus();
@@ -87,10 +88,12 @@
           },
           signal,
         );
+        notice = r.notice?.message ?? null;
         return { items: r.items, total: r.total ?? null, next_page: r.next_page ?? null };
       };
       grid.open(listKey, loader);
     } else {
+      notice = null;
       const loader = async (page: number, signal: AbortSignal) => {
         const r = await api.search({ q: qq, sources: [src], page }, signal);
         const s = r.sections?.find((x: { id: string }) => x.id === src);
@@ -205,6 +208,7 @@
     {/if}
   </header>
 
+  {#if notice}<p class="notice" role="status">{notice}</p>{/if}
   {#if grid.status === "loading" || grid.status === "idle"}
     <div class="grid">
       {#each Array.from({ length: 12 }, (_unused, n) => n) as n (n)}
@@ -263,4 +267,5 @@
   .empty { text-align: center; padding: var(--s-8); color: var(--text); }
   .load-more { display: block; margin: var(--s-4) auto; padding: var(--s-2) var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: none; color: var(--text); cursor: pointer; }
   .sentinel { height: 1px; }
+  .notice { margin: 0; font-size: 0.875rem; color: var(--muted); }
 </style>

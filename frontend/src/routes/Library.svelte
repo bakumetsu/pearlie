@@ -42,6 +42,8 @@
     books: { status: "loading", items: [], total: null, next_page: null },
   });
 
+  let notice = $state<string | null>(null);
+
   const fav = $derived(match.query.get("favorite") === "true");
 
   async function loadRow(kind: Kind, signal?: AbortSignal) {
@@ -59,6 +61,7 @@
         total: result.total ?? null,
         next_page: result.next_page ?? null,
       };
+      if (result.notice?.message) notice = result.notice.message;
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       rowStates[kind] = { status: "error", items: [], total: null, next_page: null };
@@ -67,6 +70,7 @@
 
   $effect(() => {
     const controller = new AbortController();
+    notice = null;
     for (const { kind } of ROWS) {
       loadRow(kind, controller.signal);
     }
@@ -114,6 +118,8 @@
       Favorites
     </button>
   </div>
+
+  {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
   {#if allEmpty}
     <div class="empty-card">
@@ -239,5 +245,11 @@
     font-weight: 600;
     text-decoration: none;
     cursor: pointer;
+  }
+
+  .notice {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--muted);
   }
 </style>

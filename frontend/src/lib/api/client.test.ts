@@ -110,4 +110,20 @@ describe("createApi", () => {
 
     await expect(api.search({ q: "x" })).rejects.toBe(abortErr);
   });
+
+  it("saveProgress passes keepalive and posts the page", async () => {
+    const fakeFetch = vi.fn().mockResolvedValue(ok({ page: 3, completed: false }));
+    const api = createApi("", fakeFetch);
+
+    await api.saveProgress("b1", 3, undefined, { keepalive: true });
+
+    expect(fakeFetch).toHaveBeenCalledWith(
+      "/api/library/komga/books/b1/progress",
+      expect.objectContaining({
+        keepalive: true,
+        method: "POST",
+        body: '{"page":3}',
+      }),
+    );
+  });
 });

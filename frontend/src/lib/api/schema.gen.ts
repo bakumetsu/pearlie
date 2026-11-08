@@ -24,46 +24,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/library/stash/images": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Handler
-         * @description List library items.
-         */
-        get: operations["handler_api_library_stash_images_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/library/stash/videos": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Handler
-         * @description List library items.
-         */
-        get: operations["handler_api_library_stash_videos_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/library/komga/series": {
         parameters: {
             query?: never;
@@ -96,6 +56,122 @@ export interface paths {
          * @description List library items.
          */
         get: operations["handler_api_library_komga_books_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/library/series/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Item
+         * @description Get a single library item by id.
+         */
+        get: operations["get_item_api_library_series__id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Item
+         * @description Move an item to trash.
+         */
+        delete: operations["delete_item_api_library_series__id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Item
+         * @description Update rating, favorite, or tags on an item.
+         */
+        patch: operations["patch_item_api_library_series__id__patch"];
+        trace?: never;
+    };
+    "/api/library/books/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Item
+         * @description Get a single library item by id.
+         */
+        get: operations["get_item_api_library_books__id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Item
+         * @description Move an item to trash.
+         */
+        delete: operations["delete_item_api_library_books__id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Item
+         * @description Update rating, favorite, or tags on an item.
+         */
+        patch: operations["patch_item_api_library_books__id__patch"];
+        trace?: never;
+    };
+    "/api/library/komga/books/{id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Progress
+         * @description Update reading progress for a book.
+         */
+        post: operations["set_progress_api_library_komga_books__id__progress_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/library/stash/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler
+         * @description List library items.
+         */
+        get: operations["handler_api_library_stash_images_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/library/stash/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler
+         * @description List library items.
+         */
+        get: operations["handler_api_library_stash_videos_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -146,26 +222,6 @@ export interface paths {
          * @description Restore a trashed item.
          */
         post: operations["restore_item_api_trash__token__restore_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/library/komga/books/{id}/progress": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Set Progress
-         * @description Update reading progress for a book.
-         */
-        post: operations["set_progress_api_library_komga_books__id__progress_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -252,6 +308,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/media/web/{source}/{post_id}/thumb": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Web Thumb
+         * @description Serve web post thumbnail.
+         */
+        get: operations["web_thumb_api_media_web__source___post_id__thumb_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/media/web/{source}/{post_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Web Preview
+         * @description Serve web post preview.
+         */
+        get: operations["web_preview_api_media_web__source___post_id__preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/media/komga/series/{id}/thumb": {
         parameters: {
             query?: never;
@@ -304,46 +400,6 @@ export interface paths {
          * @description Serve a CBZ page as JPEG bytes.
          */
         get: operations["komga_book_page_api_media_komga_books__id__pages__n__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/media/web/{source}/{post_id}/thumb": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Web Thumb
-         * @description Serve web post thumbnail.
-         */
-        get: operations["web_thumb_api_media_web__source___post_id__thumb_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/media/web/{source}/{post_id}/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Web Preview
-         * @description Serve web post preview.
-         */
-        get: operations["web_preview_api_media_web__source___post_id__preview_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -724,8 +780,14 @@ export interface components {
             mime?: string | null;
             /** Books */
             books?: components["schemas"]["LibraryItem"][];
+            notice?: components["schemas"]["Problem"] | null;
             /** Source Url Text */
             source_url_text?: string | null;
+            /**
+             * Page Url
+             * @description Book detail only. URL template with a literal {n} placeholder for the 1-based page number, e.g. /api/media/komga/books/7/pages/{n}. Replace {n} to get a page image.
+             */
+            page_url?: string | null;
         };
         /** Mount */
         Mount: {
@@ -749,6 +811,7 @@ export interface components {
             total: number;
             /** Next Page */
             next_page?: number | null;
+            notice?: components["schemas"]["Problem"] | null;
         };
         /** PatchBody */
         PatchBody: {
@@ -1030,76 +1093,6 @@ export interface operations {
             };
         };
     };
-    handler_api_library_stash_images_get: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                q?: string;
-                sort?: string;
-                favorite?: boolean | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_LibraryItem_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    handler_api_library_stash_videos_get: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                q?: string;
-                sort?: string;
-                favorite?: boolean | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_LibraryItem_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     handler_api_library_komga_series_get: {
         parameters: {
             query?: {
@@ -1136,6 +1129,305 @@ export interface operations {
         };
     };
     handler_api_library_komga_books_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                q?: string;
+                sort?: string;
+                favorite?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LibraryItem_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_item_api_library_series__id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryItemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_item_api_library_series__id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_item_api_library_series__id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryItemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_item_api_library_books__id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryItemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_item_api_library_books__id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_item_api_library_books__id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryItemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_progress_api_library_komga_books__id__progress_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgressBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgressResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    handler_api_library_stash_images_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                q?: string;
+                sort?: string;
+                favorite?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LibraryItem_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    handler_api_library_stash_videos_get: {
         parameters: {
             query?: {
                 page?: number;
@@ -1301,41 +1593,6 @@ export interface operations {
             };
         };
     };
-    set_progress_api_library_komga_books__id__progress_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProgressBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProgressResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     stash_image_thumb_api_media_stash_images__id__thumb_get: {
         parameters: {
             query?: never;
@@ -1460,6 +1717,70 @@ export interface operations {
             };
         };
     };
+    web_thumb_api_media_web__source___post_id__thumb_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: string;
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    web_preview_api_media_web__source___post_id__preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: string;
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     komga_series_thumb_api_media_komga_series__id__thumb_get: {
         parameters: {
             query?: never;
@@ -1529,70 +1850,6 @@ export interface operations {
             path: {
                 id: string;
                 n: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    web_thumb_api_media_web__source___post_id__thumb_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                source: string;
-                post_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    web_preview_api_media_web__source___post_id__preview_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                source: string;
-                post_id: string;
             };
             cookie?: never;
         };

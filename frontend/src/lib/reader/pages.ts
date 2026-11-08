@@ -75,3 +75,8 @@ export function parseMode(raw: string | null): ReadMode {
   }
 }
 
+/** Build a page image URL from a template like "/api/media/komga/books/b1/pages/{n}". */
+export function pageSrc(template: string, n: number): string {
+  return template.replace("{n}", String(n));
+}
+

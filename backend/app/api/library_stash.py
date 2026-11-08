@@ -8,8 +8,6 @@ from app.models import (
     LibraryItemDetail,
     Page,
     PatchBody,
-    ProgressBody,
-    ProgressResult,
     RestoreResult,
     TrashResult,
 )
@@ -19,8 +17,6 @@ router = APIRouter(prefix="/api", dependencies=[Depends(slow_dependency)])
 KINDS: dict[str, str] = {
     "stash/images": "images",
     "stash/videos": "videos",
-    "komga/series": "series",
-    "komga/books": "books",
 }
 
 
@@ -95,15 +91,6 @@ def delete_item(kinds: str, id: str) -> TrashResult:
 def restore_item(token: str) -> RestoreResult:
     """Restore a trashed item."""
     result = store.restore(token)
-    if result is None:
-        raise ApiError(404, "not_found", "Item not found")
-    return result
-
-
-@router.post("/library/komga/books/{id}/progress")
-def set_progress(id: str, body: ProgressBody) -> ProgressResult:
-    """Update reading progress for a book."""
-    result = store.set_progress(id, body.page)
     if result is None:
         raise ApiError(404, "not_found", "Item not found")
     return result

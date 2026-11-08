@@ -70,8 +70,7 @@ export interface Api {
   retryJob(id: string, signal?: AbortSignal): Promise<Job>;
   removeJob(id: string, signal?: AbortSignal): Promise<void>;
   testRules(tags: string[], signal?: AbortSignal): Promise<RulesTestResult>;
-  saveProgress(bookId: string, page: number, signal?: AbortSignal): Promise<ProgressResult>;
-  pageUrl(bookId: string, n: number): string;
+  saveProgress(bookId: string, page: number, signal?: AbortSignal, opts?: { keepalive?: boolean }): Promise<ProgressResult>;
 }
 
 const KIND_PATHS: Record<Kind, string> = {
@@ -250,19 +249,17 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         signal,
       );
     },
-    saveProgress(bookId, page, signal) {
+    saveProgress(bookId, page, signal, opts) {
       return request<ProgressResult>(
         baseUrl + "/api/library/komga/books/" + encodeURIComponent(bookId) + "/progress",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ page }),
+          keepalive: opts?.keepalive,
         },
         signal,
       );
-    },
-    pageUrl(bookId, n) {
-      return baseUrl + "/api/media/komga/books/" + encodeURIComponent(bookId) + "/pages/" + n;
     },
   };
 }

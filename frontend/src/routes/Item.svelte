@@ -246,6 +246,7 @@
           <StageSlot id={view.detail.id} />
         {:else if view.detail.kind === "series"}
           <div class="series">
+            {#if view.detail.notice}<p class="notice" role="status">{view.detail.notice.message}</p>{/if}
             <SeriesGrid
               books={view.detail.books ?? []}
               onopen={(b) => router.navigate("/read/" + encodeURIComponent(b.id) + "?series=" + encodeURIComponent(view.detail!.id))}
@@ -332,6 +333,8 @@
     place-items: center;
     overflow: hidden;
   }
+
+  .notice { margin: 0 0 var(--s-2); font-size: 0.875rem; color: var(--muted); }
 
   .series {
     width: 100%;

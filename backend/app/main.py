@@ -7,21 +7,39 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import fixture as fixture_api
-from app.api import jobs, library, media, rules, search, search_real
+from app.api import (
+    jobs,
+    library_komga,
+    library_komga_real,
+    library_stash,
+    media_komga,
+    media_komga_real,
+    media_stash,
+    rules,
+    search,
+    search_real,
+)
 from app.api.errors import install as install_errors
 from app.api.health import router as health_router
 from app.config import ConfigError, Settings, load_settings
 from app.db import init_db
+from app.komga import Komga
 from app.sources.danbooru import Danbooru
 
 FIXTURE_ROUTERS = {
     "search": search.router,
-    "library": library.router,
-    "media": media.router,
+    "library_komga": library_komga.router,
+    "library_stash": library_stash.router,
+    "media_stash": media_stash.router,
+    "media_komga": media_komga.router,
     "jobs": jobs.router,
     "rules": rules.router,
 }
-REAL_ROUTERS: dict[str, APIRouter] = {"search": search_real.router}
+REAL_ROUTERS: dict[str, APIRouter] = {
+    "search": search_real.router,
+    "library_komga": library_komga_real.router,
+    "media_komga": media_komga_real.router,
+}
 
 logger = logging.getLogger("pearlie")
 
@@ -37,6 +55,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.sources = {"danbooru": Danbooru()}
 
     real = {n.strip() for n in settings.real.split(",") if n.strip()}
+    if real & {"library_komga", "media_komga"}:
+        if not settings.komga_url:
+            raise ConfigError(
+                "PEARLIE_KOMGA_URL must be set when library_komga or media_komga is real"
+            )
+        app.state.komga = Komga(settings.komga_url, settings.komga_api_key.get_secret_value())
+    else:
+        app.state.komga = None
+
     for name in real:
         if name not in REAL_ROUTERS:
             raise ConfigError(f"PEARLIE_REAL names '{name}' but it has no real implementation yet")

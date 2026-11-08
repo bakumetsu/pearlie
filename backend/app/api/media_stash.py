@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse
 
 from app.api.errors import ApiError
-from app.fixtures.mediagen import ensure_media, media_dir, read_cbz_page
+from app.fixtures.mediagen import ensure_media, media_dir
 from app.fixtures.store import store
 
 router = APIRouter(prefix="/api/media")
@@ -84,38 +84,6 @@ def stash_video_stream(id: str) -> FileResponse:
     _ensure()
     _valid("videos", id)
     return _file(media_dir() / "videos" / f"{_n(id) % 6}.mp4", "video/mp4")
-
-
-@router.get("/komga/series/{id}/thumb")
-def komga_series_thumb(id: str) -> FileResponse:
-    """Serve series cover."""
-    _ensure()
-    _valid("series", id)
-    return _file(media_dir() / "books" / f"{(_n(id) * 3) % 5}_thumb.jpg", "image/jpeg")
-
-
-@router.get("/komga/books/{id}/thumb")
-def komga_book_thumb(id: str) -> FileResponse:
-    """Serve book cover."""
-    _ensure()
-    _valid("books", id)
-    return _file(media_dir() / "books" / f"{_n(id) % 5}_thumb.jpg", "image/jpeg")
-
-
-@router.get("/komga/books/{id}/pages/{n}")
-def komga_book_page(id: str, n: int) -> Response:
-    """Serve a CBZ page as JPEG bytes."""
-    _ensure()
-    raw = _valid("books", id)
-    if n < 1 or n > raw.get("page_count", 0):
-        raise ApiError(404, "not_found", "Media not found")
-    cbz = media_dir() / "books" / f"{_n(id) % 5}.cbz"
-    data = read_cbz_page(cbz, n)
-    return Response(
-        content=data,
-        media_type="image/jpeg",
-        headers={"Cache-Control": "private, max-age=3600", "ETag": f'W/"{id}-{n}"'},
-    )
 
 
 @router.get("/web/{source}/{post_id}/thumb")
