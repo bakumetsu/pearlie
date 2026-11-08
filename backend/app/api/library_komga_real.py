@@ -132,7 +132,7 @@ async def set_progress(request: Request, id: str, body: ProgressBody) -> Progres
         book = komga.get_book(id)
     except KomgaError as e:
         raise _up(e) from None
-    pages_count = book["pagesCount"]
+    pages_count = book["media"]["pagesCount"]
     page = body.page
     if not (1 <= page <= pages_count):
         raise ApiError(422, "invalid", "Page out of range", field="page")
