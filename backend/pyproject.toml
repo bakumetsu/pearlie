@@ -6,6 +6,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "httpx",
+    "pillow",
     "pydantic-settings",
 ]
 

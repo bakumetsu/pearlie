@@ -7,7 +7,8 @@
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "gen:api": "cd ../backend && python -m scripts.dump_openapi ../frontend/node_modules/.openapi.json && cd ../frontend && openapi-typescript node_modules/.openapi.json -o src/lib/api/schema.gen.ts"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6",
@@ -16,6 +17,7 @@
     "eslint-plugin-svelte": "^3",
     "globals": "^16",
     "jsdom": "^27",
+    "openapi-typescript": "^7.13.0",
     "svelte": "^5",
     "svelte-check": "^4",
     "typescript": "^5.9",
