@@ -23,7 +23,7 @@ if str(_BACKEND) not in sys.path:
 
 from app.fixtures import mediagen  # noqa: E402
 
-THROTTLE_SECONDS = 1.0
+THROTTLE_SECONDS = 2.5
 REQUEST_TIMEOUT = 60
 USER_AGENT = "PearlieFixtureFetch/0.1 (local dev)"
 ALLOWED_HOSTS = {"commons.wikimedia.org", "upload.wikimedia.org"}
@@ -62,7 +62,7 @@ def fetch_bytes(url: str) -> bytes:
         except (urllib.error.URLError, TimeoutError) as exc:
             last_exc = exc
             if attempt < 3:
-                time.sleep(2.0 * attempt)
+                time.sleep(15.0 * attempt)
     raise last_exc  # type: ignore[misc]
 
 
@@ -121,8 +121,8 @@ def save_comic(item: dict[str, Any], index: int, out: Path) -> tuple[Path, Path,
     first_img: Image.Image | None = None
     with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for page_no, title in enumerate(files, start=1):
-            url = _photo_url(title, 1400)
-            img = _resize_long(_open_image(fetch_bytes(url)), 1400)
+            url = _photo_url(title, 1280)
+            img = _resize_long(_open_image(fetch_bytes(url)), 1280)
             if first_img is None:
                 first_img = img
             buf = BytesIO()
@@ -140,7 +140,7 @@ def save_comic(item: dict[str, Any], index: int, out: Path) -> tuple[Path, Path,
     thumb = first_img.resize(mediagen._thumb_size(*first_img.size), Image.LANCZOS)
     thumb_path = book_dir / f"{index}_thumb.jpg"
     thumb.save(thumb_path, format="JPEG", quality=75)
-    return cbz_path, thumb_path, len(files), _photo_url(files[0], 1400)
+    return cbz_path, thumb_path, len(files), _photo_url(files[0], 1280)
 
 
 def cut_clip(ff: str, item: dict[str, Any], index: int, out: Path) -> tuple[Path, Path]:
@@ -155,12 +155,14 @@ def cut_clip(ff: str, item: dict[str, Any], index: int, out: Path) -> tuple[Path
     cmd = [
         ff,
         "-y",
+        "-user_agent",
+        USER_AGENT,
+        "-i",
+        item["url"],
         "-ss",
         str(item["start"]),
         "-t",
         "30",
-        "-i",
-        item["url"],
         "-vf",
         "scale=-2:720",
         "-c:v",
@@ -182,10 +184,12 @@ def cut_clip(ff: str, item: dict[str, Any], index: int, out: Path) -> tuple[Path
     poster_cmd = [
         ff,
         "-y",
-        "-ss",
-        str(item["start"]),
+        "-user_agent",
+        USER_AGENT,
         "-i",
         item["url"],
+        "-ss",
+        str(item["start"]),
         "-frames:v",
         "1",
         "-vf",
