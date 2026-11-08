@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import type { Mocked } from "vitest";
 import { ApiError } from "../api/client";
-import type { Api, LibraryItemDetail } from "../api/client";
+import type { Api, LibraryItem, LibraryItemDetail } from "../api/client";
 import type { GridLike, ToastsLike } from "./itemView.svelte";
 import { createItemView } from "./itemView.svelte";
 
@@ -12,16 +13,18 @@ function makeApi() {
     patchItem: vi.fn(),
     deleteItem: vi.fn(),
     restore: vi.fn(),
-  } as unknown as Api;
+  } as unknown as Mocked<Pick<Api, "getItem" | "patchItem" | "deleteItem" | "restore">>;
 }
 
-function makeGrid(): GridLike {
+function makeGrid(): Mocked<GridLike> {
   return { removeById: vi.fn(), restore: vi.fn() };
 }
 
-function makeToasts(): ToastsLike {
-  return { push: vi.fn(() => 1) };
+function makeToasts(): Mocked<ToastsLike> {
+  return { push: vi.fn<ToastsLike["push"]>(() => 1) };
 }
+
+const gridItem = { kind: "image", id: "5", title: "Plate 5", thumb_url: "", favorite: false, added_at: "" } as LibraryItem;
 
 const detailFixture: LibraryItemDetail = {
   kind: "image",
@@ -40,7 +43,7 @@ function setup(opts?: { tagDebounceMs?: number }) {
   const api = makeApi();
   const grid = makeGrid();
   const toasts = makeToasts();
-  const view = createItemView({ api, grid, toasts, tagDebounceMs: opts?.tagDebounceMs });
+  const view = createItemView({ api: api as unknown as Api, grid, toasts, tagDebounceMs: opts?.tagDebounceMs });
 
   // convenience: pre-load with the fixture
   async function preLoad() {
@@ -198,13 +201,13 @@ describe("createItemView", () => {
   });
 
   describe("remove", () => {
-    const trashResult = { token: "tok-1", expires_at: "2026-02-01", retention_days: 30, item: {} };
+    const trashResult = { token: "tok-1", expires_at: "2026-02-01", retention_days: 30, item: { kind: "image" as const, id: "5", title: "Plate 5" } };
 
     it("deletes, removes from grid, pushes undo toast, sets gone", async () => {
       const { api, grid, toasts, view, preLoad } = setup();
       await preLoad();
       api.deleteItem.mockResolvedValue(trashResult);
-      const entry = { item: detailFixture, index: 0 };
+      const entry = { item: gridItem, index: 0 };
       grid.removeById.mockReturnValue(entry);
 
       await view.remove();
@@ -221,8 +224,8 @@ describe("createItemView", () => {
       const { api, grid, toasts, view, preLoad } = setup();
       await preLoad();
       api.deleteItem.mockResolvedValue(trashResult);
-      api.restore.mockResolvedValue({ item: detailFixture });
-      const entry = { item: detailFixture, index: 0 };
+      api.restore.mockResolvedValue({ item: gridItem });
+      const entry = { item: gridItem, index: 0 };
       grid.removeById.mockReturnValue(entry);
 
       await view.remove();
