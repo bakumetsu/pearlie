@@ -291,7 +291,6 @@
       {/if}
     </section>
 
-    <!-- Leave prompt -->
     {#if leaveTo !== null}
       <div class="leave" role="alertdialog" aria-label="Leave this page?">
         <span>Discard your unsaved changes and leave?</span>
@@ -300,10 +299,7 @@
           <button class="btn primary" onclick={confirmLeave}>Leave</button>
         </div>
       </div>
-    {/if}
-
-    <!-- Save bar -->
-    {#if rules.dirty}
+    {:else if rules.dirty}
       <div class="savebar" role="region" aria-label="Unsaved changes">
         <span>Unsaved changes: {rules.summary}</span>
         <button class="btn" onclick={() => rules.discard()}>Discard</button>
