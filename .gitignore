@@ -1,0 +1,7 @@
+/kit/
+/backlog.md
+.env
+__pycache__/
+node_modules/
+frontend/dist/
+.venv/
