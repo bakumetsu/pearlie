@@ -1,5 +1,4 @@
 <script lang="ts">
-  import $state, $derived, $effect, $props from "svelte";
   import { onMount } from "svelte";
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
@@ -172,29 +171,9 @@
           error={entry.error}
           onretry={() => search.retrySection(id)}
           onnavigate={(e) => linkClick(e, router)}
-          children={() => {
-            const items = (entry.section as { items?: (typeof entry.section extends null ? never : any)[] })?.items ?? [];
-            for (const item of items) {
-              const isLib = "id" in item && !("post_id" in item);
-              if (isLib) {
-                <Tile
-                  item={item}
-                  href={`/item/${(item as { kind: string }).kind}/${(item as { id: string }).id}`}
-                  onnavigate={(e) => linkClick(e, router)}
-                />
-              } else {
-                const w = item as WebItem;
-                <Tile
-                  item={w}
-                  saveState={tileSaveState(w)}
-                  savedHref={tileSavedHref(w)}
-                  onsave={() => doSave(w)}
-                  onopen={() => (lightbox = w)}
-                />
-              }
-            }
-          }}
-        />
+        >
+          {#each (entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (lightbox = item)} />{:else}<Tile item={item} href={`/item/${item.kind}/${item.id}`} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
+        </SectionRow>
       {/if}
     {/each}
 

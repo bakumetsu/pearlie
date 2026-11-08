@@ -15,7 +15,7 @@ function sec(id: string, error?: { code: string; message: string }): Section {
 }
 
 function makeApi(): Api & { search: Mock; save: Mock } {
-  return { search: vi.fn(), list: vi.fn(), save: vi.fn(), health: vi.fn() } as unknown as Api;
+  return { search: vi.fn(), list: vi.fn(), save: vi.fn(), health: vi.fn() } as unknown as Api & { search: Mock; save: Mock };
 }
 
 const state = (over: Partial<{ chips: string | Chip[] | false; pill: string; sites: string[] }> = {}) => ({

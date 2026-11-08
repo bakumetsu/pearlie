@@ -54,8 +54,8 @@
       rowStates[kind] = {
         status: "done",
         items: result.items,
-        total: result.total,
-        next_page: result.next_page,
+        total: result.total ?? null,
+        next_page: result.next_page ?? null,
       };
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;

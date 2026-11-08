@@ -4,11 +4,11 @@ import type { Router } from "./router";
 const KEY = Symbol("router");
 
 export function setRouter(r: Router): void {
-  setContext(KEY, r);
+  setContext<Router>(KEY, r);
 }
 
 export function getRouter(): Router {
-  const r = getContext(KEY);
+  const r = getContext<Router>(KEY);
   if (!r) throw new Error("router context missing");
   return r;
 }
