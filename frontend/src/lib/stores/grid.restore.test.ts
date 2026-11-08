@@ -9,7 +9,7 @@ function makeItems(): Item[] {
 
 async function openGrid(grid: ReturnType<typeof createGrid<Item>>) {
   const items = makeItems();
-  await grid.open("k", async (_page: number, _signal: AbortSignal) => ({
+  await grid.open("k", async () => ({
     items,
     total: 5,
     next_page: null,
