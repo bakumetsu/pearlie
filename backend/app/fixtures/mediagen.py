@@ -47,7 +47,7 @@ def _aspect_dims(index: int) -> tuple[int, int]:
     return LONG_SIDE * rw // rh, LONG_SIDE
 
 
-def _font(size: int) -> ImageFont.ImageFont:
+def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     try:
         return ImageFont.load_default(size=size)
     except TypeError:
@@ -98,7 +98,7 @@ def _draw_shape(
 def _label_centered(
     draw: ImageDraw.ImageDraw,
     w: int, h: int,
-    text: str, font: ImageFont.ImageFont,
+    text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
 ) -> None:
     bbox = draw.textbbox((0, 0), text, font=font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
