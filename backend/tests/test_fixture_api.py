@@ -1,7 +1,14 @@
 import pytest
 
 from app.fixtures.store import store
-from app.models import JobList, LibraryItem, LibraryItemDetail, Page, SearchResponse, TrashResult
+from app.models import (
+    JobList,
+    LibraryItem,
+    LibraryItemDetail,
+    Page,
+    SearchResponse,
+    TrashResult,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -62,7 +69,7 @@ def test_library_list_each_kind(client):
         "/api/library/stash/images",
         "/api/library/stash/videos",
         "/api/library/komga/books",
-        "/api/library/series",
+        "/api/library/komga/series",
     ]
     for p in paths:
         r = client.get(p, params={"page_size": 5})
@@ -75,14 +82,9 @@ def test_library_first_page_stable(client):
     a = [i["id"] for i in client.get("/api/library/stash/images").json()["items"]]
     b = [i["id"] for i in client.get("/api/library/stash/images").json()["items"]]
     assert a == b
-    c = [
-        i["id"]
-        for i in client.get("/api/library/stash/images", params={"sort": "random"}).json()["items"]
-    ]
-    d = [
-        i["id"]
-        for i in client.get("/api/library/stash/images", params={"sort": "random"}).json()["items"]
-    ]
+    params = {"sort": "random"}
+    c = [i["id"] for i in client.get("/api/library/stash/images", params=params).json()["items"]]
+    d = [i["id"] for i in client.get("/api/library/stash/images", params=params).json()["items"]]
     assert c == d
 
 
@@ -90,43 +92,54 @@ def test_detail_and_404(client):
     """Detail endpoint validates; unknown ids and kinds give 404."""
     d = LibraryItemDetail.model_validate(client.get("/api/library/images/3").json())
     assert d.full_url
-    assert len(client.get("/api/library/series/0").json()["items"]) == 3
+    LibraryItemDetail.model_validate(client.get("/api/library/series/0").json())
     r404 = client.get("/api/library/images/99999")
-    assert r404.status_code == 404 and r404.json()["code"] == "not_found"
+    assert r404.status_code == 404
+    assert r404.json()["code"] == "not_found"
     assert client.get("/api/library/bogus/1").status_code == 404
 
 
 def test_patch_round_trip(client):
     """PATCH fields persist; invalid values rejected."""
-    client.patch("/api/library/images/3", json={"rating": 4, "favorite": True, "tags": ["a", "b"]})
+    client.patch(
+        "/api/library/images/3",
+        json={"rating": 4, "favorite": True, "tags": ["a", "b"]},
+    )
     g = client.get("/api/library/images/3").json()
-    assert g["rating"] == 4 and g["favorite"] is True and g["tags"] == ["a", "b"]
+    assert g["rating"] == 4
+    assert g["favorite"] is True
+    assert [t["name"] for t in g["tags"]] == ["a", "b"]
     client.patch("/api/library/images/3", json={"rating": None})
     assert client.get("/api/library/images/3").json()["rating"] is None
     assert client.patch("/api/library/images/3", json={"rating": 9}).status_code == 422
     rb = client.patch("/api/library/images/3", json={"tags": [""]})
-    assert rb.status_code == 422 and "tags" in rb.json()["field"]
+    assert rb.status_code == 422
+    assert "tags" in rb.json()["field"]
 
 
 def test_delete_restore(client):
     """Delete, verify 404s, restore, double-restore 404."""
-    TrashResult.model_validate(client.delete("/api/library/images/3").json())
+    tr = TrashResult.model_validate(client.delete("/api/library/images/3").json())
     assert client.get("/api/library/images/3").status_code == 404
     assert client.get("/api/media/stash/images/3/thumb").status_code == 404
-    assert client.post("/api/library/images/3/restore").status_code == 200
+    assert client.post(f"/api/trash/{tr.token}/restore").status_code == 200
     assert client.get("/api/library/images/3").status_code == 200
-    assert client.post("/api/library/images/3/restore").status_code == 404
+    assert client.post(f"/api/trash/{tr.token}/restore").status_code == 404
 
 
 def test_progress(client):
     """Page 99 on a 100-page book marks completed."""
     r = client.post("/api/library/komga/books/0/progress", json={"page": 99})
-    assert r.status_code == 200 and r.json()["completed"] is True
+    assert r.status_code == 200
+    assert r.json()["completed"] is True
 
 
 def test_media_range(client):
     """Range request, cache headers, 404 on unknown, video skip."""
-    r = client.get("/api/media/stash/images/3/full", headers={"Range": "bytes=0-99"})
+    r = client.get(
+        "/api/media/stash/images/3/full",
+        headers={"Range": "bytes=0-99"},
+    )
     assert r.status_code == 206
     assert r.headers["content-range"].startswith("bytes 0-99/")
     t = client.get("/api/media/stash/images/3/thumb")
@@ -142,19 +155,35 @@ def test_save_flow(client):
     sr = SearchResponse.model_validate(
         client.get("/api/search", params={"sources": "danbooru"}).json()
     )
-    target = next(i for i in sr.sections[0].items if not i.saved)
-    r = client.post("/api/save", json={"source": "danbooru", "id": target.id})
+    blocked = {
+        (j["source"], j["post_id"]) for j in store.jobs.jobs if j["state"] in ("queued", "running")
+    }
+    target = next(
+        i for i in sr.sections[0].items if not i.saved and ("danbooru", i.post_id) not in blocked
+    )
+    r = client.post(
+        "/api/save",
+        json={"source": "danbooru", "post_id": target.post_id},
+    )
     assert r.status_code == 202
     assert client.get(f"/api/jobs/{r.json()['job_id']}").status_code == 200
-    dup = client.post("/api/save", json={"source": "danbooru", "id": target.id})
-    assert dup.status_code == 409 and dup.json()["code"] == "already_saved"
+    dup = client.post(
+        "/api/save",
+        json={"source": "danbooru", "post_id": target.post_id},
+    )
+    assert dup.status_code == 409
+    assert dup.json()["code"] == "already_saved"
 
 
 def test_save_rejected_422(client):
     """Saving a _rejected post returns 422 rejected_by_rule."""
     rejected = next(p for p in store.web["danbooru"] if "_rejected" in str(p))
-    r = client.post("/api/save", json={"source": "danbooru", "id": rejected.id})
-    assert r.status_code == 422 and r.json()["code"] == "rejected_by_rule"
+    r = client.post(
+        "/api/save",
+        json={"source": "danbooru", "post_id": rejected["post_id"]},
+    )
+    assert r.status_code == 422
+    assert r.json()["code"] == "rejected_by_rule"
 
 
 def test_jobs_list_seed(client):
@@ -162,7 +191,8 @@ def test_jobs_list_seed(client):
     jl = JobList.model_validate(client.get("/api/jobs").json())
     assert len(jl.items) == 20
     jl_f = JobList.model_validate(client.get("/api/jobs", params={"state": "failed"}).json())
-    assert len(jl_f.items) == 2 and all(j.state == "failed" for j in jl_f.items)
+    assert len(jl_f.items) == 2
+    assert all(j.state == "failed" for j in jl_f.items)
     assert client.post(f"/api/jobs/{jl_f.items[0].id}/retry").json()["state"] == "queued"
     done = next(j for j in jl.items if j.state == "done")
     assert client.post(f"/api/jobs/{done.id}/retry").status_code == 409
@@ -174,12 +204,21 @@ def test_jobs_list_seed(client):
 def test_rules_flow(client):
     """Versioning, stale conflict, validation, test endpoint."""
     rules = client.get("/api/rules").json()
-    assert rules["version"] == 1 and rules["base_list"]["read_only"] is True
-    assert client.put("/api/rules", json={**rules, "warn": ["x"]}).json()["version"] == 2
+    assert rules["version"] == 1
+    assert rules["base_list"]["read_only"] is True
+    assert (client.put("/api/rules", json={**rules, "warn": ["x"]}).json())["version"] == 2
     stale = client.put("/api/rules", json={**rules, "warn": ["y"]})
-    assert stale.status_code == 409 and stale.json()["code"] == "stale_version"
-    bad = client.put("/api/rules", json={**rules, "mapping": [{"pattern": "", "action": "allow"}]})
-    assert bad.status_code == 422 and bad.json()["field"]
+    assert stale.status_code == 409
+    assert stale.json()["code"] == "stale_version"
+    bad = client.put(
+        "/api/rules",
+        json={
+            **rules,
+            "mapping": [{"pattern": "", "action": "allow"}],
+        },
+    )
+    assert bad.status_code == 422
+    assert bad.json()["field"]
     assert client.post("/api/rules/test", json={"tags": ["base_one"]}).json()["layer"] == "base"
 
 
@@ -196,14 +235,14 @@ def test_scenario_errors(client):
     sr = SearchResponse.model_validate(
         client.get("/api/search", params={"sources": "danbooru"}).json()
     )
-    assert sr.sections[0].error["code"] == "upstream_error"
+    assert sr.sections[0].error.code == "upstream_error"
     assert client.patch("/api/library/images/3", json={"rating": 4}).status_code == 502
 
 
 def test_scenario_conflict(client):
     """Conflict scenario: save always 409."""
     client.post("/api/_fixture/scenario", json={"name": "conflict"})
-    assert client.post("/api/save", json={"source": "danbooru", "id": "x"}).status_code == 409
+    assert client.post("/api/save", json={"source": "danbooru", "post_id": "x"}).status_code == 409
 
 
 def test_scenario_offline(client):
