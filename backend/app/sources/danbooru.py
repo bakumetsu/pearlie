@@ -6,7 +6,10 @@ from app.sources.base import Post, Rating, SearchPage, SourceError
 from app.sources.throttle import Throttle
 
 RATING_MAP: dict[str, Rating] = {
-    "g": "general", "s": "sensitive", "q": "questionable", "e": "explicit"
+    "g": "general",
+    "s": "sensitive",
+    "q": "questionable",
+    "e": "explicit",
 }
 TAG_TYPES = ("general", "artist", "copyright", "character", "meta")
 
@@ -42,9 +45,7 @@ class Danbooru:
         tag_limit: int = 2,  # anonymous search cap
         page_size: int = 60,
     ) -> None:
-        self._client = client or httpx.Client(
-            timeout=15.0, headers={"User-Agent": "Pearlie/0.1"}
-        )
+        self._client = client or httpx.Client(timeout=15.0, headers={"User-Agent": "Pearlie/0.1"})
         self._throttle = throttle or Throttle(1.0)
         self._base_url = base_url
         self._tag_limit = tag_limit
