@@ -75,6 +75,7 @@ class LibraryItemDetail(LibraryItem):
     stream_url: str | None = None
     mime: str | None = None
     books: list[LibraryItem] = Field(default_factory=list)
+    notice: Problem | None = None
     source_url_text: str | None = None
     page_url: str | None = Field(
         default=None,

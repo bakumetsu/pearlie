@@ -96,10 +96,10 @@ def get_series(request: Request, id: str):
     komga: Komga = request.app.state.komga
     try:
         series = komga.get_series(id)
-        books = komga.all_series_books(id)
+        books, truncated = komga.all_series_books(id)
     except KomgaError as e:
         raise _up(e) from None
-    return series_detail(series, books)
+    return series_detail(series, books, truncated)
 
 
 @router.get("/library/books/{id}")

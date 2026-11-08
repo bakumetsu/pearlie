@@ -780,6 +780,7 @@ export interface components {
             mime?: string | null;
             /** Books */
             books?: components["schemas"]["LibraryItem"][];
+            notice?: components["schemas"]["Problem"] | null;
             /** Source Url Text */
             source_url_text?: string | null;
             /**

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import httpx
 
-from app.models import LibraryItem, LibraryItemDetail, Tag
+from app.models import LibraryItem, LibraryItemDetail, Problem, Tag
 
 # Komga page numbers are 1-based with zero_based=false, same as Pearlie's reader; no conversion.
 PAGE_BASE = 1
+SERIES_BOOKS_PAGES = 20
+SERIES_BOOKS_SIZE = 500
 
 
 class KomgaError(Exception):
@@ -109,19 +111,22 @@ class Komga:
         self._check(resp)
         return resp.json()
 
-    def all_series_books(self, series_id: str) -> list[dict]:
-        """Fetch every book belonging to *series_id* (paginated, capped at 10 000)."""
+    def all_series_books(self, series_id: str) -> tuple[list[dict], bool]:
+        """Fetch every book belonging to *series_id* (paginated, capped at 20 pages)."""
         books: list[dict] = []
+        truncated = False
         page = 0
-        for _ in range(20):
+        for _ in range(SERIES_BOOKS_PAGES):
             result = self.list_books(
-                page=page, size=500, q="", sort="number,asc", series_id=series_id
+                page=page, size=SERIES_BOOKS_SIZE, q="", sort="number,asc", series_id=series_id
             )
             books.extend(result["content"])
             if result["last"]:
                 break
             page += 1
-        return books
+        else:
+            truncated = True
+        return books, truncated
 
     def set_progress(self, book_id: str, page: int, completed: bool) -> None:
         """Set the read-progress for a book (page + completed flag)."""
@@ -202,7 +207,7 @@ def book_detail(dto: dict) -> LibraryItemDetail:
     )
 
 
-def series_detail(dto: dict, books: list[dict]) -> LibraryItemDetail:
+def series_detail(dto: dict, books: list[dict], truncated: bool = False) -> LibraryItemDetail:
     """Map a Komga SeriesDto (with its book list) to a ``LibraryItemDetail``."""
     metadata = dto.get("metadata") or {}
     return LibraryItemDetail(
@@ -214,5 +219,10 @@ def series_detail(dto: dict, books: list[dict]) -> LibraryItemDetail:
         read_count=dto["booksReadCount"],
         tags=[Tag(name=t) for t in sorted(metadata.get("tags", []))],
         books=[book_item(b) for b in books],
+        notice=(
+            Problem(code="truncated", message="Showing the first 10,000 books")
+            if truncated
+            else None
+        ),
         added_at=dto["created"],
     )

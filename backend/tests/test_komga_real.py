@@ -149,6 +149,40 @@ def test_series_detail_loops_pages(tmp_path):
     assert book_list_calls == ["0", "1"]
 
 
+def test_series_detail_truncated_notice(tmp_path, monkeypatch):
+    """When the page cap is hit, a truncated notice is returned."""
+    monkeypatch.setattr("app.komga.SERIES_BOOKS_PAGES", 2)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/api/v1/series/s1":
+            return httpx.Response(200, json=series_dto())
+        if request.method == "POST" and request.url.path == "/api/v1/books/list":
+            return httpx.Response(200, json=page_of([book_dto("b1")], last=False))
+        return httpx.Response(404)
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/library/series/s1")
+    assert r.status_code == 200
+    assert r.json()["notice"]["code"] == "truncated"
+    assert len(r.json()["books"]) == 2
+
+
+def test_series_detail_no_notice_when_complete(tmp_path):
+    """When all pages fit within the cap, no notice is returned."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/api/v1/series/s1":
+            return httpx.Response(200, json=series_dto())
+        if request.method == "POST" and request.url.path == "/api/v1/books/list":
+            return httpx.Response(200, json=page_of([book_dto("b1")], last=True))
+        return httpx.Response(404)
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/library/series/s1")
+    assert r.status_code == 200
+    assert r.json()["notice"] is None
+
+
 def test_book_detail_page_url(tmp_path):
     """Book detail exposes page_count and the page URL template."""
 
@@ -326,5 +360,6 @@ def test_komga_routes_are_sync():
 
     for router in (library_komga_real.router, media_komga_real.router):
         for route in router.routes:
-            if hasattr(route, "endpoint"):
-                assert not inspect.iscoroutinefunction(route.endpoint)
+            endpoint = getattr(route, "endpoint", None)
+            if endpoint is not None:
+                assert not inspect.iscoroutinefunction(endpoint)
