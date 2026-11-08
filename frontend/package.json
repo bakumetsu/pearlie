@@ -1,0 +1,26 @@
+{
+  "name": "pearlie-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6",
+    "@testing-library/svelte": "^5",
+    "eslint": "^9",
+    "eslint-plugin-svelte": "^3",
+    "globals": "^16",
+    "jsdom": "^27",
+    "svelte": "^5",
+    "svelte-check": "^4",
+    "typescript": "^5.9",
+    "typescript-eslint": "^8",
+    "vite": "^7",
+    "vitest": "^3"
+  }
+}
