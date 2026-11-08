@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="PEARLIE_", extra="ignore")
 
     mode: Literal["fixture", "real"]
+    real: str = ""
     db_path: Path = Path("data/pearlie.db")
     static_dir: Path = Path("../frontend/dist")
     host: str = "127.0.0.1"

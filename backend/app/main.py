@@ -2,13 +2,25 @@ import logging
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api import fixture as fixture_api
+from app.api import jobs, library, media, rules, search
+from app.api.errors import install as install_errors
 from app.api.health import router as health_router
 from app.config import ConfigError, Settings, load_settings
 from app.db import init_db
+
+FIXTURE_ROUTERS = {
+    "search": search.router,
+    "library": library.router,
+    "media": media.router,
+    "jobs": jobs.router,
+    "rules": rules.router,
+}
+REAL_ROUTERS: dict[str, APIRouter] = {}
 
 logger = logging.getLogger("pearlie")
 
@@ -19,7 +31,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     init_db(settings.db_path)
     logger.info(settings.safe_summary())
     app = FastAPI()
+    install_errors(app)
     app.state.settings = settings
+
+    real = {n.strip() for n in settings.real.split(",") if n.strip()}
+    for name in real:
+        if name not in REAL_ROUTERS:
+            raise ConfigError(f"PEARLIE_REAL names '{name}' but it has no real implementation yet")
+    for name in real:
+        app.include_router(REAL_ROUTERS[name])
+
+    mounted_fixture: set[str] = set()
+    if settings.mode == "fixture":
+        for name, router in FIXTURE_ROUTERS.items():
+            if name not in real:
+                app.include_router(router)
+                mounted_fixture.add(name)
+    fixture_on = bool(mounted_fixture)
+    if fixture_on:
+        app.include_router(fixture_api.router)
+    app.state.fixture_routers = mounted_fixture
+
     app.include_router(health_router)
 
     static_dir: Path = settings.static_dir

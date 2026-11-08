@@ -26,17 +26,42 @@ from app.models import (
     WebItem,
 )
 
-_LIBRARY_KEYS = frozenset({
-    "id", "kind", "title", "thumb_url", "width", "height",
-    "rating", "favorite", "tags", "added_at",
-    "series_id", "page_count", "read_page",
-    "duration_s", "book_count", "read_count",
-})
+_LIBRARY_KEYS = frozenset(
+    {
+        "id",
+        "kind",
+        "title",
+        "thumb_url",
+        "width",
+        "height",
+        "rating",
+        "favorite",
+        "tags",
+        "added_at",
+        "series_id",
+        "page_count",
+        "read_page",
+        "duration_s",
+        "book_count",
+        "read_count",
+    }
+)
 
-_WEB_KEYS = frozenset({
-    "post_id", "source", "thumb_url", "preview_url", "title",
-    "tags", "width", "height", "page_count", "target", "saved",
-})
+_WEB_KEYS = frozenset(
+    {
+        "post_id",
+        "source",
+        "thumb_url",
+        "preview_url",
+        "title",
+        "tags",
+        "width",
+        "height",
+        "page_count",
+        "target",
+        "saved",
+    }
+)
 
 
 def _fold(s: str) -> str:
@@ -89,14 +114,12 @@ class Store:
     # ── model builders ─────────────────────────────────────────────
 
     def library_item(self, raw: dict) -> LibraryItem:
-        kwargs = {k: v for k, v in raw.items()
-                  if not k.startswith("_") and k in _LIBRARY_KEYS}
+        kwargs = {k: v for k, v in raw.items() if not k.startswith("_") and k in _LIBRARY_KEYS}
         return LibraryItem(**kwargs)
 
     def _build_web_item(self, raw: dict) -> WebItem:
         kwargs: dict[str, Any] = {
-            k: v for k, v in raw.items()
-            if not k.startswith("_") and k in _WEB_KEYS
+            k: v for k, v in raw.items() if not k.startswith("_") and k in _WEB_KEYS
         }
         saved = raw.get("saved")
         kwargs["saved"] = SavedRef(kind=saved["kind"], id=saved["id"]) if saved else None
@@ -110,8 +133,7 @@ class Store:
         raw = bucket.get(id)
         if raw is None or raw.get("_rejected"):
             return None
-        kwargs = {k: v for k, v in raw.items()
-                  if not k.startswith("_") and k in _LIBRARY_KEYS}
+        kwargs = {k: v for k, v in raw.items() if not k.startswith("_") and k in _LIBRARY_KEYS}
         kwargs["tags"] = raw.get("_tags", [])
         if kinds == "images":
             kwargs["full_url"] = f"/api/media/stash/images/{id}/full"
@@ -164,7 +186,8 @@ class Store:
         items = self.visible(kinds)
         if q:
             items = [
-                r for r in items
+                r
+                for r in items
                 if self.matches(r.get("tags", []), r.get("_tags", []), r.get("title", ""), q)
             ]
         if favorite is not None:
@@ -180,8 +203,9 @@ class Store:
         end = start + page_size
         page_items = [self.library_item(r) for r in items[start:end]]
         next_page = page + 1 if end < total else None
-        return Page(items=page_items, total=total, page=page,
-                    page_size=page_size, next_page=next_page)
+        return Page(
+            items=page_items, total=total, page=page, page_size=page_size, next_page=next_page
+        )
 
     # ── mutations ──────────────────────────────────────────────────
 
@@ -264,8 +288,7 @@ class Store:
     # ── web ────────────────────────────────────────────────────────
 
     def web_items(self, source: str) -> list[WebItem]:
-        return [self._build_web_item(r)
-                for r in self.web.get(source, []) if not r.get("_rejected")]
+        return [self._build_web_item(r) for r in self.web.get(source, []) if not r.get("_rejected")]
 
     def web_hidden(self, source: str) -> int:
         return sum(1 for r in self.web.get(source, []) if r.get("_rejected"))

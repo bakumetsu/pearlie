@@ -30,6 +30,7 @@ _FFMPEG: str = "ffmpeg"
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _seed_rgb(i: int, salt: int = 0) -> tuple[int, int, int]:
     """Deterministic RGB triple from index *i* and *salt* (no randomness)."""
     return (
@@ -55,7 +56,10 @@ def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
 
 
 def _gradient(
-    w: int, h: int, c0: tuple[int, int, int], c1: tuple[int, int, int],
+    w: int,
+    h: int,
+    c0: tuple[int, int, int],
+    c1: tuple[int, int, int],
 ) -> Image.Image:
     """Vertical RGB gradient, built via a 1×256 strip for speed."""
     strip = Image.new("RGB", (1, 256))
@@ -74,7 +78,10 @@ def _gradient(
 
 def _draw_shape(
     draw: ImageDraw.ImageDraw,
-    w: int, h: int, i: int, color: tuple[int, int, int],
+    w: int,
+    h: int,
+    i: int,
+    color: tuple[int, int, int],
 ) -> None:
     """Draw a simple outline shape (circle / rect / triangle) chosen by index."""
     kind = i % 3
@@ -85,7 +92,9 @@ def _draw_shape(
         draw.ellipse([cx - m, cy - m, cx + m, cy + m], outline=color, width=line_w)
     elif kind == 1:
         draw.rectangle(
-            [cx - m, cy - m // 2, cx + m, cy + m // 2], outline=color, width=line_w,
+            [cx - m, cy - m // 2, cx + m, cy + m // 2],
+            outline=color,
+            width=line_w,
         )
     else:
         draw.polygon(
@@ -97,8 +106,10 @@ def _draw_shape(
 
 def _label_centered(
     draw: ImageDraw.ImageDraw,
-    w: int, h: int,
-    text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    w: int,
+    h: int,
+    text: str,
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
 ) -> None:
     bbox = draw.textbbox((0, 0), text, font=font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -121,6 +132,7 @@ def _skip(path: Path, force: bool) -> bool:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def media_dir() -> Path:
     """Default fixture media directory."""
     return Path(__file__).parents[2] / "fixtures" / "media"
@@ -138,8 +150,7 @@ def read_cbz_page(cbz: Path, n: int) -> bytes:
     """Return the JPEG bytes of page *n* (1-based) from a CBZ, sorted by name."""
     with zipfile.ZipFile(cbz) as zf:
         pages = sorted(
-            name for name in zf.namelist()
-            if name.startswith("page_") and name.endswith(".jpg")
+            name for name in zf.namelist() if name.startswith("page_") and name.endswith(".jpg")
         )
         if n < 1 or n > len(pages):
             raise ValueError(f"page {n} out of range (1..{len(pages)})")
@@ -214,30 +225,49 @@ def generate(out_dir: Path, *, force: bool = False) -> dict[str, bool]:
                 src = f"testsrc2=size={VIDEO_W}x{VIDEO_H}:rate={VIDEO_FPS}"
                 subprocess.run(
                     [
-                        _FFMPEG, "-y",
-                        "-f", "lavfi", "-i", f"{src}:duration={VIDEO_DURATION}",
-                        "-f", "lavfi", "-i", f"sine=frequency=440:duration={VIDEO_DURATION}",
-                        "-vf", vf,
-                        "-c:v", "libx264", "-preset", "fast",
-                        "-c:a", "aac",
+                        _FFMPEG,
+                        "-y",
+                        "-f",
+                        "lavfi",
+                        "-i",
+                        f"{src}:duration={VIDEO_DURATION}",
+                        "-f",
+                        "lavfi",
+                        "-i",
+                        f"sine=frequency=440:duration={VIDEO_DURATION}",
+                        "-vf",
+                        vf,
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "fast",
+                        "-c:a",
+                        "aac",
                         "-shortest",
-                        "-movflags", "+faststart",
+                        "-movflags",
+                        "+faststart",
                         str(mp4),
                     ],
-                    check=True, capture_output=True,
+                    check=True,
+                    capture_output=True,
                 )
 
             poster = videos_dir / f"{i}_poster.jpg"
             if not _skip(poster, force):
                 subprocess.run(
                     [
-                        _FFMPEG, "-y",
-                        "-i", str(mp4),
-                        "-frames:v", "1",
-                        "-q:v", "2",
+                        _FFMPEG,
+                        "-y",
+                        "-i",
+                        str(mp4),
+                        "-frames:v",
+                        "1",
+                        "-q:v",
+                        "2",
                         str(poster),
                     ],
-                    check=True, capture_output=True,
+                    check=True,
+                    capture_output=True,
                 )
 
     # ── books ───────────────────────────────────────────────────────────────
@@ -287,6 +317,7 @@ def generate(out_dir: Path, *, force: bool = False) -> dict[str, bool]:
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
 
 def _main() -> None:
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else media_dir()

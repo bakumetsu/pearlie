@@ -20,9 +20,7 @@ def _hit(rule: str, tags: list[Tag]) -> bool:
     if ":" in rule:
         scope, value = rule.split(":", 1)
         fs, fv = fold(scope), fold(value)
-        return (
-            any(t.scope is not None and fold(t.scope) == fs and fold(t.name) == fv for t in tags)
-        )
+        return any(t.scope is not None and fold(t.scope) == fs and fold(t.name) == fv for t in tags)
     fr = fold(rule)
     return any(fold(t.name) == fr for t in tags)
 
