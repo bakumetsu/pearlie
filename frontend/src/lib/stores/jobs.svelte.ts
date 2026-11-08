@@ -4,6 +4,8 @@ import { groupJobs, activeCount, pollDelayMs } from "../jobs/group";
 import type { Job } from "../jobs/group";
 import { toasts } from "./toasts.svelte";
 
+export type Jobs = ReturnType<typeof createJobs>;
+
 export function createJobs(api: Api, opts?: { visible?: () => boolean }) {
   const visible = opts?.visible ?? (() => typeof document === "undefined" || document.visibilityState === "visible");
 

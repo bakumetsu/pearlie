@@ -4,7 +4,9 @@
 
   import { onMount } from "svelte";
   import { createRouter, linkClick } from "./lib/router";
-  import { setRouter } from "./lib/ctx";
+  import { setRouter, setJobs } from "./lib/ctx";
+  import { createJobs } from "./lib/stores/jobs.svelte";
+  import Queue from "./routes/Queue.svelte";
   import { setApi, createApi } from "./lib/api/client";
   import Nav from "./lib/components/Nav.svelte";
   import Toast from "./lib/components/Toast.svelte";
@@ -17,7 +19,10 @@
 
   const router = createRouter();
   setRouter(router);
-  setApi(createApi());
+  const api = createApi();
+  setApi(api);
+  const jobs = createJobs(api);
+  setJobs(jobs);
 
   let match = $state(router.current());
 
@@ -25,14 +30,16 @@
     const off = router.subscribe((m) => {
       match = m;
     });
+    jobs.start();
     return () => {
+      jobs.stop();
       off();
       router.destroy();
     };
   });
 </script>
 
-<Nav current={match.name} queueBadge={0} onnavigate={(e) => linkClick(e, router)} />
+<Nav current={match.name} queueBadge={jobs.badge} onnavigate={(e) => linkClick(e, router)} />
 
 <main style="margin-left: var(--rail-w)">
   {#key match.name}
@@ -46,11 +53,10 @@
       <Item {match} />
     {:else if match.name === "read"}
       <section class="placeholder"><h1 tabindex="-1">Reader</h1><p>Coming in a later step.</p></section>
-    {:else if match.name === "queue" || match.name === "rules"}
-      <section class="placeholder">
-        <h1 tabindex="-1">{match.name === "queue" ? "Queue" : "Rules"}</h1>
-        <p>Coming in a later step.</p>
-      </section>
+    {:else if match.name === "queue"}
+      <Queue {match} />
+    {:else if match.name === "rules"}
+      <section class="placeholder"><h1 tabindex="-1">Rules</h1><p>Coming in a later step.</p></section>
     {:else}
       <section class="placeholder">
         <h1 tabindex="-1">Page not found</h1>

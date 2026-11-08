@@ -1,4 +1,5 @@
 import type { components } from "../api/schema.gen";
+import type { IconName } from "../components/Icon.svelte";
 export type Job = components["schemas"]["Job"];
 
 export type JobGroups = {
@@ -62,8 +63,8 @@ export function etaLabel(job: Job): string | null {
 
 export function stateInfo(
   state: Job["state"],
-): { label: string; icon: string } {
-  const map: Record<Job["state"], { label: string; icon: string }> = {
+): { label: string; icon: IconName } {
+  const map: Record<Job["state"], { label: string; icon: IconName }> = {
     queued: { label: "Queued", icon: "clock" },
     running: { label: "Running", icon: "download" },
     done: { label: "Done", icon: "check" },
