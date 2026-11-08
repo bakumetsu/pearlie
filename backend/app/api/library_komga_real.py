@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Query, Request
 
-from app.api.common import ApiError
+from app.api.errors import ApiError
 from app.komga import (
     Komga,
     KomgaError,
@@ -11,7 +11,7 @@ from app.komga import (
     series_detail,
     series_item,
 )
-from app.models.library import (
+from app.models import (
     LibraryItem,
     Page,
     PatchBody,

@@ -4,8 +4,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
-from ..errors import ApiError
-from ..komga import KomgaError
+from app.api.errors import ApiError
+from app.komga import KomgaError
 
 router = APIRouter(prefix="/api/media")
 
