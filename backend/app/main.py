@@ -7,7 +7,16 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import fixture as fixture_api
-from app.api import jobs, library, media, rules, search, search_real
+from app.api import (
+    jobs,
+    library_komga,
+    library_stash,
+    media_komga,
+    media_stash,
+    rules,
+    search,
+    search_real,
+)
 from app.api.errors import install as install_errors
 from app.api.health import router as health_router
 from app.config import ConfigError, Settings, load_settings
@@ -16,8 +25,10 @@ from app.sources.danbooru import Danbooru
 
 FIXTURE_ROUTERS = {
     "search": search.router,
-    "library": library.router,
-    "media": media.router,
+    "library_komga": library_komga.router,
+    "library_stash": library_stash.router,
+    "media_stash": media_stash.router,
+    "media_komga": media_komga.router,
     "jobs": jobs.router,
     "rules": rules.router,
 }
