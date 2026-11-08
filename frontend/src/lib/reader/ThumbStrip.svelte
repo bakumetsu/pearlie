@@ -49,7 +49,7 @@
     const cur = shown[0];
     if (cur === undefined || !stripEl) return;
     const btn = stripEl.querySelector(`[data-page="${cur}"]`) as HTMLElement | null;
-    btn?.scrollIntoView({ inline: "center", block: "nearest" });
+    btn?.scrollIntoView?.({ inline: "center", block: "nearest" });
   });
 </script>
 
