@@ -5,7 +5,8 @@
     | "chevron-down" | "arrow-left" | "arrow-right" | "download" | "check"
     | "trash" | "star" | "play" | "pause" | "external-link"
     | "refresh" | "alert" | "loader" | "bookmark" | "image" | "film" | "book"
-    | "star-filled" | "volume" | "volume-x" | "pip" | "maximize" | "minimize" | "undo";
+    | "star-filled" | "volume" | "volume-x" | "pip" | "maximize" | "minimize" | "undo"
+    | "clock" | "minus" | "upload" | "columns" | "settings" | "arrow-left-right" | "rotate-ccw";
 
   const paths: Record<IconName, string[]> = {
     "search": [
@@ -162,6 +163,43 @@
     "undo": [
       "M3 7v6h6",
       "M21 17a9 9 0 0 0-15-6.7L3 13",
+    ],
+    "clock": [
+      "M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z",
+      "M12 7v5l3 2",
+    ],
+    "minus": [
+      "M5 12h14",
+    ],
+    "upload": [
+      "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
+      "M17 8l-5-5-5 5",
+      "M12 3v12",
+    ],
+    "columns": [
+      "M4 4h16v16H4z",
+      "M12 4v16",
+    ],
+    "settings": [
+      "M4 6h10",
+      "M18 6h2",
+      "M4 12h2",
+      "M10 12h10",
+      "M4 18h12",
+      "M20 18h0",
+      "M16 4v4",
+      "M8 10v4",
+      "M18 16v4",
+    ],
+    "arrow-left-right": [
+      "M8 3L4 7l4 4",
+      "M4 7h16",
+      "M16 21l4-4-4-4",
+      "M20 17H4",
+    ],
+    "rotate-ccw": [
+      "M1 4v6h6",
+      "M3.51 15a9 9 0 1 0 2.13-9.36L1 10",
     ],
   };
 </script>
