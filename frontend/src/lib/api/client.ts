@@ -161,14 +161,14 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     },
     getItem(kind, id, signal) {
       return request<LibraryItemDetail>(
-        baseUrl + KIND_PATHS[kind] + "/" + encodeURIComponent(id),
+        baseUrl + "/api/library/" + kind + "/" + encodeURIComponent(id),
         undefined,
         signal,
       );
     },
     patchItem(kind, id, body, signal) {
       return request<LibraryItemDetail>(
-        baseUrl + KIND_PATHS[kind] + "/" + encodeURIComponent(id),
+        baseUrl + "/api/library/" + kind + "/" + encodeURIComponent(id),
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -179,7 +179,7 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     },
     deleteItem(kind, id, signal) {
       return request<TrashResult>(
-        baseUrl + KIND_PATHS[kind] + "/" + encodeURIComponent(id),
+        baseUrl + "/api/library/" + kind + "/" + encodeURIComponent(id),
         { method: "DELETE" },
         signal,
       );

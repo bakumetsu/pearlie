@@ -14,14 +14,14 @@ describe("client item & rules", () => {
     const fake = vi.fn().mockResolvedValue(ok({}));
     const api = createApi("", fake);
     await api.getItem("videos", "7");
-    expect(fake).toHaveBeenCalledWith("/api/library/stash/videos/7", { signal: undefined });
+    expect(fake).toHaveBeenCalledWith("/api/library/videos/7", { signal: undefined });
   });
 
   it("patchItem sends PATCH with JSON body and content-type", async () => {
     const fake = vi.fn().mockResolvedValue(ok({}));
     const api = createApi("", fake);
     await api.patchItem("videos", "7", { rating: 4 });
-    expect(fake).toHaveBeenCalledWith("/api/library/stash/videos/7", {
+    expect(fake).toHaveBeenCalledWith("/api/library/videos/7", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rating: 4 }),
@@ -33,7 +33,7 @@ describe("client item & rules", () => {
     const fake = vi.fn().mockResolvedValue(ok({}));
     const api = createApi("", fake);
     await api.deleteItem("series", "s1");
-    expect(fake).toHaveBeenCalledWith("/api/library/komga/series/s1", {
+    expect(fake).toHaveBeenCalledWith("/api/library/series/s1", {
       method: "DELETE",
       signal: undefined,
     });

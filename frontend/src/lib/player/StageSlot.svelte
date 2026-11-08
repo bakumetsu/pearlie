@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { player } from "./player.svelte";
 
   let { id }: { id: string } = $props();
@@ -11,7 +12,7 @@
 
     const measure = () => {
       const r = node.getBoundingClientRect();
-      player.setSlot(id, { x: r.x, y: r.y, w: r.width, h: r.height });
+      untrack(() => player.setSlot(id, { x: r.x, y: r.y, w: r.width, h: r.height }));
     };
 
     measure();
@@ -25,7 +26,7 @@
       ro.disconnect();
       window.removeEventListener("scroll", measure, true);
       window.removeEventListener("resize", measure);
-      player.releaseSlot(id);
+      untrack(() => player.releaseSlot(id));
     };
   });
 </script>

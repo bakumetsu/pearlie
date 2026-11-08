@@ -77,6 +77,8 @@
     color: var(--text);
   }
   .chip button {
+    background: transparent;
+    border: none;
     color: var(--muted);
     display: inline-flex;
     align-items: center;

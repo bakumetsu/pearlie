@@ -30,6 +30,8 @@
     gap: var(--s-1);
   }
   button {
+    background: transparent;
+    border: none;
     color: var(--muted);
   }
   button.filled {

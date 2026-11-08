@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { Match } from "../lib/router";
   import type { LibraryItem } from "../lib/api/client";
   import { getApi } from "../lib/api/client";
@@ -36,13 +37,16 @@
 
   $effect(() => {
     const d = view.detail;
-    if (d?.kind === "video" && d.stream_url) {
-      player.open({
-        id: d.id,
-        title: d.title,
-        streamUrl: d.stream_url,
-        posterUrl: d.thumb_url,
-        href: itemHref(d),
+    const stream = d?.kind === "video" ? d.stream_url : null;
+    if (d && stream) {
+      untrack(() => {
+        player.open({
+          id: d.id,
+          title: d.title,
+          streamUrl: stream,
+          posterUrl: d.thumb_url,
+          href: itemHref(d),
+        });
       });
     }
   });
@@ -241,10 +245,12 @@
         {:else if view.detail.kind === "video"}
           <StageSlot id={view.detail.id} />
         {:else if view.detail.kind === "series"}
-          <SeriesGrid
-            books={view.detail.books ?? []}
-            onopen={(b) => router.navigate("/read/" + encodeURIComponent(b.id))}
-          />
+          <div class="series">
+            <SeriesGrid
+              books={view.detail.books ?? []}
+              onopen={(b) => router.navigate("/read/" + encodeURIComponent(b.id))}
+            />
+          </div>
         {:else if view.detail.kind === "book"}
           <div class="book-stage">
             <img src={view.detail.thumb_url} alt={view.detail.title} />
@@ -272,7 +278,7 @@
   .item {
     display: grid;
     grid-template-rows: auto 1fr;
-    height: 100%;
+    height: 100vh;
     font-family: inherit;
     color: var(--text);
     background: var(--bg);
@@ -327,11 +333,28 @@
     overflow: hidden;
   }
 
+  .series {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    padding: var(--s-4);
+    align-self: start;
+    background: var(--bg);
+  }
+
   .panel {
     overflow-y: auto;
     padding: var(--s-4);
     border-left: 1px solid var(--line);
     background: var(--surface);
+  }
+
+  .state button {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    padding: var(--s-2) var(--s-3);
   }
 
   .state {
