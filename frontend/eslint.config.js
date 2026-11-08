@@ -18,6 +18,23 @@ export default [
     },
   },
   {
+    files: ['**/*.svelte.ts'],
+    languageOptions: {
+      parser: tseslint.parser,
+      globals: globals.browser,
+    },
+  },
+  {
+    files: ['src/**/*.{ts,svelte}'],
+    ignores: ['src/lib/api/client.ts', 'src/**/*.test.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'fetch', message: 'Use the Api client in lib/api' },
+      ],
+    },
+  },
+  {
     files: ['**/*.ts'],
     languageOptions: {
       globals: globals.browser,
