@@ -146,6 +146,8 @@ class Store:
                 for b in self.books.values()
                 if b.get("series_id") == int(id) and not b.get("_rejected")
             ]
+        elif kinds == "books":
+            kwargs["page_url"] = f"/api/media/komga/books/{id}/pages/{{n}}"
         return LibraryItemDetail(**kwargs)
 
     # ── search / filter ────────────────────────────────────────────

@@ -76,6 +76,10 @@ class LibraryItemDetail(LibraryItem):
     mime: str | None = None
     books: list[LibraryItem] = Field(default_factory=list)
     source_url_text: str | None = None
+    page_url: str | None = Field(
+        default=None,
+        description="Book detail only. URL template with a literal {n} placeholder for the 1-based page number, e.g. /api/media/komga/books/7/pages/{n}. Replace {n} to get a page image.",
+    )
 
 
 class WebItem(BaseModel):
@@ -112,6 +116,7 @@ class Page[T](BaseModel):
     page_size: int
     total: int
     next_page: int | None = None
+    notice: Problem | None = None
 
 
 class SearchResponse(BaseModel):
