@@ -223,7 +223,12 @@ class RulesTestResult(BaseModel):
 
 class StashHealth(BaseModel):
     state: State
-    version: str
+    version: str | None = None
+
+
+class KomgaHealth(BaseModel):
+    state: State
+    version: str | None = None
 
 
 class Mount(BaseModel):
@@ -237,8 +242,9 @@ class Site(BaseModel):
 
 
 class Health(BaseModel):
-    status: State
+    status: Literal["ok", "degraded"]
     stash: StashHealth
-    komga: State
+    komga: KomgaHealth
+    db: Literal["ok", "error"] = "ok"
     mounts: list[Mount] = Field(default_factory=list)
     sites: list[Site] = Field(default_factory=list)
