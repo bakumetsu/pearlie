@@ -75,7 +75,6 @@
     const srt = sort;
     const fav = favorite;
 
-    notice = null;
     if (k) {
       const loader = async (page: number, signal: AbortSignal) => {
         const r = await api.list(
@@ -94,6 +93,7 @@
       };
       grid.open(listKey, loader);
     } else {
+      notice = null;
       const loader = async (page: number, signal: AbortSignal) => {
         const r = await api.search({ q: qq, sources: [src], page }, signal);
         const s = r.sections?.find((x: { id: string }) => x.id === src);

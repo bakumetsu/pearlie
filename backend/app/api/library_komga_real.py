@@ -32,7 +32,7 @@ def _ignored_notice(sort: str, favorite: bool | None) -> Problem | None:
     if sort in ("rating", "random"):
         parts.append(f"sort={sort}")
     if favorite is not None:
-        parts.append(f"favorite={favorite}")
+        parts.append(f"favorite={str(favorite).lower()}")
     if not parts:
         return None
     return Problem(
