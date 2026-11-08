@@ -1,0 +1,19 @@
+# dev only — binds 127.0.0.1:8000, no auth. Do NOT use for production.
+
+$root = Split-Path -Parent $PSScriptRoot
+
+$env:PEARLIE_MODE = "fixture"
+
+$backend = Start-Process `
+    -FilePath (Join-Path $root "backend\.venv\Scripts\python.exe") `
+    -ArgumentList "-m app.main" `
+    -WorkingDirectory (Join-Path $root "backend") `
+    -NoNewWindow -PassThru
+
+try {
+    Set-Location (Join-Path $root "frontend")
+    npm run dev
+}
+finally {
+    Stop-Process -Id $backend.Id
+}
