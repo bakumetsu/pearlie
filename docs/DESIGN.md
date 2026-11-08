@@ -152,11 +152,13 @@ Layout A, chosen 2026-11-08 (mockups: https://claude.ai/artifact/FXZchWLeynCcAmE
 
 ## 11. Phases
 
-1. **Danbooru → Stash save**, driven from FastAPI `/docs`.
-2. **Library browsing:** Stash images and videos, Komga with reader, mini player, PiP.
-3. **Filters, external browsing UI, library editing** (rating, tags, delete with undo).
+Reordered 2026-11-08: the UI comes first, as the groundwork for the backend.
+
+1. **UI prototype:** the real Svelte frontend for every screen (search, library and item view, mini player, PiP and reader, queue and rules) on a FastAPI stub that serves fixture JSON and generated placeholder media on the section 9 paths.
+2. **Backend behind the UI:** Danbooru → Stash save, save queue, base list; library browsing (Stash, Komga); filters and library editing. Each step replaces fixtures with real logic.
+3. **Login**, then a **Proxmox installer** in the community-scripts style (one command on the host creates the LXC and installs Pearlie).
 4. **nhentai → Komga** (route A, then B if worth it), Gelbooru and Rule34.
-5. **PWA polish**, then the **native iOS client**.
+5. **Parked until the user opens it:** PWA polish, then the native iOS client.
 
 Out of scope for now: yt-dlp video sources (the user's Stash-Downloader fork covers that), other sites, multiple users, public exposure.
 
