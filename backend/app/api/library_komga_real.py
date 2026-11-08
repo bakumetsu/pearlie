@@ -42,7 +42,7 @@ def _ignored_notice(sort: str, favorite: bool | None) -> Problem | None:
 
 
 @router.get("/library/komga/series", response_model=Page[LibraryItem])
-async def list_komga_series(
+def list_komga_series(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=200),
@@ -67,7 +67,7 @@ async def list_komga_series(
 
 
 @router.get("/library/komga/books", response_model=Page[LibraryItem])
-async def list_komga_books(
+def list_komga_books(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=200),
@@ -92,7 +92,7 @@ async def list_komga_books(
 
 
 @router.get("/library/series/{id}")
-async def get_series(request: Request, id: str):
+def get_series(request: Request, id: str):
     komga: Komga = request.app.state.komga
     try:
         series = komga.get_series(id)
@@ -103,7 +103,7 @@ async def get_series(request: Request, id: str):
 
 
 @router.get("/library/books/{id}")
-async def get_book(request: Request, id: str):
+def get_book(request: Request, id: str):
     komga: Komga = request.app.state.komga
     try:
         book = komga.get_book(id)
@@ -126,7 +126,7 @@ for _p in ("/library/series/{id}", "/library/books/{id}"):
 
 
 @router.post("/library/komga/books/{id}/progress", response_model=ProgressResult)
-async def set_progress(request: Request, id: str, body: ProgressBody) -> ProgressResult:
+def set_progress(request: Request, id: str, body: ProgressBody) -> ProgressResult:
     komga: Komga = request.app.state.komga
     try:
         book = komga.get_book(id)

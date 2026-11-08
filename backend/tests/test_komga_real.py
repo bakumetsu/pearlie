@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 
 import httpx
@@ -317,3 +318,13 @@ def test_missing_komga_url_is_config_error(tmp_path):
                 _env_file=None,  # pyright: ignore[reportCallIssue]
             )
         )
+
+
+def test_komga_routes_are_sync():
+    """Sync routes run in the threadpool; async ones would block on the sync httpx client."""
+    from app.api import library_komga_real, media_komga_real
+
+    for router in (library_komga_real.router, media_komga_real.router):
+        for route in router.routes:
+            if hasattr(route, "endpoint"):
+                assert not inspect.iscoroutinefunction(route.endpoint)
