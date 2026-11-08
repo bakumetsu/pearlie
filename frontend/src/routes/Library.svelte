@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { getApi, getRouter } from "../lib/ctx";
+  import { getApi } from "../lib/api/client";
+  import { getRouter } from "../lib/ctx";
   import { linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
   import type { Kind, LibraryItem } from "../lib/api/client";

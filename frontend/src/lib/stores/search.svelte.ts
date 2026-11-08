@@ -12,7 +12,7 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
     $state({});
   let banner: string | null = $state(null);
   let loading: boolean = $state(false);
-  let saves: Record<string, { state: "queued" | "in_library" | "blocked"; ref?: { kind: string; id: string } }> =
+  const saves: Record<string, { state: "queued" | "in_library" | "blocked"; ref?: { kind: string; id: string } }> =
     $state({});
 
   let timer: ReturnType<typeof setTimeout> | null = null;

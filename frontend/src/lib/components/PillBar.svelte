@@ -1,5 +1,4 @@
 <script lang="ts">
-  import $props from "svelte";
   import type { Pill, SiteId } from "../query";
 
   let {

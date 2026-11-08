@@ -1,5 +1,5 @@
 <script lang="ts">
-  import $state, $props from "svelte";
+
   import type { Chip } from "../query";
   import { commitText, removeLastChip } from "../query";
   import Icon from "./Icon.svelte";
