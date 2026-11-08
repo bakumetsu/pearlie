@@ -65,6 +65,10 @@ Pearlie/
   docs/DESIGN.md          this file
 ```
 
+### Sample media for the stub
+
+The stub generates placeholder media by default. For realistic photos, clips and comics run `python backend/scripts/fetch_samples.py` (optional `--only photos|videos|comics`). It downloads the pinned public-domain/CC list in `backend/scripts/sample_sources.json` from Wikimedia Commons into the git-ignored `backend/fixtures/media`, throttled with backoff on HTTP 429, and resumes where it stopped. Needs ffmpeg for the videos.
+
 ## 6. Sources
 
 | Source | Auth | Notes |

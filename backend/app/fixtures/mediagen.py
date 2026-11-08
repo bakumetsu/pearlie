@@ -6,6 +6,7 @@ import io
 import shutil
 import subprocess
 import sys
+import threading
 import zipfile
 from pathlib import Path
 
@@ -23,7 +24,6 @@ VIDEO_FPS: int = 24
 VIDEO_DURATION: int = 6
 PAGE_W: int = 1024
 PAGE_H: int = 1440
-_FFMPEG: str = "ffmpeg"
 
 
 # ---------------------------------------------------------------------------
@@ -138,12 +138,17 @@ def media_dir() -> Path:
     return Path(__file__).parents[2] / "fixtures" / "media"
 
 
+_GENERATE_LOCK = threading.Lock()
+
+
 def ensure_media() -> None:
-    """Generate fixtures into media_dir() if the directory is missing or empty."""
+    """Generate fixtures into media_dir() if the completion marker is absent."""
     d = media_dir()
-    if d.exists() and any(d.iterdir()):
+    if (d / ".complete").exists():
         return
-    generate(d)
+    with _GENERATE_LOCK:
+        if not (d / ".complete").exists():
+            generate(d)
 
 
 def read_cbz_page(cbz: Path, n: int) -> bytes:
@@ -155,6 +160,18 @@ def read_cbz_page(cbz: Path, n: int) -> bytes:
         if n < 1 or n > len(pages):
             raise ValueError(f"page {n} out of range (1..{len(pages)})")
         return zf.read(pages[n - 1])
+
+
+def _ffmpeg() -> str | None:
+    """Resolve the ffmpeg executable path, or *None* if unavailable."""
+    p = shutil.which("ffmpeg")
+    if p is not None:
+        return p
+    winget = Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Packages"
+    matches = sorted(winget.glob("Gyan.FFmpeg*/*/bin/ffmpeg.exe"))
+    if matches:
+        return str(matches[0])
+    return None
 
 
 def _font_file() -> str | None:
@@ -205,10 +222,12 @@ def generate(out_dir: Path, *, force: bool = False) -> dict[str, bool]:
             img.resize((nw, nh), Image.Resampling.LANCZOS).save(tpath, quality=75)
 
     # ── videos ──────────────────────────────────────────────────────────────
-    has_ffmpeg = shutil.which(_FFMPEG) is not None
-    if not has_ffmpeg:
+    _ff = _ffmpeg()
+    if _ff is None:
+        has_ffmpeg = False
         print("ffmpeg not found: video fixtures skipped")
     else:
+        has_ffmpeg = True
         videos_dir.mkdir(parents=True, exist_ok=True)
         for i in range(VIDEO_COUNT):
             mp4 = videos_dir / f"{i}.mp4"
@@ -223,52 +242,61 @@ def generate(out_dir: Path, *, force: bool = False) -> dict[str, bool]:
                 else:
                     vf = "null"
                 src = f"testsrc2=size={VIDEO_W}x{VIDEO_H}:rate={VIDEO_FPS}"
-                subprocess.run(
-                    [
-                        _FFMPEG,
-                        "-y",
-                        "-f",
-                        "lavfi",
-                        "-i",
-                        f"{src}:duration={VIDEO_DURATION}",
-                        "-f",
-                        "lavfi",
-                        "-i",
-                        f"sine=frequency=440:duration={VIDEO_DURATION}",
-                        "-vf",
-                        vf,
-                        "-c:v",
-                        "libx264",
-                        "-preset",
-                        "fast",
-                        "-c:a",
-                        "aac",
-                        "-shortest",
-                        "-movflags",
-                        "+faststart",
-                        str(mp4),
-                    ],
-                    check=True,
-                    capture_output=True,
-                )
+                try:
+                    subprocess.run(
+                        [
+                            _ff,
+                            "-y",
+                            "-f",
+                            "lavfi",
+                            "-i",
+                            f"{src}:duration={VIDEO_DURATION}",
+                            "-f",
+                            "lavfi",
+                            "-i",
+                            f"sine=frequency=440:duration={VIDEO_DURATION}",
+                            "-vf",
+                            vf,
+                            "-c:v",
+                            "libx264",
+                            "-preset",
+                            "fast",
+                            "-c:a",
+                            "aac",
+                            "-shortest",
+                            "-movflags",
+                            "+faststart",
+                            str(mp4),
+                        ],
+                        check=True,
+                        capture_output=True,
+                    )
+                except subprocess.CalledProcessError:
+                    print(f"ffmpeg failed for video {i}")
+                    mp4.unlink(missing_ok=True)
+                    continue
 
             poster = videos_dir / f"{i}_poster.jpg"
             if not _skip(poster, force):
-                subprocess.run(
-                    [
-                        _FFMPEG,
-                        "-y",
-                        "-i",
-                        str(mp4),
-                        "-frames:v",
-                        "1",
-                        "-q:v",
-                        "2",
-                        str(poster),
-                    ],
-                    check=True,
-                    capture_output=True,
-                )
+                try:
+                    subprocess.run(
+                        [
+                            _ff,
+                            "-y",
+                            "-i",
+                            str(mp4),
+                            "-frames:v",
+                            "1",
+                            "-q:v",
+                            "2",
+                            str(poster),
+                        ],
+                        check=True,
+                        capture_output=True,
+                    )
+                except subprocess.CalledProcessError:
+                    print(f"ffmpeg failed for poster {i}")
+                    poster.unlink(missing_ok=True)
 
     # ── books ───────────────────────────────────────────────────────────────
     font_page = _font(128)
@@ -310,6 +338,8 @@ def generate(out_dir: Path, *, force: bool = False) -> dict[str, bool]:
             if not _skip(bpath, force):
                 nw, nh = _thumb_size(PAGE_W, PAGE_H)
                 first_img.resize((nw, nh), Image.Resampling.LANCZOS).save(bpath, quality=75)
+
+    (out_dir / ".complete").write_text("")
 
     return {"videos": has_ffmpeg}
 
