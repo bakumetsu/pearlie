@@ -9,6 +9,8 @@ export const ROUTES: RouteDef[] = [
   { name: "library_videos", pattern: "/library/stash/videos" },
   { name: "library_series", pattern: "/library/komga/series" },
   { name: "library_books", pattern: "/library/komga/books" },
+  { name: "item", pattern: "/item/:kinds/:id" },
+  { name: "read", pattern: "/read/:bookId" },
   { name: "queue", pattern: "/queue" },
   { name: "rules", pattern: "/rules" },
 ];

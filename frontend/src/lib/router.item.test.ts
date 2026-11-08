@@ -1,0 +1,28 @@
+import { describe, it, expect } from "vitest";
+import { matchRoute } from "./router";
+
+describe("item and read routes", () => {
+  it("matches /item/videos/12", () => {
+    const m = matchRoute("/item/videos/12", "");
+    expect(m.name).toBe("item");
+    expect(m.params).toEqual({ kinds: "videos", id: "12" });
+  });
+
+  it("decodes percent-encoded id in /item/series/s%201", () => {
+    const m = matchRoute("/item/series/s%201", "");
+    expect(m.name).toBe("item");
+    expect(m.params).toEqual({ kinds: "series", id: "s 1" });
+  });
+
+  it("matches /read/b7 with query", () => {
+    const m = matchRoute("/read/b7", "?p=3");
+    expect(m.name).toBe("read");
+    expect(m.params).toEqual({ bookId: "b7" });
+    expect(m.query.get("p")).toBe("3");
+  });
+
+  it("returns not_found for /item/images (missing id)", () => {
+    const m = matchRoute("/item/images", "");
+    expect(m.name).toBe("not_found");
+  });
+});

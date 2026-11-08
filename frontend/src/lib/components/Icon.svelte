@@ -4,7 +4,8 @@
     | "heart-filled" | "x" | "plus" | "chevron-left" | "chevron-right"
     | "chevron-down" | "arrow-left" | "arrow-right" | "download" | "check"
     | "trash" | "star" | "play" | "pause" | "external-link"
-    | "refresh" | "alert" | "loader" | "bookmark" | "image" | "film" | "book";
+    | "refresh" | "alert" | "loader" | "bookmark" | "image" | "film" | "book"
+    | "star-filled" | "volume" | "volume-x" | "pip" | "maximize" | "minimize" | "undo";
 
   const paths: Record<IconName, string[]> = {
     "search": [
@@ -129,6 +130,39 @@
       "M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z",
       "M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z",
     ],
+    "star-filled": [
+      "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
+    ],
+    "volume": [
+      "M11 5L6 9H2v6h4l5 4z",
+      "M15.5 8.5a5 5 0 0 1 0 7",
+      "M19 5a10 10 0 0 1 0 14",
+    ],
+    "volume-x": [
+      "M11 5L6 9H2v6h4l5 4z",
+      "M23 9l-6 6",
+      "M17 9l6 6",
+    ],
+    "pip": [
+      "M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z",
+      "M12 12h8v5h-8z",
+    ],
+    "maximize": [
+      "M8 3H5a2 2 0 0 0-2 2v3",
+      "M21 8V5a2 2 0 0 0-2-2h-3",
+      "M3 16v3a2 2 0 0 0 2 2h3",
+      "M16 21h3a2 2 0 0 0 2-2v-3",
+    ],
+    "minimize": [
+      "M8 3v3a2 2 0 0 1-2 2H3",
+      "M21 8h-3a2 2 0 0 1-2-2V3",
+      "M3 16h3a2 2 0 0 1 2 2v3",
+      "M16 21v-3a2 2 0 0 1 2-2h3",
+    ],
+    "undo": [
+      "M3 7v6h6",
+      "M21 17a9 9 0 0 0-15-6.7L3 13",
+    ],
   };
 </script>
 
@@ -140,7 +174,7 @@
   viewBox="0 0 24 24"
   width={size}
   height={size}
-  fill={name === "heart-filled" ? "currentColor" : "none"}
+  fill={name === "heart-filled" || name === "star-filled" ? "currentColor" : "none"}
   stroke="currentColor"
   stroke-width="2"
   stroke-linecap="round"
