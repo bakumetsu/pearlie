@@ -194,6 +194,9 @@ def test_jobs_list_seed(client):
     assert len(jl_f.items) == 2
     assert all(j.state == "failed" for j in jl_f.items)
     assert client.post(f"/api/jobs/{jl_f.items[0].id}/retry").json()["state"] == "queued"
+    after = JobList.model_validate(client.get("/api/jobs").json())
+    assert len(after.items) == 20
+    assert len({j.id for j in after.items}) == 20
     done = next(j for j in jl.items if j.state == "done")
     assert client.post(f"/api/jobs/{done.id}/retry").status_code == 409
     assert client.delete(f"/api/jobs/{done.id}").status_code == 204

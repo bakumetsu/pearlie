@@ -1,0 +1,142 @@
+INFO:     Started server process [8352]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8010 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52718 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52720 - "GET /api/rules HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52727 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52728 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52729 - "GET /api/media/web/danbooru/100006/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52732 - "GET /api/media/web/danbooru/100010/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52734 - "GET /api/media/web/danbooru/100011/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52736 - "GET /api/media/web/danbooru/100004/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52735 - "GET /api/media/web/danbooru/100005/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52737 - "GET /api/media/web/danbooru/100002/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52744 - "GET /api/media/web/danbooru/100001/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52748 - "GET /api/media/web/danbooru/100015/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52746 - "GET /api/media/web/danbooru/100012/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52747 - "GET /api/media/web/danbooru/100014/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52749 - "GET /api/media/web/danbooru/100016/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52745 - "GET /api/media/web/danbooru/100000/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52753 - "GET /api/media/web/danbooru/100017/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52757 - "GET /api/media/web/danbooru/100018/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52754 - "GET /api/media/web/danbooru/100020/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52760 - "GET /api/media/web/danbooru/100024/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52761 - "GET /api/media/web/danbooru/100023/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52759 - "GET /api/media/web/danbooru/100021/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52764 - "GET /api/media/web/danbooru/100025/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52765 - "GET /api/media/web/danbooru/100026/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52767 - "POST /api/jobs/job-6/retry HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52769 - "DELETE /api/jobs/job-20 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52771 - "DELETE /api/jobs/job-19 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52773 - "DELETE /api/jobs/job-18 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52775 - "DELETE /api/jobs/job-17 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52777 - "DELETE /api/jobs/job-16 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52779 - "DELETE /api/jobs/job-15 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52781 - "DELETE /api/jobs/job-14 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52783 - "DELETE /api/jobs/job-13 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52785 - "DELETE /api/jobs/job-12 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52787 - "DELETE /api/jobs/job-11 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52789 - "DELETE /api/jobs/job-10 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52791 - "DELETE /api/jobs/job-9 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52793 - "DELETE /api/jobs/job-5 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52795 - "DELETE /api/jobs/job-4 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52797 - "DELETE /api/jobs/job-3 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52799 - "DELETE /api/jobs/job-2 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52801 - "DELETE /api/jobs/job-1 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52808 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52807 - "GET /api/library/books/0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52809 - "GET /api/library/series/0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52811 - "GET /api/media/komga/books/0/pages/5?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52813 - "GET /api/media/komga/books/0/pages/6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52814 - "GET /api/media/komga/books/0/pages/7 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52825 - "GET /api/media/komga/books/0/pages/4?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52826 - "GET /api/media/komga/books/0/pages/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52829 - "GET /api/media/komga/books/0/pages/1?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52831 - "GET /api/media/komga/books/0/pages/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52832 - "GET /api/media/komga/books/0/pages/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52834 - "GET /api/media/komga/books/0/pages/8?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52836 - "POST /api/library/komga/books/0/progress HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52842 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52848 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52849 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52851 - "GET /api/media/web/danbooru/100006/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52852 - "GET /api/media/web/danbooru/100010/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52853 - "GET /api/media/web/danbooru/100011/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52855 - "POST /api/jobs/job-7/retry HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52857 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52859 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52861 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52863 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52865 - "DELETE /api/jobs/job-21 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52872 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52871 - "GET /api/library/books/0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52873 - "GET /api/library/series/0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52874 - "GET /api/media/komga/books/0/pages/8?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52877 - "GET /api/media/komga/books/0/pages/7?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52878 - "GET /api/media/komga/books/0/pages/8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52881 - "GET /api/media/komga/books/0/pages/1?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52883 - "GET /api/media/komga/books/0/pages/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52884 - "GET /api/media/komga/books/0/pages/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52886 - "POST /api/library/komga/books/0/progress HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52892 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52893 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52901 - "GET /api/rules HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52903 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52902 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52904 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52906 - "GET /api/rules HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52908 - "PUT /api/rules HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52909 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52910 - "PUT /api/rules HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:52912 - "GET /api/rules HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52914 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52917 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52920 - "GET /api/media/web/danbooru/100011/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52919 - "GET /api/media/web/danbooru/100010/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52922 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52928 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52929 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52930 - "GET /api/media/web/danbooru/100011/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52931 - "GET /api/media/web/danbooru/100010/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52933 - "POST /api/jobs/job-8/retry HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52935 - "DELETE /api/jobs/job-22 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52942 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52941 - "GET /api/library/books/0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52943 - "GET /api/library/series/0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52944 - "GET /api/media/komga/books/0/pages/8?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52947 - "GET /api/media/komga/books/0/pages/7?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52948 - "GET /api/media/komga/books/0/pages/8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52951 - "GET /api/media/komga/books/0/pages/1?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52953 - "GET /api/media/komga/books/0/pages/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52954 - "GET /api/media/komga/books/0/pages/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52956 - "POST /api/library/komga/books/0/progress HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52963 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52972 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52973 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52974 - "GET /api/media/web/danbooru/100011/thumb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52975 - "DELETE /api/jobs/job-23 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:52981 - "GET /api/library/books/0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52982 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52983 - "GET /api/library/series/0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52984 - "GET /api/media/komga/books/0/pages/8?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52987 - "GET /api/media/komga/books/0/pages/7?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52988 - "GET /api/media/komga/books/0/pages/8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52991 - "GET /api/media/komga/books/0/pages/1?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52993 - "GET /api/media/komga/books/0/pages/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52994 - "GET /api/media/komga/books/0/pages/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52996 - "POST /api/library/komga/books/0/progress HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53002 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53003 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53011 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53014 - "GET /api/library/books/0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53015 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53016 - "GET /api/library/series/0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53017 - "GET /api/media/komga/books/0/pages/8?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53020 - "GET /api/media/komga/books/0/pages/7?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53021 - "GET /api/media/komga/books/0/pages/8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53024 - "GET /api/media/komga/books/0/pages/1?r=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53027 - "GET /api/media/komga/books/0/pages/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53026 - "GET /api/media/komga/books/0/pages/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53029 - "POST /api/library/komga/books/0/progress HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53036 - "GET /api/jobs HTTP/1.1" 200 OK
