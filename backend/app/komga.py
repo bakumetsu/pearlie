@@ -1,0 +1,218 @@
+"""Komga REST client for Pearlie library integration."""
+
+from __future__ import annotations
+
+import httpx
+
+from app.models import LibraryItem, LibraryItemDetail, Tag
+
+# Komga page numbers are 1-based with zero_based=false, same as Pearlie's reader; no conversion.
+PAGE_BASE = 1
+
+
+class KomgaError(Exception):
+    """Error raised by the Komga client."""
+
+    def __init__(self, code: str, message: str, status: int) -> None:
+        self.code = code
+        self.message = message
+        self.status = status
+        super().__init__(message)
+
+
+class Komga:
+    """Komga REST API client."""
+
+    def __init__(self, base_url: str, api_key: str, client: httpx.Client | None = None) -> None:
+        """Initialise the client.
+
+        When *client* is ``None`` a new ``httpx.Client`` is created with the
+        API-key header and a 15-second timeout.  An injected client (e.g. one
+        using ``httpx.MockTransport`` in tests) is used as-is.
+        """
+        if client is None:
+            self._client: httpx.Client = httpx.Client(
+                base_url=base_url,
+                headers={"X-API-Key": api_key},
+                timeout=15.0,
+            )
+        else:
+            self._client = client
+
+    def _check(self, resp: httpx.Response) -> None:
+        """Raise ``KomgaError`` for a 404 or any other status >= 400."""
+        if resp.status_code == 404:
+            raise KomgaError("not_found", "Not found", 404)
+        if resp.status_code >= 400:
+            raise KomgaError("upstream_error", f"Komga returned {resp.status_code}", 502)
+
+    def list_series(self, page: int, size: int, q: str, sort: str) -> dict:
+        """Return one page of series matching *q* (full-text search).
+
+        *page* is the 0-based Komga page index (the caller handles conversion
+        from any 1-based UI page).
+        """
+        body: dict = {}
+        if q:
+            body["fullTextSearch"] = q
+        try:
+            resp = self._client.post(
+                "/api/v1/series/list",
+                params={"page": page, "size": size, "sort": sort},
+                json=body,
+            )
+        except httpx.HTTPError:
+            raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+        self._check(resp)
+        return resp.json()
+
+    def list_books(
+        self,
+        page: int,
+        size: int,
+        q: str,
+        sort: str,
+        series_id: str | None = None,
+    ) -> dict:
+        """Return one page of books, optionally filtered to a single series."""
+        body: dict = {}
+        if q:
+            body["fullTextSearch"] = q
+        if series_id is not None:
+            body["condition"] = {"seriesId": {"operator": "is", "value": series_id}}
+        try:
+            resp = self._client.post(
+                "/api/v1/books/list",
+                params={"page": page, "size": size, "sort": sort},
+                json=body,
+            )
+        except httpx.HTTPError:
+            raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+        self._check(resp)
+        return resp.json()
+
+    def get_series(self, id: str) -> dict:
+        """Return a single series by its Komga id."""
+        try:
+            resp = self._client.get(f"/api/v1/series/{id}")
+        except httpx.HTTPError:
+            raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+        self._check(resp)
+        return resp.json()
+
+    def get_book(self, id: str) -> dict:
+        """Return a single book by its Komga id."""
+        try:
+            resp = self._client.get(f"/api/v1/books/{id}")
+        except httpx.HTTPError:
+            raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+        self._check(resp)
+        return resp.json()
+
+    def all_series_books(self, series_id: str) -> list[dict]:
+        """Fetch every book belonging to *series_id* (paginated, capped at 10 000)."""
+        books: list[dict] = []
+        page = 0
+        for _ in range(20):
+            result = self.list_books(
+                page=page, size=500, q="", sort="number,asc", series_id=series_id
+            )
+            books.extend(result["content"])
+            if result["last"]:
+                break
+            page += 1
+        return books
+
+    def set_progress(self, book_id: str, page: int, completed: bool) -> None:
+        """Set the read-progress for a book (page + completed flag)."""
+        try:
+            resp = self._client.patch(
+                f"/api/v1/books/{book_id}/read-progress",
+                json={"page": page, "completed": completed},
+            )
+        except httpx.HTTPError:
+            raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+        self._check(resp)
+
+    def open_image(self, path: str, params: dict | None = None) -> httpx.Response:
+        """Open a streaming GET for an image.  The caller must close the response."""
+        request = self._client.build_request("GET", path, params=params)
+        try:
+            resp = self._client.send(request, stream=True)
+        except httpx.HTTPError:
+            raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+        try:
+            self._check(resp)
+        except KomgaError:
+            resp.close()
+            raise
+        return resp
+
+
+# ---------------------------------------------------------------------------
+# DTO → model mapping (pure, no I/O)
+# ---------------------------------------------------------------------------
+
+
+def book_item(dto: dict) -> LibraryItem:
+    """Map a Komga BookDto to a ``LibraryItem``."""
+    metadata = dto.get("metadata") or {}
+    rp = dto.get("readProgress")
+    return LibraryItem(
+        kind="book",
+        id=dto["id"],
+        title=metadata.get("title") or dto["name"],
+        thumb_url=f"/api/media/komga/books/{dto['id']}/thumb",
+        tags=sorted(metadata.get("tags", [])),
+        page_count=dto["media"]["pagesCount"],
+        read_page=rp["page"] if rp else None,
+        added_at=dto["created"],
+    )
+
+
+def series_item(dto: dict) -> LibraryItem:
+    """Map a Komga SeriesDto to a ``LibraryItem``."""
+    metadata = dto.get("metadata") or {}
+    return LibraryItem(
+        kind="series",
+        id=dto["id"],
+        title=metadata.get("title") or dto["name"],
+        thumb_url=f"/api/media/komga/series/{dto['id']}/thumb",
+        book_count=dto["booksCount"],
+        read_count=dto["booksReadCount"],
+        tags=sorted(metadata.get("tags", [])),
+        added_at=dto["created"],
+    )
+
+
+def book_detail(dto: dict) -> LibraryItemDetail:
+    """Map a Komga BookDto to a ``LibraryItemDetail``."""
+    metadata = dto.get("metadata") or {}
+    rp = dto.get("readProgress")
+    return LibraryItemDetail(
+        kind="book",
+        id=dto["id"],
+        title=metadata.get("title") or dto["name"],
+        thumb_url=f"/api/media/komga/books/{dto['id']}/thumb",
+        tags=[Tag(name=t) for t in sorted(metadata.get("tags", []))],
+        page_count=dto["media"]["pagesCount"],
+        read_page=rp["page"] if rp else None,
+        page_url=f"/api/media/komga/books/{dto['id']}/pages/{{n}}",
+        added_at=dto["created"],
+    )
+
+
+def series_detail(dto: dict, books: list[dict]) -> LibraryItemDetail:
+    """Map a Komga SeriesDto (with its book list) to a ``LibraryItemDetail``."""
+    metadata = dto.get("metadata") or {}
+    return LibraryItemDetail(
+        kind="series",
+        id=dto["id"],
+        title=metadata.get("title") or dto["name"],
+        thumb_url=f"/api/media/komga/series/{dto['id']}/thumb",
+        book_count=dto["booksCount"],
+        read_count=dto["booksReadCount"],
+        tags=[Tag(name=t) for t in sorted(metadata.get("tags", []))],
+        books=[book_item(b) for b in books],
+        added_at=dto["created"],
+    )
