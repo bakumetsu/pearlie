@@ -2,12 +2,12 @@
   import { onMount, onDestroy } from "svelte";
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
-  import type { Match } from "../lib/router";
+
   import { createRules } from "../lib/stores/rules.svelte";
   import Icon from "../lib/components/Icon.svelte";
   import type { ListKey } from "../lib/rules/draft";
 
-  let { match }: { match: Match } = $props();
+
   const router = getRouter();
   const rules = createRules(getApi());
 
@@ -156,12 +156,12 @@
     <p>Could not load the rules.</p>
     <button class="btn" onclick={() => rules.load()}>Retry</button>
   {:else if rules.draft !== null}
-    {#each SECTIONS as sec}
+    {#each SECTIONS as sec (sec.key)}
       <section class="card">
         <h2>{sec.title}</h2>
         <p class="hint">{sec.hint}</p>
         <ul class="chips">
-          {#each rules.draft[sec.key] as tag}
+          {#each rules.draft[sec.key] as tag (tag)}
             <li class="tagchip">
               {tag}
               <button type="button" aria-label="Remove {tag}" onclick={() => rules.removeFrom(sec.key, tag)}>
@@ -183,7 +183,7 @@
     <section class="card">
       <h2>Tag mapping</h2>
       <ul class="chips">
-        {#each rules.draft.mapping as m, i}
+        {#each rules.draft.mapping as m, i (i)}
           <li class="maprow">
             <span class="pattern">{m.pattern}</span>
             <Icon name="arrow-right" size={16} />
@@ -192,7 +192,7 @@
               value={m.to}
               onchange={(e) => rules.setMapTarget(i, e.currentTarget.value as typeof TARGETS[number])}
             >
-              {#each TARGETS as t}
+              {#each TARGETS as t (t)}
                 <option value={t}>{t}</option>
               {/each}
             </select>
@@ -205,7 +205,7 @@
       <form class="addrow" onsubmit={(e) => { e.preventDefault(); addMapRow(); }}>
         <input type="text" aria-label="Mapping pattern" placeholder="Pattern" bind:value={mapPattern} />
         <select aria-label="Mapping target" bind:value={mapTarget}>
-          {#each TARGETS as t}
+          {#each TARGETS as t (t)}
             <option value={t}>{t}</option>
           {/each}
         </select>
@@ -223,7 +223,7 @@
       </button>
       {#if baseOpen}
         <ul class="chips">
-          {#each rules.body?.base_list?.tags ?? [] as tag}
+          {#each rules.body?.base_list?.tags ?? [] as tag (tag)}
             <li class="tagchip readonly">{tag}</li>
           {/each}
         </ul>
@@ -279,10 +279,10 @@
           <li><span>Stash</span><span class="chip {chipClass(rules.health.stash.state)}">{statusLabel(rules.health.stash.state)}</span></li>
           <li><span>Komga</span><span class="chip {chipClass(rules.health.komga.state)}">{statusLabel(rules.health.komga.state)}</span></li>
           <li><span>Database</span><span class="chip {chipClass(rules.health.db === "ok" ? "ok" : "down")}">{statusLabel(rules.health.db === "ok" ? "ok" : "down")}</span></li>
-          {#each rules.health.mounts as mount}
+          {#each rules.health.mounts as mount, i (i)}
             <li><span>Mount {mount.name}</span><span class="chip {chipClass(mount.state)}">{statusLabel(mount.state)}</span></li>
           {/each}
-          {#each rules.health.sites as site}
+          {#each rules.health.sites as site, i (i)}
             <li><span>{site.id}</span><span class="chip {chipClass(site.state)}">{statusLabel(site.state)}</span></li>
           {/each}
         </ul>

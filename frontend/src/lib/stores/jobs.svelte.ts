@@ -3,6 +3,7 @@ import type { Api } from "../api/client";
 import { groupJobs, activeCount, pollDelayMs } from "../jobs/group";
 import type { Job } from "../jobs/group";
 import { toasts } from "./toasts.svelte";
+import { SvelteSet } from "svelte/reactivity";
 
 export type Jobs = ReturnType<typeof createJobs>;
 
@@ -92,7 +93,7 @@ export function createJobs(api: Api, opts?: { visible?: () => boolean }) {
 
   async function clearFinished(): Promise<void> {
     const finished = items.filter((j) => j.state === "done" || j.state === "skipped");
-    const removedIds = new Set<string>();
+    const removedIds = new SvelteSet<string>();
     let failed = 0;
     for (const job of finished) {
       try {

@@ -157,7 +157,7 @@ export function toPut(
 }
 
 export function exportJson(body: RulesBody): string {
-  const { base_list: _omit, ...rest } = body as Record<string, unknown>;
+  const rest: Record<string, unknown> = { ...body }; delete rest.base_list;
   return JSON.stringify(rest, null, 2);
 }
 
@@ -165,7 +165,7 @@ export type ImportResult =
   | { ok: true; draft: Draft }
   | { ok: false; error: string };
 
-function asStringArray(value: unknown, field: string): string[] | null {
+function asStringArray(value: unknown): string[] | null {
   if (value == null) return [];
   if (!Array.isArray(value)) return null;
   if (!value.every((v) => typeof v === "string")) return null;
@@ -186,11 +186,11 @@ export function parseImport(text: string): ImportResult {
 
   const obj = parsed as Record<string, unknown>;
 
-  const rawReject = asStringArray(obj.reject, "reject");
+  const rawReject = asStringArray(obj.reject);
   if (rawReject === null) return { ok: false, error: "reject must be a list of text" };
-  const rawWarn = asStringArray(obj.warn, "warn");
+  const rawWarn = asStringArray(obj.warn);
   if (rawWarn === null) return { ok: false, error: "warn must be a list of text" };
-  const rawRequire = asStringArray(obj.require, "require");
+  const rawRequire = asStringArray(obj.require);
   if (rawRequire === null) return { ok: false, error: "require must be a list of text" };
 
   const mapping: RuleMapping[] = [];

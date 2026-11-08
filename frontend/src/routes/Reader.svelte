@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from "svelte";
+	import { SvelteSet } from "svelte/reactivity";
 	import { getApi } from "../lib/api/client";
 	import { getRouter } from "../lib/ctx";
 	import type { Match } from "../lib/router";
@@ -12,7 +13,7 @@
 		stepKey,
 		zoneAction,
 		preloadPages,
-		isCompleted,
+
 		parseMode,
 		DEFAULT_MODE,
 		type ReadMode
@@ -51,7 +52,7 @@
 	function saveMode() {
 		try {
 			localStorage.setItem(MODE_KEY, JSON.stringify(mode));
-		} catch {}
+		} catch { /* ignore */ }
 	}
 
 	// ── load ───────────────────────────────────────────────────────────
@@ -110,7 +111,7 @@
 			try {
 				const lastShownPage = shown[shown.length - 1];
 				api.saveProgress(bookId, lastShownPage);
-			} catch {}
+			} catch { /* ignore */ }
 		}, 800);
 	}
 
@@ -121,6 +122,8 @@
 		}
 		try {
 			const lastShownPage = shown[shown.length - 1];
+			// keepalive POST on pagehide is not possible through the api client
+			// eslint-disable-next-line no-restricted-globals
 			fetch(
 				"/api/library/komga/books/" + encodeURIComponent(bookId) + "/progress",
 				{
@@ -130,7 +133,7 @@
 					body: JSON.stringify({ page: lastShownPage })
 				}
 			);
-		} catch {}
+		} catch { /* ignore */ }
 	}
 
 	// ── chrome auto-hide ───────────────────────────────────────────────
@@ -186,23 +189,22 @@
 
 	// ── retry ──────────────────────────────────────────────────────────
 	function retryPage(n: number) {
-		const s = new Set(failed);
+		const s = new SvelteSet(failed);
 		s.delete(n);
 		failed = s;
 		bust = bust + 1;
 	}
 
-	// ── page url ───────────────────────────────────────────────────────
-	function pageUrl(n: number) {
-		return api.pageUrl(bookId, n);
-	}
+
+
+
 
 	// ── lifecycle ──────────────────────────────────────────────────────
 	onMount(() => {
 		// restore mode
 		try {
 			mode = parseMode(localStorage.getItem(MODE_KEY));
-		} catch {}
+		} catch { /* ignore */ }
 
 		// wide
 		wide = window.innerWidth >= 900;
@@ -231,8 +233,8 @@
 
 	// reload when bookId changes
 	$effect(() => {
-		const id = bookId;
-		failed = new Set();
+		void bookId;
+		failed = new SvelteSet();
 		nextBook = null;
 		page = 1;
 		void load();

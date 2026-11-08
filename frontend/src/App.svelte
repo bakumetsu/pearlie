@@ -56,9 +56,9 @@
     {:else if match.name === "read"}
       <Reader {match} />
     {:else if match.name === "queue"}
-      <Queue {match} />
+      <Queue />
     {:else if match.name === "rules"}
-      <Rules {match} />
+      <Rules />
     {:else}
       <section class="placeholder">
         <h1 tabindex="-1">Page not found</h1>

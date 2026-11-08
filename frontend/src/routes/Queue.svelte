@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { getJobs, getRouter } from "../lib/ctx";
   import { linkClick } from "../lib/router";
-  import type { Match } from "../lib/router";
+
   import Icon from "../lib/components/Icon.svelte";
   import {
     etaLabel,
@@ -15,7 +15,7 @@
   } from "../lib/jobs/group";
   import type { Job } from "../lib/jobs/group";
 
-  let { match }: { match: Match } = $props();
+
 
   const jobs = getJobs();
   const router = getRouter();
