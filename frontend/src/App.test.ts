@@ -1,27 +1,46 @@
-import { describe, it, vi, beforeEach } from "vitest";
+// @vitest-environment jsdom
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/svelte";
 import App from "./App.svelte";
 
-describe("App", () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-  });
-
-  it("shows Backend: ok when API succeeds", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ status: "ok", db: "ok" }),
+beforeEach(() => {
+  history.replaceState({}, "", "/");
+  globalThis.fetch = vi.fn().mockImplementation(() =>
+    Promise.resolve(
+      new Response(JSON.stringify({ query: "", sections: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
       }),
-    );
+    ),
+  );
+});
+
+describe("App shell", () => {
+  it("renders the main navigation with links named Search, Library, Queue, Rules", () => {
     render(App);
-    await screen.findByText("Backend: ok");
+
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    const links = nav.querySelectorAll("a");
+    const names = Array.from(links).map((a) => a.textContent?.trim());
+
+    expect(names).toContain("Search");
+    expect(names).toContain("Library");
+    expect(names).toContain("Queue");
+    expect(names).toContain("Rules");
   });
 
-  it("shows Backend unreachable when fetch rejects", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network error")));
+  it('marks the "Library" link with aria-current="page" at /library', () => {
+    history.replaceState({}, "", "/library");
     render(App);
-    await screen.findByText("Backend unreachable");
+
+    const libLink = screen.getByRole("link", { name: "Library" });
+    expect(libLink.getAttribute("aria-current")).toBe("page");
+  });
+
+  it('shows the "Queue" heading at /queue', () => {
+    history.replaceState({}, "", "/queue");
+    render(App);
+
+    expect(screen.getByRole("heading", { name: "Queue" })).toBeTruthy();
   });
 });
