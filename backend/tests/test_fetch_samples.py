@@ -13,6 +13,7 @@ from PIL import Image
 _spec = importlib.util.spec_from_file_location(
     "fetch_samples", Path(__file__).parents[1] / "scripts" / "fetch_samples.py"
 )
+assert _spec is not None and _spec.loader is not None
 fs = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(fs)
 from app.fixtures import mediagen  # noqa: E402
