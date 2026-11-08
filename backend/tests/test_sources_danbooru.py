@@ -87,13 +87,13 @@ def test_tag_cap_filters_locally():
 
 
 def test_ignores_meta_tags_locally():
-    """Meta tags (containing a colon) are skipped during local filtering."""
+    """Non-rating metatags (containing a colon) are skipped during local filtering."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=load("search"))
 
     d = make(handler)
-    result = d.search(["a", "b", "rating:g"])
+    result = d.search(["a", "b", "order:score"])
     assert len(result.posts) == 3
 
 
@@ -238,3 +238,53 @@ def test_source_waits_between_requests():
     assert c.sleeps == [1.0]
     d.get_post("101")
     assert c.sleeps == [1.0, 1.0]
+
+
+def _all_posts(request):
+    return httpx.Response(200, json=load("search"))
+
+
+def test_rating_filter_local():
+    d = make(_all_posts)
+
+    result = d.search(["a", "b", "rating:e"], page=1)
+    assert [p.post_id for p in result.posts] == ["102"]
+    assert result.dropped == []
+
+    result = d.search(["a", "b", "-rating:e"], page=1)
+    assert [p.post_id for p in result.posts] == ["101", "103"]
+    assert result.dropped == []
+
+    result = d.search(["a", "b", "rating:q,e"], page=1)
+    assert [p.post_id for p in result.posts] == ["102"]
+    assert result.dropped == []
+
+    result = d.search(["a", "b", "rating:g,s"], page=1)
+    assert [p.post_id for p in result.posts] == ["101", "103"]
+    assert result.dropped == []
+
+    result = d.search(["a", "b", "rating:explicit"], page=1)
+    assert [p.post_id for p in result.posts] == ["102"]
+    assert result.dropped == []
+
+
+def test_other_metatag_reported():
+    d = make(_all_posts)
+
+    result = d.search(["a", "b", "order:score"], page=1)
+    assert len(result.posts) == 3
+    assert result.dropped == ["order:score"]
+
+    result = d.search(["a", "b", "-user:foo", "rating:e"], page=1)
+    assert [p.post_id for p in result.posts] == ["102"]
+    assert result.dropped == ["-user:foo"]
+
+    result = d.search(["a", "b", "rating:zzz"], page=1)
+    assert result.dropped == ["rating:zzz"]
+
+
+def test_metatag_inside_cap_not_dropped():
+    d = make(_all_posts)
+
+    result = d.search(["rating:e", "b"], page=1)
+    assert result.dropped == []

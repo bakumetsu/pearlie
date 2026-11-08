@@ -137,3 +137,30 @@ def test_real_search_replaces_fixture_search(tmp_path):
 
     client = make_client(tmp_path, handler)
     assert "search" not in cast(FastAPI, client.app).state.fixture_routers
+
+
+def test_search_reports_dropped_metatag(tmp_path):
+    def handler(request):
+        return httpx.Response(200, json=load("search"))
+
+    client = make_client(tmp_path, handler)
+    resp = client.get("/api/search", params={"q": "a b order:score", "sources": "danbooru"})
+    assert resp.status_code == 200
+    section = resp.json()["sections"][0]
+    assert section["error"]["code"] == "filter_dropped"
+    assert section["error"]["message"] == "Ignored: order:score (Danbooru allows 2 tags)"
+    assert len(section["items"]) == 3
+
+
+def test_search_rating_filter_has_no_error(tmp_path):
+    def handler(request):
+        return httpx.Response(200, json=load("search"))
+
+    client = make_client(tmp_path, handler)
+    resp = client.get("/api/search", params={"q": "a b rating:e", "sources": "danbooru"})
+    assert resp.status_code == 200
+    section = resp.json()["sections"][0]
+    assert section["error"] is None
+    assert len(section["items"]) == 1
+    item = section["items"][0]
+    assert item["post_id"] == "102"

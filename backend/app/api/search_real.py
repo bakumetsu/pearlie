@@ -100,6 +100,17 @@ def search(
                         total=None,
                         next_page=page_result.next_page,
                         hidden=0,
+                        error=(
+                            Problem(
+                                code="filter_dropped",
+                                message=(
+                                    f"Ignored: {', '.join(page_result.dropped)} "
+                                    "(Danbooru allows 2 tags)"
+                                ),
+                            )
+                            if page_result.dropped
+                            else None
+                        ),
                     )
                 )
         else:

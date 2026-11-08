@@ -11,6 +11,24 @@ RATING_MAP: dict[str, Rating] = {
 TAG_TYPES = ("general", "artist", "copyright", "character", "meta")
 
 
+def rating_filter(tag: str) -> tuple[bool, set[str]] | None:
+    """Parse rating:x[,y] or -rating:x[,y] into (negated, ratings); None for other tags."""
+    negated = tag.startswith("-")
+    body = tag[1:] if negated else tag
+    if not body.startswith("rating:"):
+        return None
+    values: set[str] = set()
+    for v in body[len("rating:") :].split(","):
+        v = v.strip().lower()
+        if v in RATING_MAP:
+            values.add(RATING_MAP[v])
+        elif v in RATING_MAP.values():
+            values.add(v)
+        else:
+            return None
+    return negated, values
+
+
 class Danbooru:
     """Adapter for the Danbooru image board."""
 
@@ -66,6 +84,7 @@ class Danbooru:
         if not isinstance(data, list):
             raise SourceError("upstream_error", "Danbooru sent invalid JSON")
         raw_count = len(data)
+        dropped = [t for t in local_tags if ":" in t and rating_filter(t) is None]
         posts: list[Post] = []
         for d in data:
             if not isinstance(d, dict) or "id" not in d:
@@ -74,7 +93,7 @@ class Danbooru:
             if self._matches(post, local_tags):
                 posts.append(post)
         next_page = page + 1 if raw_count == self._page_size else None
-        return SearchPage(posts=posts, page=page, next_page=next_page)
+        return SearchPage(posts=posts, page=page, next_page=next_page, dropped=dropped)
 
     def _matches(self, post: Post, local_tags: list[str]) -> bool:
         """Return True if the post passes all local tag filters."""
@@ -82,6 +101,13 @@ class Danbooru:
         for tag_list in post.tags.values():
             post_tags.update(tag_list)
         for t in local_tags:
+            rf = rating_filter(t)
+            if rf is not None:
+                negated, ratings = rf
+                hit = post.rating in ratings
+                if hit == negated:
+                    return False
+                continue
             if ":" in t:
                 continue
             negated = t.startswith("-")

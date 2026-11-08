@@ -24,6 +24,7 @@ class SearchPage(BaseModel):
     posts: list[Post]
     page: int
     next_page: int | None = None
+    dropped: list[str] = Field(default_factory=list)  # tags past the cap that cannot be applied
 
 
 class SourceError(Exception):
