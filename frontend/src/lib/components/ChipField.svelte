@@ -42,7 +42,7 @@
     bind:value={text}
     class="chip-input"
     type="text"
-    placeholder="Search tags, e.g. cat -dog artist:x"
+    placeholder={chips.length === 0 ? "Search tags, e.g. cat -dog artist:x" : ""}
     autocomplete="off"
     onkeydown={(e) => {
       if ((e.key === " " || e.key === "Enter" || e.key === ",") && text.trim()) {
