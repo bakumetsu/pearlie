@@ -241,4 +241,22 @@ describe("VideoCard", () => {
     expect(container.querySelector("video")).toBeNull();
     expect(container.querySelector("img")).not.toBeNull();
   });
+
+  // ── 10. Rule-blurred card keeps its preview blurred ─────────────────
+
+  it("blurs the preview video when the card is rule-blurred", async () => {
+    const { container } = render(VideoCard, {
+      ...baseProps,
+      item: { ...item, blur: { tag: "gore" } },
+      blurred: true,
+    });
+    const media = container.querySelector(".media")!;
+
+    ptr(media, "pointerenter", "mouse");
+    await Promise.resolve();
+
+    const video = container.querySelector("video")!;
+    expect(video).not.toBeNull();
+    expect(video.classList.contains("blur-img")).toBe(true);
+  });
 });

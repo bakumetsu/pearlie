@@ -213,6 +213,7 @@
       preload="none"
       autoplay
       data-sfw-shown="1"
+      class:blur-img={blurred}
       onerror={stopPreview}
     ></video>
   {/if}
@@ -273,6 +274,7 @@
     object-fit: cover;
     pointer-events: none;
   }
+  .media video.blur-img,
   .blur-img {
     filter: blur(18px);
   }
