@@ -120,14 +120,14 @@ describe("sfw-reveal hover delay", () => {
     const { img1, img2 } = fixture;
 
     ptr("pointerover", img1, "mouse");
-    vi.advanceTimersByTime(200);
+    vi.advanceTimersByTime(100);
 
     // Leave img1 for img2
     ptr("pointerout", img1, "mouse", { relatedTarget: img2 });
     ptr("pointerover", img2, "mouse");
 
-    // 299 ms after pointerover img2 — still not shown
-    vi.advanceTimersByTime(299);
+    // REVEAL_DELAY_MS - 1 ms after pointerover img2 — still not shown
+    vi.advanceTimersByTime(REVEAL_DELAY_MS - 1);
     expect(img1.hasAttribute("data-sfw-shown")).toBe(false);
     expect(img2.hasAttribute("data-sfw-shown")).toBe(false);
 

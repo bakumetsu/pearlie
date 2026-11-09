@@ -1,6 +1,6 @@
 let current: Element | null = null;
 let mo: MutationObserver | null = null;
-export const REVEAL_DELAY_MS = 300;
+export const REVEAL_DELAY_MS = 200;
 let pending: ReturnType<typeof setTimeout> | null = null;
 let pendingEl: Element | null = null;
 
