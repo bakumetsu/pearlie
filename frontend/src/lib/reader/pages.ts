@@ -18,8 +18,8 @@ export function pageSrc(template: string, n: number): string {
   return template.replace("{n}", String(n));
 }
 
-export function defaultMode(width: number, height: number): Mode {
-  return width > height && width >= 900 ? "spread" : "single";
+export function defaultMode(_width: number, _height: number): Mode {
+  return "single";
 }
 
 export function buildGroups(count: number, mode: Mode, wide: ReadonlySet<number>): number[][] {

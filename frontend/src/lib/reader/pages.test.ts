@@ -47,8 +47,8 @@ describe("clampPage", () => {
 });
 
 describe("defaultMode", () => {
-  it("spread for 1440x900", () => {
-    expect(defaultMode(1440, 900)).toBe("spread");
+  it("single for 1440x900", () => {
+    expect(defaultMode(1440, 900)).toBe("single");
   });
 
   it("single for 1080x1920", () => {
@@ -59,11 +59,11 @@ describe("defaultMode", () => {
     expect(defaultMode(768, 1024)).toBe("single");
   });
 
-  it("spread for 1000x800", () => {
-    expect(defaultMode(1000, 800)).toBe("spread");
+  it("single for 1000x800", () => {
+    expect(defaultMode(1000, 800)).toBe("single");
   });
 
-  it("single for 899x600 (width < 900 threshold)", () => {
+  it("single for 899x600", () => {
     expect(defaultMode(899, 600)).toBe("single");
   });
 });
