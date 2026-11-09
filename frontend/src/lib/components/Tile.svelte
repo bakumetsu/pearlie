@@ -108,7 +108,7 @@
     {#if variant === "list"}
       <div class="info">
         <div class="title">{w.title ?? `${w.source} #${w.post_id}`}</div>
-        <div class="meta">{w.source} #{w.post_id}</div>
+        {#if w.title}<div class="meta">{w.source} #{w.post_id}</div>{/if}
       </div>
     {:else}
       <div class="title">{w.title ?? `${w.source} #${w.post_id}`}</div>
