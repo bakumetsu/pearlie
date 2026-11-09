@@ -109,7 +109,7 @@ def test_series_search_body(tmp_path):
 
 
 def test_option_ignored_notice(tmp_path):
-    """Unsupported sort/favorite params produce an option_ignored notice."""
+    """Unsupported sort/favorite params produce an option_ignored notice naming each option."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=page_of([series_dto()]))
@@ -118,6 +118,8 @@ def test_option_ignored_notice(tmp_path):
     r = client.get("/api/library/komga/series?sort=rating&favorite=true")
     assert r.status_code == 200
     assert r.json()["notice"]["code"] == "option_ignored"
+    assert "sort=rating" in r.json()["notice"]["message"]
+    assert "favorite=true" in r.json()["notice"]["message"]
 
     r = client.get("/api/library/komga/series")
     assert r.status_code == 200
