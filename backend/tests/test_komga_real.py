@@ -76,7 +76,7 @@ def test_series_list_page_index(tmp_path):
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append((request.method, request.url.path, dict(request.url.params)))
-        return httpx.Response(200, json=page_of([series_dto()]))
+        return httpx.Response(200, json=page_of([series_dto()], last=False, total=200))
 
     client = make_client(tmp_path, handler)
     r = client.get("/api/library/komga/series?page=1")
@@ -93,6 +93,83 @@ def test_series_list_page_index(tmp_path):
     assert calls[1][0] == "POST"
     assert calls[1][1] == "/api/v1/series/list"
     assert calls[1][2]["page"] == "1"
+
+
+def test_series_pages_field(tmp_path):
+    """pages field is ceil(totalElements / page_size)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=page_of([series_dto()], total=101))
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/library/komga/series?page=1&page_size=20")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["pages"] == 6
+    assert body["page_size"] == 20
+    assert body["total"] == 101
+
+
+def test_series_page_clamped_to_last(tmp_path):
+    """page beyond last page is clamped; the last page is re-fetched from Komga."""
+    recorded: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        recorded.append(dict(request.url.params)["page"])
+        return httpx.Response(200, json=page_of([series_dto()], total=101))
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/library/komga/series?page=99&page_size=20")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["page"] == 6
+    assert body["next_page"] is None
+    assert recorded == ["98", "5"]
+
+
+def test_series_page_size_capped(tmp_path):
+    """page_size at the 200 cap is passed through to Komga unchanged."""
+    recorded: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        recorded.append(dict(request.url.params)["size"])
+        return httpx.Response(200, json=page_of([series_dto()], total=1))
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/library/komga/series?page_size=200")
+    assert r.status_code == 200
+    assert r.json()["page_size"] == 200
+    assert recorded == ["200"]
+
+
+def test_books_page_clamped_to_last(tmp_path):
+    """Books list clamps page to last page and reports pages."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=page_of([book_dto()], total=101))
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/library/komga/books?page=99&page_size=20")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["page"] == 6
+    assert body["pages"] == 6
+
+
+def test_series_empty_serves_page_one(tmp_path):
+    """Empty result reports page 1 with zero pages and empty items."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=page_of([], total=0))
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/library/komga/series?page=5")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 0
+    assert body["pages"] == 0
+    assert body["items"] == []
+    assert body["page"] == 1
 
 
 def test_series_search_body(tmp_path):
