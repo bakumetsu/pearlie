@@ -57,12 +57,16 @@ describe("MiniDock controls: prev/next only", () => {
     expect(btn("Playback speed")).toBeNull();
   });
 
-  it("no prev/next buttons when nav is null", () => {
+  it("prev/next buttons disabled when nav is null", () => {
     player.setNav(null);
     renderDock();
     expect(btn("Close player")).not.toBeNull();
-    expect(btn("Previous video")).toBeNull();
-    expect(btn("Next video")).toBeNull();
+    const prev = btn("Previous video");
+    const next = btn("Next video");
+    expect(prev).not.toBeNull();
+    expect(next).not.toBeNull();
+    expect(prev!.disabled).toBe(true);
+    expect(next!.disabled).toBe(true);
   });
 
   it("prev disabled when canPrev false", () => {

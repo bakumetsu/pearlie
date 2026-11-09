@@ -95,12 +95,12 @@ describe("toTransform", () => {
 });
 
 describe("modeOnLeave", () => {
-  it("playing → mini", () => {
-    expect(modeOnLeave(true)).toBe("mini");
+  it("not ended → mini", () => {
+    expect(modeOnLeave(false)).toBe("mini");
   });
 
-  it("not playing → hidden", () => {
-    expect(modeOnLeave(false)).toBe("hidden");
+  it("ended → hidden", () => {
+    expect(modeOnLeave(true)).toBe("hidden");
   });
 });
 

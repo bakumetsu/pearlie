@@ -38,7 +38,7 @@
     player,
     grid: seeAllGrid,
     getDetail: (k, id) => api.getItem(k, id),
-    navigate: (h) => router.navigate(h),
+    navigate: (h) => router.navigate(h, { replace: true }),
     notify: (m) => toasts.push({ kind: "error", message: m }),
   }));
 

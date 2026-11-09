@@ -80,16 +80,44 @@ describe("createPlayer", () => {
     expect(p.slot).toBeNull();
   });
 
-  it("releaseSlot while paused -> hidden and item null", () => {
+  it("releaseSlot while paused -> mini, item kept", () => {
     const p = createPlayer();
     p.open(item1);
     p.setSlot(item1.id, rect);
     p.releaseSlot(item1.id);
+    expect(p.mode).toBe("mini");
+    expect(p.item).toEqual(item1);
+    expect(p.playing).toBe(false);
+  });
+
+  it("releaseSlot after ended -> hidden and item null", () => {
+    const p = createPlayer();
+    p.open(item1);
+    p.setSlot(item1.id, rect);
+    p.onEnded();
+    p.releaseSlot(item1.id);
     expect(p.mode).toBe("hidden");
     expect(p.item).toBeNull();
-    expect(p.playing).toBe(false);
-    expect(p.time).toBe(0);
-    expect(p.duration).toBe(0);
+  });
+
+  it("onEnded in mini closes the player", () => {
+    const p = createPlayer();
+    p.open(item1);
+    p.setSlot(item1.id, rect);
+    p.releaseSlot(item1.id);
+    expect(p.mode).toBe("mini");
+    p.onEnded();
+    expect(p.mode).toBe("hidden");
+    expect(p.item).toBeNull();
+  });
+
+  it("onEnded in stage keeps the stage", () => {
+    const p = createPlayer();
+    p.open(item1);
+    p.setSlot(item1.id, rect);
+    p.onEnded();
+    expect(p.mode).toBe("stage");
+    expect(p.item).toEqual(item1);
   });
 
   it("releaseSlot with wrong id ignored", () => {

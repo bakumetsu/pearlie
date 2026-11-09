@@ -41,16 +41,9 @@
 </script>
 
 <div class="bar" role="group" aria-label="Player controls">
-  {#if player.canPrev || player.canNext}
-    <button class="btn" aria-label="Previous video" disabled={!player.canPrev} onclick={() => player.prev()}>
-      <Icon name="skip-back" size={20} />
-    </button>
-  {/if}
-  {#if !compact}
-    <button class="btn" aria-label="Back 10 seconds" onclick={() => player.skip(-10)}>
-      <Icon name="rewind" size={20} />
-    </button>
-  {/if}
+  <button class="btn" aria-label="Previous video" disabled={!player.canPrev} onclick={() => player.prev()}>
+    <Icon name="rewind" size={20} />
+  </button>
   <button
     class="btn"
     aria-label={player.playing ? "Pause" : "Play"}
@@ -58,16 +51,9 @@
   >
     <Icon name={player.playing ? "pause" : "play"} size={20} />
   </button>
-  {#if !compact}
-    <button class="btn" aria-label="Forward 10 seconds" onclick={() => player.skip(10)}>
-      <Icon name="fast-forward" size={20} />
-    </button>
-  {/if}
-  {#if player.canPrev || player.canNext}
-    <button class="btn" aria-label="Next video" disabled={!player.canNext} onclick={() => player.next()}>
-      <Icon name="skip-forward" size={20} />
-    </button>
-  {/if}
+  <button class="btn" aria-label="Next video" disabled={!player.canNext} onclick={() => player.next()}>
+    <Icon name="fast-forward" size={20} />
+  </button>
 
   <input
     class="seek"

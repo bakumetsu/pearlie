@@ -182,7 +182,7 @@
       <Icon name="arrow-left" />
     </button>
     <h1 class="bar-title">{view.detail?.title ?? "\u2026"}</h1>
-    {#if hasList}
+    {#if hasList && view.detail?.kind !== "video"}
       <button class="bar-btn" aria-label="Previous item" disabled={!canPrev} onclick={goPrev}>
         <Icon name="chevron-left" />
       </button>
