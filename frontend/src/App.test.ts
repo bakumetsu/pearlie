@@ -20,14 +20,14 @@ afterEach(() => {
 });
 
 describe("App shell", () => {
-  it("renders the main navigation with links named Search, Library, Queue, Rules", () => {
+  it("renders the main navigation with links named Discover, Library, Queue, Rules", () => {
     render(App);
 
     const nav = screen.getByRole("navigation", { name: "Main" });
     const links = nav.querySelectorAll("a");
     const names = Array.from(links).map((a) => a.textContent?.trim());
 
-    expect(names).toContain("Search");
+    expect(names).toContain("Discover");
     expect(names).toContain("Library");
     expect(names).toContain("Queue");
     expect(names).toContain("Rules");

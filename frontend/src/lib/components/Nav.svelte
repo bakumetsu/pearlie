@@ -11,7 +11,7 @@
   let { current, queueBadge, onnavigate, variant = "rail" }: Props = $props();
 
   const items = [
-    { name: "search", label: "Search", icon: "search", path: "/" },
+    { name: "discover", label: "Discover", icon: "search", path: "/" },
     { name: "library", label: "Library", icon: "library", path: "/library" },
     { name: "queue", label: "Queue", icon: "queue", path: "/queue" },
     { name: "rules", label: "Rules", icon: "rules", path: "/rules" },

@@ -46,7 +46,7 @@
 
 <main style="margin-left: var(--rail-w)">
   {#key match.name}
-    {#if match.name === "search"}
+    {#if match.name === "discover"}
       <Search {match} />
     {:else if match.name === "library"}
       <Library {match} />
