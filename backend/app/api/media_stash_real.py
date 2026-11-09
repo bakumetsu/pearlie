@@ -32,14 +32,19 @@ def _forward_range(request: Request) -> dict[str, str] | None:
     return headers or None
 
 
-def _relay_headers(upstream) -> dict[str, str]:
-    out: dict[str, str] = {}
+def _stream(upstream, cache: str) -> StreamingResponse:
+    media_type = upstream.headers.get("content-type", "application/octet-stream")
+    headers: dict[str, str] = {"Cache-Control": cache}
     for h in _RELAY_HEADERS:
         if h in upstream.headers:
-            out[h.title().replace("Content Range", "Content-Range")
-                  .replace("Content Length", "Content-Length")
-                  .replace("Accept Ranges", "Accept-Ranges")] = upstream.headers[h]
-    return out
+            headers[h.replace("-", " ").title().replace(" ", "-")] = upstream.headers[h]
+    return StreamingResponse(
+        upstream.iter_raw(),
+        status_code=upstream.status_code,
+        media_type=media_type,
+        headers=headers,
+        background=BackgroundTask(upstream.close),
+    )
 
 
 def _rewrite_uri(uri: str) -> str:
@@ -98,16 +103,7 @@ def image_thumb(request: Request, id: str) -> StreamingResponse:
         upstream = stash.open_media(f"/image/{id}/thumbnail")
     except StashError as err:
         raise ApiError(err.status, err.code, err.message) from None
-    media_type = upstream.headers.get("content-type", "application/octet-stream")
-    headers = {"Cache-Control": "private, max-age=3600"}
-    if "content-length" in upstream.headers:
-        headers["Content-Length"] = upstream.headers["content-length"]
-    return StreamingResponse(
-        upstream.iter_bytes(chunk_size=65536),
-        media_type=media_type,
-        headers=headers,
-        background=BackgroundTask(upstream.close),
-    )
+    return _stream(upstream, "private, max-age=3600")
 
 
 @router.get("/stash/images/{id}/full")
@@ -118,16 +114,7 @@ def image_full(request: Request, id: str) -> StreamingResponse:
         upstream = stash.open_media(f"/image/{id}/image")
     except StashError as err:
         raise ApiError(err.status, err.code, err.message) from None
-    media_type = upstream.headers.get("content-type", "application/octet-stream")
-    headers = {"Cache-Control": "private, max-age=3600"}
-    if "content-length" in upstream.headers:
-        headers["Content-Length"] = upstream.headers["content-length"]
-    return StreamingResponse(
-        upstream.iter_bytes(chunk_size=65536),
-        media_type=media_type,
-        headers=headers,
-        background=BackgroundTask(upstream.close),
-    )
+    return _stream(upstream, "private, max-age=3600")
 
 
 @router.get("/stash/videos/{id}/poster")
@@ -138,16 +125,7 @@ def video_poster(request: Request, id: str) -> StreamingResponse:
         upstream = stash.open_media(f"/scene/{id}/screenshot")
     except StashError as err:
         raise ApiError(err.status, err.code, err.message) from None
-    media_type = upstream.headers.get("content-type", "application/octet-stream")
-    headers = {"Cache-Control": "private, max-age=3600"}
-    if "content-length" in upstream.headers:
-        headers["Content-Length"] = upstream.headers["content-length"]
-    return StreamingResponse(
-        upstream.iter_bytes(chunk_size=65536),
-        media_type=media_type,
-        headers=headers,
-        background=BackgroundTask(upstream.close),
-    )
+    return _stream(upstream, "private, max-age=3600")
 
 
 @router.get("/stash/videos/{id}/stream")
@@ -159,19 +137,7 @@ def video_stream(request: Request, id: str):
         upstream = stash.open_media(f"/scene/{id}/stream", headers=fwd)
     except StashError as err:
         raise ApiError(err.status, err.code, err.message) from None
-    status = upstream.status_code
-    media_type = upstream.headers.get("content-type", "application/octet-stream")
-    headers: dict[str, str] = {"Cache-Control": "private, max-age=0"}
-    for h in _RELAY_HEADERS:
-        if h in upstream.headers:
-            headers[h.replace("-", " ").title().replace(" ", "-")] = upstream.headers[h]
-    return StreamingResponse(
-        upstream.iter_bytes(chunk_size=65536),
-        status_code=status,
-        media_type=media_type,
-        headers=headers,
-        background=BackgroundTask(upstream.close),
-    )
+    return _stream(upstream, "private, max-age=0")
 
 
 @router.get("/stash/videos/{id}/s/{name}")
@@ -204,16 +170,4 @@ def video_segment(request: Request, id: str, name: str):
         return Response(content=rewritten, media_type="application/vnd.apple.mpegurl")
 
     # Regular segment / stream
-    status = upstream.status_code
-    media_type = upstream.headers.get("content-type", "application/octet-stream")
-    headers: dict[str, str] = {"Cache-Control": "private, max-age=0"}
-    for h in _RELAY_HEADERS:
-        if h in upstream.headers:
-            headers[h.replace("-", " ").title().replace(" ", "-")] = upstream.headers[h]
-    return StreamingResponse(
-        upstream.iter_bytes(chunk_size=65536),
-        status_code=status,
-        media_type=media_type,
-        headers=headers,
-        background=BackgroundTask(upstream.close),
-    )
+    return _stream(upstream, "private, max-age=0")
