@@ -63,7 +63,7 @@ describe("BookList", () => {
     { id: "1", title: "Book A", thumb_url: null, read_page: 0, page_count: 100 },
     { id: "2", title: "Book B", thumb_url: null, read_page: 50, page_count: 200 },
     { id: "3", title: "Book C", thumb_url: null, read_page: 0, page_count: 150 },
-  ];
+  ] as never;
 
   it("renders one button per book; current has aria-current", () => {
     render(BookList, {

@@ -74,6 +74,12 @@
 
 <style>
   .strip {
+    position: absolute;
+    bottom: 76px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(720px, calc(100% - 32px));
+    border-radius: 12px;
     display: flex;
     gap: var(--s-2, 8px);
     overflow-x: auto;

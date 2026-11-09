@@ -78,15 +78,13 @@
 
 <style>
   .pagebar {
+    flex: 1;
     height: 44px;
     display: flex;
     align-items: center;
     min-width: 0;
     cursor: pointer;
     user-select: none;
-    background: rgb(20 20 24 / 0.82);
-    border: 1px solid var(--line-strong);
-    backdrop-filter: blur(8px);
     border-radius: 8px;
     font-size: var(--t-13, 13px);
   }

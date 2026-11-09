@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from "svelte";
+	import { onMount, onDestroy, untrack } from "svelte";
 	import { getApi } from "../lib/api/client";
 	import type { LibraryItem } from "../lib/api/client";
 	import { getRouter } from "../lib/ctx";
@@ -152,7 +152,7 @@
 
 	$effect(() => {
 		void bookId;
-		void load();
+		untrack(() => void load());
 	});
 
 	// ── navigation ─────────────────────────────────────────────────────
