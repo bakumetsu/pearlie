@@ -74,6 +74,7 @@
     const qq = q;
     const srt = sort;
     const fav = favorite;
+    const sd = seed;
 
     if (k) {
       const loader = async (page: number, signal: AbortSignal) => {
@@ -85,6 +86,7 @@
             q: qq || undefined,
             sort: (srt || undefined) as "newest" | "rating" | "random" | undefined,
             favorite: fav ? true : undefined,
+            seed: srt === "random" && sd && Number.isFinite(Number(sd)) ? Number(sd) : undefined,
           },
           signal,
         );
@@ -132,7 +134,7 @@
     if (value) {
       qs.set("sort", value);
       if (value === "random") {
-        qs.set("seed", Math.random().toString(36).slice(2, 8));
+        qs.set("seed", String(Math.floor(Math.random() * 1e8)));
       } else {
         qs.delete("seed");
       }

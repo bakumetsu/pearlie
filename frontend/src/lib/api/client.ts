@@ -52,6 +52,7 @@ export type ListParams = {
   q?: string;
   sort?: "newest" | "rating" | "random";
   favorite?: boolean;
+  seed?: number;
 };
 
 export interface Api {
@@ -154,6 +155,7 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
           q: p.q,
           sort: p.sort,
           favorite: p.favorite !== undefined ? String(p.favorite) : undefined,
+          seed: p.seed !== undefined ? String(p.seed) : undefined,
         }),
         undefined,
         signal,
