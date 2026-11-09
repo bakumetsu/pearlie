@@ -21,7 +21,7 @@
     position: fixed;
     top: 8px;
     right: 8px;
-    z-index: 40;
+    z-index: 1000;
     width: 44px;
     height: 44px;
     display: grid;

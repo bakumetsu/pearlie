@@ -256,7 +256,7 @@
   .content { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--s-4); }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   .sticky-header { position: sticky; top: 0; background: var(--surface); z-index: 10; padding: var(--s-4) 0; }
-  .header-row { display: flex; align-items: center; gap: var(--s-4); }
+  .header-row { display: flex; align-items: center; gap: var(--s-4); padding-right: var(--sfw-inset); }
   .back-btn { min-width: 44px; min-height: 44px; display: grid; place-items: center; border: none; background: none; cursor: pointer; color: var(--text); }
   .header-title { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text); }
   .controls { display: flex; gap: var(--s-4); margin-top: var(--s-4); }

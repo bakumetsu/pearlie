@@ -44,7 +44,7 @@
   .pill {
     position: absolute;
     top: 16px;
-    right: 16px;
+    right: calc(8px + var(--sfw-inset));
     display: flex;
     align-items: center;
     padding: 4px;
