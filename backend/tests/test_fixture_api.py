@@ -10,6 +10,7 @@ from app.models import (
     LibraryItemDetail,
     Page,
     SearchResponse,
+    TrashList,
     TrashResult,
     WebItem,
 )
@@ -129,6 +130,68 @@ def test_delete_restore(client):
     assert client.post(f"/api/trash/{tr.token}/restore").status_code == 200
     assert client.get("/api/library/images/3").status_code == 200
     assert client.post(f"/api/trash/{tr.token}/restore").status_code == 404
+
+
+def test_trash_list(client):
+    """GET /api/trash lists deleted items newest-first with retention info."""
+    assert client.get("/api/trash").json() == {"items": [], "retention_days": 7}
+    client.delete("/api/library/images/3")
+    client.delete("/api/library/images/4")
+    tl = TrashList.model_validate(client.get("/api/trash").json())
+    assert len(tl.items) == 2
+    assert tl.items[0].item.id == "4"
+    assert tl.items[1].item.id == "3"
+    for entry in tl.items:
+        assert entry.token
+        assert entry.expires_at
+        assert entry.item.title
+    # restoring one removes it from the list
+    client.post(f"/api/trash/{tl.items[0].token}/restore")
+    tl2 = TrashList.model_validate(client.get("/api/trash").json())
+    assert len(tl2.items) == 1
+    assert tl2.items[0].item.id == "3"
+
+
+def test_trash_expired_hidden_not_purged(client):
+    """Expired trash entries are hidden from GET but not purged."""
+    tr = TrashResult.model_validate(client.delete("/api/library/images/3").json())
+    store.trash[tr.token]["expires"] = 0
+    tl = TrashList.model_validate(client.get("/api/trash").json())
+    assert len(tl.items) == 0
+    assert tr.token in store.trash
+    assert client.post(f"/api/trash/{tr.token}/restore").status_code == 404
+
+
+def test_trash_empty(client):
+    """DELETE /api/trash purges all entries and is idempotent."""
+    tr1 = TrashResult.model_validate(client.delete("/api/library/images/3").json())
+    client.delete("/api/library/images/4")
+    resp = client.delete("/api/trash")
+    assert resp.status_code == 200
+    assert resp.json() == {"removed": 2}
+    assert TrashList.model_validate(client.get("/api/trash").json()).items == []
+    assert client.post(f"/api/trash/{tr1.token}/restore").status_code == 404
+    assert client.delete("/api/trash").json() == {"removed": 0}
+
+
+def test_trash_absent_when_real(tmp_path):
+    """In real mode the trash endpoints are not mounted."""
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    app = create_app(
+        Settings(
+            mode="real",
+            db_path=tmp_path / "p.db",
+            static_dir=tmp_path / "nostatic",
+            _env_file=None,  # pyright: ignore[reportCallIssue]
+        )
+    )
+    c = TestClient(app)
+    assert c.get("/api/trash").status_code == 404
+    assert c.delete("/api/trash").status_code == 404
 
 
 def test_progress(client):

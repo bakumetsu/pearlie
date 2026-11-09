@@ -179,6 +179,15 @@ class TrashResult(BaseModel):
     item: TrashItem
 
 
+class TrashList(BaseModel):
+    items: list[TrashResult]
+    retention_days: int
+
+
+class TrashEmptied(BaseModel):
+    removed: int
+
+
 class RestoreResult(BaseModel):
     item: LibraryItem
 

@@ -21,7 +21,9 @@ from app.models import (
     RestoreResult,
     SavedRef,
     Tag,
+    TrashEmptied,
     TrashItem,
+    TrashList,
     TrashResult,
     WebItem,
 )
@@ -275,6 +277,35 @@ class Store:
             raw = entry["item"]
             bucket[raw["id"]] = raw
         return RestoreResult(item=self.library_item(raw))
+
+    def list_trash(self) -> TrashList:
+        """List non-expired trash; expired entries are only dropped on restore (pop) and empty."""
+        with self._lock:
+            now = time.time()
+            items = [
+                TrashResult(
+                    token=token,
+                    expires_at=datetime.fromtimestamp(entry["expires"], UTC).isoformat(),
+                    retention_days=7,
+                    item=TrashItem(
+                        kind=entry["item"]["kind"],
+                        id=entry["item"]["id"],
+                        title=entry["item"]["title"],
+                    ),
+                )
+                for token, entry in reversed(list(self.trash.items()))
+                if entry["expires"] >= now
+            ]
+            items.sort(key=lambda r: r.expires_at, reverse=True)
+        return TrashList(items=items, retention_days=7)
+
+    def empty_trash(self) -> TrashEmptied:
+        """Remove all trash, counting only non-expired entries."""
+        with self._lock:
+            now = time.time()
+            count = sum(1 for e in self.trash.values() if e["expires"] >= now)
+            self.trash.clear()
+        return TrashEmptied(removed=count)
 
     def set_progress(self, book_id: str, page: int) -> ProgressResult | None:
         raw = self.books.get(book_id)

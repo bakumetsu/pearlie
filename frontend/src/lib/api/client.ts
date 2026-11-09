@@ -14,6 +14,8 @@ export type LibraryPage = S["Page_LibraryItem_"];
 export type LibraryItemDetail = S["LibraryItemDetail"];
 export type PatchBody = S["PatchBody"];
 export type TrashResult = S["TrashResult"];
+export type TrashList = S["TrashList"];
+export type TrashEmptied = S["TrashEmptied"];
 export type RestoreResult = S["RestoreResult"];
 export type RulesBody = S["RulesBody"];
 export type RulesPut = S["RulesPut"];
@@ -64,6 +66,8 @@ export interface Api {
   patchItem(kind: Kind, id: string, body: PatchBody, signal?: AbortSignal): Promise<LibraryItemDetail>;
   deleteItem(kind: Kind, id: string, signal?: AbortSignal): Promise<TrashResult>;
   restore(token: string, signal?: AbortSignal): Promise<RestoreResult>;
+  listTrash(signal?: AbortSignal): Promise<TrashList>;
+  emptyTrash(signal?: AbortSignal): Promise<TrashEmptied>;
   getRules(signal?: AbortSignal): Promise<RulesBody>;
   putRules(body: RulesPut, signal?: AbortSignal): Promise<RulesBody>;
   jobs(p: { state?: string[] }, signal?: AbortSignal): Promise<JobList>;
@@ -200,6 +204,12 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         { method: "POST" },
         signal,
       );
+    },
+    listTrash(signal) {
+      return request<TrashList>(baseUrl + "/api/trash", undefined, signal);
+    },
+    emptyTrash(signal) {
+      return request<TrashEmptied>(baseUrl + "/api/trash", { method: "DELETE" }, signal);
     },
     getRules(signal) {
       return request<RulesBody>(baseUrl + "/api/rules", undefined, signal);

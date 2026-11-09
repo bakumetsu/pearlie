@@ -15,6 +15,7 @@
     { name: "library", label: "Library", icon: "library", path: "/library" },
     { name: "queue", label: "Queue", icon: "queue", path: "/queue" },
     { name: "rules", label: "Rules", icon: "rules", path: "/rules" },
+    { name: "trash", label: "Trash", icon: "trash", path: "/trash" },
   ] as const;
 
   function isActive(name: string): boolean {
