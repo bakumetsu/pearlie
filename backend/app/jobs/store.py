@@ -86,6 +86,7 @@ class JobStore:
                     conn.commit()
                     return str(cur.lastrowid)
                 except sqlite3.IntegrityError:
+                    conn.rollback()
                     existing = self.active_job_id(post.source, post.post_id)
                     if existing is not None:
                         return existing
@@ -138,7 +139,8 @@ class JobStore:
                 if cur.rowcount == 1:
                     return "ok"
             except sqlite3.IntegrityError:
-                return "bad_state"
+                conn.rollback()
+                return "conflict"
             row = conn.execute("SELECT id FROM jobs WHERE id = ?", (job_id,)).fetchone()
             if row is None:
                 return "missing"

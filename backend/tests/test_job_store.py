@@ -148,7 +148,7 @@ def test_retry_blocked_by_newer_active_job(tmp_path: Path) -> None:
     store.finish("1", "failed", error="x")
     jid2 = store.enqueue(post(), "stash", "t", "u")
     assert jid2 == "2"
-    assert store.retry("1") == "bad_state"
+    assert store.retry("1") == "conflict"
 
 
 def test_delete(tmp_path: Path) -> None:

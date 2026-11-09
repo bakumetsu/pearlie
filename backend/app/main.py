@@ -72,6 +72,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             if worker is not None and settings.worker_enabled:
                 worker.stop()
+            client: httpx.Client | None = getattr(app_.state, "http", None)
+            if client is not None:
+                client.close()
 
     app = FastAPI(lifespan=lifespan)
     install_errors(app)
@@ -96,10 +99,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     app.state.worker = None
+    app.state.http = None
     if "jobs" in real:
         if app.state.stash is None:
             raise ConfigError("PEARLIE_STASH_URL must be set when jobs is real")
         http = httpx.Client()
+        app.state.http = http
         stash_target = StashTarget(settings, app.state.stash, http, app.state.sources)
         app.state.worker = JobWorker(
             settings.db_path,

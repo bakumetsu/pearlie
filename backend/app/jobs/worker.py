@@ -179,6 +179,14 @@ class JobWorker:
                     library_ref_id=result.image_id,
                 )
                 logger.info("job %s skipped", job_id)
+            else:
+                self._store.finish(
+                    job_id,
+                    "failed",
+                    error="unexpected save result",
+                    error_code="unexpected_error",
+                )
+                logger.info("job %s failed", job_id)
 
         except (SaveError, SourceError) as e:
             self._store.finish(job_id, "failed", error=e.message, error_code=e.code)

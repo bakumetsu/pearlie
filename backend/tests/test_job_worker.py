@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -137,6 +138,17 @@ def test_run_once_saves(tmp_path: Path) -> None:
     assert job.library_ref.id == "7"
     assert target.calls == ["1"]
     assert worker.run_once() is False
+
+
+def test_unknown_save_status_fails_job(tmp_path: Path) -> None:
+    worker, store, target, sources, clock = make(tmp_path)
+    target.results = [SimpleNamespace(status="weird", notices=[], image_id=None)]
+    jid = enqueue(store, sources, "danbooru", "1")
+    assert worker.run_once() is True
+    job = store.get(jid)
+    assert job is not None
+    assert job.state == "failed"
+    assert job.error == "unexpected save result"
 
 
 def test_tags_are_flattened_sorted(tmp_path: Path) -> None:

@@ -94,6 +94,11 @@ def retry_job(id: str, request: Request) -> Job:
         raise ApiError(404, "not_found", "Job not found")
     if res == "bad_state":
         raise ApiError(409, "bad_state", "Only failed or needs_click jobs can be retried")
+    if res == "conflict":
+        raise ApiError(
+            409, "bad_state",
+            "Another job for this post is already queued or running",
+        )
     worker = _worker(request)
     if worker is not None:
         worker.wake()

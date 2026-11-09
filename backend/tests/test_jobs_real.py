@@ -199,6 +199,22 @@ def test_retry(tmp_path: Path) -> None:
     assert resp3.json()["code"] == "not_found"
 
 
+def test_retry_conflicts_with_active_job(tmp_path: Path) -> None:
+    client, _, db_path = make_client(tmp_path)
+    store = JobStore(db_path)
+    post = _make_post("danbooru", "1")
+    old = store.enqueue(post, "stash", "t", "u")
+    store.finish(old, "failed", error="x", error_code="e")
+    store.enqueue(post, "stash", "t", "u")
+    resp = client.post(f"/api/jobs/{old}/retry")
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "bad_state"
+    assert "already queued" in resp.json()["message"]
+    j = store.get(old)
+    assert j is not None
+    assert j.state == "failed"
+
+
 def test_delete(tmp_path: Path) -> None:
     client, _, db_path = make_client(tmp_path)
     store = JobStore(db_path)
