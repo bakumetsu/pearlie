@@ -5,6 +5,7 @@
   import PlayerBar from "./PlayerBar.svelte";
 
   let video: HTMLVideoElement | null = null;
+  let fallbackIdx = 0;
 
   let vp = $state({ w: window.innerWidth, h: window.innerHeight });
 
@@ -48,12 +49,23 @@
   $effect(() => {
     const item = player.item;
     if (item !== null && video !== null) {
+      fallbackIdx = 0;
       video.load();
     }
   });
 
   function onVideoClick(): void {
     if (player.mode === "stage") player.toggle();
+  }
+
+  function onVideoError(): void {
+    const fb = player.item?.fallbacks ?? [];
+    if (video && fallbackIdx < fb.length) {
+      video.src = fb[fallbackIdx].url;
+      fallbackIdx += 1;
+      video.load();
+      if (player.playing) void video.play();
+    }
   }
 </script>
 
@@ -76,6 +88,7 @@
   onpause={() => player.onPause()}
   onended={() => player.onEnded()}
   onclick={onVideoClick}
+  onerror={onVideoError}
 ></video>
 
 {#if player.mode === "stage" && player.slot !== null && player.item !== null && rect !== null}

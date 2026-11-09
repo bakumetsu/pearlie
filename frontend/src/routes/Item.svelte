@@ -45,6 +45,7 @@
           title: d.title,
           streamUrl: stream,
           posterUrl: d.thumb_url,
+          fallbacks: d?.kind === "video" ? d.fallback_streams ?? [] : [],
           href: itemHref(d),
         });
       });

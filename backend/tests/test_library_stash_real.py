@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import httpx
 import pytest
@@ -436,7 +437,8 @@ def test_video_detail_fallback_streams(tmp_path):
 
 def test_video_detail_public_url(tmp_path):
     client = _scene_client(tmp_path)
-    client.app.state.settings.stash_public_url = "https://pub.example/"
+    app: Any = client.app
+    app.state.settings.stash_public_url = "https://pub.example/"
     r = client.get("/api/library/stash/videos/7")
     assert r.json()["stash_link"] == "https://pub.example/scenes/7"
 
