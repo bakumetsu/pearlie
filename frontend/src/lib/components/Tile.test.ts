@@ -3,8 +3,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/svelte";
 import Tile from "./Tile.svelte";
 import type { LibraryItem } from "../api/client";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import src from "./SectionRow.svelte?raw";
 
 afterEach(() => {
   cleanup();
@@ -32,10 +31,6 @@ describe("Tile", () => {
 
 describe("SectionRow scrollbar", () => {
   it("hides the horizontal scrollbar while keeping arrow buttons", () => {
-    const src = readFileSync(
-      fileURLToPath(new URL("./SectionRow.svelte", import.meta.url)),
-      "utf-8",
-    );
     expect(src).toContain("scrollbar-width: none");
     expect(src).toContain("::-webkit-scrollbar");
     expect(src).toContain('class="strip no-scrollbar"');
