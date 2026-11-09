@@ -9,11 +9,13 @@ export function createTrash(api: Api, opts?: { onRestored?: () => void }) {
   let loaded = $state(false);
   let offline = $state(false);
   let confirming = $state(false);
+  let retentionDays: number | null = $state(null);
 
   async function refresh(): Promise<void> {
     try {
       const res = await api.listTrash();
       items = res.items;
+      retentionDays = res.retention_days;
       offline = false;
       loaded = true;
     } catch {
@@ -54,7 +56,7 @@ export function createTrash(api: Api, opts?: { onRestored?: () => void }) {
     try {
       const r = await api.emptyTrash();
       items = [];
-      toasts.push({ kind: "info", message: `Emptied trash: ${r.removed} item(s) deleted for good` });
+      toasts.push({ kind: "info", message: `Trash emptied: ${r.removed} ${r.removed === 1 ? "item" : "items"} deleted for good` });
     } catch {
       toasts.push({ kind: "error", message: "Could not empty the trash. Try again." });
     } finally {
@@ -67,6 +69,7 @@ export function createTrash(api: Api, opts?: { onRestored?: () => void }) {
     get loaded() { return loaded; },
     get offline() { return offline; },
     get confirming() { return confirming; },
+    get retentionDays() { return retentionDays; },
     refresh,
     restore,
     askEmpty,

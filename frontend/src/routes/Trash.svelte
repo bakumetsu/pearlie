@@ -35,8 +35,8 @@
 <div class="content">
 	<h1 tabindex="-1" bind:this={h1}>Trash</h1>
 
-	{#if trash.items.length > 0}
-		<p class="muted">Items are deleted for good after {trash.items[0].retention_days} days.</p>
+	{#if trash.retentionDays !== null}
+		<p class="muted">Items are deleted for good after {trash.retentionDays} days.</p>
 	{/if}
 
 	{#if trash.offline}
@@ -226,9 +226,8 @@
 	}
 
 	.empty {
-		text-align: center;
 		color: var(--muted);
-		padding: 2rem 0;
+		margin: 0;
 		font-size: 0.9375rem;
 	}
 </style>

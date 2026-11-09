@@ -13,7 +13,7 @@ const sampleItem = {
 
 function makeApi(overrides: Partial<Record<string, Mock>> = {}) {
   return {
-    listTrash: vi.fn().mockResolvedValue({ items: [] }),
+    listTrash: vi.fn().mockResolvedValue({ items: [], retention_days: 7 }),
     restore: vi.fn().mockResolvedValue(undefined),
     emptyTrash: vi.fn().mockResolvedValue({ removed: 0 }),
     ...overrides,
@@ -121,8 +121,27 @@ describe("createTrash", () => {
     expect(store.confirming).toBe(true);
     await store.confirmEmpty();
     expect(store.items).toEqual([]);
-    expect(pushSpy).toHaveBeenCalledWith({ kind: "info", message: "Emptied trash: 3 item(s) deleted for good" });
+    expect(pushSpy).toHaveBeenCalledWith({ kind: "info", message: "Trash emptied: 3 items deleted for good" });
     expect(store.confirming).toBe(false);
+  });
+
+  it("keeps retentionDays from the list, also when empty", async () => {
+    const store = createTrash(makeApi());
+    expect(store.retentionDays).toBeNull();
+    await store.refresh();
+    expect(store.retentionDays).toBe(7);
+  });
+
+  it("confirmEmpty uses the singular for one item", async () => {
+    const api = makeApi({
+      listTrash: vi.fn().mockResolvedValue({ items: [sampleItem], retention_days: 7 }),
+      emptyTrash: vi.fn().mockResolvedValue({ removed: 1 }),
+    });
+    const store = createTrash(api);
+    await store.refresh();
+    store.askEmpty();
+    await store.confirmEmpty();
+    expect(pushSpy).toHaveBeenCalledWith({ kind: "info", message: "Trash emptied: 1 item deleted for good" });
   });
 
   it("confirmEmpty failure keeps items, error toast, confirming false", async () => {

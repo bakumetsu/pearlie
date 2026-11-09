@@ -71,7 +71,8 @@ for (const [w, h] of [[1440, 900], [390, 844]].filter(([sw]) => !only || String(
   await restoreBtn.click();
   await shot(page, 'restored', w, h);
 
-  // --- empty for real ---
+  // --- empty for real (wait for the Restored toast to expire; toasts show one at a time) ---
+  await page.getByText(/^Restored:/).waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
   await emptyBtn.click();
   await confirmBtn.click();
   await shot(page, 'emptied', w, h);
