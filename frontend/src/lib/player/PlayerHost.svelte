@@ -50,6 +50,11 @@
     const item = player.item;
     if (item !== null && video !== null) {
       video.load();
+      player.reapplyRate();
+      if (player.consumeAutoplay()) {
+        const p = video.play();
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      }
     }
   });
 

@@ -39,6 +39,7 @@ export function createPlayer() {
   let el: VideoLike | null = null;
   let fallbackIdx = 0;
   let nav: PlayerNav | null = null;
+  let autoplay = false;
   let navVersion = $state(0);
 
   function applyRate(): void {
@@ -80,7 +81,27 @@ export function createPlayer() {
       state.playing = false;
       state.slot = null;
       state.mode = "stage";
+      autoplay = false;
       applyRate();
+    },
+
+    swap(item: PlayerItem): void {
+      if (state.item?.id === item.id) return;
+      el?.pause();
+      state.item = item;
+      state.failed = false;
+      fallbackIdx = 0;
+      state.time = 0;
+      state.duration = 0;
+      state.playing = false;
+      autoplay = true;
+      applyRate();
+    },
+
+    consumeAutoplay(): boolean {
+      const a = autoplay;
+      autoplay = false;
+      return a;
     },
 
     setSlot(id: string, rect: Rect | null): void {

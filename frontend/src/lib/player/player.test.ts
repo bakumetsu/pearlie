@@ -300,3 +300,53 @@ describe("createPlayer controls", () => {
     expect(p.canPrev).toBe(false);
   });
 });
+
+describe("createPlayer swap", () => {
+  function toMini(p: ReturnType<typeof createPlayer>): void {
+    p.open(item1);
+    p.onPlaying();
+    p.setSlot(item1.id, rect);
+    p.releaseSlot(item1.id);
+    expect(p.mode).toBe("mini");
+  }
+
+  it("swap in mini mode keeps mode and slot, changes item, resets state", () => {
+    const p = createPlayer();
+    const f = fake();
+    p.attach(f);
+    toMini(p);
+    p.swap(item2);
+    expect(p.mode).toBe("mini");
+    expect(p.slot).toBeNull();
+    expect(p.item?.id).toBe("2");
+    expect(p.time).toBe(0);
+    expect(p.duration).toBe(0);
+    expect(p.playing).toBe(false);
+    expect(f.pause).toHaveBeenCalled();
+  });
+
+  it("consumeAutoplay returns true once then false", () => {
+    const p = createPlayer();
+    toMini(p);
+    p.swap(item2);
+    expect(p.consumeAutoplay()).toBe(true);
+    expect(p.consumeAutoplay()).toBe(false);
+  });
+
+  it("swap with same id is a no-op", () => {
+    const p = createPlayer();
+    toMini(p);
+    p.swap(item1);
+    expect(p.item?.id).toBe("1");
+    expect(p.consumeAutoplay()).toBe(false);
+  });
+
+  it("open after swap resets autoplay", () => {
+    const p = createPlayer();
+    toMini(p);
+    p.swap(item2);
+    expect(p.consumeAutoplay()).toBe(true);
+    p.open(item1);
+    expect(p.consumeAutoplay()).toBe(false);
+  });
+});
