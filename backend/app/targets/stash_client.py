@@ -231,3 +231,32 @@ class StashClient:
         """Return the scene dict (with streams) for *id*, or ``None``."""
         data = self._gql(GET_SCENE, {"id": id})
         return data["findScene"]
+
+    def open_media(
+        self,
+        path: str,
+        params: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        """Open a streamed media response from Stash. Caller must close it."""
+        request = self._client.build_request(
+            "GET", path, params=params, headers=headers
+        )
+        try:
+            response = self._client.send(
+                request, stream=True, follow_redirects=False
+            )
+        except httpx.HTTPError as exc:
+            raise StashError("upstream_error", "Stash is not reachable") from exc
+
+        status = response.status_code
+        if status == 404:
+            response.close()
+            raise StashError("not_found", "Media not found", 404)
+        if status in (401, 403):
+            response.close()
+            raise StashError("upstream_auth", "Stash refused the API key", 502)
+        if status >= 400 and status != 416:
+            response.close()
+            raise StashError("upstream_error", f"Stash returned {status}")
+        return response
