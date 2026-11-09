@@ -39,6 +39,23 @@ describe("client item & rules", () => {
     });
   });
 
+  it("listTrash calls GET /api/trash", async () => {
+    const fake = vi.fn().mockResolvedValue(ok({}));
+    const api = createApi("", fake);
+    await api.listTrash();
+    expect(fake).toHaveBeenCalledWith("/api/trash", { signal: undefined });
+  });
+
+  it("emptyTrash sends DELETE to /api/trash", async () => {
+    const fake = vi.fn().mockResolvedValue(ok({}));
+    const api = createApi("", fake);
+    await api.emptyTrash();
+    expect(fake).toHaveBeenCalledWith("/api/trash", {
+      method: "DELETE",
+      signal: undefined,
+    });
+  });
+
   it("restore POSTs to the encoded trash URL", async () => {
     const fake = vi.fn().mockResolvedValue(ok({}));
     const api = createApi("", fake);
