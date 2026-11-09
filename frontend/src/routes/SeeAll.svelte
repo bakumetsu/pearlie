@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
   import { itemHref } from "../lib/item/kinds";
@@ -93,7 +94,8 @@
         notice = r.notice?.message ?? null;
         return { items: r.items, total: r.total ?? null, next_page: r.next_page ?? null };
       };
-      grid.open(listKey, loader);
+      // open() reads grid state; untracked so loadMore's status change does not re-run this effect and reset to page 1
+      untrack(() => grid.open(listKey, loader));
     } else {
       notice = null;
       const loader = async (page: number, signal: AbortSignal) => {
@@ -105,7 +107,8 @@
           next_page: s?.next_page ?? null,
         };
       };
-      grid.open(listKey, loader);
+      // open() reads grid state; untracked so loadMore's status change does not re-run this effect and reset to page 1
+      untrack(() => grid.open(listKey, loader));
     }
   });
 
