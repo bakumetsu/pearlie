@@ -29,6 +29,13 @@ class TestBuildAll:
             assert len(raw["web"][src]) == 200, f"{src} post count"
         assert len(raw["web"]["rule34"]) == 200
 
+    def test_video_durations_vary(self) -> None:
+        """Video durations are not all the same and fall within [20, 3600)."""
+        raw = data.build_all()
+        durations = [v["duration_s"] for v in raw["videos"][:20]]
+        assert len(set(durations)) > 10
+        assert all(20 <= d < 3600 for d in durations)
+
 
 def test_mediagen(tmp_path: Path) -> None:
     """generate() produces the expected file tree and is idempotent."""

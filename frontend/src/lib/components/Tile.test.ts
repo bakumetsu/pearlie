@@ -3,6 +3,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/svelte";
 import Tile from "./Tile.svelte";
 import type { LibraryItem } from "../api/client";
+import src from "./SectionRow.svelte?raw";
 
 afterEach(() => {
   cleanup();
@@ -26,4 +27,13 @@ describe("Tile", () => {
       expect(media.style.aspectRatio).toBe("2 / 3");
     },
   );
+});
+
+describe("SectionRow scrollbar", () => {
+  it("hides the horizontal scrollbar while keeping arrow buttons", () => {
+    expect(src).toContain("scrollbar-width: none");
+    expect(src).toContain("::-webkit-scrollbar");
+    expect(src).toContain('class="strip no-scrollbar"');
+    expect(src).toContain('aria-label="Scroll right"');
+  });
 });

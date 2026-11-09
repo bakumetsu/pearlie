@@ -147,6 +147,32 @@ def test_video_item():
     assert item_empty.duration_s is None
 
 
+def test_video_item_duration_per_scene():
+    """video_item reads duration from the scene's files entry, not a constant."""
+    item_a = stash_library.video_item(
+        scene_dto(id="2", files=[{
+            "basename": "clip.mp4",
+            "width": 1920,
+            "height": 1080,
+            "duration": 61.5,
+            "video_codec": "h264",
+            "size": 5678,
+        }])
+    )
+    item_b = stash_library.video_item(
+        scene_dto(id="3", files=[{
+            "basename": "clip.mp4",
+            "width": 1920,
+            "height": 1080,
+            "duration": 3725.0,
+            "video_codec": "h264",
+            "size": 5678,
+        }])
+    )
+    assert item_a.duration_s == 61.5
+    assert item_b.duration_s == 3725.0
+
+
 def test_image_detail():
     """image_detail produces full_url, mime, Tag objects, and source_url_text."""
     det = stash_library.image_detail(image_dto())
