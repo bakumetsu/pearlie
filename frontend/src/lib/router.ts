@@ -55,6 +55,7 @@ export function hrefOf(path: string, params?: Record<string, string | number | b
 export type Router = {
   current(): Match;
   navigate(href: string, opts?: { replace?: boolean }): void;
+  canGoBack(): boolean;
   subscribe(fn: (m: Match) => void): () => void;
   destroy(): void;
 };
@@ -70,10 +71,11 @@ export function createRouter(win: Window = window): Router {
   return {
     current: () => matchRoute(win.location.pathname, win.location.search),
     navigate(href: string, opts?: { replace?: boolean }) {
-      if (opts?.replace) win.history.replaceState(null, "", href);
-      else win.history.pushState(null, "", href);
+      if (opts?.replace) win.history.replaceState({ ...(win.history.state ?? {}) }, "", href);
+      else win.history.pushState({ ...(win.history.state ?? {}), depth: (win.history.state?.depth ?? 0) + 1 }, "", href);
       notify();
     },
+    canGoBack: () => (win.history.state?.depth ?? 0) > 0,
     subscribe(fn: (m: Match) => void) {
       subs.add(fn);
       return () => { subs.delete(fn); };

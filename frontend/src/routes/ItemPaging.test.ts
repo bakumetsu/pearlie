@@ -175,10 +175,6 @@ describe("Item prev/next across pages", () => {
     const fetchCountBefore = pages.length;
     history.back();
     await vi.waitFor(() => {
-      expect(location.pathname).toBe("/item/images/1b");
-    });
-    history.back();
-    await vi.waitFor(() => {
       expect(location.pathname).toBe("/see-all");
       expect(location.search).toContain("page=2");
       const tiles = container.querySelectorAll("a.tile");

@@ -194,7 +194,7 @@
 		if (b.id === bookId) { popover = null; return; }
 		progress.flush();
 		const start = bookStart(b);
-		router.navigate("/read/" + encodeURIComponent(b.id) + "?p=" + start + "&series=" + (seriesId ?? ""));
+		router.navigate("/read/" + encodeURIComponent(b.id) + "?p=" + start + "&series=" + (seriesId ?? ""), { replace: true });
 		show(b.title);
 	}
 
@@ -203,8 +203,13 @@
 	}
 
 	function back() {
+		if (router.canGoBack()) {
+			history.back();
+			return;
+		}
 		router.navigate(
 			seriesId ? "/item/series/" + encodeURIComponent(seriesId) : "/item/books/" + encodeURIComponent(bookId),
+			{ replace: true },
 		);
 	}
 
