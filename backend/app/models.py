@@ -137,6 +137,27 @@ class PageStats(BaseModel):
     size_bytes: int | None = None
 
 
+ViewMode = Literal["grid", "wall", "masonry", "list"]
+
+
+class ViewSettingBody(BaseModel):
+    mode: str
+    per_page: int
+    zoom: int
+
+
+class ViewSettingItem(BaseModel):
+    mode: ViewMode
+    per_page: int
+    zoom: int
+    per_page_options: list[int]
+    per_page_max: int
+
+
+class ViewSettings(BaseModel):
+    sources: dict[str, ViewSettingItem]
+
+
 class Section(BaseModel):
     id: SectionId
     title: str
