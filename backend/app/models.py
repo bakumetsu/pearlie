@@ -69,11 +69,20 @@ class LibraryItem(BaseModel):
     added_at: str
 
 
+class StreamOption(BaseModel):
+    label: str
+    mime: str
+    url: str
+
+
 class LibraryItemDetail(LibraryItem):
     tags: list[Tag] = Field(default_factory=list)
     full_url: str | None = None
     stream_url: str | None = None
     mime: str | None = None
+    video_codec: str | None = None
+    fallback_streams: list[StreamOption] = Field(default_factory=list)
+    stash_link: str | None = None
     books: list[LibraryItem] = Field(default_factory=list)
     notice: Problem | None = None
     source_url_text: str | None = None
@@ -133,6 +142,7 @@ class Page[T](BaseModel):
     total: int
     next_page: int | None = None
     notice: Problem | None = None
+    seed: int | None = None
 
 
 class SearchResponse(BaseModel):

@@ -1,6 +1,6 @@
 import { modeOnLeave, type Rect, type PlayerMode } from "./geometry";
 
-export type PlayerItem = { id: string; title: string; streamUrl: string; posterUrl: string; href: string };
+export type PlayerItem = { id: string; title: string; streamUrl: string; posterUrl: string; href: string; fallbacks?: { url: string; mime: string }[] };
 export interface VideoLike {
   play(): Promise<void>;
   pause(): void;

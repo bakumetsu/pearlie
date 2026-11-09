@@ -40,6 +40,30 @@ LIBRARY_PATHS = (
     "query { configuration { general { stashes { path } } } }"
 )
 
+IMAGE_FIELDS = (
+    "id title rating100 created_at urls tags { name } "
+    "visual_files { ... on ImageFile { basename width height size } }"
+)
+SCENE_FIELDS = (
+    "id title rating100 created_at urls tags { name } "
+    "files { basename width height duration video_codec size }"
+)
+LIST_IMAGES = (
+    "query($f: FindFilterType) { findImages(filter: $f) "
+    "{ count images { " + IMAGE_FIELDS + " } } }"
+)
+GET_IMAGE = (
+    "query($id: ID!) { findImage(id: $id) { " + IMAGE_FIELDS + " } }"
+)
+LIST_SCENES = (
+    "query($f: FindFilterType) { findScenes(filter: $f) "
+    "{ count scenes { " + SCENE_FIELDS + " } } }"
+)
+GET_SCENE = (
+    "query($id: ID!) { findScene(id: $id) { " + SCENE_FIELDS
+    + " sceneStreams { url mime_type label } } }"
+)
+
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -161,3 +185,78 @@ class StashClient:
         data = self._gql(LIBRARY_PATHS)
         stashes = data["configuration"]["general"]["stashes"] or []
         return [s["path"] for s in stashes]
+
+    def list_images(
+        self, page: int, per_page: int, q: str, sort: str, direction: str
+    ) -> tuple[list[dict], int]:
+        """Return a page of images and the total count."""
+        data = self._gql(
+            LIST_IMAGES,
+            {
+                "f": {
+                    "page": page,
+                    "per_page": per_page,
+                    "q": q,
+                    "sort": sort,
+                    "direction": direction,
+                }
+            },
+        )
+        return data["findImages"]["images"], data["findImages"]["count"]
+
+    def get_image(self, id: str) -> dict | None:
+        """Return the image dict for *id*, or ``None``."""
+        data = self._gql(GET_IMAGE, {"id": id})
+        return data["findImage"]
+
+    def list_scenes(
+        self, page: int, per_page: int, q: str, sort: str, direction: str
+    ) -> tuple[list[dict], int]:
+        """Return a page of scenes and the total count."""
+        data = self._gql(
+            LIST_SCENES,
+            {
+                "f": {
+                    "page": page,
+                    "per_page": per_page,
+                    "q": q,
+                    "sort": sort,
+                    "direction": direction,
+                }
+            },
+        )
+        return data["findScenes"]["scenes"], data["findScenes"]["count"]
+
+    def get_scene(self, id: str) -> dict | None:
+        """Return the scene dict (with streams) for *id*, or ``None``."""
+        data = self._gql(GET_SCENE, {"id": id})
+        return data["findScene"]
+
+    def open_media(
+        self,
+        path: str,
+        params: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        """Open a streamed media response from Stash. Caller must close it."""
+        request = self._client.build_request(
+            "GET", path, params=params, headers=headers
+        )
+        try:
+            response = self._client.send(
+                request, stream=True, follow_redirects=False
+            )
+        except httpx.HTTPError as exc:
+            raise StashError("upstream_error", "Stash is not reachable") from exc
+
+        status = response.status_code
+        if status == 404:
+            response.close()
+            raise StashError("not_found", "Media not found", 404)
+        if status in (401, 403):
+            response.close()
+            raise StashError("upstream_auth", "Stash refused the API key", 502)
+        if status >= 400 and status != 416:
+            response.close()
+            raise StashError("upstream_error", f"Stash returned {status}")
+        return response

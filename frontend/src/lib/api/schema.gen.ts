@@ -895,6 +895,12 @@ export interface components {
             stream_url?: string | null;
             /** Mime */
             mime?: string | null;
+            /** Video Codec */
+            video_codec?: string | null;
+            /** Fallback Streams */
+            fallback_streams?: components["schemas"]["StreamOption"][];
+            /** Stash Link */
+            stash_link?: string | null;
             /** Books */
             books?: components["schemas"]["LibraryItem"][];
             notice?: components["schemas"]["Problem"] | null;
@@ -934,6 +940,8 @@ export interface components {
             /** Next Page */
             next_page?: number | null;
             notice?: components["schemas"]["Problem"] | null;
+            /** Seed */
+            seed?: number | null;
         };
         /** PatchBody */
         PatchBody: {
@@ -1099,6 +1107,15 @@ export interface components {
             state: "ok" | "down" | "not_configured";
             /** Version */
             version?: string | null;
+        };
+        /** StreamOption */
+        StreamOption: {
+            /** Label */
+            label: string;
+            /** Mime */
+            mime: string;
+            /** Url */
+            url: string;
         };
         /** Tag */
         Tag: {

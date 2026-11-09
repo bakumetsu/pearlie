@@ -16,9 +16,11 @@ from app.api import (
     library_komga,
     library_komga_real,
     library_stash,
+    library_stash_real,
     media_komga,
     media_komga_real,
     media_stash,
+    media_stash_real,
     rules,
     search,
     search_real,
@@ -49,6 +51,8 @@ FIXTURE_ROUTERS = {
 REAL_ROUTERS: dict[str, APIRouter] = {
     "search": search_real.router,
     "library_komga": library_komga_real.router,
+    "media_stash": media_stash_real.router,
+    "library_stash": library_stash_real.router,
     "media_komga": media_komga_real.router,
     "jobs": jobs_real.router,
 }
@@ -113,6 +117,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             interval_s=settings.download_interval_s,
             startup_hooks=[stash_target.cleanup_temp],
         )
+
+    if real & {"library_stash", "media_stash"} and app.state.stash is None:
+        raise ConfigError("PEARLIE_STASH_URL must be set when library_stash or media_stash is real")
 
     for name in real:
         if name not in REAL_ROUTERS:

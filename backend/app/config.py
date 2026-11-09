@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     port: int = 8000
     stash_url: str = ""
     stash_api_key: SecretStr = SecretStr("")
+    stash_public_url: str = ""
     komga_url: str = ""
     komga_api_key: SecretStr = SecretStr("")
     gelbooru_user_id: str = ""

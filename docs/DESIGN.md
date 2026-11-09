@@ -97,6 +97,13 @@ Save flow for one image:
 
 Browsing: `findImages` (`paths { thumbnail image }`), `findScenes` (`paths { screenshot preview }`), `sceneStreams(id)` for playback. Editing: `imageUpdate` / `sceneUpdate` for rating, favorite and tags.
 
+Library browsing (read-only, `backend/app/targets/stash_client.py`). Check these exact queries in `http://<stash>/playground` before a live test:
+- Images: `query($f: FindFilterType) { findImages(filter: $f) { count images { id title rating100 created_at urls tags { name } visual_files { ... on ImageFile { basename width height size } } } } }`, detail `findImage(id: $id)` with the same fields.
+- Scenes: `query($f: FindFilterType) { findScenes(filter: $f) { count scenes { id title rating100 created_at urls tags { name } files { basename width height duration video_codec size } } } }`, detail `findScene(id: $id)` plus `sceneStreams { url mime_type label }`.
+- `$f` carries `page`, `per_page`, `q`, `sort` (`created_at`, `rating`, `random_<seed>`) and `direction`.
+- Media is not fetched from the `paths` fields: the backend proxies `/image/{id}/thumbnail`, `/image/{id}/image`, `/scene/{id}/screenshot`, `/scene/{id}/stream` and `/scene/{id}/{stream.m3u8|stream.mp4|stream.webm|N.ts}` with the key in the `ApiKey` header only. Only a valid `resolution` query value is forwarded, and HLS playlists are rewritten so no Stash URL or key reaches the browser.
+- Fallback streams in the item detail come from `sceneStreams`, mapped to proxy URLs; `stash_link` is `<stash_public_url or stash_url>/scenes/{id}` or `/images/{id}`, never with a key.
+
 Notes:
 - Stash v0.32.0 (Oct 2026) returns 403 to public IPs when no credentials are set. Give Stash an API key.
 - The schema shifts between releases: check every field above in `http://<stash>/playground` before coding, especially whether the image `checksum` filter is MD5.
