@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // sfw-reveal group path: a [data-sfw-group] container reveals its video while the pointer is anywhere inside
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { installReveal } from "./sfw-reveal";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { installReveal, REVEAL_DELAY_MS } from "./sfw-reveal";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -62,11 +62,13 @@ let fixture: ReturnType<typeof makeRoot>;
 let uninstall: (() => void) | null = null;
 
 beforeEach(() => {
+  vi.useFakeTimers();
   fixture = makeRoot();
   uninstall = installReveal(fixture.root);
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   if (uninstall) uninstall();
   uninstall = null;
   fixture.root.remove();
@@ -79,12 +81,14 @@ describe("sfw-reveal group", () => {
   it("mouse pointerover on the bar reveals the group video", () => {
     const { btn, video } = fixture;
     ptr("pointerover", btn, "mouse");
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(video.hasAttribute("data-sfw-shown")).toBe(true);
   });
 
   it("mouse pointerout from the video to the bar keeps the video revealed", () => {
     const { btn, video } = fixture;
     ptr("pointerover", btn, "mouse");
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(video.hasAttribute("data-sfw-shown")).toBe(true);
     ptr("pointerout", video, "mouse", { relatedTarget: btn });
     expect(video.hasAttribute("data-sfw-shown")).toBe(true);
@@ -93,6 +97,7 @@ describe("sfw-reveal group", () => {
   it("mouse pointerout from the bar to outside hides the video", () => {
     const { btn, video } = fixture;
     ptr("pointerover", btn, "mouse");
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(video.hasAttribute("data-sfw-shown")).toBe(true);
     ptr("pointerout", btn, "mouse", { relatedTarget: document.body });
     expect(video.hasAttribute("data-sfw-shown")).toBe(false);
@@ -101,6 +106,7 @@ describe("sfw-reveal group", () => {
   it("touch pointerdown inside the bar keeps revealed; pointerdown outside hides", () => {
     const { btn, video } = fixture;
     ptr("pointerover", btn, "mouse");
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(video.hasAttribute("data-sfw-shown")).toBe(true);
     ptr("pointerdown", btn, "touch");
     expect(video.hasAttribute("data-sfw-shown")).toBe(true);
@@ -111,6 +117,7 @@ describe("sfw-reveal group", () => {
   it("tile path unchanged: pointerover img reveals, pointerout to body hides", () => {
     const { tileImg } = fixture;
     ptr("pointerover", tileImg, "mouse");
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(tileImg.hasAttribute("data-sfw-shown")).toBe(true);
     ptr("pointerout", tileImg, "mouse", { relatedTarget: document.body });
     expect(tileImg.hasAttribute("data-sfw-shown")).toBe(false);

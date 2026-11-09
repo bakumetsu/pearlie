@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { installReveal, resetReveals } from "./sfw-reveal";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { installReveal, resetReveals, REVEAL_DELAY_MS } from "./sfw-reveal";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -69,11 +69,13 @@ let fixture: ReturnType<typeof makeRoot>;
 let uninstall: (() => void) | null = null;
 
 beforeEach(() => {
+  vi.useFakeTimers();
   fixture = makeRoot();
   uninstall = installReveal(fixture.root);
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   if (uninstall) uninstall();
   uninstall = null;
   document.body.innerHTML = "";
@@ -86,6 +88,7 @@ describe("sfw-reveal transient", () => {
     const { img1 } = fixture;
 
     ptr("pointerover", img1, "mouse");
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(img1.hasAttribute("data-sfw-shown")).toBe(true);
 
     ptr("pointerout", img1, "mouse", { relatedTarget: document.body });
@@ -96,6 +99,7 @@ describe("sfw-reveal transient", () => {
     const { img1, link1 } = fixture;
 
     ptr("pointerover", img1, "mouse");
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(img1.hasAttribute("data-sfw-shown")).toBe(true);
 
     // pointerout from img, relatedTarget is the <a> (still inside tile)
@@ -122,6 +126,7 @@ describe("sfw-reveal transient", () => {
     const { link1, img1 } = fixture;
 
     focusEv("focusin", link1, null);
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(img1.hasAttribute("data-sfw-shown")).toBe(true);
 
     focusEv("focusout", link1, document.body);
@@ -260,10 +265,11 @@ describe("sfw-reveal transient", () => {
     const { img1 } = fixture;
 
     ptr("pointerover", img1, "mouse");
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(img1.hasAttribute("data-sfw-shown")).toBe(true);
 
     img1.src = "/other.jpg";
-    await new Promise((r) => setTimeout(r, 0));
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(img1.hasAttribute("data-sfw-shown")).toBe(false);
   });
@@ -273,6 +279,7 @@ describe("sfw-reveal transient", () => {
 
     // Hover
     ptr("pointerover", standalone, "mouse");
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(standalone.hasAttribute("data-sfw-shown")).toBe(true);
 
     ptr("pointerout", standalone, "mouse", { relatedTarget: document.body });
@@ -328,6 +335,7 @@ describe("sfw-reveal transient", () => {
     const { img1 } = fixture;
 
     ptr("pointerover", img1, "mouse");
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(img1.hasAttribute("data-sfw-shown")).toBe(true);
 
     uninstall!();
@@ -359,6 +367,7 @@ describe("sfw-reveal transient", () => {
     const { img1, root } = fixture;
 
     ptr("pointerover", img1, "mouse");
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(img1.hasAttribute("data-sfw-shown")).toBe(true);
 
     // Reveal img2 via a second mechanism (mouse pointerover on img2)
