@@ -8,7 +8,7 @@
     | "star-filled" | "volume" | "volume-x" | "pip" | "maximize" | "minimize" | "undo"
     | "clock" | "minus" | "upload" | "columns" | "settings" | "arrow-left-right" | "rotate-ccw"
     | "help" | "chevron-up" | "list" | "fit-width" | "fit-height" | "fit-both" | "fit-actual" | "mode-single" | "mode-spread" | "mode-scroll"
-    | "home";
+    | "home" | "wrench";
 
   const paths: Record<IconName, string[]> = {
     "search": [
@@ -262,6 +262,9 @@
       "M3 11l9-8 9 8",
       "M5 10v10h14V10",
       "M10 20v-6h4v6",
+    ],
+    "wrench": [
+      "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z",
     ],
   };
 </script>

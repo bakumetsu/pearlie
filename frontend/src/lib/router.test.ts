@@ -23,6 +23,13 @@ describe("matchRoute", () => {
     expect(m.path).toBe("/home");
   });
 
+  it("matches /option", () => {
+    const m = matchRoute("/option", "");
+    expect(m.name).toBe("option");
+    expect(m.params).toEqual({});
+    expect(m.path).toBe("/option");
+  });
+
   it("matches trailing-slash path", () => {
     const m = matchRoute("/library/", "");
     expect(m.name).toBe("library");

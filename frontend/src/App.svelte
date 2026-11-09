@@ -10,6 +10,7 @@
   import Home from "./routes/Home.svelte";
   import Rules from "./routes/Rules.svelte";
   import Trash from "./routes/Trash.svelte";
+  import Option from "./routes/Option.svelte";
   import Reader from "./routes/Reader.svelte";
   import { setApi, createApi } from "./lib/api/client";
   import Nav from "./lib/components/Nav.svelte";
@@ -65,6 +66,8 @@
       <Rules />
     {:else if match.name === "trash"}
       <Trash />
+    {:else if match.name === "option"}
+      <Option />
     {:else}
       <section class="placeholder">
         <h1 tabindex="-1">Page not found</h1>

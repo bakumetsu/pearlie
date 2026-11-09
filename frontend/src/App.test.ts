@@ -32,6 +32,9 @@ describe("App shell", () => {
     expect(names).toContain("Library");
     expect(names).toContain("Queue");
     expect(names).toContain("Rules");
+    expect(names).toContain("Option");
+    expect(names[names.length - 1]).toBe("Option");
+    expect(names[names.length - 2]).toBe("Trash");
   });
 
   it('marks the "Library" link with aria-current="page" at /library', () => {
@@ -54,5 +57,12 @@ describe("App shell", () => {
     render(App);
 
     expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy();
+  });
+
+  it('shows the "Option" heading at /option', () => {
+    history.replaceState({}, "", "/option");
+    render(App);
+
+    expect(screen.getByRole("heading", { name: "Option" })).toBeTruthy();
   });
 });

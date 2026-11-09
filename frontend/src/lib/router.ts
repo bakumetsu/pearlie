@@ -16,6 +16,7 @@ export const ROUTES: RouteDef[] = [
   { name: "queue", pattern: "/queue" },
   { name: "trash", pattern: "/trash" },
   { name: "rules", pattern: "/rules" },
+  { name: "option", pattern: "/option" },
 ];
 
 export type Match = { name: string; params: Record<string, string>; query: URLSearchParams; path: string };
