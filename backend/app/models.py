@@ -142,6 +142,7 @@ class Page[T](BaseModel):
     total: int
     next_page: int | None = None
     notice: Problem | None = None
+    seed: int | None = None
 
 
 class SearchResponse(BaseModel):

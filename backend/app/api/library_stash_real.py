@@ -1,5 +1,7 @@
 """Real Stash library router – delegates to the Stash GraphQL API."""
 
+import secrets
+
 from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
@@ -31,9 +33,14 @@ def list_stash_images(
     q: str = Query(""),
     sort: str = Query("newest", pattern="^(newest|rating|random)$"),
     favorite: bool | None = Query(None),
+    seed: int | None = Query(None, ge=0, lt=10**8),
 ) -> Page[LibraryItem]:
     client: StashClient = request.app.state.stash
-    field, direction = stash_sort(sort)
+    if sort == "random":
+        seed = seed if seed is not None else secrets.randbelow(10**8)
+    else:
+        seed = None
+    field, direction = stash_sort(sort, seed)
     try:
         dtos, count = client.list_images(page, page_size, q, field, direction)
     except StashError as e:
@@ -45,7 +52,8 @@ def list_stash_images(
         page_size=page_size,
         total=count,
         next_page=page + 1 if page * page_size < count else None,
-        notice=list_notice(sort, favorite, bad),
+        notice=list_notice(favorite, bad),
+        seed=seed,
     )
 
 
@@ -57,9 +65,14 @@ def list_stash_videos(
     q: str = Query(""),
     sort: str = Query("newest", pattern="^(newest|rating|random)$"),
     favorite: bool | None = Query(None),
+    seed: int | None = Query(None, ge=0, lt=10**8),
 ) -> Page[LibraryItem]:
     client: StashClient = request.app.state.stash
-    field, direction = stash_sort(sort)
+    if sort == "random":
+        seed = seed if seed is not None else secrets.randbelow(10**8)
+    else:
+        seed = None
+    field, direction = stash_sort(sort, seed)
     try:
         dtos, count = client.list_scenes(page, page_size, q, field, direction)
     except StashError as e:
@@ -71,7 +84,8 @@ def list_stash_videos(
         page_size=page_size,
         total=count,
         next_page=page + 1 if page * page_size < count else None,
-        notice=list_notice(sort, favorite, bad),
+        notice=list_notice(favorite, bad),
+        seed=seed,
     )
 
 

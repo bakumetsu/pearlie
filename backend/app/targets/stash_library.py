@@ -15,13 +15,15 @@ def valid_id(id: str) -> bool:
     return bool(id) and id.isascii() and id.isdigit()
 
 
-def stash_sort(sort: str) -> tuple[str, str]:
+def stash_sort(sort: str, seed: int | None = None) -> tuple[str, str]:
     """Map a UI sort key to a Stash sort field and direction."""
     if sort == "newest":
         return ("created_at", "DESC")
     if sort == "rating":
         return ("rating", "DESC")
-    return (f"random_{secrets.randbelow(10**8)}", "DESC")
+    if seed is None:
+        seed = secrets.randbelow(10**8)
+    return (f"random_{seed}", "DESC")
 
 
 def rating_from_100(r: int | None) -> int | None:
@@ -132,7 +134,7 @@ def map_items(dtos: list[dict], fn) -> tuple[list[LibraryItem], list[str]]:
     return items, bad
 
 
-def list_notice(sort: str, favorite: bool | None, bad_ids: list[str]) -> Problem | None:
+def list_notice(favorite: bool | None, bad_ids: list[str]) -> Problem | None:
     """Build a ``Problem`` notice for options Stash cannot honour."""
     parts: list[tuple[str, str]] = []
     if bad_ids:
@@ -141,8 +143,6 @@ def list_notice(sort: str, favorite: bool | None, bad_ids: list[str]) -> Problem
     if favorite is not None:
         msg = f"Ignored: favorite={str(favorite).lower()} (Stash has no favorites)"
         parts.append(("option_ignored", msg))
-    if sort == "random":
-        parts.append(("random_repeats", "Random order may repeat items across pages"))
     if not parts:
         return None
     return Problem(code=parts[0][0], message="; ".join(m for _, m in parts))

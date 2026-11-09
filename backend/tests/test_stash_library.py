@@ -103,6 +103,7 @@ def test_stash_sort():
     """stash_sort maps UI sort keys to (field, direction)."""
     assert stash_library.stash_sort("newest") == ("created_at", "DESC")
     assert stash_library.stash_sort("rating") == ("rating", "DESC")
+    assert stash_library.stash_sort("random", 123) == ("random_123", "DESC")
     field, direction = stash_library.stash_sort("random")
     assert field.startswith("random_")
     assert direction == "DESC"
@@ -207,35 +208,30 @@ def test_map_items():
 def test_list_notice():
     """list_notice builds a Problem for unsupported options; None when clean."""
     # Nothing -> None
-    assert stash_library.list_notice("newest", None, []) is None
+    assert stash_library.list_notice(None, []) is None
 
     # favorite only -> option_ignored
-    p = stash_library.list_notice("newest", True, [])
+    p = stash_library.list_notice(True, [])
     assert p is not None
     assert p.code == "option_ignored"
 
-    # random only -> random_repeats
-    p2 = stash_library.list_notice("random", None, [])
-    assert p2 is not None
-    assert p2.code == "random_repeats"
-
     # bad ids + favorite -> code items_unreadable, both messages "; " joined
-    p3 = stash_library.list_notice("newest", True, ["9", "8"])
-    assert p3 is not None
-    assert p3.code == "items_unreadable"
-    assert "item(s) could not be read" in p3.message
-    assert "favorite=true" in p3.message
-    assert "; " in p3.message
+    p2 = stash_library.list_notice(True, ["9", "8"])
+    assert p2 is not None
+    assert p2.code == "items_unreadable"
+    assert "item(s) could not be read" in p2.message
+    assert "favorite=true" in p2.message
+    assert "; " in p2.message
 
     # more than 10 bad ids -> only first 10 listed
     many = [f"bad{i:02d}" for i in range(15)]
-    p4 = stash_library.list_notice("newest", None, many)
-    assert p4 is not None
-    assert p4.code == "items_unreadable"
+    p3 = stash_library.list_notice(None, many)
+    assert p3 is not None
+    assert p3.code == "items_unreadable"
     for i in range(10):
-        assert f"bad{i:02d}" in p4.message
+        assert f"bad{i:02d}" in p3.message
     for i in range(10, 15):
-        assert f"bad{i:02d}" not in p4.message
+        assert f"bad{i:02d}" not in p3.message
 
 
 # ---------------------------------------------------------------------------

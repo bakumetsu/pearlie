@@ -152,18 +152,39 @@ def test_videos_list_basic(tmp_path):
     assert r.json()["items"][0]["id"] == "2"
 
 
-def test_videos_sort_random_notice(tmp_path):
-    """sort=random produces notice code random_repeats."""
+def test_videos_sort_random_seed(tmp_path):
+    """sort=random yields a stable seed; page 2 reuses it; newest has null seed."""
+
+    captured: list[dict] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.read())
+        captured.append(body)
         return httpx.Response(200, json={
-            "data": {"findScenes": {"count": 1, "scenes": [scene_dto()]}}
+            "data": {"findScenes": {"count": 2, "scenes": [scene_dto()]}}
         })
 
     client = make_client(tmp_path, handler)
-    r = client.get("/api/library/stash/videos?sort=random")
-    assert r.status_code == 200
-    assert r.json()["notice"]["code"] == "random_repeats"
+
+    # Page 1, sort=random, no seed → server generates one
+    r1 = client.get("/api/library/stash/videos?sort=random")
+    assert r1.status_code == 200
+    seed1 = r1.json()["seed"]
+    assert isinstance(seed1, int)
+    sort_field = captured[-1]["variables"]["f"]["sort"]
+    assert sort_field == f"random_{seed1}"
+
+    # Page 2, sort=random with same seed → same sort variable, same seed
+    r2 = client.get(f"/api/library/stash/videos?sort=random&seed={seed1}&page=2")
+    assert r2.status_code == 200
+    assert r2.json()["seed"] == seed1
+    sort_field2 = captured[-1]["variables"]["f"]["sort"]
+    assert sort_field2 == f"random_{seed1}"
+
+    # sort=newest → seed is null
+    r3 = client.get("/api/library/stash/videos?sort=newest")
+    assert r3.status_code == 200
+    assert r3.json()["seed"] is None
 
 
 def test_videos_favorite_notice(tmp_path):
