@@ -122,7 +122,12 @@
 
     switch (e.key) {
       case "Escape":
-        back();
+        if (zoomed) {
+          zoomed = false;
+          e.preventDefault();
+        } else {
+          back();
+        }
         break;
       case "f":
       case "F":
