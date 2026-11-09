@@ -45,25 +45,31 @@ describe("PlayerBar controls: prev/next, skip, speed", () => {
     expect(nextFn).toHaveBeenCalled();
   });
 
-  it("skip back 10s clamps at 0", () => {
-    player.seek(5);
+  it("double-chevron back calls nav.prev", () => {
+    const prevFn = vi.fn();
+    player.setNav({ next: vi.fn(), prev: prevFn, canNext: () => true, canPrev: () => true });
     renderBar();
-    btn("Back 10 seconds")!.click();
-    expect(player.time).toBe(0);
+    btn("Previous video")!.click();
+    expect(prevFn).toHaveBeenCalled();
   });
 
-  it("skip forward 10s from 30", () => {
-    player.seek(30);
+  it("double-chevron forward calls nav.next", () => {
+    const nextFn = vi.fn();
+    player.setNav({ next: nextFn, prev: vi.fn(), canNext: () => true, canPrev: () => true });
     renderBar();
-    btn("Forward 10 seconds")!.click();
-    expect(player.time).toBe(40);
+    btn("Next video")!.click();
+    expect(nextFn).toHaveBeenCalled();
   });
 
-  it("no prev/next buttons when nav is null", () => {
+  it("prev/next buttons disabled when nav is null", () => {
     player.setNav(null);
     renderBar();
-    expect(btn("Previous video")).toBeNull();
-    expect(btn("Next video")).toBeNull();
+    const prev = btn("Previous video");
+    const next = btn("Next video");
+    expect(prev).not.toBeNull();
+    expect(next).not.toBeNull();
+    expect(prev!.disabled).toBe(true);
+    expect(next!.disabled).toBe(true);
   });
 
   it("speed button shows 1x and click goes to 1.25x", () => {
@@ -77,10 +83,10 @@ describe("PlayerBar controls: prev/next, skip, speed", () => {
     expect(btn("Playback speed")!.textContent).toBe("1.25x");
   });
 
-  it("compact: no skip or speed buttons", () => {
+  it("compact: prev/next shown, no speed button", () => {
     renderBar(true);
-    expect(btn("Back 10 seconds")).toBeNull();
-    expect(btn("Forward 10 seconds")).toBeNull();
+    expect(btn("Previous video")).not.toBeNull();
+    expect(btn("Next video")).not.toBeNull();
     expect(btn("Playback speed")).toBeNull();
   });
 });

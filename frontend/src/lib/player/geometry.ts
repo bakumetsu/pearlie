@@ -45,8 +45,8 @@ export function toTransform(r: Rect): string {
   return `translate(${x}px, ${y}px)`;
 }
 
-export function modeOnLeave(playing: boolean): PlayerMode {
-  return playing ? "mini" : "hidden";
+export function modeOnLeave(ended: boolean): PlayerMode {
+  return ended ? "hidden" : "mini";
 }
 
 export function formatTime(sec: number): string {

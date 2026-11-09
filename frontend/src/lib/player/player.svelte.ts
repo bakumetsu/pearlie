@@ -28,6 +28,7 @@ export function createPlayer() {
     mode: "hidden" as PlayerMode,
     item: null as PlayerItem | null,
     playing: false,
+    ended: false,
     time: 0,
     duration: 0,
     volume: 1,
@@ -80,6 +81,7 @@ export function createPlayer() {
       state.time = 0;
       state.duration = 0;
       state.playing = false;
+      state.ended = false;
       state.slot = null;
       state.mode = "stage";
       autoplay = false;
@@ -95,6 +97,7 @@ export function createPlayer() {
       state.time = 0;
       state.duration = 0;
       state.playing = false;
+      state.ended = false;
       autoplay = true;
       applyRate();
     },
@@ -114,13 +117,14 @@ export function createPlayer() {
     releaseSlot(id: string): void {
       if (state.item?.id !== id || state.mode !== "stage") return;
       state.slot = null;
-      const next = modeOnLeave(state.playing);
+      const next = modeOnLeave(state.ended);
       if (next === "hidden") {
         el?.pause();
         state.item = null;
         state.time = 0;
         state.duration = 0;
         state.playing = false;
+        state.ended = false;
         state.mode = "hidden";
       } else {
         state.mode = "mini";
@@ -150,6 +154,7 @@ export function createPlayer() {
     },
 
     seek(t: number): void {
+      state.ended = false;
       if (el !== null) el.currentTime = t;
       state.time = t;
     },
@@ -211,6 +216,7 @@ export function createPlayer() {
       state.time = 0;
       state.duration = 0;
       state.playing = false;
+      state.ended = false;
       state.slot = null;
       state.mode = "hidden";
       state.failed = false;
@@ -235,6 +241,7 @@ export function createPlayer() {
 
     onPlaying(): void {
       state.playing = true;
+      state.ended = false;
     },
 
     onPause(): void {
@@ -243,6 +250,8 @@ export function createPlayer() {
 
     onEnded(): void {
       state.playing = false;
+      state.ended = true;
+      if (state.mode === "mini") this.close();
     },
   };
 }

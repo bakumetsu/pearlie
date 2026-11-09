@@ -178,7 +178,7 @@ describe("T-46 player nav repro", () => {
 
     fireEvent(getVideo(), new Event("playing"));
 
-    const nextBtn = screen.getByRole("button", { name: "Next item" });
+    const nextBtn = screen.getByRole("button", { name: "Next video" });
     await fireEvent.click(nextBtn);
 
     await vi.waitFor(() => {
@@ -202,7 +202,7 @@ describe("T-46 player nav repro", () => {
 
     // intentionally do NOT dispatch "playing"
 
-    const nextBtn = screen.getByRole("button", { name: "Next item" });
+    const nextBtn = screen.getByRole("button", { name: "Next video" });
     await fireEvent.click(nextBtn);
 
     await vi.waitFor(() => {
@@ -267,7 +267,7 @@ describe("T-46 player nav repro", () => {
     fireEvent(v, new Event("ended"));
     fireEvent(v, new Event("playing")); // replay
 
-    const nextBtn = screen.getByRole("button", { name: "Next item" });
+    const nextBtn = screen.getByRole("button", { name: "Next video" });
     await fireEvent.click(nextBtn);
 
     await vi.waitFor(() => {

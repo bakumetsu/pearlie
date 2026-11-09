@@ -51,16 +51,14 @@
 
     <span class="time">{formatTime(player.time)} / {formatTime(player.duration)}</span>
 
-    {#if player.canPrev || player.canNext}
-      <button
-        class="btn"
-        aria-label="Previous video"
-        disabled={!player.canPrev}
-        onclick={() => player.prev()}
-      >
-        <Icon name="skip-back" size={20} />
-      </button>
-    {/if}
+    <button
+      class="btn"
+      aria-label="Previous video"
+      disabled={!player.canPrev}
+      onclick={() => player.prev()}
+    >
+      <Icon name="rewind" size={20} />
+    </button>
 
     <button
       class="btn"
@@ -70,16 +68,14 @@
       <Icon name={player.playing ? "pause" : "play"} size={20} />
     </button>
 
-    {#if player.canPrev || player.canNext}
-      <button
-        class="btn"
-        aria-label="Next video"
-        disabled={!player.canNext}
-        onclick={() => player.next()}
-      >
-        <Icon name="skip-forward" size={20} />
-      </button>
-    {/if}
+    <button
+      class="btn"
+      aria-label="Next video"
+      disabled={!player.canNext}
+      onclick={() => player.next()}
+    >
+      <Icon name="fast-forward" size={20} />
+    </button>
 
     {#if pipOk}
       <button class="btn" aria-label="Picture in picture" onclick={onPipClick}>
