@@ -299,6 +299,7 @@
     align-items: center;
     gap: var(--s-2);
     padding: var(--s-2) var(--s-3);
+    padding-right: calc(var(--s-3) + var(--sfw-inset));
     border-bottom: 1px solid var(--line);
     background: var(--surface);
   }

@@ -83,6 +83,13 @@ button {
   animation: skeleton-pulse 1.2s ease-in-out infinite;
 }
 
+:root { --sfw-inset: 60px; }
+html[data-sfw="on"] img:not([data-sfw-shown]),
+html[data-sfw="on"] video:not([data-sfw-shown]) {
+  filter: blur(24px) saturate(0.6);
+  clip-path: inset(0);
+}
+
 @keyframes skeleton-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }

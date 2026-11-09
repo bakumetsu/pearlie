@@ -232,6 +232,7 @@
     flex-direction: column;
     gap: var(--s-2);
     padding: var(--s-3) var(--s-4);
+    padding-right: calc(var(--s-4) + var(--sfw-inset));
     border-bottom: 1px solid var(--line);
   }
 
