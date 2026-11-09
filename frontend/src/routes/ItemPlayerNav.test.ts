@@ -59,20 +59,6 @@ async function openItemFromGrid(id: string) {
   });
 }
 
-// debug-free: no console.log, no player-state assertions
-async function openItemFromGridFree(id: string) {
-  await vi.waitFor(() => {
-    expect(document.querySelectorAll("a.tile").length).toBeGreaterThan(0);
-  });
-  const link = Array.from(document.querySelectorAll("a.tile")).find(
-    (a) => a.getAttribute("href") === `/item/videos/${id}`,
-  )!;
-  await fireEvent.click(link);
-  await vi.waitFor(() => {
-    expect(location.pathname).toBe(`/item/videos/${id}`);
-  });
-}
-
 // ── tests ─────────────────────────────────────────────────────────────────
 
 describe("T-46 player nav repro", () => {
@@ -115,7 +101,7 @@ describe("T-46 player nav repro", () => {
     // ResizeObserver
     vi.stubGlobal("ResizeObserver", class {
       constructor(private cb: (entries: ResizeObserverEntry[], observer: ResizeObserver) => void) {}
-      observe(_el: Element) {
+      observe() {
         setTimeout(() => this.cb([], this), 0);
       }
       unobserve() {}
