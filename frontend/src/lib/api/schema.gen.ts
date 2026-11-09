@@ -620,6 +620,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/destinations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Destinations */
+        get: operations["get_destinations_api_destinations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/destinations/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Default */
+        put: operations["put_default_api_destinations_default_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/destinations/{site}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Destination */
+        put: operations["put_destination_api_destinations__site__put"];
+        post?: never;
+        /** Delete Destination */
+        delete: operations["delete_destination_api_destinations__site__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -656,6 +708,25 @@ export interface components {
         Blur: {
             /** Tag */
             tag: string;
+        };
+        /** DestinationItem */
+        DestinationItem: {
+            /** Site */
+            site: string;
+            /** Folder */
+            folder: string;
+        };
+        /** Destinations */
+        Destinations: {
+            /** Default Folder */
+            default_folder: string;
+            /** Items */
+            items: components["schemas"]["DestinationItem"][];
+        };
+        /** FolderBody */
+        FolderBody: {
+            /** Folder */
+            folder: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2293,6 +2364,125 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_destinations_api_destinations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Destinations"];
+                };
+            };
+        };
+    };
+    put_default_api_destinations_default_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Destinations"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_destination_api_destinations__site__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                site: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Destinations"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_destination_api_destinations__site__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                site: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Destinations"];
                 };
             };
             /** @description Validation Error */

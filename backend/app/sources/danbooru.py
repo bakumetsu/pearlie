@@ -1,5 +1,7 @@
 """Danbooru source adapter."""
 
+from urllib.parse import urlparse
+
 import httpx
 
 from app.sources.base import Post, Rating, SearchPage, SourceError
@@ -33,6 +35,8 @@ class Danbooru:
     """Adapter for the Danbooru image board."""
 
     id = "danbooru"
+    target = "stash"
+    file_hosts: tuple[str, ...]
 
     def __init__(
         self,
@@ -47,6 +51,7 @@ class Danbooru:
         )
         self._throttle = throttle or Throttle(1.0)
         self._base_url = base_url
+        self.file_hosts = (urlparse(base_url).hostname or "", "cdn.donmai.us")
         self._tag_limit = tag_limit
         self._page_size = page_size
 

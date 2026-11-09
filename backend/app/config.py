@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     rule34_user_id: str = ""
     rule34_api_key: SecretStr = SecretStr("")
     nhentai_cookies: SecretStr = SecretStr("")
+    stash_temp_dir: Path = Path("/mnt/media/stash/Temp")
+    stash_default_dir: Path = Path("/mnt/media/stash/Other")
+    stash_path_prefix_pearlie: str = ""
+    stash_path_prefix_stash: str = ""
+    stash_scan_timeout_s: float = 120.0
 
     def safe_summary(self) -> dict[str, str]:
         result: dict[str, str] = {}
