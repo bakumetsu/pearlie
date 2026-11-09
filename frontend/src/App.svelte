@@ -23,6 +23,10 @@
   import MiniDock from "./lib/player/MiniDock.svelte";
   import SfwToggle from "./lib/components/SfwToggle.svelte";
   import { installReveal } from "./lib/stores/sfw-reveal";
+  import { player } from "./lib/player/player.svelte";
+  import { seeAllGrid } from "./lib/stores/shared.svelte";
+  import { toasts } from "./lib/stores/toasts.svelte";
+  import { createPlayerNav } from "./lib/player/playerNav.svelte";
 
   const router = createRouter();
   setRouter(router);
@@ -30,6 +34,13 @@
   setApi(api);
   const jobs = createJobs(api);
   setJobs(jobs);
+  player.setNav(createPlayerNav({
+    player,
+    grid: seeAllGrid,
+    getDetail: (k, id) => api.getItem(k, id),
+    navigate: (h) => router.navigate(h),
+    notify: (m) => toasts.push({ kind: "error", message: m }),
+  }));
 
   let match = $state(router.current());
 

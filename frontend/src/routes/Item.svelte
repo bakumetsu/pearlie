@@ -9,6 +9,7 @@
   import { seeAllGrid, keyOf } from "../lib/stores/shared.svelte";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { player } from "../lib/player/player.svelte";
+  import { toPlayerItem } from "../lib/player/playerNav.svelte";
   import StageSlot from "../lib/player/StageSlot.svelte";
   import ImageStage from "../lib/item/ImageStage.svelte";
   import ItemPanel from "../lib/item/ItemPanel.svelte";
@@ -40,14 +41,8 @@
     const stream = d?.kind === "video" ? d.stream_url : null;
     if (d && stream) {
       untrack(() => {
-        player.open({
-          id: d.id,
-          title: d.title,
-          streamUrl: stream,
-          posterUrl: d.thumb_url,
-          fallbacks: d?.kind === "video" ? d.fallback_streams ?? [] : [],
-          href: itemHref(d),
-        });
+        const pi = toPlayerItem(d);
+        if (pi) player.open(pi);
       });
     }
   });
