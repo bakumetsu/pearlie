@@ -20,7 +20,8 @@ from app.config import Settings
 from app.db import connect
 from app.models import Problem
 from app.sources.base import Post, Source
-from app.targets.stash_client import StashClient
+from app.targets import destinations
+from app.targets.stash_client import StashClient, StashError
 
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".webm"}
 TEMP_PREFIX = "pearlie-"
@@ -232,3 +233,159 @@ class StashTarget:
             conn.close()
 
         return deleted
+
+    def save(self, post: Post, tags: list[str]) -> SaveResult:
+        """Save one post to Stash.
+
+        No throttling here: one download at a time per site is the worker's job.
+        """
+        notices: list[Problem] = []
+
+        dup = self._dedupe(post.source, post.post_id, post.md5)
+        if dup is not None:
+            return SaveResult(status="duplicate", image_id=dup or None)
+
+        url = self._check_host(post)
+        ext = self._ext(url)
+
+        pp = self._settings.stash_path_prefix_pearlie
+        ps = self._settings.stash_path_prefix_stash
+        folder = destinations.resolve(
+            self._settings.db_path,
+            post.source,
+            self._settings.stash_default_dir.as_posix(),
+        )
+        try:
+            folder = destinations.validate_folder(
+                folder, self._client.library_paths(), pp, ps
+            )
+        except destinations.DestinationError as e:
+            raise SaveError(e.code, e.message, e.status) from e
+
+        temp, md5 = self._download(url, post, ext)
+
+        if post.md5 is None:
+            dup = self._dedupe(post.source, post.post_id, md5)
+            if dup is not None:
+                temp.unlink(missing_ok=True)
+                return SaveResult(status="duplicate", image_id=dup or None)
+
+        dest, _resumed = self._move(
+            temp,
+            folder,
+            f"{_safe(post.source)}_{_safe(post.post_id)}{ext}",
+            md5,
+            notices,
+        )
+
+        stash_path = destinations.to_stash_path(dest.as_posix(), pp, ps)
+
+        job = self._client.metadata_scan(stash_path)
+        self._scan(job)
+
+        image_id = self._client.find_image_by_path(stash_path)
+        if image_id is None:
+            raise SaveError("image_not_found", "Stash did not index the file", 502)
+
+        try:
+            tag_ids = self._tag_ids(tags)
+            self._client.image_update(
+                image_id,
+                tag_ids,
+                [post.source_url] if post.source_url else [],
+            )
+        except StashError:
+            msg = "tags and url could not be applied in Stash"
+            notices.append(Problem(code="tags_not_applied", message=msg))
+
+        self._record(post, md5, image_id)
+
+        return SaveResult(
+            status="saved",
+            image_id=image_id,
+            dest_path=stash_path,
+            notices=notices,
+        )
+
+    def _dedupe(self, source: str, post_id: str, md5: str | None) -> str | None:
+        conn = connect(self._settings.db_path)
+        try:
+            cur = conn.execute(
+                "SELECT image_id FROM saved_items "
+                "WHERE source = ? AND post_id = ?",
+                (source, post_id),
+            )
+            row = cur.fetchone()
+            if row is not None:
+                return row["image_id"] or ""
+            if md5:
+                cur = conn.execute(
+                    "SELECT image_id FROM saved_items WHERE md5 = ? LIMIT 1",
+                    (md5,),
+                )
+                row = cur.fetchone()
+                if row is not None:
+                    return row["image_id"] or ""
+        finally:
+            conn.close()
+
+        if md5:
+            img = self._client.find_image_by_checksum(md5)
+            if img:
+                self._insert(source, post_id, md5, img)
+                return img
+        return None
+
+    def _record(self, post: Post, md5: str, image_id: str) -> None:
+        self._insert(post.source, post.post_id, md5, image_id)
+
+    def _insert(
+        self, source: str, post_id: str, md5: str | None, image_id: str
+    ) -> None:
+        conn = connect(self._settings.db_path)
+        try:
+            conn.execute(
+                "INSERT OR IGNORE INTO saved_items "
+                "(source, post_id, md5, target, image_id) "
+                "VALUES (?, ?, ?, 'stash', ?)",
+                (source, post_id, md5, image_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _scan(self, job_id: str) -> None:
+        deadline = self._clock() + self._settings.stash_scan_timeout_s
+        while True:
+            job = self._client.find_job(job_id)
+            status = job["status"]
+            if status == "FINISHED":
+                return
+            if status in ("FAILED", "CANCELLED"):
+                raise SaveError("scan_failed", "Stash scan failed", 502)
+            if self._clock() >= deadline:
+                raise SaveError("scan_timeout", "Stash scan timed out", 504)
+            self._sleep(1.0)
+
+    def _tag_ids(self, tags: list[str]) -> list[str]:
+        seen: set[str] = set()
+        names: list[str] = []
+        for t in tags:
+            n = normalize_tag(t)
+            if n and n not in seen:
+                seen.add(n)
+                names.append(n)
+        return [self._tag_id(n) for n in names]
+
+    def _tag_id(self, name: str) -> str:
+        hits = self._client.find_tags(name)
+        for h in hits:
+            if h["name"].lower() == name:
+                return h["id"]
+        try:
+            return self._client.tag_create(name)
+        except StashError:
+            for h in self._client.find_tags(name):
+                if h["name"].lower() == name:
+                    return h["id"]
+            raise
