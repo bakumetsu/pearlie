@@ -50,7 +50,8 @@
 <style>
 	.card {
 		margin: auto;
-		padding: 56px 16px 96px;
+		padding: 32px 32px;
+		min-width: 280px;
 		text-align: center;
 		background: rgb(20 20 24 / 0.82);
 		border: 1px solid var(--line-strong);

@@ -20,6 +20,15 @@ for (const [w, h] of sizes) {
   await page.keyboard.press("t"); await shot("thumbs"); await page.keyboard.press("t");
   await page.keyboard.press("?"); await shot("help"); await page.keyboard.press("Escape");
   await page.keyboard.press("End"); await page.keyboard.press("ArrowRight"); await page.keyboard.press("ArrowRight"); await shot("endcard");
+  if (w === 1440 || w === 768) {
+    await page.goto("http://127.0.0.1:5183/read/0?series=0");
+    await page.waitForTimeout(1500);
+    await shot("series-reader");
+    await page.keyboard.press("b"); await shot("series-booklist");
+    await page.goto("http://127.0.0.1:5183/read/0?series=0");
+    await page.waitForTimeout(1500);
+    await page.keyboard.press("End"); await page.keyboard.press("ArrowRight"); await shot("series-endcard");
+  }
   await page.close();
 }
 console.log(JSON.stringify({ errors }));

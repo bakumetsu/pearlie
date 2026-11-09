@@ -111,7 +111,7 @@
 	<BookPill {title} {index} {total} {hasSeries} {onprev} {onnext} {onlist} />
 	<Rail {fit} {mode} {fullscreen} settingsOpen={popover === "settings"} {onback} {onsettings} {onfit} {onmode} {onfullscreen} {onhelp} />
 	<BottomCard {count} {shown} {dir} {thumbsOpen} {onjump} {onthumbs} />
-	<ZoomPill {zoom} onin={onzoomin} onout={onzoomout} onreset={onzoomreset} />
+	<ZoomPill {zoom} {thumbsOpen} onin={onzoomin} onout={onzoomout} onreset={onzoomreset} />
 	{#if thumbsOpen}
 		<ThumbStrip {count} {shown} template={thumbTpl} {wide} {onjump} />
 	{/if}

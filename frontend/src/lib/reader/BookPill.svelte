@@ -48,6 +48,8 @@
     display: flex;
     align-items: center;
     padding: 4px;
+    min-height: 52px;
+    box-sizing: border-box;
     border-radius: 999px;
     background: rgb(20 20 24 / 0.82);
     border: 1px solid var(--line-strong);
@@ -82,6 +84,10 @@
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+  }
+
+  .pill > .label {
+    padding: 0 12px;
   }
 
   .label {

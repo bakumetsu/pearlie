@@ -3,18 +3,20 @@
 
   let {
     zoom,
+    thumbsOpen = false,
     onin,
     onout,
     onreset,
   }: {
     zoom: number;
+    thumbsOpen?: boolean;
     onin: () => void;
     onout: () => void;
     onreset: () => void;
   } = $props();
 </script>
 
-<div class="pill" data-testid="zoom-pill">
+<div class="pill" class:up={thumbsOpen} data-testid="zoom-pill">
   <button
     class="icon-btn"
     aria-label="Zoom out"
@@ -44,7 +46,7 @@
     bottom: clamp(
       16px,
       calc((50cqw + min(360px, 50cqw - 16px) - (100cqw - 166px)) * 1000),
-      76px
+      var(--lift, 76px)
     );
     display: flex;
     align-items: center;
@@ -53,6 +55,10 @@
     background: rgb(20 20 24 / 0.82);
     border: 1px solid var(--line-strong);
     backdrop-filter: blur(8px);
+  }
+
+  .pill.up {
+    --lift: 192px; /* above the open thumbnail strip as well */
   }
 
   .icon-btn {
