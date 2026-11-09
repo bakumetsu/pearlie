@@ -41,4 +41,47 @@ describe('ImageStage', () => {
     expect(stageSrc).toContain('max-height: 100%');
     expect(stageSrc).toContain('object-fit: contain');
   });
+
+  it('mouse drag past 4px while zoomed does not toggle', async () => {
+    const { container } = render(ImageStage, { props: { src: '/f/1', alt: 'x' } });
+    const stage = container.querySelector('.stage')!;
+    const btn = container.querySelector('.imgbtn')!;
+
+    // zoom in
+    await fireEvent.click(btn);
+    expect(stage.classList.contains('zoomed')).toBe(true);
+
+    // helper: dispatch pointer events with pointerType (jsdom lacks PointerEvent)
+    const firePointer = (type: string, opts: { pointerType?: string; clientX?: number; clientY?: number; buttons?: number }) => {
+      const ev = new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        clientX: opts.clientX ?? 0,
+        clientY: opts.clientY ?? 0,
+        buttons: opts.buttons ?? 0,
+      });
+      Object.defineProperty(ev, 'pointerType', { value: opts.pointerType ?? 'mouse' });
+      stage.dispatchEvent(ev);
+    };
+
+    // simulate drag (20px > 4px threshold)
+    firePointer('pointerdown', { pointerType: 'mouse', clientX: 10, clientY: 10, buttons: 1 });
+    firePointer('pointermove', { pointerType: 'mouse', clientX: 30, clientY: 30, buttons: 1 });
+    firePointer('pointerup', { pointerType: 'mouse', buttons: 0 });
+
+    // click after drag should be suppressed — still zoomed
+    await fireEvent.click(btn);
+    expect(stage.classList.contains('zoomed')).toBe(true);
+
+    // clean click toggles back
+    await fireEvent.click(btn);
+    expect(stage.classList.contains('zoomed')).toBe(false);
+  });
+
+  it('CSS guard: fit mode gives imgbtn and img definite width/height 100%', () => {
+    expect(stageSrc).toContain('.stage:not(.zoomed) .imgbtn');
+    expect(stageSrc).toContain('width: 100%');
+    expect(stageSrc).toContain('height: 100%');
+    expect(stageSrc).toContain('.stage:not(.zoomed) img');
+  });
 });
