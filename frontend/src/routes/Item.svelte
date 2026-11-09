@@ -83,22 +83,11 @@
       router.navigate(itemHref(next));
       return;
     }
-    if (seeAllGrid.hasMore) {
+    if (seeAllGrid.hasNext || (seeAllGrid.pages !== null && seeAllGrid.page < seeAllGrid.pages)) {
       void (async () => {
-        await seeAllGrid.loadMore();
-        const items = seeAllGrid.items;
-        const i = kind !== null
-          ? items.findIndex((t) => keyOf(t) === toSingular(kind) + ":" + id)
-          : -1;
-        if (i >= 0) {
-          for (let j = i + 1; j < items.length; j++) {
-            const item = items[j]!;
-            if (!("post_id" in item)) {
-              router.navigate(itemHref(item as LibraryItem));
-              return;
-            }
-          }
-        }
+        await seeAllGrid.goTo(seeAllGrid.page + 1);
+        const first = seeAllGrid.items.find((t) => !("post_id" in t));
+        if (first) router.navigate(itemHref(first as LibraryItem));
       })();
     }
   }

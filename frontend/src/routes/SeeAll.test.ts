@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/svelte";
+import { render, screen, cleanup } from "@testing-library/svelte";
 import App from "../App.svelte";
 
 function tile(id: string) {
@@ -14,7 +14,7 @@ function tile(id: string) {
   };
 }
 
-describe("SeeAll Load more", () => {
+describe("SeeAll paging", () => {
   let pages: number[];
 
   beforeEach(() => {
@@ -40,7 +40,7 @@ describe("SeeAll Load more", () => {
         "http://localhost",
       );
       const page = Number(url.searchParams.get("page") ?? "1");
-      pages.push(page);
+      if (url.pathname.startsWith("/api/library/")) pages.push(page);
       const body = {
         items: page === 1 ? [tile("1"), tile("2")] : [tile("3")],
         page,
@@ -64,14 +64,12 @@ describe("SeeAll Load more", () => {
     vi.unstubAllGlobals();
   });
 
-  it("appends page 2 and fetches only page 2", async () => {
+  it("fetches page 1 only and shows no Load more button", async () => {
     const { container } = render(App);
-    const btn = await screen.findByRole("button", { name: "Load more" });
-    const before = pages.length;
-    await fireEvent.click(btn);
     await vi.waitFor(() => {
-      expect(container.querySelectorAll("a.tile").length).toBe(3);
+      expect(container.querySelectorAll("a.tile").length).toBe(2);
     });
-    expect(pages.slice(before)).toEqual([2]);
+    expect(pages).toEqual([1]);
+    expect(screen.queryByRole("button", { name: /load more/i })).toBeNull();
   });
 });

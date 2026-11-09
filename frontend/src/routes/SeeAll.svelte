@@ -20,7 +20,6 @@
   const router = getRouter();
 
   let h1: HTMLHeadingElement | undefined;
-  let sentinel = $state<HTMLDivElement | undefined>();
   let notice = $state<string | null>(null);
 
   onMount(() => {
@@ -92,9 +91,9 @@
           signal,
         );
         notice = r.notice?.message ?? null;
-        return { items: r.items, total: r.total ?? null, next_page: r.next_page ?? null };
+        return { items: r.items, total: r.total ?? null, next_page: r.next_page ?? null, page: r.page ?? null, pages: r.pages ?? null, page_size: r.page_size ?? null, stats: r.stats ?? null };
       };
-      // open() reads grid state; untracked so loadMore's status change does not re-run this effect and reset to page 1
+      // open() reads grid state; untracked so a status change from goTo does not re-run this effect and reset to page 1
       untrack(() => grid.open(listKey, loader));
     } else {
       notice = null;
@@ -105,9 +104,13 @@
           items: s?.items ?? [],
           total: s?.total ?? null,
           next_page: s?.next_page ?? null,
+          pages: s?.pages ?? null,
+          page_size: s?.page_size ?? null,
+          stats: s?.stats ?? null,
+          hidden: s?.hidden ?? null,
         };
       };
-      // open() reads grid state; untracked so loadMore's status change does not re-run this effect and reset to page 1
+      // open() reads grid state; untracked so a status change from goTo does not re-run this effect and reset to page 1
       untrack(() => grid.open(listKey, loader));
     }
   });
@@ -161,20 +164,6 @@
     linkClick(e, router);
   }
 
-  // --- IntersectionObserver for infinite scroll ---
-  onMount(() => {
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          grid.loadMore();
-        }
-      },
-      { rootMargin: "200px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  });
 </script>
 
 <div class="content">
@@ -248,10 +237,6 @@
         {/if}
       {/each}
     </div>
-    <div class="sentinel" bind:this={sentinel}></div>
-    {#if grid.hasMore}
-      <button class="load-more" onclick={() => grid.loadMore()}>Load more</button>
-    {/if}
   {/if}
 </div>
 
@@ -270,7 +255,5 @@
   .error-box { padding: var(--s-4); text-align: center; color: var(--text); }
   .retry-btn { margin-top: var(--s-4); padding: var(--s-2) var(--s-4); border: none; border-radius: var(--s-2); background: var(--text); color: var(--surface); cursor: pointer; }
   .empty { text-align: center; padding: var(--s-8); color: var(--text); }
-  .load-more { display: block; margin: var(--s-4) auto; padding: var(--s-2) var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: none; color: var(--text); cursor: pointer; }
-  .sentinel { height: 1px; }
   .notice { margin: 0; font-size: 0.875rem; color: var(--muted); }
 </style>

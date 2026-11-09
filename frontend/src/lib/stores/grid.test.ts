@@ -20,19 +20,7 @@ describe("createGrid", () => {
     expect(grid.items).toEqual([{ id: "a" }, { id: "b" }]);
     expect(grid.total).toBe(2);
     expect(grid.status).toBe("done");
-    expect(grid.hasMore).toBe(true);
-  });
-
-  it("loadMore appends page 2 and drops duplicate ids", async () => {
-    const grid = createGrid(keyOf);
-    const loader = (page: number) =>
-      page === 1
-        ? Promise.resolve({ items: [{ id: "a" }, { id: "b" }], total: 3, next_page: 2 })
-        : Promise.resolve({ items: [{ id: "b" }, { id: "c" }], total: 3, next_page: null });
-    await grid.open("k", loader);
-    await grid.loadMore();
-    expect(grid.items).toEqual([{ id: "a" }, { id: "b" }, { id: "c" }]);
-    expect(grid.hasMore).toBe(false);
+    expect(grid.hasNext).toBe(true);
   });
 
   it("removeAt / insertAt", async () => {

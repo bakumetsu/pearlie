@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Api, ViewSettingItem } from "../api/client";
+import type { Api } from "../api/client";
 import { toasts } from "./toasts.svelte";
 import { createViewSettings, DEFAULTS } from "./viewSettings.svelte";
 
-function makeApi(overrides: Partial<Record<string, any>> = {}): Api & Record<string, any> {
-  const api: Record<string, any> = {
+function makeApi(overrides: Partial<Record<string, unknown>> = {}): Api & Record<string, unknown> {
+  const api: Record<string, unknown> = {
     getViewSettings: vi.fn().mockResolvedValue({ sources: {} }),
-    putViewSetting: vi.fn().mockImplementation((_source: string, body: any) =>
+    putViewSetting: vi.fn().mockImplementation((_source: string, body: { mode: string; per_page: number; zoom: number }) =>
       Promise.resolve({ mode: body.mode, per_page: body.per_page, zoom: body.zoom, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200 }),
     ),
     ...overrides,
   };
-  return api as Api & Record<string, any>;
+  return api as unknown as Api & Record<string, unknown>;
 }
 
 describe("viewSettings store", () => {
