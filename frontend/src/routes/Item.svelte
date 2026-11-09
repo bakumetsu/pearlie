@@ -1,10 +1,10 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { Match } from "../lib/router";
-  import type { LibraryItem } from "../lib/api/client";
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
   import { toPlural, toSingular, itemHref } from "../lib/item/kinds";
+  import { nearestInList, canStep, stepInList } from "../lib/item/listNav";
   import { createItemView } from "../lib/item/itemView.svelte";
   import { seeAllGrid, keyOf } from "../lib/stores/shared.svelte";
   import { toasts } from "../lib/stores/toasts.svelte";
@@ -59,27 +59,13 @@
   );
   const hasList = $derived(idx >= 0);
 
-  function nearestLibrary(fromIdx: number, dir: 1 | -1): LibraryItem | null {
-    const items = seeAllGrid.items;
-    let i = fromIdx + dir;
-    while (i >= 0 && i < items.length) {
-      const item = items[i]!;
-      if (!("post_id" in item)) return item as LibraryItem;
-      i += dir;
-    }
-    return null;
-  }
+  const key = $derived(kind !== null ? toSingular(kind) + ":" + id : "");
 
-  const prev = $derived(hasList ? nearestLibrary(idx, -1) : null);
-  const next = $derived(hasList ? nearestLibrary(idx, 1) : null);
+  const prev = $derived(hasList ? nearestInList(seeAllGrid.items, idx, -1) : null);
+  const next = $derived(hasList ? nearestInList(seeAllGrid.items, idx, 1) : null);
 
-  const canPrev = $derived(hasList && (prev !== null || seeAllGrid.page > 1));
-  const canNext = $derived(
-    hasList &&
-      (next !== null ||
-        seeAllGrid.hasNext ||
-        (seeAllGrid.pages !== null && seeAllGrid.page < seeAllGrid.pages)),
-  );
+  const canPrev = $derived(hasList && canStep(seeAllGrid, key, -1, { cross: true }));
+  const canNext = $derived(hasList && canStep(seeAllGrid, key, 1, { cross: true }));
 
   const preload = $derived(
     next?.kind === "image" ? ((next as { full_url?: string }).full_url ?? null) : null,
@@ -91,15 +77,9 @@
       router.navigate(itemHref(next));
       return;
     }
-    if (seeAllGrid.hasNext || (seeAllGrid.pages !== null && seeAllGrid.page < seeAllGrid.pages)) {
-      void (async () => {
-        await seeAllGrid.goTo(seeAllGrid.page + 1);
-        if (seeAllGrid.status === "error") return;
-        seeAllGrid.markCrossed();
-        const first = seeAllGrid.items.find((t) => !("post_id" in t));
-        if (first) router.navigate(itemHref(first as LibraryItem));
-      })();
-    }
+    void stepInList(seeAllGrid, key, 1, { cross: true }).then((t) => {
+      if (t) router.navigate(itemHref(t));
+    });
   }
 
   function goPrev(): void {
@@ -108,21 +88,9 @@
       router.navigate(itemHref(prev));
       return;
     }
-    if (seeAllGrid.page > 1) {
-      void (async () => {
-        await seeAllGrid.goTo(seeAllGrid.page - 1);
-        if (seeAllGrid.status === "error") return;
-        seeAllGrid.markCrossed();
-        const items = seeAllGrid.items;
-        for (let i = items.length - 1; i >= 0; i--) {
-          const t = items[i]!;
-          if (!("post_id" in t)) {
-            router.navigate(itemHref(t as LibraryItem));
-            return;
-          }
-        }
-      })();
-    }
+    void stepInList(seeAllGrid, key, -1, { cross: true }).then((t) => {
+      if (t) router.navigate(itemHref(t));
+    });
   }
 
   function back(): void {
