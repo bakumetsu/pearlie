@@ -199,7 +199,7 @@ def test_map_items():
     assert bad_ids == ["9"]
 
     # non-dict entry produces "?"
-    items2, bad_ids2 = stash_library.map_items(["not_a_dict"], stash_library.image_item)
+    items2, bad_ids2 = stash_library.map_items(["not_a_dict"], stash_library.image_item)  # pyright: ignore[reportArgumentType]
     assert items2 == []
     assert bad_ids2 == ["?"]
 
@@ -211,14 +211,17 @@ def test_list_notice():
 
     # favorite only -> option_ignored
     p = stash_library.list_notice("newest", True, [])
+    assert p is not None
     assert p.code == "option_ignored"
 
     # random only -> random_repeats
     p2 = stash_library.list_notice("random", None, [])
+    assert p2 is not None
     assert p2.code == "random_repeats"
 
     # bad ids + favorite -> code items_unreadable, both messages "; " joined
     p3 = stash_library.list_notice("newest", True, ["9", "8"])
+    assert p3 is not None
     assert p3.code == "items_unreadable"
     assert "item(s) could not be read" in p3.message
     assert "favorite=true" in p3.message
@@ -227,6 +230,7 @@ def test_list_notice():
     # more than 10 bad ids -> only first 10 listed
     many = [f"bad{i:02d}" for i in range(15)]
     p4 = stash_library.list_notice("newest", None, many)
+    assert p4 is not None
     assert p4.code == "items_unreadable"
     for i in range(10):
         assert f"bad{i:02d}" in p4.message

@@ -82,7 +82,8 @@ def video_item(dto: dict) -> LibraryItem:
     )
     files = dto.get("files") or []
     kw["tags"] = sorted(t["name"] for t in dto.get("tags") or [])
-    kw["duration_s"] = float(files[0]["duration"]) if files else None
+    dur = files[0]["duration"] if files else None
+    kw["duration_s"] = float(dur) if dur is not None else None
     return LibraryItem(**kw)
 
 
@@ -114,7 +115,8 @@ def video_detail(dto: dict) -> LibraryItemDetail:
     kw["stream_url"] = f"/api/media/stash/videos/{fid}/stream"
     kw["mime"] = _video_mime(files) if files else None
     kw["video_codec"] = files[0].get("video_codec") if files else None
-    kw["duration_s"] = float(files[0]["duration"]) if files else None
+    dur = files[0]["duration"] if files else None
+    kw["duration_s"] = float(dur) if dur is not None else None
     return LibraryItemDetail(**kw)
 
 
