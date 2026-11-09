@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPlayer, type PlayerItem, type VideoLike } from "./player.svelte";
 import type { Rect } from "./geometry.ts";
 
@@ -179,5 +179,174 @@ describe("createPlayer", () => {
     expect(p.failed).toBe(true);
     p.open(item2);
     expect(p.failed).toBe(false);
+  });
+});
+
+describe("createPlayer controls", () => {
+  beforeEach(() => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => { store.set(k, v); },
+      removeItem: (k: string) => { store.delete(k); },
+      clear: () => { store.clear(); },
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("skip +10 clamped at duration", () => {
+    const p = createPlayer();
+    const f = { ...fake(), playbackRate: 1 };
+    p.attach(f);
+    p.open(item1);
+    p.onTime(90, 100);
+    p.skip(10);
+    expect(p.time).toBe(100);
+    expect(f.currentTime).toBe(100);
+  });
+
+  it("skip -10 clamped at 0", () => {
+    const p = createPlayer();
+    const f = { ...fake(), playbackRate: 1 };
+    p.attach(f);
+    p.open(item1);
+    p.onTime(5, 100);
+    p.skip(-10);
+    expect(p.time).toBe(0);
+    expect(f.currentTime).toBe(0);
+  });
+
+  it("skip with duration 0 never goes below 0", () => {
+    const p = createPlayer();
+    const f = { ...fake(), playbackRate: 1 };
+    p.attach(f);
+    p.open(item1);
+    p.onTime(0, 0);
+    p.skip(-10);
+    expect(p.time).toBe(0);
+  });
+
+  it("rate default 1", () => {
+    const p = createPlayer();
+    expect(p.rate).toBe(1);
+  });
+
+  it("setRate persists to localStorage and a new createPlayer re-reads it", () => {
+    const p = createPlayer();
+    p.setRate(1.5);
+    expect(localStorage.getItem("pearlie.player.rate")).toBe("1.5");
+    const p2 = createPlayer();
+    expect(p2.rate).toBe(1.5);
+  });
+
+  it("invalid stored value falls back to 1", () => {
+    localStorage.setItem("pearlie.player.rate", "99");
+    const p = createPlayer();
+    expect(p.rate).toBe(1);
+  });
+
+  it("setRate(3) ignored", () => {
+    const p = createPlayer();
+    p.setRate(3);
+    expect(p.rate).toBe(1);
+  });
+
+  it("stepRate clamps at 0.5 and 2", () => {
+    const p = createPlayer();
+    p.setRate(0.5);
+    p.stepRate(-1);
+    expect(p.rate).toBe(0.5);
+    p.setRate(2);
+    p.stepRate(1);
+    expect(p.rate).toBe(2);
+  });
+
+  it("rate applied to attached el", () => {
+    const p = createPlayer();
+    const f = { ...fake(), playbackRate: 1 };
+    p.attach(f);
+    p.setRate(1.5);
+    expect(f.playbackRate).toBe(1.5);
+  });
+
+  it("rate kept after open(other item)", () => {
+    const p = createPlayer();
+    const f = { ...fake(), playbackRate: 1 };
+    p.attach(f);
+    p.setRate(2);
+    p.open(item1);
+    p.open(item2);
+    expect(f.playbackRate).toBe(2);
+  });
+
+  it("nav null -> canNext/canPrev false", () => {
+    const p = createPlayer();
+    expect(p.canNext).toBe(false);
+    expect(p.canPrev).toBe(false);
+  });
+
+  it("with a fake nav, next/prev call it and canNext reflects it", () => {
+    const p = createPlayer();
+    const nextSpy = vi.fn();
+    const prevSpy = vi.fn();
+    p.setNav({ next: nextSpy, prev: prevSpy, canNext: () => true, canPrev: () => false });
+    p.next();
+    p.prev();
+    expect(nextSpy).toHaveBeenCalled();
+    expect(prevSpy).toHaveBeenCalled();
+    expect(p.canNext).toBe(true);
+    expect(p.canPrev).toBe(false);
+  });
+});
+
+describe("createPlayer swap", () => {
+  function toMini(p: ReturnType<typeof createPlayer>): void {
+    p.open(item1);
+    p.onPlaying();
+    p.setSlot(item1.id, rect);
+    p.releaseSlot(item1.id);
+    expect(p.mode).toBe("mini");
+  }
+
+  it("swap in mini mode keeps mode and slot, changes item, resets state", () => {
+    const p = createPlayer();
+    const f = fake();
+    p.attach(f);
+    toMini(p);
+    p.swap(item2);
+    expect(p.mode).toBe("mini");
+    expect(p.slot).toBeNull();
+    expect(p.item?.id).toBe("2");
+    expect(p.time).toBe(0);
+    expect(p.duration).toBe(0);
+    expect(p.playing).toBe(false);
+    expect(f.pause).toHaveBeenCalled();
+  });
+
+  it("consumeAutoplay returns true once then false", () => {
+    const p = createPlayer();
+    toMini(p);
+    p.swap(item2);
+    expect(p.consumeAutoplay()).toBe(true);
+    expect(p.consumeAutoplay()).toBe(false);
+  });
+
+  it("swap with same id is a no-op", () => {
+    const p = createPlayer();
+    toMini(p);
+    p.swap(item1);
+    expect(p.item?.id).toBe("1");
+    expect(p.consumeAutoplay()).toBe(false);
+  });
+
+  it("open after swap resets autoplay", () => {
+    const p = createPlayer();
+    toMini(p);
+    p.swap(item2);
+    expect(p.consumeAutoplay()).toBe(true);
+    p.open(item1);
+    expect(p.consumeAutoplay()).toBe(false);
   });
 });
