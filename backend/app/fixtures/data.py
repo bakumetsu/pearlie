@@ -167,7 +167,7 @@ def build_videos() -> list[dict[str, Any]]:
             "thumb_url": f"/api/media/stash/videos/{i}/poster",
             "width": 640,
             "height": 360,
-            "duration_s": 6.0,
+            "duration_s": float(20 + (i * 37) % 3500),  # varied; the served mp4 is always 6 s
             "rating": rng.randint(1, 5) if rng.random() < 0.5 else None,
             "favorite": rng.random() < 0.10,
             "tags": [t.name for t in tags],
