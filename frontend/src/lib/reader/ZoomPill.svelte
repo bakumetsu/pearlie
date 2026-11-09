@@ -40,7 +40,12 @@
   .pill {
     position: absolute;
     right: 16px;
-    bottom: 16px;
+    /* lift above the bottom card (width min(720px, 100% - 32px), centred) when their boxes overlap: overlap = card right edge - pill left edge (pill is about 150px wide) */
+    bottom: clamp(
+      16px,
+      calc((50cqw + min(360px, 50cqw - 16px) - (100cqw - 166px)) * 1000),
+      76px
+    );
     display: flex;
     align-items: center;
     padding: 2px;

@@ -125,7 +125,7 @@
 </div>
 
 <style>
-	.controls { position: absolute; inset: 0; pointer-events: none; transition: opacity 200ms; }
+	.controls { position: absolute; inset: 0; pointer-events: none; transition: opacity 200ms; container-type: inline-size; }
 	.controls > :global(*) { pointer-events: auto; }
 	.hidden { opacity: 0; }
 	@media (prefers-reduced-motion: reduce) { .controls { transition: none; } }
