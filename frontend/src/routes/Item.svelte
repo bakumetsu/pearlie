@@ -355,7 +355,9 @@
     background: #000;
     min-height: 320px;
     display: grid;
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
     place-items: center;
+    min-width: 0;
     overflow: hidden;
   }
 

@@ -50,6 +50,10 @@
   .stage.zoomed .imgbtn {
     cursor: zoom-out;
   }
+  .stage:not(.zoomed) .imgbtn {
+    max-width: 100%;
+    max-height: 100%;
+  }
   img {
     max-width: 100%;
     max-height: 100%;
