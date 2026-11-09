@@ -1,0 +1,76 @@
+import { ApiError } from "../api/client";
+import type { Api, TrashResult } from "../api/client";
+import { toasts } from "./toasts.svelte";
+
+export type Trash = ReturnType<typeof createTrash>;
+
+export function createTrash(api: Api, opts?: { onRestored?: () => void }) {
+  let items: TrashResult[] = $state([]);
+  let loaded = $state(false);
+  let offline = $state(false);
+  let confirming = $state(false);
+
+  async function refresh(): Promise<void> {
+    try {
+      const res = await api.listTrash();
+      items = res.items;
+      offline = false;
+      loaded = true;
+    } catch {
+      offline = true;
+      loaded = true;
+    }
+  }
+
+  async function restore(token: string): Promise<void> {
+    const idx = items.findIndex((t) => t.token === token);
+    if (idx === -1) return;
+    const entry = items[idx];
+    try {
+      await api.restore(token);
+      items = items.filter((t) => t.token !== token);
+      toasts.push({ kind: "info", message: `Restored: ${entry.item.title}` });
+      opts?.onRestored?.();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        items = items.filter((t) => t.token !== token);
+        toasts.push({ kind: "error", message: "Can't restore any more" });
+      } else {
+        toasts.push({ kind: "error", message: "Could not restore. Try again." });
+      }
+    }
+  }
+
+  function askEmpty(): void {
+    confirming = items.length > 0;
+  }
+
+  function cancelEmpty(): void {
+    confirming = false;
+  }
+
+  async function confirmEmpty(): Promise<void> {
+    if (!confirming) return;
+    try {
+      const r = await api.emptyTrash();
+      items = [];
+      toasts.push({ kind: "info", message: `Emptied trash: ${r.removed} item(s) deleted for good` });
+    } catch {
+      toasts.push({ kind: "error", message: "Could not empty the trash. Try again." });
+    } finally {
+      confirming = false;
+    }
+  }
+
+  return {
+    get items() { return items; },
+    get loaded() { return loaded; },
+    get offline() { return offline; },
+    get confirming() { return confirming; },
+    refresh,
+    restore,
+    askEmpty,
+    cancelEmpty,
+    confirmEmpty,
+  };
+}
