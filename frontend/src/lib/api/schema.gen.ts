@@ -408,6 +408,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/media/komga/books/{id}/pages/{n}/thumb": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Komga Book Page Thumb
+         * @description Serve a small CBZ page thumbnail as JPEG bytes.
+         */
+        get: operations["komga_book_page_thumb_api_media_komga_books__id__pages__n__thumb_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/save": {
         parameters: {
             query?: never;
@@ -788,6 +808,11 @@ export interface components {
              * @description Book detail only. URL template with a literal {n} placeholder for the 1-based page number, e.g. /api/media/komga/books/7/pages/{n}. Replace {n} to get a page image.
              */
             page_url?: string | null;
+            /**
+             * Page Thumb Url
+             * @description Book detail only. URL template with a literal {n} placeholder for the 1-based page number, e.g. /api/media/komga/books/7/pages/{n}/thumb. Replace {n} to get a small page thumbnail.
+             */
+            page_thumb_url?: string | null;
         };
         /** Mount */
         Mount: {
@@ -1844,6 +1869,38 @@ export interface operations {
         };
     };
     komga_book_page_api_media_komga_books__id__pages__n__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                n: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    komga_book_page_thumb_api_media_komga_books__id__pages__n__thumb_get: {
         parameters: {
             query?: never;
             header?: never;

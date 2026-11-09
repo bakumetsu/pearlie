@@ -203,6 +203,7 @@ def book_detail(dto: dict) -> LibraryItemDetail:
         page_count=dto["media"]["pagesCount"],
         read_page=rp["page"] if rp else None,
         page_url=f"/api/media/komga/books/{dto['id']}/pages/{{n}}",
+        page_thumb_url=f"/api/media/komga/books/{dto['id']}/pages/{{n}}/thumb",
         added_at=dto["created"],
     )
 

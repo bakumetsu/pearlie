@@ -148,6 +148,7 @@ class Store:
             ]
         elif kinds == "books":
             kwargs["page_url"] = f"/api/media/komga/books/{id}/pages/{{n}}"
+            kwargs["page_thumb_url"] = f"/api/media/komga/books/{id}/pages/{{n}}/thumb"
         return LibraryItemDetail(**kwargs)
 
     # ── search / filter ────────────────────────────────────────────

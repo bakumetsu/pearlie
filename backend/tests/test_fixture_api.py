@@ -1,4 +1,7 @@
+from io import BytesIO
+
 import pytest
+from PIL import Image
 
 from app.fixtures.store import store
 from app.models import (
@@ -133,6 +136,29 @@ def test_progress(client):
     r = client.post("/api/library/komga/books/0/progress", json={"page": 99})
     assert r.status_code == 200
     assert r.json()["completed"] is True
+
+
+def test_page_thumb_fixture(client):
+    """Fixture page thumbnail returns a small JPEG with cache headers."""
+    book_id = client.get("/api/library/komga/books").json()["items"][0]["id"]
+    r = client.get(f"/api/media/komga/books/{book_id}/pages/1/thumb")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/jpeg"
+    assert r.headers["cache-control"] == "private, max-age=86400"
+    img = Image.open(BytesIO(r.content))
+    assert max(img.size) <= 200
+
+    assert client.get(f"/api/media/komga/books/{book_id}/pages/0/thumb").status_code == 404
+    assert client.get(f"/api/media/komga/books/{book_id}/pages/9999/thumb").status_code == 404
+    assert client.get("/api/media/komga/books/nonexistent/pages/1/thumb").status_code == 404
+
+
+def test_book_detail_page_thumb_url(client):
+    """Fixture book detail exposes page_thumb_url with {n} and unchanged page_url."""
+    book_id = client.get("/api/library/komga/books").json()["items"][0]["id"]
+    d = client.get(f"/api/library/books/{book_id}").json()
+    assert "{n}" in d["page_thumb_url"]
+    assert d["page_url"] == f"/api/media/komga/books/{book_id}/pages/{{n}}"
 
 
 def test_media_range(client):

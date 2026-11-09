@@ -162,6 +162,18 @@ def read_cbz_page(cbz: Path, n: int) -> bytes:
         return zf.read(pages[n - 1])
 
 
+def read_cbz_page_thumb(cbz: Path, n: int) -> bytes:
+    """Return a small JPEG thumbnail (≤200 px) of page *n* (1-based) from a CBZ."""
+    raw = read_cbz_page(cbz, n)
+    img = Image.open(io.BytesIO(raw))
+    img.thumbnail((200, 200))
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=75)
+    return buf.getvalue()
+
+
 def _ffmpeg() -> str | None:
     """Resolve the ffmpeg executable path, or *None* if unavailable."""
     p = shutil.which("ffmpeg")

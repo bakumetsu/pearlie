@@ -107,6 +107,7 @@ Notes:
 - After the CBZ lands in `komga-incoming`: `POST /api/v1/libraries/{id}/scan`.
 - `ComicInfo.xml` fields: `Series` (parody), `Title`, `Tags`, `Genre` (category), `Writer`/`Penciller` (artist), `LanguageISO`, `Web` (source URL). Komga imports them only if the library's metadata import settings allow ComicInfo.
 - Browsing and reader: `/api/v1/series`, `/api/v1/books`, `/thumbnail`, `/api/v1/books/{id}/pages/{n}`; progress `PATCH /api/v1/books/{id}/read-progress`.
+- Reader page thumbnails: `GET /api/media/komga/books/{id}/pages/{n}/thumb`, proxied from Komga's page thumbnail; the book detail carries `page_thumb_url` as a template.
 - Komga 1.30.0 (Nov 2026) replaced deprecated endpoints: check each one in `/swagger-ui.html` first.
 
 ## 8. Filters

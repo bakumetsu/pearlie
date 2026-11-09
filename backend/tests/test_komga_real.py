@@ -184,7 +184,7 @@ def test_series_detail_no_notice_when_complete(tmp_path):
 
 
 def test_book_detail_page_url(tmp_path):
-    """Book detail exposes page_count and the page URL template."""
+    """Book detail exposes page_count, page_url, and page_thumb_url templates."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path == "/api/v1/books/b1":
@@ -196,6 +196,7 @@ def test_book_detail_page_url(tmp_path):
     assert r.status_code == 200
     assert r.json()["page_count"] == 7
     assert r.json()["page_url"] == "/api/media/komga/books/b1/pages/{n}"
+    assert r.json()["page_thumb_url"] == "/api/media/komga/books/b1/pages/{n}/thumb"
 
 
 def test_progress_completed_flag(tmp_path):
@@ -286,6 +287,30 @@ def test_page_stream_large_body(tmp_path):
     assert u.params["zero_based"] == "false"
 
 
+def test_page_thumb_relay(tmp_path):
+    """Page thumbnail relay returns JPEG with cache headers and correct upstream path."""
+    body = b"\xff\xd8\xff\xe0fakejpegdata"
+    recorded: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        recorded.append(str(request.url))
+        return httpx.Response(
+            200,
+            content=body,
+            headers={"content-type": "image/jpeg"},
+        )
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/media/komga/books/b1/pages/3/thumb")
+    assert r.status_code == 200
+    assert r.content == body
+    assert r.headers["content-type"] == "image/jpeg"
+    assert r.headers["cache-control"] == "private, max-age=86400"
+    u = httpx.URL(recorded[0])
+    assert u.path == "/api/v1/books/b1/pages/3/thumbnail"
+    assert u.params["zero_based"] == "false"
+
+
 def test_page_zero_is_404(tmp_path):
     """Page number 0 is rejected with 404 before reaching Komga."""
     called: list[str] = []
@@ -298,6 +323,32 @@ def test_page_zero_is_404(tmp_path):
     r = client.get("/api/media/komga/books/b1/pages/0")
     assert r.status_code == 404
     assert called == []
+
+
+def test_page_thumb_zero_is_404(tmp_path):
+    """Page number 0 on the thumbnail route is rejected with 404 before reaching Komga."""
+    called: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        called.append(str(request.url))
+        return httpx.Response(500)
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/media/komga/books/b1/pages/0/thumb")
+    assert r.status_code == 404
+    assert called == []
+
+
+def test_page_thumb_upstream_404(tmp_path):
+    """Upstream 404 on the page thumbnail route passes through as 404."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/media/komga/books/b1/pages/3/thumb")
+    assert r.status_code == 404
+    assert KEY not in r.text
 
 
 def test_upstream_errors(tmp_path):

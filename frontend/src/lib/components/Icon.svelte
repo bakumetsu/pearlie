@@ -6,7 +6,8 @@
     | "trash" | "star" | "play" | "pause" | "external-link"
     | "refresh" | "alert" | "loader" | "bookmark" | "image" | "film" | "book"
     | "star-filled" | "volume" | "volume-x" | "pip" | "maximize" | "minimize" | "undo"
-    | "clock" | "minus" | "upload" | "columns" | "settings" | "arrow-left-right" | "rotate-ccw";
+    | "clock" | "minus" | "upload" | "columns" | "settings" | "arrow-left-right" | "rotate-ccw"
+    | "help" | "chevron-up" | "list" | "fit-width" | "fit-height" | "fit-both" | "fit-actual" | "mode-single" | "mode-spread" | "mode-scroll";
 
   const paths: Record<IconName, string[]> = {
     "search": [
@@ -200,6 +201,61 @@
     "rotate-ccw": [
       "M1 4v6h6",
       "M3.51 15a9 9 0 1 0 2.13-9.36L1 10",
+    ],
+    "help": [
+      "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z",
+      "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3",
+      "M12 17h.01",
+    ],
+    "chevron-up": [
+      "M18 15l-6-6-6 6",
+    ],
+    "list": [
+      "M8 6h13",
+      "M8 12h13",
+      "M8 18h13",
+      "M3 6h.01",
+      "M3 12h.01",
+      "M3 18h.01",
+    ],
+    "fit-width": [
+      "M4 3v18",
+      "M20 3v18",
+      "M8 12h8",
+      "M11 9L8 12l3 3",
+      "M13 9l3 3-3 3",
+    ],
+    "fit-height": [
+      "M3 4h18",
+      "M3 20h18",
+      "M12 8v8",
+      "M9 11l3-3 3 3",
+      "M9 13l3 3 3-3",
+    ],
+    "fit-both": [
+      "M3 8V5a2 2 0 0 1 2-2h3",
+      "M16 3h3a2 2 0 0 1 2 2v3",
+      "M21 16v3a2 2 0 0 1-2 2h-3",
+      "M8 21H5a2 2 0 0 1-2-2v-3",
+      "M9 9h6v6H9z",
+    ],
+    "fit-actual": [
+      "M6 5v14",
+      "M12 8h.01",
+      "M12 16h.01",
+      "M18 5v14",
+    ],
+    "mode-single": [
+      "M8 4h8v16H8z",
+    ],
+    "mode-spread": [
+      "M3 4h8v16H3z",
+      "M13 4h8v16h-8z",
+    ],
+    "mode-scroll": [
+      "M5 4h14v16H5z",
+      "M12 8v5",
+      "M9 11l3 3 3-3",
     ],
   };
 </script>

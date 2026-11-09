@@ -1,323 +1,406 @@
 <script lang="ts">
-	import { onMount, onDestroy } from "svelte";
-	import { SvelteSet } from "svelte/reactivity";
+	import { onMount, onDestroy, untrack } from "svelte";
 	import { getApi } from "../lib/api/client";
+	import type { LibraryItem } from "../lib/api/client";
 	import { getRouter } from "../lib/ctx";
 	import type { Match } from "../lib/router";
-	import Icon from "../lib/components/Icon.svelte";
+	import Stage from "../lib/reader/Stage.svelte";
+	import ScrollStage from "../lib/reader/ScrollStage.svelte";
+	import EndCard from "../lib/reader/EndCard.svelte";
+	import Controls from "../lib/reader/Controls.svelte";
+	import { createAutoHide } from "../lib/reader/autohide";
+	import { createProgress } from "../lib/reader/progress";
+	import { loadSettings, saveSettings, type Settings } from "../lib/reader/settings";
 	import {
 		clampPage,
-		visiblePages,
-		nextPage,
-		prevPage,
-		stepKey,
-		zoneAction,
-		preloadPages,
-		pageSrc,
-
-		parseMode,
-		DEFAULT_MODE,
-		type ReadMode
+		defaultMode,
+		buildGroups,
+		groupOf,
+		stepGroup,
+		keyAction,
+		zoomStep,
+		type Mode,
+		type Fit,
+		type Dir,
+		type KeyAction,
 	} from "../lib/reader/pages";
-	import type { LibraryItem } from "../lib/api/client";
 
 	let { match }: { match: Match } = $props();
 
 	const api = getApi();
 	const router = getRouter();
+
 	const bookId = $derived(match.params.bookId);
+	const seriesId = $derived(match.query.get("series"));
 
 	// ── state ──────────────────────────────────────────────────────────
+	let status = $state<"loading" | "ready" | "error">("loading");
 	let title = $state("");
 	let count = $state(0);
 	let page = $state(1);
-	let status = $state<"loading" | "ready" | "error">("loading");
-	let mode = $state<ReadMode>({ ...DEFAULT_MODE });
-	let chrome = $state(true);
-	let nextBook = $state<LibraryItem | null>(null);
-	let failed = $state<Set<number>>(new Set());
-	let wide = $state(false);
-	let width = $state(0);
-	let bust = $state(0);
-	let pageTpl = $state("");
+	let tpl = $state("");
+	let thumbTpl = $state<string | null>(null);
+	let books = $state<LibraryItem[]>([]);
+	let notice = $state<string | null>(null);
+	let wide = $state<Set<number>>(new Set<number>());
+	let est = $state<{ w: number; h: number } | null>(null);
+	let atEnd = $state(false);
+	let popover = $state<null | "settings" | "books" | "help">(null);
+	let thumbsOpen = $state(false);
+	let hidden = $state(false);
+	let fullscreen = $state(false);
+	let toast = $state("");
+	let settings = $state<Settings>({ mode: null, fit: "both", dir: "ltr", zoom: 100 });
 
 	// ── derived ────────────────────────────────────────────────────────
-	const series = $derived(match.query.get("series"));
-	const spread = $derived(mode.spread && wide);
-	const shown = $derived(visiblePages(page, count, spread));
-	const pagesToShow = $derived(mode.rtl ? [...shown].reverse() : shown);
-	const pre = $derived(preloadPages(page, count, spread));
+	const mode = $derived<Mode>(settings.mode ?? defaultMode(window.innerWidth, window.innerHeight));
+	const groups = $derived(buildGroups(count, mode, wide));
+	const shown = $derived(groupOf(groups, page));
+	const idx = $derived(books.findIndex((b) => b.id === bookId));
+	const nextBook = $derived(idx >= 0 && idx < books.length - 1 ? books[idx + 1] : null);
+	const endCard = $derived({
+		title,
+		next: nextBook,
+		hasSeries: books.length > 0,
+		onnext: openNext,
+		onback: back,
+	});
 
-	// ── mode persistence ───────────────────────────────────────────────
-	const MODE_KEY = "pearlie.reader.mode";
+	// ── progress + autohide ────────────────────────────────────────────
+	const progress = createProgress((id, pg, o) => api.saveProgress(id, pg, undefined, o));
+	const hide = createAutoHide({
+		blocked: () => popover !== null || thumbsOpen,
+		onchange: (v) => (hidden = v),
+	});
 
-	function saveMode() {
-		try {
-			localStorage.setItem(MODE_KEY, JSON.stringify(mode));
-		} catch { /* ignore */ }
+	// ── helpers ────────────────────────────────────────────────────────
+	function show(t: string) {
+		toast = t;
+		setTimeout(() => {
+			if (toast === t) toast = "";
+		}, 1500);
 	}
 
-	// ── load ───────────────────────────────────────────────────────────
+	function setSettings(patch: Partial<Settings>) {
+		settings = { ...settings, ...patch };
+		saveSettings(settings);
+	}
+
+	const FITS: Fit[] = ["width", "height", "both", "actual"];
+	const MODES: Mode[] = ["single", "spread", "scroll"];
+
+	function setModeValue(m: Mode) {
+		setSettings({ mode: m });
+	}
+
+	function setFitValue(f: Fit) {
+		setSettings({ fit: f });
+	}
+
+	function setDirValue(d: Dir) {
+		setSettings({ dir: d });
+	}
+
+	function setZoomValue(z: number) {
+		setSettings({ zoom: z });
+	}
+
+	// ── loading ────────────────────────────────────────────────────────
 	async function load() {
+		progress.flush();
 		status = "loading";
+		atEnd = false;
+		wide = new Set<number>();
+		est = null;
+		thumbsOpen = false;
+		popover = null;
+		books = [];
+		notice = null;
+		setSettings({ zoom: 100 });
+
 		try {
 			const d = await api.getItem("books", bookId);
 			title = d.title;
 			count = d.page_count ?? 0;
-			pageTpl = d.page_url ?? "";
-			const p = Number(match.query.get("p"));
-			const start = match.query.get("p") ? p : (d.read_page ?? 1);
+			tpl = d.page_url ?? "";
+			thumbTpl = d.page_thumb_url ?? null;
+
+			const pParam = match.query.get("p");
+			const start = pParam
+				? Number(pParam)
+				: !d.read_page || d.read_page <= 1 || (d.page_count != null && d.read_page >= d.page_count)
+					? 1
+					: d.read_page;
 			page = clampPage(start, count);
 			status = "ready";
 		} catch {
 			status = "error";
+			return;
 		}
 
-		const seriesId = match.query.get("series");
 		if (seriesId) {
 			try {
 				const s = await api.getItem("series", seriesId);
-				const books: LibraryItem[] = s.books ?? [];
-				const idx = books.findIndex((b) => b.id === bookId);
-				nextBook = idx >= 0 && idx < books.length - 1 ? books[idx + 1] : null;
+				books = s.books ?? [];
+				notice = s.notice?.message ?? null;
 			} catch {
-				// ignore
+				books = [];
+				notice = null;
 			}
 		}
 	}
 
+	$effect(() => {
+		void bookId;
+		untrack(() => void load());
+	});
+
 	// ── navigation ─────────────────────────────────────────────────────
+	function onsize(n: number, w: number, h: number) {
+		if (!est) est = { w, h };
+		if (w > h && !wide.has(n)) wide = new Set([...wide, n]);
+	}
+
 	function go(n: number) {
 		page = clampPage(n, count);
-		scheduleProgress();
-		const qs = "?p=" + page + (series ? "&series=" + series : "");
+		atEnd = false;
+		const g = groupOf(groups, page);
+		progress.set(bookId, g[g.length - 1]);
+		const qs = "?p=" + page + (seriesId ? "&series=" + seriesId : "");
 		router.navigate("/read/" + encodeURIComponent(bookId) + qs, { replace: true });
 	}
 
-	function next() {
-		const n = nextPage(page, count, spread);
-		if (n !== null) go(n);
-		// else: end tile handled in markup when nextBook is set
-	}
-
-	function prev() {
-		go(prevPage(page, count, spread));
-	}
-
-	// ── progress ───────────────────────────────────────────────────────
-	let progressTimer: ReturnType<typeof setTimeout> | null = null;
-
-	function scheduleProgress() {
-		if (progressTimer) clearTimeout(progressTimer);
-		progressTimer = setTimeout(() => {
-			progressTimer = null;
-			try {
-				const lastShownPage = shown[shown.length - 1];
-				api.saveProgress(bookId, lastShownPage);
-			} catch { /* ignore */ }
-		}, 800);
-	}
-
-	function flushProgress() {
-		if (progressTimer) {
-			clearTimeout(progressTimer);
-			progressTimer = null;
-		}
-		try {
-			const lastShownPage = shown[shown.length - 1];
-			void api.saveProgress(bookId, lastShownPage, undefined, { keepalive: true }).catch(() => {});
-		} catch { /* ignore */ }
-	}
-
-	// ── chrome auto-hide ───────────────────────────────────────────────
-	let chromeTimer: ReturnType<typeof setTimeout> | null = null;
-
-	function poke() {
-		chrome = true;
-		if (chromeTimer) clearTimeout(chromeTimer);
-		chromeTimer = setTimeout(() => {
-			chrome = false;
-			chromeTimer = null;
-		}, 3000);
-	}
-
-	// ── keyboard ───────────────────────────────────────────────────────
-	function onKey(e: KeyboardEvent) {
-		poke();
-		if (e.key === "Escape") {
-			router.navigate("/item/books/" + encodeURIComponent(bookId));
+	function turn(d: 1 | -1) {
+		if (atEnd) {
+			if (d === 1) {
+				openNext();
+			} else {
+				atEnd = false;
+			}
 			return;
 		}
-		const a = stepKey(e.key, mode.rtl);
-		if (a === "next") next();
-		else if (a === "prev") prev();
+
+		const r = stepGroup(groups, page, d);
+		if (typeof r === "number") {
+			go(r);
+		} else if (r === "end") {
+			atEnd = true;
+			progress.set(bookId, count);
+		}
+	}
+
+	function openBook(b: LibraryItem) {
+		progress.flush();
+		const start = b.read_page && b.page_count && b.read_page < b.page_count ? b.read_page : 1;
+		router.navigate("/read/" + encodeURIComponent(b.id) + "?p=" + start + "&series=" + (seriesId ?? ""));
+		show(b.title);
+	}
+
+	function openNext() {
+		if (nextBook) openBook(nextBook);
+	}
+
+	function back() {
+		router.navigate(
+			seriesId ? "/item/series/" + encodeURIComponent(seriesId) : "/item/books/" + encodeURIComponent(bookId),
+		);
+	}
+
+	function toggleFullscreen() {
+		if (document.fullscreenElement) {
+			void document.exitFullscreen();
+		} else {
+			void document.documentElement.requestFullscreen();
+		}
+	}
+
+	function togglePopover(p: "settings" | "books" | "help") {
+		popover = popover === p ? null : p;
+		hide.poke();
+	}
+
+	function onKey(e: KeyboardEvent) {
+		const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+		if (tag === "input" || tag === "textarea" || tag === "select") return;
+
+		const a: KeyAction | null = keyAction(e, settings.dir);
+		hide.poke();
+
+		const stage = document.querySelector(".stage");
+
+		if (a === "next") turn(1);
+		else if (a === "prev") turn(-1);
 		else if (a === "first") go(1);
 		else if (a === "last") go(count);
+		else if (a === "book-prev" && idx > 0) openBook(books[idx - 1]);
+		else if (a === "book-next") openNext();
+		else if (a === "books") togglePopover("books");
+		else if (a === "settings") togglePopover("settings");
+		else if (a === "help") togglePopover("help");
+		else if (a === "fit") {
+			setFitValue(FITS[(FITS.indexOf(settings.fit) + 1) % FITS.length]);
+		} else if (a === "mode") {
+			setModeValue(MODES[(MODES.indexOf(mode) + 1) % MODES.length]);
+		} else if (a === "mode-single") setModeValue("single");
+		else if (a === "mode-spread") setModeValue("spread");
+		else if (a === "mode-scroll") setModeValue("scroll");
+		else if (a === "fullscreen") toggleFullscreen();
+		else if (a === "thumbs") thumbsOpen = !thumbsOpen;
+		else if (a === "zoom-in") setZoomValue(zoomStep(settings.zoom, 1));
+		else if (a === "zoom-out") setZoomValue(zoomStep(settings.zoom, -1));
+		else if (a === "zoom-reset") setZoomValue(100);
+		else if (a === "hide") hide.toggle();
+		else if (a === "dir") setDirValue(settings.dir === "ltr" ? "rtl" : "ltr");
+		else if (a === "scroll-up" && stage) (stage as HTMLElement).scrollBy({ top: -90 });
+		else if (a === "scroll-down" && stage) (stage as HTMLElement).scrollBy({ top: 90 });
+		else if (a === "escape") {
+			if (popover) popover = null;
+			else if (thumbsOpen) thumbsOpen = false;
+			else back();
+		} else {
+			return;
+		}
+		e.preventDefault();
 	}
 
-	// ── stage click ────────────────────────────────────────────────────
-	function onStageClick(e: MouseEvent) {
-		const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-		const act = zoneAction(e.clientX - r.left, r.width, mode.rtl);
-		if (act === "next") next();
-		else if (act === "prev") prev();
-		else if (act === "toggle") chrome = !chrome;
+	function onPointer() {
+		hide.poke();
 	}
 
-	// ── mode toggles ───────────────────────────────────────────────────
-	function toggleSpread() {
-		mode = { ...mode, spread: !mode.spread };
-		saveMode();
+	function onFsChange() {
+		fullscreen = document.fullscreenElement != null;
 	}
-
-	function toggleRtl() {
-		mode = { ...mode, rtl: !mode.rtl };
-		saveMode();
-	}
-
-	function toggleFit() {
-		mode = { ...mode, fit: mode.fit === "height" ? "width" : "height" };
-		saveMode();
-	}
-
-	// ── retry ──────────────────────────────────────────────────────────
-	function retryPage(n: number) {
-		const s = new SvelteSet(failed);
-		s.delete(n);
-		failed = s;
-		bust = bust + 1;
-	}
-
-
-
-
 
 	// ── lifecycle ──────────────────────────────────────────────────────
 	onMount(() => {
-		// restore mode
-		try {
-			mode = parseMode(localStorage.getItem(MODE_KEY));
-		} catch { /* ignore */ }
-
-		// wide
-		wide = window.innerWidth >= 900;
-		function onResize() {
-			wide = window.innerWidth >= 900;
-		}
-		window.addEventListener("resize", onResize);
-
-		// chrome
-		poke();
-
-		// listeners
-		window.addEventListener("mousemove", poke);
+		settings = loadSettings();
+		hide.poke();
 		window.addEventListener("keydown", onKey);
-		window.addEventListener("pagehide", flushProgress);
-
-		onDestroy(() => {
-			if (chromeTimer) clearTimeout(chromeTimer);
-			window.removeEventListener("resize", onResize);
-			window.removeEventListener("mousemove", poke);
-			window.removeEventListener("keydown", onKey);
-			window.removeEventListener("pagehide", flushProgress);
-			flushProgress();
-		});
+		window.addEventListener("pointermove", onPointer);
+		window.addEventListener("pointerdown", onPointer);
+		window.addEventListener("pagehide", () => progress.flush(true));
+		document.addEventListener("fullscreenchange", onFsChange);
 	});
 
-	// reload when bookId changes
-	$effect(() => {
-		void bookId;
-		failed = new SvelteSet();
-		nextBook = null;
-		page = 1;
-		void load();
+	onDestroy(() => {
+		progress.flush();
+		hide.destroy();
+		window.removeEventListener("keydown", onKey);
+		window.removeEventListener("pointermove", onPointer);
+		window.removeEventListener("pointerdown", onPointer);
+		document.removeEventListener("fullscreenchange", onFsChange);
 	});
 </script>
+
 <div class="reader" role="application" aria-label="Reader">
 	{#if status === "loading"}
-		<div class="loading">
+		<div class="center">
 			<div class="skeleton"></div>
 		</div>
 	{:else if status === "error"}
-		<div class="error">
-			<p>Could not open this book.</p>
-			<button onclick={() => load()}>Retry</button>
-			<a href="/item/books/{bookId}">Back</a>
+		<div class="center">
+			<p class="msg">Could not open this book.</p>
+			<div class="row">
+				<button class="btn" onclick={() => load()}>Retry</button>
+				<button class="btn ghost" onclick={back}>Back</button>
+			</div>
 		</div>
 	{:else}
-		<header class="bar top" class:hidden={!chrome}>
-			<button aria-label="Back to book" onclick={() => router.navigate("/item/books/" + bookId)}>
-				<Icon name="arrow-left" size={24} />
-			</button>
-			<span class="title">{title}</span>
-			<span class="page-indicator">{page} / {count}</span>
-			{#if wide}
-				<button
-					aria-label="Two-page spread"
-					aria-pressed={spread}
-					class:pressed={spread}
-					onclick={toggleSpread}
-				>
-					<Icon name="columns" size={24} />
-				</button>
-			{/if}
-			<button aria-label="Right to left" aria-pressed={mode.rtl} class:pressed={mode.rtl} onclick={toggleRtl}>
-				<Icon name="arrow-left-right" size={24} />
-			</button>
-			<button
-				aria-label="Fit width"
-				aria-pressed={mode.fit === "width"}
-				class:pressed={mode.fit === "width"}
-				onclick={toggleFit}
-			>
-				<Icon name="maximize" size={24} />
-			</button>
-		</header>
-
-		<div class="stage" bind:clientWidth={width} onclick={onStageClick} role="presentation">
-			{#each pagesToShow as n (n)}
-				<div class="pg">
-					{#if failed.has(n)}
-						<button class="retry" onclick={(e) => { e.stopPropagation(); retryPage(n); }}>
-							<Icon name="refresh" size={24} /> Retry page {n}
-						</button>
-					{:else}
-						<img
-							src={pageSrc(pageTpl, n) + "?r=" + bust}
-							alt="Page {n}"
-							class:fitw={mode.fit === "width"}
-							onerror={() => (failed = new Set([...failed, n]))}
-							draggable="false"
-						/>
-					{/if}
-				</div>
-			{/each}
-			{#each pre as n (n)}
-				<img class="preload" src={pageSrc(pageTpl, n)} alt="" aria-hidden="true" />
-			{/each}
-			{#if page === count && nextBook}
-				<button
-					class="nextbook"
-					onclick={() => nextBook && router.navigate("/read/" + encodeURIComponent(nextBook.id) + "?series=" + series)}
-				>
-					Next: {nextBook.title}
-				</button>
-			{/if}
-		</div>
-
-		<footer class="bar bottom" class:hidden={!chrome}>
-			<input
-				type="range"
-				min="1"
-				max={Math.max(count, 1)}
-				value={page}
-				aria-label="Page"
-				dir={mode.rtl ? "rtl" : "ltr"}
-				oninput={(e) => go(Number(e.currentTarget.value))}
+		{#if count === 0}
+			<div class="center">
+				<p class="msg">This book has no pages.</p>
+				<button class="btn ghost" onclick={back}>Back</button>
+			</div>
+		{:else if mode === "scroll"}
+			<ScrollStage
+				count={count}
+				page={page}
+				template={tpl}
+				fit={settings.fit}
+				zoom={settings.zoom}
+				est={est}
+				onsize={onsize}
+				oncurrent={(n) => go(n)}
+				ontoggle={() => hide.toggle()}
+				onscrolldir={(d) => d === "down" ? hide.hide() : hide.poke()}
+				endCard={endCard}
 			/>
-		</footer>
+		{:else if atEnd}
+			<div class="end">
+				<EndCard
+					title={title}
+					next={nextBook}
+					hasSeries={books.length > 0}
+					onnext={openNext}
+					onback={back}
+				/>
+			</div>
+		{:else}
+			<Stage
+				shown={shown}
+				groups={groups}
+				page={page}
+				template={tpl}
+				fit={settings.fit}
+				zoom={settings.zoom}
+				dir={settings.dir}
+				est={est}
+				onsize={onsize}
+				onturn={turn}
+				ontoggle={() => hide.toggle()}
+				onzoom={(z) => setZoomValue(z)}
+				onzoomstep={(d) => setZoomValue(zoomStep(settings.zoom, d))}
+			/>
+		{/if}
+
+		<Controls
+			hidden={hidden}
+			popover={popover}
+			thumbsOpen={thumbsOpen}
+			fullscreen={fullscreen}
+			mode={mode}
+			fit={settings.fit}
+			dir={settings.dir}
+			zoom={settings.zoom}
+			count={count}
+			shown={shown}
+			thumbTpl={thumbTpl}
+			wide={wide}
+			title={title}
+			index={idx + 1}
+			total={books.length}
+			hasSeries={books.length > 0}
+			books={books}
+			bookId={bookId}
+			notice={notice}
+			onback={back}
+			onsettings={() => togglePopover("settings")}
+			onfit={() => setFitValue(FITS[(FITS.indexOf(settings.fit) + 1) % FITS.length])}
+			onmode={() => setModeValue(MODES[(MODES.indexOf(mode) + 1) % MODES.length])}
+			onfullscreen={toggleFullscreen}
+			onhelp={() => togglePopover("help")}
+			onprev={() => turn(-1)}
+			onnext={() => turn(1)}
+			onlist={() => (popover = "books")}
+			onjump={(n) => go(n)}
+			onthumbs={() => (thumbsOpen = !thumbsOpen)}
+			onzoomin={() => setZoomValue(zoomStep(settings.zoom, 1))}
+			onzoomout={() => setZoomValue(zoomStep(settings.zoom, -1))}
+			onzoomreset={() => setZoomValue(100)}
+			onsetmode={setModeValue}
+			onsetfit={setFitValue}
+			onsetdir={setDirValue}
+			onpick={(b) => openBook(b)}
+			onclosepopover={() => (popover = null)}
+			onhover={(v) => hide.setHover(v)}
+			onfocus={(v) => hide.setFocus(v)}
+		/>
 
 		<div class="sr-only" aria-live="polite">Page {page} of {count}</div>
+	{/if}
+
+	{#if toast}
+		<div class="toast" role="status">{toast}</div>
 	{/if}
 </div>
 
@@ -328,15 +411,18 @@
 		z-index: 1000;
 		background: #000;
 		color: var(--text);
-		display: flex;
-		flex-direction: column;
 	}
 
-	.loading {
-		flex: 1;
+	.center {
+		position: absolute;
+		inset: 0;
 		display: flex;
-		justify-content: center;
+		flex-direction: column;
 		align-items: center;
+		justify-content: center;
+		gap: var(--s-4);
+		padding: var(--s-4);
+		text-align: center;
 	}
 
 	.skeleton {
@@ -347,178 +433,61 @@
 		animation: pulse 1.4s ease-in-out infinite alternate;
 	}
 
-	@keyframes pulse {
-		from { opacity: 0.4; }
-		to { opacity: 0.7; }
-	}
-
-	.error {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		align-items: center;
-		gap: var(--s-3);
+	.msg {
+		margin: 0;
 		color: var(--muted);
-		font-size: var(--t-14);
+		font-size: 15px;
 	}
 
-	.error button,
-	.error a {
+	.row {
+		display: flex;
+		gap: var(--s-2);
+	}
+
+	.btn {
 		min-height: 44px;
 		min-width: 44px;
 		padding: 0 var(--s-3);
-		background: transparent;
 		border: 1px solid var(--line-strong);
+		background: var(--surface);
 		color: var(--text);
-		border-radius: var(--r-sm);
-		text-decoration: none;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.stage {
-		flex: 1;
-		min-height: 0;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		gap: 0;
-		overflow: auto;
+		border-radius: var(--r-md);
+		font: inherit;
 		cursor: pointer;
 	}
 
-	.stage:has(.pg img.fitw) {
-		align-items: flex-start;
-	}
-
-	.pg {
-		display: flex;
-		height: 100%;
-		align-items: center;
-	}
-
-	.pg img {
-		max-height: 100%;
-		max-width: 100%;
-		object-fit: contain;
-	}
-
-	.pg img.fitw {
-		width: 100%;
-		height: auto;
-		max-height: none;
-	}
-
-	.bar {
-		position: absolute;
-		left: 0;
-		right: 0;
-		display: flex;
-		align-items: center;
-		gap: var(--s-3);
-		padding: var(--s-2) var(--s-4);
-		background: rgba(18, 18, 20, 0.85);
-		transition: opacity 0.2s;
-	}
-
-	.bar.top {
-		top: 0;
-	}
-
-	.bar.bottom {
-		bottom: 0;
-	}
-
-	.bar.hidden {
-		opacity: 0;
-		pointer-events: none;
-	}
-
-	.bar button {
-		min-width: 44px;
-		min-height: 44px;
+	.btn.ghost {
 		background: transparent;
-		border: 1px solid var(--line-strong);
-		color: var(--text);
-		border-radius: var(--r-sm);
-		display: inline-flex;
+	}
+
+	.btn:hover:not(:disabled) {
+		background: var(--line);
+	}
+
+	.btn.ghost:hover:not(:disabled) {
+		background: var(--line);
+	}
+
+	.end {
+		position: absolute;
+		inset: 0;
+		display: flex;
 		align-items: center;
 		justify-content: center;
+		padding: var(--s-4);
 	}
 
-	.bar button[aria-pressed="true"] {
-		background: var(--accent-bg);
-	}
-
-	.title {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		flex: 1;
-		font-size: var(--t-14);
-	}
-
-	.page-indicator {
-		font-size: var(--t-13);
-		color: var(--muted);
-		white-space: nowrap;
-	}
-
-	.bar input[type="range"] {
-		flex: 1;
-	}
-
-	.preload {
+	.toast {
 		position: absolute;
-		width: 1px;
-		height: 1px;
-		opacity: 0;
-		pointer-events: none;
-	}
-
-	.retry {
-		height: 44px;
-		min-height: 44px;
-		color: var(--muted);
-		background: transparent;
+		left: var(--s-4);
+		bottom: var(--s-4);
+		background: var(--surface);
 		border: 1px solid var(--line-strong);
-		border-radius: var(--r-sm);
-		display: inline-flex;
-		align-items: center;
-		gap: var(--s-2);
-		padding: 0 var(--s-3);
-	}
-
-	.nextbook {
-		position: absolute;
-		bottom: 72px;
-		left: 50%;
-		transform: translateX(-50%);
-		min-height: 44px;
-		padding: 0 var(--s-4);
-		background: var(--accent);
-		color: #0b1220;
-		border: 0;
 		border-radius: var(--r-md);
-		font-size: var(--t-14);
-	}
-
-	:focus-visible {
-		outline: 2px solid var(--accent);
-		outline-offset: 2px;
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.bar {
-			transition: none;
-		}
-
-		.skeleton {
-			animation: none;
-			opacity: 0.5;
-		}
+		padding: 8px 14px;
+		color: var(--text);
+		font-size: 14px;
+		z-index: 20;
 	}
 
 	.sr-only {
@@ -531,5 +500,22 @@
 		clip: rect(0, 0, 0, 0);
 		white-space: nowrap;
 		border: 0;
+	}
+
+	@keyframes pulse {
+		from { opacity: 0.4; }
+		to { opacity: 0.7; }
+	}
+
+	:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.skeleton {
+			animation: none;
+			opacity: 0.5;
+		}
 	}
 </style>
