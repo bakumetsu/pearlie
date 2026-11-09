@@ -2,8 +2,9 @@
 // trash-shots.mjs — Playwright screenshots for /trash page
 // Vite: http://127.0.0.1:5183 · Backend fixture: :8010
 
-import { chromium } from 'playwright';
+import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import process from 'node:process';
 
 const out = process.argv[2] || 'shots/trash';
 mkdirSync(out, { recursive: true });
