@@ -154,3 +154,13 @@ def test_fixture_items_carry_card_fields(client: TestClient) -> None:
     assert first["preview_url"].startswith("/api/media/stash/scene/")
     assert first["studio"] is not None
     assert first["date"] is not None
+
+
+def test_preview_upstream_404_is_404(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> Any:
+        return stream_response(404, b"", {"Content-Type": "text/plain"})
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/media/stash/scene/7/preview")
+
+    assert r.status_code == 404
