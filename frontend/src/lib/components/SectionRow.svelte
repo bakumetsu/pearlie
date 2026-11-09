@@ -74,7 +74,7 @@
       >
         <Icon name="chevron-left" size={20} />
       </button>
-      <div class="strip" bind:this={strip} onscroll={updateMetrics}>
+      <div class="strip no-scrollbar" bind:this={strip} onscroll={updateMetrics}>
         {@render children()}
       </div>
       <button
@@ -138,8 +138,11 @@
     gap: var(--s-2);
     overflow-x: auto;
     scroll-snap-type: x proximity;
-    scrollbar-width: thin;
+    scrollbar-width: none;
     padding: var(--s-1) 0;
+  }
+  .strip::-webkit-scrollbar {
+    display: none;
   }
   .strip > :global(*) {
     scroll-snap-align: start;
