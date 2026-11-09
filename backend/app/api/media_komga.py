@@ -40,7 +40,7 @@ def komga_book_page(id: str, n: int) -> Response:
     return Response(
         content=data,
         media_type="image/jpeg",
-        headers={"Cache-Control": "private, max-age=3600", "ETag": f'W/"{id}-{n}"'},
+        headers={"Cache-Control": "no-store", "ETag": f'W/"{id}-{n}"'},
     )
 
 
@@ -56,5 +56,5 @@ def komga_book_page_thumb(id: str, n: int) -> Response:
     return Response(
         content=data,
         media_type="image/jpeg",
-        headers={"Cache-Control": "private, max-age=86400"},
+        headers={"Cache-Control": "no-store"},
     )

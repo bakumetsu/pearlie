@@ -207,7 +207,7 @@ def test_page_thumb_fixture(client):
     r = client.get(f"/api/media/komga/books/{book_id}/pages/1/thumb")
     assert r.status_code == 200
     assert r.headers["content-type"] == "image/jpeg"
-    assert r.headers["cache-control"] == "private, max-age=86400"
+    assert r.headers["cache-control"] == "no-store"
     img = Image.open(BytesIO(r.content))
     assert max(img.size) <= 200
 
@@ -221,7 +221,7 @@ def test_book_detail_page_thumb_url(client):
     book_id = client.get("/api/library/komga/books").json()["items"][0]["id"]
     d = client.get(f"/api/library/books/{book_id}").json()
     assert "{n}" in d["page_thumb_url"]
-    assert d["page_url"] == f"/api/media/komga/books/{book_id}/pages/{{n}}"
+    assert d["page_url"] == f"/api/media/komga/books/{book_id}/pages/{{n}}?src=fixture"
 
 
 def test_media_range(client):

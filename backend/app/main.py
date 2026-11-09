@@ -102,7 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.state.stash = (
         StashClient(settings.stash_url, settings.stash_api_key.get_secret_value())
-        if settings.stash_url
+        if settings.stash_url and settings.mode != "fixture"
         else None
     )
 

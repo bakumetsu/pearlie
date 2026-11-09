@@ -40,7 +40,7 @@ def _file(path: Path, media_type: str) -> FileResponse:
         path,
         media_type=media_type,
         headers={
-            "Cache-Control": "private, max-age=3600",
+            "Cache-Control": "no-store",
             "ETag": f'W/"{st.st_size}-{st.st_mtime_ns}"',
         },
     )
