@@ -45,7 +45,7 @@
 	let width = $state(0);
 	let height = $state(0);
 	let lastTurn = $state(0);
-	let prevPage = page;
+	let prevPage = -1;
 	let from = $state<"left" | "right" | null>(null);
 	$effect.pre(() => {
 		const p = page;
