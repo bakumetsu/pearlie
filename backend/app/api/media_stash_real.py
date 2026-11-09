@@ -15,7 +15,14 @@ router = APIRouter(prefix="/api/media")
 
 _NAME_RE = re.compile(r"^(stream\.(mp4|webm|m3u8|ts)|[0-9]+\.ts)$")
 _RESOLUTION_RE = re.compile(r"^[A-Z0-9_]+$")
-_RELAY_HEADERS = ("content-range", "content-length", "accept-ranges", "etag", "last-modified")
+_RELAY_HEADERS = (
+    "content-range",
+    "content-length",
+    "content-encoding",
+    "accept-ranges",
+    "etag",
+    "last-modified",
+)
 
 
 def _check_id(id: str) -> None:
