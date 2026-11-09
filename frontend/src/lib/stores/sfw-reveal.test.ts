@@ -95,6 +95,23 @@ describe("installReveal", () => {
     uninstall2();
   });
 
+  it("re-blurs on src change after one microtask, without a load event", async () => {
+    img.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(img.hasAttribute("data-sfw-shown")).toBe(true);
+    img.src = "/p2.jpg";
+    await Promise.resolve();
+    expect(img.hasAttribute("data-sfw-shown")).toBe(false);
+  });
+
+  it("ignores an element without src (click passes through)", () => {
+    const bare = document.createElement("img");
+    root.appendChild(bare);
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    bare.dispatchEvent(event);
+    expect(bare.hasAttribute("data-sfw-shown")).toBe(false);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it("uninstall removes the handler", () => {
     const e1 = new MouseEvent("click", { bubbles: true, cancelable: true });
     img.dispatchEvent(e1);

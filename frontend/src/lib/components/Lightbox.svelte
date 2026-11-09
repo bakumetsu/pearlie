@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import type { WebItem } from "../api/client";
   import Icon from "./Icon.svelte";
+  import SfwToggle from "./SfwToggle.svelte";
 
   let {
     item,
@@ -41,6 +42,7 @@
     if (e.target === dialogEl) dialogEl.close();
   }}
 >
+  <SfwToggle />
   <div class="stage">
     <img src={item.preview_url} alt={item.title ?? ""} />
   </div>
@@ -159,6 +161,7 @@
   }
 
   header {
+    padding-right: calc(var(--sfw-inset) - var(--s-4));
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
