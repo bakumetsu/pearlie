@@ -7,6 +7,7 @@
   import { setRouter, setJobs } from "./lib/ctx";
   import { createJobs } from "./lib/stores/jobs.svelte";
   import Queue from "./routes/Queue.svelte";
+  import Home from "./routes/Home.svelte";
   import Rules from "./routes/Rules.svelte";
   import Trash from "./routes/Trash.svelte";
   import Reader from "./routes/Reader.svelte";
@@ -48,6 +49,8 @@
   {#key match.name}
     {#if match.name === "discover"}
       <Search {match} />
+    {:else if match.name === "home"}
+      <Home />
     {:else if match.name === "library"}
       <Library {match} />
     {:else if match.name === "seeall" || match.name.startsWith("library_")}

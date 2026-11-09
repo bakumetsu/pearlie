@@ -4,6 +4,7 @@ export type RouteDef = { name: string; pattern: string };
 export const ROUTES: RouteDef[] = [
   { name: "discover", pattern: "/" },
   { name: "discover", pattern: "/discover" },
+  { name: "home", pattern: "/home" },
   { name: "library", pattern: "/library" },
   { name: "seeall", pattern: "/see-all" },
   { name: "library_images", pattern: "/library/stash/images" },

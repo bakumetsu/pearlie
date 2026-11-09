@@ -12,6 +12,7 @@
 
   const items = [
     { name: "discover", label: "Discover", icon: "search", path: "/" },
+    { name: "home", label: "Home", icon: "home", path: "/home" },
     { name: "library", label: "Library", icon: "library", path: "/library" },
     { name: "queue", label: "Queue", icon: "queue", path: "/queue" },
     { name: "rules", label: "Rules", icon: "rules", path: "/rules" },
