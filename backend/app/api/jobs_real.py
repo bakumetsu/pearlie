@@ -72,7 +72,7 @@ def list_jobs(request: Request, state: str | None = Query(None)) -> JobList:
         if s not in _VALID_STATES:
             raise ApiError(422, "invalid", f"Unknown state {s}", field="state")
         states.add(s)
-    return JobList(items=store.list(states))
+    return JobList(items=store.list(states or None))
 
 
 @router.get("/jobs/{id}")

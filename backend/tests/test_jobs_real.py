@@ -168,6 +168,14 @@ def test_list_order_and_filter(tmp_path: Path) -> None:
     assert resp_bad.json()["code"] == "invalid"
 
 
+def test_list_empty_state_means_all(tmp_path: Path) -> None:
+    client, _, _ = make_client(tmp_path)
+    client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
+    resp = client.get("/api/jobs?state=")
+    assert resp.status_code == 200
+    assert len(resp.json()["items"]) == 1
+
+
 def test_get_unknown_job(tmp_path: Path) -> None:
     client, _, _ = make_client(tmp_path)
     resp = client.get("/api/jobs/999")
