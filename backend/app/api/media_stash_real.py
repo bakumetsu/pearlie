@@ -20,6 +20,7 @@ _RELAY_HEADERS = (
     "content-length",
     "content-encoding",
     "accept-ranges",
+    "content-range",
     "etag",
     "last-modified",
 )
@@ -130,6 +131,18 @@ def video_poster(request: Request, id: str) -> StreamingResponse:
     stash = request.app.state.stash
     try:
         upstream = stash.open_media(f"/scene/{id}/screenshot")
+    except StashError as err:
+        raise ApiError(err.status, err.code, err.message) from None
+    return _stream(upstream, "private, max-age=3600")
+
+
+@router.get("/stash/scene/{id}/preview")
+def scene_preview(request: Request, id: str):
+    _check_id(id)
+    stash = request.app.state.stash
+    fwd = _forward_range(request)
+    try:
+        upstream = stash.open_media(f"/scene/{id}/preview", headers=fwd)
     except StashError as err:
         raise ApiError(err.status, err.code, err.message) from None
     return _stream(upstream, "private, max-age=3600")

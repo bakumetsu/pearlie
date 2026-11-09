@@ -168,6 +168,10 @@ def build_videos() -> list[dict[str, Any]]:
             "width": 640,
             "height": 360,
             "duration_s": float(20 + (i * 37) % 3500),  # varied; the served mp4 is always 6 s
+            "preview_url": f"/api/media/stash/scene/{i}/preview",
+            "studio": f"Studio {i % 7}",
+            "date": f"2026-{1 + i % 12:02d}-{1 + i % 28:02d}",
+            "size_bytes": 50_000_000 + i * 1_000_003,
             "rating": rng.randint(1, 5) if rng.random() < 0.5 else None,
             "favorite": rng.random() < 0.10,
             "tags": [t.name for t in tags],
