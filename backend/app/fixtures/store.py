@@ -27,6 +27,7 @@ from app.models import (
     TrashResult,
     WebItem,
 )
+from app.paging import clamp_page, pages_for
 
 _LIBRARY_KEYS = frozenset(
     {
@@ -204,12 +205,19 @@ class Store:
         else:
             items.sort(key=lambda r: r.get("added_at", ""), reverse=True)
         total = len(items)
+        pages = pages_for(total, page_size)
+        page = clamp_page(page, pages)
         start = (page - 1) * page_size
         end = start + page_size
         page_items = [self.library_item(r) for r in items[start:end]]
         next_page = page + 1 if end < total else None
         return Page(
-            items=page_items, total=total, page=page, page_size=page_size, next_page=next_page
+            items=page_items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            pages=pages,
+            next_page=next_page,
         )
 
     # ── mutations ──────────────────────────────────────────────────

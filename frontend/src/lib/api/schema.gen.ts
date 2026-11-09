@@ -672,6 +672,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/view-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get View Settings */
+        get: operations["get_view_settings_api_view_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/view-settings/{source}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put View Setting */
+        put: operations["put_view_setting_api_view_settings__source__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -927,6 +961,13 @@ export interface components {
              */
             state: "ok" | "down" | "not_configured";
         };
+        /** PageStats */
+        PageStats: {
+            /** Megapixels */
+            megapixels?: number | null;
+            /** Size Bytes */
+            size_bytes?: number | null;
+        };
         /** Page[LibraryItem] */
         Page_LibraryItem_: {
             /** Items */
@@ -937,6 +978,9 @@ export interface components {
             page_size: number;
             /** Total */
             total: number;
+            /** Pages */
+            pages?: number | null;
+            stats?: components["schemas"]["PageStats"] | null;
             /** Next Page */
             next_page?: number | null;
             notice?: components["schemas"]["Problem"] | null;
@@ -1077,6 +1121,11 @@ export interface components {
             title: string;
             /** Total */
             total?: number | null;
+            /** Pages */
+            pages?: number | null;
+            stats?: components["schemas"]["PageStats"] | null;
+            /** Page Size */
+            page_size?: number | null;
             /** Items */
             items?: (components["schemas"]["LibraryItem"] | components["schemas"]["WebItem"])[];
             /**
@@ -1171,6 +1220,38 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** ViewSettingBody */
+        ViewSettingBody: {
+            /** Mode */
+            mode: string;
+            /** Per Page */
+            per_page: number;
+            /** Zoom */
+            zoom: number;
+        };
+        /** ViewSettingItem */
+        ViewSettingItem: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "grid" | "wall" | "masonry" | "list";
+            /** Per Page */
+            per_page: number;
+            /** Zoom */
+            zoom: number;
+            /** Per Page Options */
+            per_page_options: number[];
+            /** Per Page Max */
+            per_page_max: number;
+        };
+        /** ViewSettings */
+        ViewSettings: {
+            /** Sources */
+            sources: {
+                [key: string]: components["schemas"]["ViewSettingItem"];
+            };
+        };
         /** WebItem */
         WebItem: {
             /**
@@ -1217,6 +1298,7 @@ export interface operations {
                 q?: string;
                 sources?: string;
                 page?: number;
+                page_size?: number;
             };
             header?: never;
             path?: never;
@@ -2502,6 +2584,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Destinations"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_view_settings_api_view_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewSettings"];
+                };
+            };
+        };
+    };
+    put_view_setting_api_view_settings__source__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ViewSettingBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewSettingItem"];
                 };
             };
             /** @description Validation Error */
