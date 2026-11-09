@@ -152,6 +152,7 @@ class Job(BaseModel):
     eta_s: float | None = None
     error: str | None = None
     library_ref: SavedRef | None = None
+    notices: list[Problem] = Field(default_factory=list)
     created_at: str
     finished_at: str | None = None
 

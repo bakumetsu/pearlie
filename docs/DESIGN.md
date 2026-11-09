@@ -140,7 +140,7 @@ Notes:
 | DELETE | `/api/trash` | Empty: permanently delete everything in the trash, returns `{removed}` (the real deletion rule 4 allows; the UI asks to confirm first). Fixture mode only for now; in real mode the route is absent (404), never an empty list |
 | GET | `/api/media/...` | proxy for thumbnails, images, video (Range), book pages |
 | POST | `/api/save` `{source, post_id}` | rules, dedupe (409), queue; returns job id |
-| GET / POST / DELETE | `/api/jobs`, `/api/jobs/{id}`, `/retry` | queue |
+| GET / POST / DELETE | `/api/jobs`, `/api/jobs/{id}`, `/retry` | queue (newest first; `?state=` CSV; jobs carry `notices`). Worker: one job per site, 2 s gap (`PEARLIE_DOWNLOAD_INTERVAL_S`), running jobs requeued at startup |
 | GET / PUT | `/api/rules`; POST `/api/rules/test` | filters (base list returned read-only) |
 | POST | `/api/library/komga/books/{id}/progress` | reading progress |
 | GET | `/api/health` | Stash, Komga, mounts, sites |

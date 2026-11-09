@@ -788,6 +788,8 @@ export interface components {
             /** Error */
             error?: string | null;
             library_ref?: components["schemas"]["SavedRef"] | null;
+            /** Notices */
+            notices?: components["schemas"]["Problem"][];
             /** Created At */
             created_at: string;
             /** Finished At */

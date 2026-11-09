@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     stash_path_prefix_pearlie: str = ""
     stash_path_prefix_stash: str = ""
     stash_scan_timeout_s: float = 120.0
+    download_interval_s: float = 2.0
+    worker_enabled: bool = True
 
     def safe_summary(self) -> dict[str, str]:
         result: dict[str, str] = {}
