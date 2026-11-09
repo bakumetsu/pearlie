@@ -100,7 +100,10 @@ class StashClient:
         if resp.status_code >= 400:
             raise StashError("upstream_error", f"Stash returned {resp.status_code}")
 
-        body = resp.json()
+        try:
+            body = resp.json()
+        except ValueError:
+            raise StashError("upstream_error", "Stash returned an invalid response") from None
         errors = body.get("errors")
         if errors:
             raise StashError("upstream_error", "Stash rejected the request")
@@ -156,5 +159,5 @@ class StashClient:
     def library_paths(self) -> list[str]:
         """Return all configured stash paths."""
         data = self._gql(LIBRARY_PATHS)
-        stashes = data["configuration"]["general"]["stashes"]
+        stashes = data["configuration"]["general"]["stashes"] or []
         return [s["path"] for s in stashes]
