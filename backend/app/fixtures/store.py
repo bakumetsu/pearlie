@@ -143,9 +143,9 @@ class Store:
         kwargs = {k: v for k, v in raw.items() if not k.startswith("_") and k in _LIBRARY_KEYS}
         kwargs["tags"] = raw.get("_tags", [])
         if kinds == "images":
-            kwargs["full_url"] = f"/api/media/stash/images/{id}/full"
+            kwargs["full_url"] = f"/api/media/stash/images/{id}/full{data.FIXTURE_SRC}"
         elif kinds == "videos":
-            kwargs["stream_url"] = f"/api/media/stash/videos/{id}/stream"
+            kwargs["stream_url"] = f"/api/media/stash/videos/{id}/stream{data.FIXTURE_SRC}"
             kwargs["mime"] = "video/mp4"
         elif kinds == "series":
             kwargs["books"] = [
@@ -154,8 +154,10 @@ class Store:
                 if b.get("series_id") == int(id) and not b.get("_rejected")
             ]
         elif kinds == "books":
-            kwargs["page_url"] = f"/api/media/komga/books/{id}/pages/{{n}}"
-            kwargs["page_thumb_url"] = f"/api/media/komga/books/{id}/pages/{{n}}/thumb"
+            kwargs["page_url"] = f"/api/media/komga/books/{id}/pages/{{n}}{data.FIXTURE_SRC}"
+            kwargs["page_thumb_url"] = (
+                f"/api/media/komga/books/{id}/pages/{{n}}/thumb{data.FIXTURE_SRC}"
+            )
         return LibraryItemDetail(**kwargs)
 
     # ── search / filter ────────────────────────────────────────────

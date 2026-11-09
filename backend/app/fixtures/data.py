@@ -106,6 +106,8 @@ _ASPECTS: tuple[tuple[int, int], ...] = (
 )
 _PAGE_PATTERN: tuple[int, ...] = (8, 10, 12, 14, 9)
 _WEB_SOURCES: tuple[str, ...] = ("danbooru", "gelbooru", "nhentai", "rule34")
+# Fixture media URLs carry this query so they never share a browser cache entry with real ones.
+FIXTURE_SRC = "?src=fixture"
 
 
 def _iso(offset_hours: int) -> str:
@@ -140,7 +142,7 @@ def build_images() -> list[dict[str, Any]]:
             "id": str(i),
             "kind": "image",
             "title": f"Image {i}",
-            "thumb_url": f"/api/media/stash/images/{i}/thumb",
+            "thumb_url": f"/api/media/stash/images/{i}/thumb{FIXTURE_SRC}",
             "width": w,
             "height": h,
             "rating": rng.randint(1, 5) if rng.random() < 0.5 else None,
@@ -164,11 +166,11 @@ def build_videos() -> list[dict[str, Any]]:
             "id": str(i),
             "kind": "video",
             "title": f"Video {i}",
-            "thumb_url": f"/api/media/stash/videos/{i}/poster",
+            "thumb_url": f"/api/media/stash/videos/{i}/poster{FIXTURE_SRC}",
             "width": 640,
             "height": 360,
             "duration_s": float(20 + (i * 37) % 3500),  # varied; the served mp4 is always 6 s
-            "preview_url": f"/api/media/stash/scene/{i}/preview",
+            "preview_url": f"/api/media/stash/scene/{i}/preview{FIXTURE_SRC}",
             "studio": f"Studio {i % 7}",
             "date": f"2026-{1 + i % 12:02d}-{1 + i % 28:02d}",
             "size_bytes": 50_000_000 + i * 1_000_003,
@@ -193,7 +195,7 @@ def build_series() -> list[dict[str, Any]]:
             "id": str(s),
             "kind": "series",
             "title": f"Series {s}",
-            "thumb_url": f"/api/media/komga/series/{s}/thumb",
+            "thumb_url": f"/api/media/komga/series/{s}/thumb{FIXTURE_SRC}",
             "width": 1080,
             "height": 1620,
             "book_count": 3,
@@ -218,7 +220,7 @@ def build_books() -> list[dict[str, Any]]:
             "id": str(b),
             "kind": "book",
             "title": f"Book {b}",
-            "thumb_url": f"/api/media/komga/books/{b}/thumb",
+            "thumb_url": f"/api/media/komga/books/{b}/thumb{FIXTURE_SRC}",
             "width": 1080,
             "height": 1620,
             "series_id": b // 3,
@@ -248,8 +250,8 @@ def build_web(source: str) -> list[dict[str, Any]]:
         item: dict[str, Any] = {
             "post_id": post_id,
             "source": source,
-            "thumb_url": f"/api/media/web/{source}/{post_id}/thumb",
-            "preview_url": f"/api/media/web/{source}/{post_id}/preview",
+            "thumb_url": f"/api/media/web/{source}/{post_id}/thumb{FIXTURE_SRC}",
+            "preview_url": f"/api/media/web/{source}/{post_id}/preview{FIXTURE_SRC}",
             "title": f"Gallery {i}" if is_nhentai else None,
             "tags": tags,
             "width": w,
