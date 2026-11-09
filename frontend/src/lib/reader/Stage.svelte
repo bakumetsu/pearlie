@@ -6,6 +6,7 @@
 		pageSrc,
 		preloadPages,
 		displayOrder,
+		slideFrom,
 		type Dir,
 		type Fit,
 	} from "./pages";
@@ -44,6 +45,17 @@
 	let width = $state(0);
 	let height = $state(0);
 	let lastTurn = $state(0);
+	let prevPage = page;
+	let from = $state<"left" | "right" | null>(null);
+	$effect.pre(() => {
+		const p = page;
+		const side = slideFrom(prevPage, p, groups, dir);
+		prevPage = p;
+		from =
+			side && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+				? side
+				: null;
+	});
 
 	const view = $derived({ w: width, h: height });
 	const order = $derived(displayOrder(shown, dir));
@@ -98,20 +110,22 @@
 	ondblclick={handleStageDblClick}
 	onwheel={handleWheel}
 >
-	<div class="row">
-		{#each order as n (n)}
-			<PageImg
-				{n}
-				src={pageSrc(template, n)}
-				{fit}
-				{zoom}
-				{est}
-				{view}
-				{across}
-				{onsize}
-			/>
-		{/each}
-	</div>
+	{#key page}
+		<div class="row" data-from={from} style:--slide="{Math.round(width * 0.18)}px">
+			{#each order as n (n)}
+				<PageImg
+					{n}
+					src={pageSrc(template, n)}
+					{fit}
+					{zoom}
+					{est}
+					{view}
+					{across}
+					{onsize}
+				/>
+			{/each}
+		</div>
+	{/key}
 	{#each preloads as n (n)}
 		<img class="preload" src={pageSrc(template, n)} alt="" aria-hidden="true" />
 	{/each}
@@ -137,6 +151,29 @@
 		justify-content: center;
 	}
 
+	.row[data-from] {
+		animation: slide-in 180ms ease-out both;
+	}
+
+	.row[data-from="left"] {
+		--dx: calc(var(--slide) * -1);
+	}
+
+	.row[data-from="right"] {
+		--dx: var(--slide);
+	}
+
+	@keyframes slide-in {
+		from {
+			transform: translateX(var(--dx));
+			opacity: 0.4;
+		}
+		to {
+			transform: translateX(0);
+			opacity: 1;
+		}
+	}
+
 	.preload {
 		display: none;
 	}
@@ -148,6 +185,9 @@
 	@media (prefers-reduced-motion: reduce) {
 		.stage {
 			scroll-behavior: auto;
+		}
+		.row {
+			animation: none;
 		}
 	}
 </style>

@@ -207,3 +207,19 @@ export function keyAction(
     default: return null;
   }
 }
+
+export function slideFrom(prev: number, next: number, groups: number[][], dir: Dir): "left" | "right" | null {
+  if (prev === next) return null;
+
+  const prevIdx = groups.findIndex((g) => g.includes(prev));
+  const nextIdx = groups.findIndex((g) => g.includes(next));
+
+  if (prevIdx === -1 || nextIdx === -1) return null;
+
+  const delta = nextIdx - prevIdx;
+  if (delta !== 1 && delta !== -1) return null;
+
+  const forward = delta === 1;
+  if (dir === "ltr") return forward ? "right" : "left";
+  return forward ? "left" : "right";
+}
