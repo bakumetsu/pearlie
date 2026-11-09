@@ -94,7 +94,7 @@ def _link_base(request: Request) -> str:
     return s.stash_public_url or s.stash_url or ""
 
 
-@router.get("/library/stash/images/{id}")
+@router.get("/library/images/{id}")
 def get_stash_image(request: Request, id: str):
     if not valid_id(id):
         raise ApiError(404, "not_found", "Item not found")
@@ -111,7 +111,7 @@ def get_stash_image(request: Request, id: str):
         raise ApiError(502, "upstream_error", "Stash returned an unreadable item") from None
 
 
-@router.get("/library/stash/videos/{id}")
+@router.get("/library/videos/{id}")
 def get_stash_video(request: Request, id: str):
     if not valid_id(id):
         raise ApiError(404, "not_found", "Item not found")
@@ -136,6 +136,6 @@ def _delete_handler(id: str) -> None:
     raise ApiError(501, "not_supported", "Editing and deleting Stash items is not available yet")
 
 
-for _p in ("/library/stash/images/{id}", "/library/stash/videos/{id}"):
+for _p in ("/library/images/{id}", "/library/videos/{id}"):
     router.patch(_p)(_patch_handler)
     router.delete(_p)(_delete_handler)

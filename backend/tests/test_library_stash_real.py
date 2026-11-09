@@ -241,7 +241,7 @@ def test_image_detail_ok(tmp_path):
         return httpx.Response(200, json={"data": {"findImage": image_dto("42")}})
 
     client = make_client(tmp_path, handler)
-    r = client.get("/api/library/stash/images/42")
+    r = client.get("/api/library/images/42")
     assert r.status_code == 200
     assert r.json()["id"] == "42"
 
@@ -253,7 +253,7 @@ def test_video_detail_ok(tmp_path):
         return httpx.Response(200, json={"data": {"findScene": scene_dto("42")}})
 
     client = make_client(tmp_path, handler)
-    r = client.get("/api/library/stash/videos/42")
+    r = client.get("/api/library/videos/42")
     assert r.status_code == 200
     assert r.json()["id"] == "42"
 
@@ -268,7 +268,7 @@ def test_detail_invalid_id_no_graphql(tmp_path):
         return httpx.Response(200, json={"data": {"findImage": None}})
 
     client = make_client(tmp_path, handler)
-    r = client.get("/api/library/stash/images/abc")
+    r = client.get("/api/library/images/abc")
     assert r.status_code == 404
     assert r.json()["code"] == "not_found"
     assert not called
@@ -281,7 +281,7 @@ def test_detail_not_found_none(tmp_path):
         return httpx.Response(200, json={"data": {"findImage": None}})
 
     client = make_client(tmp_path, handler)
-    r = client.get("/api/library/stash/images/999")
+    r = client.get("/api/library/images/999")
     assert r.status_code == 404
     assert r.json()["code"] == "not_found"
 
@@ -298,11 +298,11 @@ def test_patch_not_supported(tmp_path):
         raise AssertionError("should not reach upstream")
 
     client = make_client(tmp_path, handler)
-    r = client.patch("/api/library/stash/images/1", json={"title": "x"})
+    r = client.patch("/api/library/images/1", json={"title": "x"})
     assert r.status_code == 501
     assert r.json()["code"] == "not_supported"
 
-    r = client.patch("/api/library/stash/videos/1", json={"title": "x"})
+    r = client.patch("/api/library/videos/1", json={"title": "x"})
     assert r.status_code == 501
     assert r.json()["code"] == "not_supported"
 
@@ -314,11 +314,11 @@ def test_delete_not_supported(tmp_path):
         raise AssertionError("should not reach upstream")
 
     client = make_client(tmp_path, handler)
-    r = client.delete("/api/library/stash/images/1")
+    r = client.delete("/api/library/images/1")
     assert r.status_code == 501
     assert r.json()["code"] == "not_supported"
 
-    r = client.delete("/api/library/stash/videos/1")
+    r = client.delete("/api/library/videos/1")
     assert r.status_code == 501
     assert r.json()["code"] == "not_supported"
 
@@ -388,7 +388,7 @@ def test_no_secret_leak_detail(tmp_path):
         return httpx.Response(200, json={"data": {"findImage": image_dto()}})
 
     client = make_client(tmp_path, handler)
-    r = client.get("/api/library/stash/images/1")
+    r = client.get("/api/library/images/1")
     assert r.status_code == 200
     data = r.json()
     assert data["stash_link"] == f"{URL}/images/1"
@@ -419,7 +419,7 @@ def test_video_detail_fallback_streams(tmp_path):
         },
         {"url": f"{URL}/scene/7/evil.exe", "mime_type": "x", "label": "bad"},
     ]
-    r = _scene_client(tmp_path, sceneStreams=streams).get("/api/library/stash/videos/7")
+    r = _scene_client(tmp_path, sceneStreams=streams).get("/api/library/videos/7")
     assert r.status_code == 200
     data = r.json()
     assert [s["url"] for s in data["fallback_streams"]] == [
@@ -439,10 +439,21 @@ def test_video_detail_public_url(tmp_path):
     client = _scene_client(tmp_path)
     app: Any = client.app
     app.state.settings.stash_public_url = "https://pub.example/"
-    r = client.get("/api/library/stash/videos/7")
+    r = client.get("/api/library/videos/7")
     assert r.json()["stash_link"] == "https://pub.example/scenes/7"
 
 
 def test_video_detail_no_streams(tmp_path):
-    r = _scene_client(tmp_path).get("/api/library/stash/videos/7")
+    r = _scene_client(tmp_path).get("/api/library/videos/7")
     assert r.json()["fallback_streams"] == []
+
+
+def test_detail_path_matches_frontend_client(tmp_path):
+    """The item view calls /api/library/<kind>/<id>; the old /stash/ prefix is not routed."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"data": {"findImage": image_dto("42")}})
+
+    client = make_client(tmp_path, handler)
+    assert client.get("/api/library/images/42").status_code == 200
+    assert client.get("/api/library/stash/images/42").status_code == 404
