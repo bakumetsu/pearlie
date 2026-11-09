@@ -326,14 +326,14 @@ def test_videos_favorite_notice(tmp_path):
 
 
 def test_unreadable_dto_excluded(tmp_path):
-    """A dto missing required fields is dropped; notice code items_unreadable."""
+    """A dto with no id is dropped; notice code items_unreadable."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={
             "data": {
                 "findImages": {
                     "count": 2,
-                    "images": [image_dto("3"), {"id": "x"}],
+                    "images": [image_dto("3"), {"title": "no id"}],
                 }
             }
         })
@@ -345,6 +345,7 @@ def test_unreadable_dto_excluded(tmp_path):
     assert len(body["items"]) == 1
     assert body["items"][0]["id"] == "3"
     assert body["notice"]["code"] == "items_unreadable"
+    assert "unknown" in body["notice"]["message"]
 
 
 # ---------------------------------------------------------------------------

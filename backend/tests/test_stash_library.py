@@ -127,11 +127,17 @@ def test_image_item():
     item3 = stash_library.image_item(image_dto(title="", visual_files=[]))
     assert item3.title == "Image 1"
 
-    # missing created_at raises KeyError
-    bad = image_dto()
-    del bad["created_at"]
+    # missing created_at maps with added_at == ""
+    no_date = image_dto()
+    del no_date["created_at"]
+    item_no_date = stash_library.image_item(no_date)
+    assert item_no_date.added_at == ""
+
+    # dto without "id" still raises KeyError
+    no_id = image_dto()
+    del no_id["id"]
     with pytest.raises(KeyError):
-        stash_library.image_item(bad)
+        stash_library.image_item(no_id)
 
 
 def test_video_item():
@@ -215,20 +221,20 @@ def test_video_detail():
 
 
 def test_map_items():
-    """map_items collects good items and bad ids; non-dict entry yields '?'."""
+    """map_items collects good items and bad ids; missing/None id yields 'unknown'."""
     good = image_dto(id="1")
     bad = image_dto(id="9")
-    del bad["created_at"]
+    del bad["id"]
 
     items, bad_ids = stash_library.map_items([good, bad], stash_library.image_item)
     assert len(items) == 1
     assert items[0].id == "1"
-    assert bad_ids == ["9"]
+    assert bad_ids == ["unknown"]
 
-    # non-dict entry produces "?"
+    # non-dict entry produces "unknown"
     items2, bad_ids2 = stash_library.map_items(["not_a_dict"], stash_library.image_item)  # pyright: ignore[reportArgumentType]
     assert items2 == []
-    assert bad_ids2 == ["?"]
+    assert bad_ids2 == ["unknown"]
 
 
 def test_list_notice():
