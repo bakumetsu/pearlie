@@ -3,6 +3,7 @@
 $root = Split-Path -Parent $PSScriptRoot
 
 $env:PEARLIE_MODE = "fixture"
+$env:PEARLIE_REAL = ""
 
 $backend = Start-Process `
     -FilePath (Join-Path $root "backend\.venv\Scripts\python.exe") `

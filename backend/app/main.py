@@ -88,6 +88,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.sources = sources
 
     real = {n.strip() for n in settings.real.split(",") if n.strip()}
+    if settings.mode == "fixture" and real:
+        logger.warning("fixture mode: PEARLIE_REAL ignored (%s)", ", ".join(sorted(real)))
+        real = set()
     if real & {"library_komga", "media_komga"}:
         if not settings.komga_url:
             raise ConfigError(
