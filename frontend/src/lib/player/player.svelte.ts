@@ -6,7 +6,8 @@ function loadRate(): number {
   try {
     const v = Number(localStorage.getItem(RATE_KEY));
     if ((RATES as readonly number[]).includes(v)) return v;
-  } catch {}
+  } catch { // storage unavailable
+  }
   return 1;
 }
 
@@ -178,7 +179,8 @@ export function createPlayer() {
       applyRate();
       try {
         localStorage.setItem(RATE_KEY, String(r));
-      } catch {}
+      } catch { // storage unavailable
+      }
     },
 
     stepRate(dir: 1 | -1): void {

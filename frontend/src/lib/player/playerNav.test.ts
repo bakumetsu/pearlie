@@ -4,8 +4,6 @@ import { createPlayerNav, toPlayerItem } from "./playerNav.svelte";
 import type { ListGrid } from "../item/listNav";
 import type { PlayerItem } from "./player.svelte";
 
-type FakeItem = { kind: string; id: string; [k: string]: unknown };
-
 function item(kind: string, id: string, extra: Record<string, unknown> = {}): never {
   return { kind, id, ...extra } as never;
 }
@@ -32,7 +30,6 @@ function playerWith(
 
 const v1: PlayerItem = { id: "v1", title: "V1", streamUrl: "s1", posterUrl: "t1", href: "/library/videos/v1" };
 const v2: PlayerItem = { id: "v2", title: "V2", streamUrl: "s2", posterUrl: "t2", href: "/library/videos/v2" };
-const v3: PlayerItem = { id: "v3", title: "V3", streamUrl: "s3", posterUrl: "t3", href: "/library/videos/v3" };
 
 function makeDetail(over: Record<string, unknown> = {}) {
   return {
@@ -69,20 +66,6 @@ describe("toPlayerItem", () => {
 
 describe("createPlayerNav", () => {
   it("stage next navigates to next video, skipping an image", async () => {
-    const grid = makeGrid({
-      items: [item("video", "v1"), item("image", "img1"), item("video", "v2")],
-      hasNext: false,
-    });
-    const nav = createPlayerNav({
-      player: playerWith(v1, "stage"),
-      grid,
-      getDetail: async () => makeDetail(),
-      navigate: vi.fn(),
-      notify: vi.fn(),
-    });
-    // capture navigate
-    const navigate = (grid as never as { _nav?: ReturnType<typeof vi.fn> })._nav;
-    // re-create with spy
     const navSpy = vi.fn();
     const grid2 = makeGrid({
       items: [item("video", "v1"), item("image", "img1"), item("video", "v2")],

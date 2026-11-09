@@ -11,15 +11,22 @@ export function mediaSrc(el: Element): string {
   return "";
 }
 
+function scopeOf(el: Element): Element {
+  return el.closest(".tile") ?? el.closest("[data-sfw-group]") ?? el;
+}
+
 export function revealTarget(target: EventTarget | null, root: HTMLElement): Element | null {
   if (!(target instanceof Element)) return null;
   if (root.dataset.sfw !== "on") return null;
   const tile = target.closest(".tile");
+  const group = tile ? null : target.closest("[data-sfw-group]");
   const el = tile
     ? tile.querySelector("img, video")
-    : target instanceof HTMLImageElement || target instanceof HTMLVideoElement
-      ? target
-      : null;
+    : group
+      ? group.querySelector("video")
+      : target instanceof HTMLImageElement || target instanceof HTMLVideoElement
+        ? target
+        : null;
   if (!el) return null;
   if (!mediaSrc(el)) return null;
   return el;
@@ -63,13 +70,9 @@ export function installReveal(root: HTMLElement = document.documentElement): () 
     if (!current) return;
     const el = revealTarget(e.target, root);
     if (!el || el !== current) return;
-    const tile = el.closest(".tile");
+    const scope = scopeOf(el);
     const related = e.relatedTarget;
-    if (tile) {
-      if (!(related instanceof Node) || !tile.contains(related)) hide();
-    } else {
-      if (!(related instanceof Node) || !el.contains(related)) hide();
-    }
+    if (!(related instanceof Node) || !scope.contains(related)) hide();
   };
 
   const onFocusIn = (e: FocusEvent) => {
@@ -82,13 +85,9 @@ export function installReveal(root: HTMLElement = document.documentElement): () 
     if (!current) return;
     const el = revealTarget(e.target, root);
     if (!el || el !== current) return;
-    const tile = el.closest(".tile");
+    const scope = scopeOf(el);
     const related = e.relatedTarget;
-    if (tile) {
-      if (!(related instanceof Node) || !tile.contains(related)) hide();
-    } else {
-      if (!(related instanceof Node) || !el.contains(related)) hide();
-    }
+    if (!(related instanceof Node) || !scope.contains(related)) hide();
   };
 
   const onPointerDown = (e: PointerEvent) => {
@@ -96,13 +95,9 @@ export function installReveal(root: HTMLElement = document.documentElement): () 
     if (e.pointerType !== "touch") return;
     if (root.dataset.sfw !== "on") return;
     if (current) {
-      const tile = current.closest(".tile");
+      const scope = scopeOf(current);
       const t = e.target;
-      if (tile) {
-        if (!(t instanceof Node) || !tile.contains(t)) hide();
-      } else {
-        if (!(t instanceof Node) || !current.contains(t)) hide();
-      }
+      if (!(t instanceof Node) || !scope.contains(t)) hide();
     }
   };
 
@@ -113,6 +108,8 @@ export function installReveal(root: HTMLElement = document.documentElement): () 
   const onClick = (e: MouseEvent) => {
     if (lastPointerType !== "touch") return;
     if (root.dataset.sfw !== "on") return;
+    const t = e.target;
+    if (t instanceof Element && !t.closest(".tile") && t.closest("[data-sfw-group]") && !(t instanceof HTMLVideoElement)) return;
     const el = revealTarget(e.target, root);
     if (el) {
       if (el !== current) {

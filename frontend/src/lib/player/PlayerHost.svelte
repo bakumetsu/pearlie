@@ -123,36 +123,38 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_media_has_caption -->
-<video
-  data-player
-  bind:this={video}
-  playsinline
-  preload="metadata"
-  src={player.item?.streamUrl}
-  poster={player.item?.posterUrl}
-  style={videoStyle}
-  ontimeupdate={() => {
-    if (video) player.onTime(video.currentTime, video.duration);
-  }}
-  onloadedmetadata={() => {
-    if (video) player.onTime(video.currentTime, video.duration);
-  }}
-  onplaying={() => player.onPlaying()}
-  onpause={() => player.onPause()}
-  onended={() => player.onEnded()}
-  onclick={onVideoClick}
-  onerror={onVideoError}
-></video>
+<div data-sfw-group style="display:contents">
+  <!-- svelte-ignore a11y_media_has_caption -->
+  <video
+    data-player
+    bind:this={video}
+    playsinline
+    preload="metadata"
+    src={player.item?.streamUrl}
+    poster={player.item?.posterUrl}
+    style={videoStyle}
+    ontimeupdate={() => {
+      if (video) player.onTime(video.currentTime, video.duration);
+    }}
+    onloadedmetadata={() => {
+      if (video) player.onTime(video.currentTime, video.duration);
+    }}
+    onplaying={() => player.onPlaying()}
+    onpause={() => player.onPause()}
+    onended={() => player.onEnded()}
+    onclick={onVideoClick}
+    onerror={onVideoError}
+  ></video>
 
-{#if player.mode === "stage" && player.slot !== null && player.item !== null && rect !== null}
-  <div
-    class="stage-bar"
-    style="position:fixed;left:{rect.x}px;width:{rect.w}px;top:{rect.y + rect.h - 52}px;z-index:21;"
-  >
-    <PlayerBar />
-  </div>
-{/if}
+  {#if player.mode === "stage" && player.slot !== null && player.item !== null && rect !== null}
+    <div
+      class="stage-bar"
+      style="position:fixed;left:{rect.x}px;width:{rect.w}px;top:{rect.y + rect.h - 52}px;z-index:21;"
+    >
+      <PlayerBar />
+    </div>
+  {/if}
+</div>
 
 <style>
   .stage-bar {

@@ -25,7 +25,7 @@ export function createPlayerNav(deps: {
   notify(message: string): void;
 }): PlayerNav {
   const { player, grid, getDetail, navigate, notify } = deps;
-  let blocked = $state<Record<string, true>>({});
+  const blocked = $state<Record<string, true>>({});
 
   function keyOf(): string | null {
     const item = player.item;
