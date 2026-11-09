@@ -20,7 +20,6 @@ _RELAY_HEADERS = (
     "content-length",
     "content-encoding",
     "accept-ranges",
-    "content-range",
     "etag",
     "last-modified",
 )
