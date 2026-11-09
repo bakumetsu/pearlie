@@ -166,7 +166,7 @@
         <SectionRow
           title={(entry.section as { title?: string })?.title ?? id}
           count={(entry.section as { total?: number })?.total}
-          seeAllHref={hrefOf("/see-all", { source: id, q: serialiseQuery(query.chips) })}
+          seeAllHref={id === "komga_books" ? hrefOf("/library/komga/series") : hrefOf("/see-all", { source: id, q: serialiseQuery(query.chips) })}
           hidden={(entry.section as { hidden?: number })?.hidden}
           rulesHref="/rules"
           error={entry.error}

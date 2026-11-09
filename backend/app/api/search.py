@@ -81,12 +81,15 @@ def search(
                 if res is None:
                     raise ApiError(422, "invalid", "Bad source", field="sources")
                 items: list[LibraryItem | WebItem] = [*res.items]
+                # Komga rows show the library count before rules;
+                # the hidden footer keeps the difference.
+                total = res.total + hidden if sid == "komga_books" and not q else res.total
                 sections.append(
                     Section(
                         id=cast(SectionId, sid),
                         title=title,
                         items=items,
-                        total=res.total,
+                        total=total,
                         pages=pages_for(res.total, sz),
                         next_page=res.next_page,
                         page_size=sz if single else None,
