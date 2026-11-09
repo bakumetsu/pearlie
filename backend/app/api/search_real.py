@@ -40,6 +40,7 @@ def search(
     q: str = "",
     sources: str = "",
     page: int = Query(1, ge=1),
+    page_size: int = Query(60, ge=1, le=200),
 ) -> SearchResponse:
     """Search across configured sources and library sections."""
     raw = sources.split(",") if sources else _DEFAULT
@@ -58,7 +59,7 @@ def search(
             tags = q.split()
             pg = page if not multi else 1
             try:
-                page_result = src.search(tags, pg)
+                page_result = src.search(tags, pg, page_size if not multi else None)
             except SourceError as e:
                 sections.append(
                     Section(
@@ -97,8 +98,10 @@ def search(
                         id=cast_sid,
                         title=title,
                         items=items,
-                        total=None,
+                        total=page_result.total,
+                        pages=page_result.pages,
                         next_page=page_result.next_page,
+                        page_size=page_size if not multi else None,
                         hidden=0,
                         error=(
                             Problem(

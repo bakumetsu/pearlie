@@ -69,6 +69,66 @@ def test_search_danbooru(tmp_path):
     assert section.next_page is None
 
 
+def test_search_page_size_sent_upstream(tmp_path):
+    """page_size is forwarded as limit to danbooru and reflected in the section."""
+    recorded: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        recorded["url"] = request.url
+        return httpx.Response(200, json=load("search"))
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/search?q=1girl&sources=danbooru&page_size=20")
+    assert r.status_code == 200
+    assert recorded["url"].params["limit"] == "20"
+    section = r.json()["sections"][0]
+    assert section["page_size"] == 20
+    assert section["pages"] is None
+    assert section["total"] is None
+
+
+def test_search_page_size_default_60(tmp_path):
+    """Without an explicit page_size the default of 60 is used."""
+    recorded: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        recorded["url"] = request.url
+        return httpx.Response(200, json=load("search"))
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/search?q=1girl&sources=danbooru")
+    assert r.status_code == 200
+    assert recorded["url"].params["limit"] == "60"
+    assert r.json()["sections"][0]["page_size"] == 60
+
+
+def test_search_page_size_over_cap_rejected(tmp_path):
+    """page_size above 200 is rejected with a 422."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("handler should not be called")
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/search?sources=danbooru&page_size=201")
+    assert r.status_code == 422
+
+
+def test_search_multi_ignores_page_size(tmp_path):
+    """With multiple sources page_size is ignored; limit defaults to 60."""
+    recorded: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        recorded["url"] = request.url
+        return httpx.Response(200, json=load("search"))
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/search?q=1girl&sources=danbooru,gelbooru&page_size=20")
+    assert r.status_code == 200
+    section = r.json()["sections"][0]
+    assert section["page_size"] is None
+    assert recorded["url"].params["limit"] == "60"
+
+
 def test_search_unknown_source(tmp_path):
     """Requesting an unconfigured source returns 422 with an invalid code."""
 
