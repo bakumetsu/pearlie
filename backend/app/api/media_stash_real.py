@@ -135,7 +135,11 @@ def video_poster(request: Request, id: str) -> StreamingResponse:
     return _stream(upstream, "private, max-age=3600")
 
 
-@router.get("/stash/scene/{id}/preview")
+@router.get(
+    "/stash/scene/{id}/preview",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"video/mp4": {}}}, 206: {"content": {"video/mp4": {}}}},
+)
 def scene_preview(request: Request, id: str):
     _check_id(id)
     stash = request.app.state.stash

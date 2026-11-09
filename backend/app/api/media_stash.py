@@ -86,7 +86,11 @@ def stash_video_stream(id: str) -> FileResponse:
     return _file(media_dir() / "videos" / f"{_n(id) % 6}.mp4", "video/mp4")
 
 
-@router.get("/stash/scene/{id}/preview")
+@router.get(
+    "/stash/scene/{id}/preview",
+    response_class=FileResponse,
+    responses={200: {"content": {"video/mp4": {}}}, 206: {"content": {"video/mp4": {}}}},
+)
 def stash_scene_preview(id: str) -> FileResponse:
     """Serve the 6 s fixture clip as the card preview (FileResponse answers Range)."""
     _ensure()
