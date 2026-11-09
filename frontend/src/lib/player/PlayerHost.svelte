@@ -17,6 +17,57 @@
     return () => window.removeEventListener("resize", onResize);
   });
 
+  $effect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (player.item === null) return;
+      if (player.mode !== "stage" && player.mode !== "mini") return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable)
+      )
+        return;
+      switch (e.key) {
+        case "j":
+        case "J":
+          e.preventDefault();
+          player.skip(-10);
+          break;
+        case "l":
+        case "L":
+          e.preventDefault();
+          player.skip(10);
+          break;
+        case "<":
+          e.preventDefault();
+          player.stepRate(-1);
+          break;
+        case ">":
+          e.preventDefault();
+          player.stepRate(1);
+          break;
+        case "N":
+          if (e.shiftKey) {
+            e.preventDefault();
+            player.next();
+          }
+          break;
+        case "P":
+          if (e.shiftKey) {
+            e.preventDefault();
+            player.prev();
+          }
+          break;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   const rect = $derived(rectFor(player.mode, player.slot, vp));
 
   // Mini dock is z-index 21 with an opaque background, so the mini video must sit above it.
