@@ -9,10 +9,11 @@
   $effect(() => {
     const node = el;
     if (!node) return;
+    const slotId = id;
 
     const measure = () => {
       const r = node.getBoundingClientRect();
-      untrack(() => player.setSlot(id, { x: r.x, y: r.y, w: r.width, h: r.height }));
+      untrack(() => player.setSlot(slotId, { x: r.x, y: r.y, w: r.width, h: r.height }));
     };
 
     measure();
@@ -26,7 +27,7 @@
       ro.disconnect();
       window.removeEventListener("scroll", measure, true);
       window.removeEventListener("resize", measure);
-      untrack(() => player.releaseSlot(id));
+      untrack(() => player.releaseSlot(slotId));
     };
   });
 </script>
