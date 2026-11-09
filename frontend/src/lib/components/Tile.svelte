@@ -2,7 +2,7 @@
   import Icon from "./Icon.svelte";
   import type { LibraryItem, WebItem } from "../api/client";
 
-  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen }: {
+  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, variant = "grid", aspect }: {
     item: LibraryItem | WebItem;
     href?: string;
     onnavigate?: (e: MouseEvent) => void;
@@ -10,6 +10,8 @@
     savedHref?: string;
     onsave?: () => void;
     onopen?: () => void;
+    variant?: "grid" | "wall" | "masonry" | "list";
+    aspect?: number;
   } = $props();
 
   const isWeb = $derived("post_id" in item);
@@ -61,13 +63,30 @@
   }
   const progressPct = $derived(getProgress());
 
-  const aspectRatio = $derived(isWeb ? "1 / 1" : "2 / 3");
+  const aspectRatio = $derived.by(() => {
+    if (variant === "list") return "1 / 1";
+    if (variant === "wall" || variant === "masonry") {
+      if (aspect != null && Number.isFinite(aspect) && aspect > 0) return `${aspect}`;
+    }
+    return isWeb ? "1 / 1" : "2 / 3";
+  });
+
+  function metaLine(): string {
+    const l = item as LibraryItem;
+    const parts: string[] = [];
+    if (l.width != null && l.height != null) parts.push(`${l.width}x${l.height}`);
+    if (l.kind === "video" && l.duration_s != null) parts.push(formatDuration(l.duration_s));
+    if (l.kind === "book" && l.page_count != null) parts.push(`${l.page_count} pages`);
+    if (l.kind === "series" && l.book_count != null) parts.push(`${l.book_count} books`);
+    if (l.rating != null) parts.push(`Rating ${l.rating}`);
+    return parts.join(" - ");
+  }
 </script>
 
 {#if isWeb}
   {@const w = item as WebItem}
-  <div class="tile web">
-    <div class="media">
+  <div class="tile web {variant}">
+    <div class="media" style:aspect-ratio={aspectRatio}>
       <img src={w.thumb_url} alt="" loading="lazy" class:blur-img={blurred} />
       <button class="open" onclick={handleOpenClick} aria-label="Open preview"></button>
       {#if blurred}
@@ -86,17 +105,24 @@
         <button class="save-btn" disabled aria-label="Queued"><span class="spin"><Icon name="loader" size={18} /></span></button>
       {/if}
     </div>
-    <div class="title">{w.title ?? `${w.source} #${w.post_id}`}</div>
+    {#if variant === "list"}
+      <div class="info">
+        <div class="title">{w.title ?? `${w.source} #${w.post_id}`}</div>
+        <div class="meta">{w.source} #{w.post_id}</div>
+      </div>
+    {:else}
+      <div class="title">{w.title ?? `${w.source} #${w.post_id}`}</div>
+    {/if}
   </div>
 {:else}
   {@const l = item as LibraryItem}
-  <a class="tile lib" href={href} onclick={onnavigate}>
+  <a class="tile lib {variant}" href={href} onclick={onnavigate}>
     <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick} role="button" tabindex="0" onkeydown={handleMediaKeydown}>
       <img src={l.thumb_url} alt="" loading="lazy" class:blur-img={blurred} />
-      {#if l.favorite}
+      {#if variant !== "list" && l.favorite}
         <span class="fav"><Icon name="heart-filled" size={14} /></span>
       {/if}
-      {#if l.kind === "video" && l.duration_s != null}
+      {#if variant !== "list" && l.kind === "video" && l.duration_s != null}
         <span class="duration">{formatDuration(l.duration_s)}</span>
       {/if}
       {#if l.kind === "series" || l.kind === "book"}
@@ -106,7 +132,14 @@
         <div class="warn-overlay">Warn: {l.blur!.tag}</div>
       {/if}
     </div>
-    {#if l.kind !== "image"}
+    {#if variant === "list"}
+      <div class="info">
+        <div class="title">{l.title}</div>
+        {#if metaLine()}
+          <div class="meta">{metaLine()}</div>
+        {/if}
+      </div>
+    {:else if l.kind !== "image"}
       <div class="title">{l.title}</div>
     {/if}
   </a>
@@ -244,5 +277,29 @@
     to {
       transform: rotate(360deg);
     }
+  }
+  /* List variant */
+  .tile.list {
+    display: flex;
+    align-items: center;
+    gap: var(--s-4);
+    min-height: 56px;
+    padding: var(--s-2) 0;
+  }
+  .tile.list .media {
+    width: var(--list-thumb, 64px);
+    flex: none;
+  }
+  .info {
+    min-width: 0;
+    flex: 1;
+  }
+  .info .title {
+    margin-top: 0;
+  }
+  .meta {
+    font-size: var(--t-12);
+    color: var(--muted);
+    overflow-wrap: break-word;
   }
 </style>
