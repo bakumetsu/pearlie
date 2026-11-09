@@ -60,8 +60,14 @@
 		else ontoggle();
 	}
 
-	function handleStageDblClick() {
-		onzoom(zoom === 100 ? 200 : 100);
+	function handleStageDblClick(e: MouseEvent) {
+		const el = stageEl;
+		if (!el) return;
+		const rect = el.getBoundingClientRect();
+		const action = zoneAction(e.clientX - rect.left, rect.width, dir);
+		if (action === "toggle") {
+			onzoom(zoom === 100 ? 200 : 100);
+		}
 	}
 
 	function handleWheel(e: WheelEvent) {

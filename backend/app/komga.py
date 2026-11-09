@@ -175,6 +175,13 @@ def book_item(dto: dict) -> LibraryItem:
     )
 
 
+def _series_tags(dto: dict) -> list[str]:
+    """Return the sorted, de-duplicated union of series and book tags."""
+    meta_tags = (dto.get("metadata") or {}).get("tags", [])
+    book_tags = (dto.get("booksMetadata") or {}).get("tags", [])
+    return sorted(set(meta_tags) | set(book_tags))
+
+
 def series_item(dto: dict) -> LibraryItem:
     """Map a Komga SeriesDto to a ``LibraryItem``."""
     metadata = dto.get("metadata") or {}
@@ -185,7 +192,7 @@ def series_item(dto: dict) -> LibraryItem:
         thumb_url=f"/api/media/komga/series/{dto['id']}/thumb",
         book_count=dto["booksCount"],
         read_count=dto["booksReadCount"],
-        tags=sorted(metadata.get("tags", [])),
+        tags=_series_tags(dto),
         added_at=dto["created"],
     )
 
@@ -218,7 +225,7 @@ def series_detail(dto: dict, books: list[dict], truncated: bool = False) -> Libr
         thumb_url=f"/api/media/komga/series/{dto['id']}/thumb",
         book_count=dto["booksCount"],
         read_count=dto["booksReadCount"],
-        tags=[Tag(name=t) for t in sorted(metadata.get("tags", []))],
+        tags=[Tag(name=t) for t in _series_tags(dto)],
         books=[book_item(b) for b in books],
         notice=(
             Problem(code="truncated", message="Showing the first 10,000 books")

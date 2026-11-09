@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   clampPage,
+  bookStart,
   isCompleted,
   pageSrc,
   defaultMode,
@@ -47,24 +48,8 @@ describe("clampPage", () => {
 });
 
 describe("defaultMode", () => {
-  it("spread for 1440x900", () => {
-    expect(defaultMode(1440, 900)).toBe("spread");
-  });
-
-  it("single for 1080x1920", () => {
-    expect(defaultMode(1080, 1920)).toBe("single");
-  });
-
-  it("single for 768x1024", () => {
-    expect(defaultMode(768, 1024)).toBe("single");
-  });
-
-  it("spread for 1000x800", () => {
-    expect(defaultMode(1000, 800)).toBe("spread");
-  });
-
-  it("single for 899x600 (width < 900 threshold)", () => {
-    expect(defaultMode(899, 600)).toBe("single");
+  it("is single", () => {
+    expect(defaultMode()).toBe("single");
   });
 });
 
@@ -549,5 +534,27 @@ describe("pageSrc", () => {
 
   it("no {n} placeholder returns template unchanged", () => {
     expect(pageSrc("/static/image.png", 1)).toBe("/static/image.png");
+  });
+});
+
+describe("bookStart", () => {
+  it("unread null returns 1", () => {
+    expect(bookStart({ read_page: null, page_count: 20 })).toBe(1);
+  });
+
+  it("read_page 0 returns 1", () => {
+    expect(bookStart({ read_page: 0, page_count: 20 })).toBe(1);
+  });
+
+  it("in progress returns read_page", () => {
+    expect(bookStart({ read_page: 5, page_count: 20 })).toBe(5);
+  });
+
+  it("completed returns 1", () => {
+    expect(bookStart({ read_page: 20, page_count: 20 })).toBe(1);
+  });
+
+  it("missing page_count returns 1", () => {
+    expect(bookStart({ read_page: 5 })).toBe(1);
   });
 });

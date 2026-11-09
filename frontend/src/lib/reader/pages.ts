@@ -10,6 +10,10 @@ export function clampPage(p: number, count: number): number {
   return Math.min(Math.max(p, 1), max);
 }
 
+export function bookStart(b: { read_page?: number | null; page_count?: number | null }): number {
+  return b.read_page && b.page_count && b.read_page < b.page_count ? b.read_page : 1;
+}
+
 export function isCompleted(page: number, count: number): boolean {
   return count > 0 && page >= count;
 }
@@ -18,8 +22,8 @@ export function pageSrc(template: string, n: number): string {
   return template.replace("{n}", String(n));
 }
 
-export function defaultMode(width: number, height: number): Mode {
-  return width > height && width >= 900 ? "spread" : "single";
+export function defaultMode(): Mode {
+  return "single";
 }
 
 export function buildGroups(count: number, mode: Mode, wide: ReadonlySet<number>): number[][] {

@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import ConfigError, Settings
-from app.komga import Komga
+from app.komga import Komga, series_detail, series_item
 from app.main import create_app
 
 KEY = "k-secret-123"
@@ -414,3 +414,55 @@ def test_komga_routes_are_sync():
             endpoint = getattr(route, "endpoint", None)
             if endpoint is not None:
                 assert not inspect.iscoroutinefunction(endpoint)
+
+
+def test_series_item_tags_union():
+    """series_item merges metadata.tags and booksMetadata.tags, sorted and de-duped."""
+    dto: dict = series_dto()
+    dto["metadata"]["tags"] = ["b", "a"]
+    dto["booksMetadata"] = {"tags": ["a", "c"]}
+    assert series_item(dto).tags == ["a", "b", "c"]
+    assert [t.name for t in series_detail(dto, []).tags] == ["a", "b", "c"]
+
+
+def test_series_item_tags_empty():
+    """series_item returns [] when metadata.tags is empty and booksMetadata is absent."""
+    dto: dict = series_dto()
+    assert series_item(dto).tags == []
+    assert [t.name for t in series_detail(dto, []).tags] == []
+
+
+def test_mixed_mode_serves_real_komga_not_fixtures(tmp_path):
+    """Mixed mode (fixture) with real library_komga serves live Komga data, not fixtures."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=page_of([book_dto()]))
+
+    app = create_app(
+        Settings(
+            mode="fixture",
+            real="library_komga",
+            komga_url=URL,
+            db_path=tmp_path / "p.db",
+            static_dir=tmp_path / "nostatic",
+            _env_file=None,  # pyright: ignore[reportCallIssue]
+        )
+    )
+    app.state.komga = Komga(
+        URL,
+        KEY,
+        client=httpx.Client(base_url=URL, transport=httpx.MockTransport(handler)),
+    )
+    client = TestClient(app)
+
+    r: httpx.Response = client.get("/api/library/komga/books")
+    assert r.status_code == 200
+    body: dict = r.json()
+    items: list[dict] = body["items"]
+    assert items[0]["id"] == "b1"
+    assert items[0]["title"] == "Book One"
+    assert body["total"] == 1
+    assert not any(
+        t["title"].startswith("Book ") and t["title"][5:].isdigit()
+        for t in items
+    )
