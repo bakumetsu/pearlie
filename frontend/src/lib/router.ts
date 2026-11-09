@@ -12,6 +12,7 @@ export const ROUTES: RouteDef[] = [
   { name: "item", pattern: "/item/:kinds/:id" },
   { name: "read", pattern: "/read/:bookId" },
   { name: "queue", pattern: "/queue" },
+  { name: "trash", pattern: "/trash" },
   { name: "rules", pattern: "/rules" },
 ];
 

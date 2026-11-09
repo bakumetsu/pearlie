@@ -8,6 +8,7 @@
   import { createJobs } from "./lib/stores/jobs.svelte";
   import Queue from "./routes/Queue.svelte";
   import Rules from "./routes/Rules.svelte";
+  import Trash from "./routes/Trash.svelte";
   import Reader from "./routes/Reader.svelte";
   import { setApi, createApi } from "./lib/api/client";
   import Nav from "./lib/components/Nav.svelte";
@@ -59,6 +60,8 @@
       <Queue />
     {:else if match.name === "rules"}
       <Rules />
+    {:else if match.name === "trash"}
+      <Trash />
     {:else}
       <section class="placeholder">
         <h1 tabindex="-1">Page not found</h1>
