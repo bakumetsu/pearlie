@@ -1,16 +1,18 @@
 <script lang="ts">
   import { pageSrc } from "./pages";
 
-  let { count, shown, template, onjump }: {
+  let { count, shown, template, wide = new Set<number>(), onjump }: {
     count: number;
     shown: number[];
     template: string | null;
+    wide?: Set<number>;
     onjump: (n: number) => void;
   } = $props();
 
   const PAD = 8;
-  const SLOT = 78; // 70 px button + 8 px gap
+  const GAP = 8;
   const INSET = 4; // strip padding
+  const slotW = (page: number) => (wide.has(page) ? 156 : 70) + GAP; // 3:2 for wide pages, 2:3 otherwise
 
   let stripEl: HTMLDivElement | null = $state(null);
   let lo = $state(0);
@@ -23,8 +25,18 @@
     if (!stripEl) return;
     const sl = stripEl.scrollLeft;
     const cw = stripEl.clientWidth;
-    lo = Math.max(0, Math.floor((sl - INSET) / SLOT) - PAD);
-    hi = Math.min(count - 1, Math.ceil((sl + cw - INSET) / SLOT) + PAD);
+    let x = INSET;
+    let first = -1;
+    let last = count - 1;
+    for (let i = 0; i < count; i++) {
+      const end = x + slotW(i + 1);
+      if (first < 0 && end > sl) first = i;
+      if (x >= sl + cw) { last = i; break; }
+      x = end;
+    }
+    if (first < 0) first = Math.max(0, count - 1);
+    lo = Math.max(0, first - PAD);
+    hi = Math.min(count - 1, last + PAD);
   }
 
   function onScroll() { computeRange(); }
@@ -34,6 +46,7 @@
   }
 
   $effect(() => {
+    void wide;
     if (template !== prevTpl) {
       prevTpl = template;
       broken = {};
@@ -56,7 +69,7 @@
 <div class="strip" data-testid="thumb-strip" bind:this={stripEl}>
   {#each Array.from({ length: count }, (_, i) => i) as i (i)}
     <button
-      class="thumb" class:on={shown.includes(i + 1)}
+      class="thumb" class:on={shown.includes(i + 1)} class:wide={wide.has(i + 1)}
       aria-label="Page {i + 1}" data-page={i + 1}
       onclick={() => onjump(i + 1)}
     >
@@ -109,6 +122,7 @@
     align-items: center;
     justify-content: center;
   }
+  .thumb.wide { width: 156px; }
   .thumb.on {
     outline: 2px solid var(--accent);
     outline-offset: -2px;

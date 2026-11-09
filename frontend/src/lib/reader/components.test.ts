@@ -177,6 +177,25 @@ describe("ThumbStrip", () => {
     expect(imgs.length).toBeGreaterThan(0);
   });
 
+  it("gives wide pages a wide class and keeps the window mixed", () => {
+    const { container } = render(ThumbStrip, {
+      count: 100,
+      shown: [1],
+      template: "/p/{n}",
+      wide: new Set([2, 3, 60]),
+      onjump: vi.fn(),
+    });
+
+    const buttons = container.querySelectorAll("button.thumb");
+    expect(buttons[0].classList.contains("wide")).toBe(false);
+    expect(buttons[1].classList.contains("wide")).toBe(true);
+    expect(buttons[2].classList.contains("wide")).toBe(true);
+    expect(buttons[59].classList.contains("wide")).toBe(true);
+    const imgs = container.querySelectorAll("img");
+    expect(imgs.length).toBeGreaterThan(0);
+    expect(imgs.length).toBeLessThan(100);
+  });
+
   it("calls onjump with page number on click", () => {
     const onjump = vi.fn();
     render(ThumbStrip, {

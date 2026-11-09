@@ -365,6 +365,7 @@
 			count={count}
 			shown={shown}
 			thumbTpl={thumbTpl}
+			wide={wide}
 			title={title}
 			index={idx + 1}
 			total={books.length}

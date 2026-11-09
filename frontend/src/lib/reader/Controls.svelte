@@ -23,6 +23,7 @@
 		count: number;
 		shown: number[];
 		thumbTpl: string | null;
+		wide?: Set<number>;
 		title: string;
 		index: number;
 		total: number;
@@ -65,6 +66,7 @@
 		count,
 		shown,
 		thumbTpl,
+		wide = new Set<number>(),
 		title,
 		index,
 		total,
@@ -111,7 +113,7 @@
 	<BottomCard {count} {shown} {dir} {thumbsOpen} {onjump} {onthumbs} />
 	<ZoomPill {zoom} onin={onzoomin} onout={onzoomout} onreset={onzoomreset} />
 	{#if thumbsOpen}
-		<ThumbStrip {count} {shown} template={thumbTpl} {onjump} />
+		<ThumbStrip {count} {shown} template={thumbTpl} {wide} {onjump} />
 	{/if}
 	{#if popover === "books"}
 		<BookList {books} currentId={bookId} {notice} {onpick} onclose={onclosepopover} />
