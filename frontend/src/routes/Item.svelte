@@ -95,6 +95,7 @@
       void (async () => {
         await seeAllGrid.goTo(seeAllGrid.page + 1);
         if (seeAllGrid.status === "error") return;
+        seeAllGrid.markCrossed();
         const first = seeAllGrid.items.find((t) => !("post_id" in t));
         if (first) router.navigate(itemHref(first as LibraryItem));
       })();
@@ -111,6 +112,7 @@
       void (async () => {
         await seeAllGrid.goTo(seeAllGrid.page - 1);
         if (seeAllGrid.status === "error") return;
+        seeAllGrid.markCrossed();
         const items = seeAllGrid.items;
         for (let i = items.length - 1; i >= 0; i--) {
           const t = items[i]!;

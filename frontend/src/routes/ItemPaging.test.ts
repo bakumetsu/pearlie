@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/svelte";
 import App from "../App.svelte";
+import { seeAllGrid } from "../lib/stores/shared.svelte";
 
 function tile(id: string) {
   return {
@@ -41,6 +42,7 @@ describe("Item prev/next across pages", () => {
   let pages: number[];
 
   beforeEach(() => {
+    seeAllGrid.reset();
     vi.stubGlobal("localStorage", {
       getItem: () => null,
       setItem: () => {},
@@ -160,5 +162,31 @@ describe("Item prev/next across pages", () => {
     });
     const prevBtnAfter = screen.getByRole("button", { name: "Previous item" });
     expect((prevBtnAfter as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("Back after crossing a page shows the grid's page with no extra fetch", async () => {
+    const { container } = render(App);
+    await navigateToItem1b(container);
+    const nextBtn = screen.getByRole("button", { name: "Next item" });
+    await fireEvent.click(nextBtn);
+    await vi.waitFor(() => {
+      expect(location.pathname).toBe("/item/images/2a");
+    });
+    const fetchCountBefore = pages.length;
+    history.back();
+    await vi.waitFor(() => {
+      expect(location.pathname).toBe("/item/images/1b");
+    });
+    history.back();
+    await vi.waitFor(() => {
+      expect(location.pathname).toBe("/see-all");
+      expect(location.search).toContain("page=2");
+      const tiles = container.querySelectorAll("a.tile");
+      expect(tiles.length).toBe(2);
+      const hrefs = Array.from(tiles).map((a) => a.getAttribute("href"));
+      expect(hrefs).toContain("/item/images/2a");
+      expect(hrefs).toContain("/item/images/2b");
+      expect(pages.length).toBe(fetchCountBefore);
+    });
   });
 });

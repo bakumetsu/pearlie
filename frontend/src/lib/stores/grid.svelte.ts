@@ -40,6 +40,7 @@ export function createGrid<T>(keyOf: (t: T) => string) {
   });
 
   let requestToken = 0;
+  let crossed = false;
   let controller: AbortController | null = null;
   let currentLoader: Loader<T> | null = null;
 
@@ -67,6 +68,7 @@ export function createGrid<T>(keyOf: (t: T) => string) {
     state.error = null;
     state.listKey = "";
     state.scrollY = 0;
+    crossed = false;
   }
 
   async function fetchPage(page: number) {
@@ -139,6 +141,16 @@ export function createGrid<T>(keyOf: (t: T) => string) {
 
   function setScrollY(y: number) {
     state.scrollY = y;
+  }
+
+  function markCrossed() {
+    crossed = true;
+  }
+
+  function takeCrossed(): boolean {
+    const c = crossed;
+    crossed = false;
+    return c;
   }
 
   function indexOf(id: string) {
@@ -235,6 +247,8 @@ export function createGrid<T>(keyOf: (t: T) => string) {
     goTo,
     retry,
     setScrollY,
+    markCrossed,
+    takeCrossed,
     indexOf,
     neighbors,
     removeAt,

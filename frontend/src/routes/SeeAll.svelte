@@ -85,7 +85,7 @@
     const fav = favorite;
     const sd = seed;
     const pp = vs.per_page;
-    const pg = page;
+    const adopt = untrack(() => grid.listKey === listKey && grid.status === "done" && grid.takeCrossed()); const pg = adopt ? untrack(() => grid.page) : page;
 
     if (k) {
       const loader = async (p: number, signal: AbortSignal) => {
