@@ -1,4 +1,4 @@
-// Screenshots only, no assertions. Needs the stub on :8000 and Vite on :5173.
+// Screenshots only, no assertions. Needs the stub on :8000 and Vite on :2900.
 import { chromium } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 
@@ -18,7 +18,7 @@ const browser = await chromium.launch();
 for (const w of widths) {
   const page = await browser.newPage({ viewport: { width: w, height: 900 } });
   for (const [name, path] of pages) {
-    await page.goto("http://127.0.0.1:5173" + path);
+    await page.goto("http://127.0.0.1:2900" + path);
     await page.waitForTimeout(1500);
     await page.screenshot({ path: `${out}/${name}-${w}.png` });
   }
