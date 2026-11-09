@@ -71,6 +71,10 @@ class LibraryItem(BaseModel):
     width: int | None = None
     height: int | None = None
     duration_s: float | None = None
+    preview_url: str | None = None
+    studio: str | None = None
+    date: str | None = None
+    size_bytes: int | None = None
     page_count: int | None = None
     read_page: int | None = None
     book_count: int | None = None

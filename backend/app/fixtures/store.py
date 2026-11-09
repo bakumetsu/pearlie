@@ -45,6 +45,10 @@ _LIBRARY_KEYS = frozenset(
         "page_count",
         "read_page",
         "duration_s",
+        "preview_url",
+        "studio",
+        "date",
+        "size_bytes",
         "book_count",
         "read_count",
     }

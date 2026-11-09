@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
+  import VideoCard from "./VideoCard.svelte";
   import type { LibraryItem, WebItem } from "../api/client";
 
   let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, variant = "grid", aspect }: {
@@ -117,14 +118,15 @@
 {:else}
   {@const l = item as LibraryItem}
   <a class="tile lib {variant}" href={href} onclick={onnavigate}>
+    {#if l.kind === "video"}
+      <VideoCard item={l} {variant} {aspectRatio} {blurred} meta={metaLine()} onmediaclick={handleMediaClick} onmediakeydown={handleMediaKeydown} />
+    {:else}
     <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick} role="button" tabindex="0" onkeydown={handleMediaKeydown}>
       <img src={l.thumb_url} alt="" loading="lazy" class:blur-img={blurred} />
       {#if variant !== "list" && l.favorite}
         <span class="fav"><Icon name="heart-filled" size={14} /></span>
       {/if}
-      {#if variant !== "list" && l.kind === "video" && l.duration_s != null}
-        <span class="duration">{formatDuration(l.duration_s)}</span>
-      {/if}
+
       {#if l.kind === "series" || l.kind === "book"}
         <div class="progress" style:width="{progressPct}%"></div>
       {/if}
@@ -141,6 +143,7 @@
       </div>
     {:else if l.kind !== "image"}
       <div class="title">{l.title}</div>
+    {/if}
     {/if}
   </a>
 {/if}

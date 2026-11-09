@@ -103,6 +103,16 @@ def image_item(dto: dict) -> LibraryItem:
     return LibraryItem(**kw)
 
 
+def _video_extra(dto: dict, fid: str, files: list[dict]) -> dict:
+    """Extra video-card fields; preview_url is always our own proxy path."""
+    return {
+        "preview_url": f"/api/media/stash/scene/{fid}/preview",
+        "studio": (dto.get("studio") or {}).get("name") or None,
+        "date": dto.get("date") or None,
+        "size_bytes": files[0].get("size") if files else None,
+    }
+
+
 def video_item(dto: dict) -> LibraryItem:
     """Map a Stash video (scene) DTO to a ``LibraryItem``."""
     fid = str(dto["id"])
@@ -113,6 +123,7 @@ def video_item(dto: dict) -> LibraryItem:
     kw["tags"] = sorted(t["name"] for t in dto.get("tags") or [])
     dur = files[0]["duration"] if files else None
     kw["duration_s"] = float(dur) if dur is not None else None
+    kw.update(_video_extra(dto, fid, files))
     return LibraryItem(**kw)
 
 
@@ -147,6 +158,7 @@ def video_detail(dto: dict, link_base: str = "") -> LibraryItemDetail:
     kw["video_codec"] = files[0].get("video_codec") if files else None
     dur = files[0]["duration"] if files else None
     kw["duration_s"] = float(dur) if dur is not None else None
+    kw.update(_video_extra(dto, fid, files))
     kw["fallback_streams"] = _fallback_streams(fid, dto)
     kw["stash_link"] = f"{link_base.rstrip('/')}/scenes/{fid}" if link_base else None
     return LibraryItemDetail(**kw)

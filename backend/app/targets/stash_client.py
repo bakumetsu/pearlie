@@ -44,8 +44,9 @@ IMAGE_FIELDS = (
     "id title rating100 created_at urls tags { name } "
     "visual_files { ... on ImageFile { basename width height size } }"
 )
+# date and studio { name } are to be confirmed in the Stash playground
 SCENE_FIELDS = (
-    "id title rating100 created_at urls tags { name } "
+    "id title rating100 created_at urls tags { name } date studio { name } "
     "files { basename width height duration video_codec size }"
 )
 LIST_IMAGES = (

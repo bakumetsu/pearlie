@@ -135,6 +135,22 @@ def video_poster(request: Request, id: str) -> StreamingResponse:
     return _stream(upstream, "private, max-age=3600")
 
 
+@router.get(
+    "/stash/scene/{id}/preview",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"video/mp4": {}}}, 206: {"content": {"video/mp4": {}}}},
+)
+def scene_preview(request: Request, id: str):
+    _check_id(id)
+    stash = request.app.state.stash
+    fwd = _forward_range(request)
+    try:
+        upstream = stash.open_media(f"/scene/{id}/preview", headers=fwd)
+    except StashError as err:
+        raise ApiError(err.status, err.code, err.message) from None
+    return _stream(upstream, "private, max-age=3600")
+
+
 @router.get("/stash/videos/{id}/stream")
 def video_stream(request: Request, id: str):
     _check_id(id)
