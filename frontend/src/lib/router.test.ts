@@ -96,6 +96,33 @@ describe("createRouter", () => {
     router.destroy();
   });
 
+  it("canGoBack is false on first load, true after a push", () => {
+    window.history.replaceState(null, "", "/");
+    const r = createRouter(window);
+    expect(r.canGoBack()).toBe(false);
+    r.navigate("/queue");
+    expect(r.canGoBack()).toBe(true);
+    r.destroy();
+  });
+
+  it("replace keeps depth", () => {
+    window.history.replaceState(null, "", "/");
+    const r = createRouter(window);
+    r.navigate("/queue");
+    r.navigate("/library");
+    r.navigate("/queue", { replace: true });
+    expect(window.history.state.depth).toBe(2);
+    expect(r.canGoBack()).toBe(true);
+    r.destroy();
+  });
+
+  it("depth survives a reload", () => {
+    window.history.replaceState({ depth: 1 }, "", "/queue");
+    const r = createRouter(window);
+    expect(r.canGoBack()).toBe(true);
+    r.destroy();
+  });
+
   it("popstate notifies subscribers with new match", () => {
     window.history.replaceState(null, "", "/queue");
     const router = createRouter(window);

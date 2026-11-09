@@ -69,30 +69,30 @@
   function goNext(): void {
     lastNav = Date.now();
     if (next) {
-      router.navigate(itemHref(next));
+      router.navigate(itemHref(next), { replace: true });
       return;
     }
     void stepInList(seeAllGrid, key, 1, { cross: true }).then((t) => {
-      if (t) router.navigate(itemHref(t));
+      if (t) router.navigate(itemHref(t), { replace: true });
     });
   }
 
   function goPrev(): void {
     lastNav = Date.now();
     if (prev) {
-      router.navigate(itemHref(prev));
+      router.navigate(itemHref(prev), { replace: true });
       return;
     }
     void stepInList(seeAllGrid, key, -1, { cross: true }).then((t) => {
-      if (t) router.navigate(itemHref(t));
+      if (t) router.navigate(itemHref(t), { replace: true });
     });
   }
 
   function back(): void {
-    if (history.length > 1) {
+    if (router.canGoBack()) {
       history.back();
     } else {
-      router.navigate("/library");
+      router.navigate("/library", { replace: true });
     }
   }
 
