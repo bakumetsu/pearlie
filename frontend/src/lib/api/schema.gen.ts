@@ -556,6 +556,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Trash
+         * @description List non-expired trash items.
+         */
+        get: operations["list_trash_api_trash_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Empty Trash
+         * @description Remove all trash items.
+         */
+        delete: operations["empty_trash_api_trash_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/_fixture/reset": {
         parameters: {
             query?: never;
@@ -1010,6 +1034,11 @@ export interface components {
             /** Scope */
             scope?: string | null;
         };
+        /** TrashEmptied */
+        TrashEmptied: {
+            /** Removed */
+            removed: number;
+        };
         /** TrashItem */
         TrashItem: {
             /**
@@ -1021,6 +1050,13 @@ export interface components {
             id: string;
             /** Title */
             title: string;
+        };
+        /** TrashList */
+        TrashList: {
+            /** Items */
+            items: components["schemas"]["TrashResult"][];
+            /** Retention Days */
+            retention_days: number;
         };
         /** TrashResult */
         TrashResult: {
@@ -2169,6 +2205,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_trash_api_trash_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashList"];
+                };
+            };
+        };
+    };
+    empty_trash_api_trash_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashEmptied"];
                 };
             };
         };

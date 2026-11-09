@@ -136,6 +136,8 @@ Notes:
 | PATCH | `/api/library/{kind}/{id}` | rating, favorite, tags |
 | DELETE | `/api/library/{kind}/{id}` | move to trash; returns an undo token |
 | POST | `/api/trash/{token}/restore` | undo |
+| GET | `/api/trash` | list trashed items with token, expires_at, retention_days; expired entries are left out but not dropped by the GET (they are dropped on restore, on empty, or when retention purges them) |
+| DELETE | `/api/trash` | Empty: permanently delete everything in the trash, returns `{removed}` (the real deletion rule 4 allows; the UI asks to confirm first). Fixture mode only for now; in real mode the route is absent (404), never an empty list |
 | GET | `/api/media/...` | proxy for thumbnails, images, video (Range), book pages |
 | POST | `/api/save` `{source, post_id}` | rules, dedupe (409), queue; returns job id |
 | GET / POST / DELETE | `/api/jobs`, `/api/jobs/{id}`, `/retry` | queue |

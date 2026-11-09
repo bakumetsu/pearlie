@@ -18,6 +18,7 @@ from app.api import (
     rules,
     search,
     search_real,
+    trash,
 )
 from app.api.errors import install as install_errors
 from app.api.health import router as health_router
@@ -34,6 +35,7 @@ FIXTURE_ROUTERS = {
     "media_komga": media_komga.router,
     "jobs": jobs.router,
     "rules": rules.router,
+    "trash": trash.router,
 }
 REAL_ROUTERS: dict[str, APIRouter] = {
     "search": search_real.router,
