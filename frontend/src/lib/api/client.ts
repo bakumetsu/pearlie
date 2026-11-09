@@ -24,6 +24,9 @@ export type Job = S["Job"];
 export type JobList = S["JobList"];
 export type RulesTestResult = S["RulesTestResult"];
 export type ProgressResult = S["ProgressResult"];
+export type ViewSettings = S["ViewSettings"];
+export type ViewSettingItem = S["ViewSettingItem"];
+export type ViewSettingBody = S["ViewSettingBody"];
 
 export type Kind = "images" | "videos" | "series" | "books";
 
@@ -57,7 +60,7 @@ export type ListParams = {
 
 export interface Api {
   search(
-    p: { q: string; sources?: string[]; page?: number },
+    p: { q: string; sources?: string[]; page?: number; page_size?: number },
     signal?: AbortSignal,
   ): Promise<SearchResponse>;
   list(kind: Kind, p: ListParams, signal?: AbortSignal): Promise<LibraryPage>;
@@ -73,6 +76,8 @@ export interface Api {
   putRules(body: RulesPut, signal?: AbortSignal): Promise<RulesBody>;
   jobs(p: { state?: string[] }, signal?: AbortSignal): Promise<JobList>;
   retryJob(id: string, signal?: AbortSignal): Promise<Job>;
+  getViewSettings(signal?: AbortSignal): Promise<ViewSettings>;
+  putViewSetting(source: string, body: ViewSettingBody, signal?: AbortSignal): Promise<ViewSettingItem>;
   removeJob(id: string, signal?: AbortSignal): Promise<void>;
   testRules(tags: string[], signal?: AbortSignal): Promise<RulesTestResult>;
   saveProgress(bookId: string, page: number, signal?: AbortSignal, opts?: { keepalive?: boolean }): Promise<ProgressResult>;
@@ -142,6 +147,7 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
           q: p.q,
           sources: p.sources?.length ? p.sources.join(",") : undefined,
           page: p.page !== undefined ? String(p.page) : undefined,
+          page_size: p.page_size !== undefined ? String(p.page_size) : undefined,
         }),
         undefined,
         signal,
@@ -240,6 +246,20 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
       return request<Job>(
         baseUrl + "/api/jobs/" + encodeURIComponent(id) + "/retry",
         { method: "POST" },
+        signal,
+      );
+    },
+    getViewSettings(signal) {
+      return request<ViewSettings>(baseUrl + "/api/view-settings", undefined, signal);
+    },
+    putViewSetting(source, body, signal) {
+      return request<ViewSettingItem>(
+        baseUrl + "/api/view-settings/" + encodeURIComponent(source),
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
         signal,
       );
     },

@@ -165,6 +165,8 @@ Layout A, chosen 2026-11-08 (mockups: https://claude.ai/artifact/FXZchWLeynCcAmE
 - Bottom bar: Search, Library, Queue, Rules.
 - **Mini player:** a playing video docks above the bottom bar and keeps playing while you browse (play/pause, progress, PiP, close).
 - **System PiP:** the browser's PiP window (Chrome/Edge, Safari macOS and iPhone; Firefox only through its own toggle; iPhone PWA mode to be tested). Native PiP in the iOS app.
+- **See-all grid (paged):** one page at a time, no "Load more". The page lives in the URL (`?page=N`; pager buttons push, sort, favorites, search and per-page replace). Pager top and bottom: first, previous, "N of M" select (a number field above 200 pages), next, last, range text (with megapixels and size for Stash images). Sources with no known total (Danbooru) get a reduced pager: previous, next, "Page N". Left/Right arrow keys change page. The backend clamps a past-end page and returns the served page; the client only replaces the URL with it. Item view prev/next crosses page edges.
+- **View bar:** per-page select (presets, "Custom..." up to the source's cap), four modes (Grid, Wall, Masonry, List) and a zoom slider (1-5). Stored per source in the backend (`/api/view-settings`). On phones (under 720 px) one sliders button opens a bottom sheet with the same controls. Design: `kit/designs/design-browse-grid.md`.
 - Item view (to mock up next): full viewer, rating, favorite, tag edit, delete with Undo.
 
 ## 11. Phases

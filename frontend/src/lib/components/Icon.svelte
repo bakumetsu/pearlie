@@ -8,7 +8,8 @@
     | "star-filled" | "volume" | "volume-x" | "pip" | "maximize" | "minimize" | "undo"
     | "clock" | "minus" | "upload" | "columns" | "settings" | "arrow-left-right" | "rotate-ccw"
     | "help" | "chevron-up" | "list" | "fit-width" | "fit-height" | "fit-both" | "fit-actual" | "mode-single" | "mode-spread" | "mode-scroll"
-    | "home" | "wrench" | "eye" | "eye-off";
+    | "home" | "wrench" | "eye" | "eye-off"
+    | "grid" | "wall" | "masonry" | "sliders" | "chevrons-left" | "chevrons-right";
 
   const paths: Record<IconName, string[]> = {
     "search": [
@@ -268,6 +269,45 @@
     ],
     "eye": ["M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z", "M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"],
     "eye-off": ["M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94", "M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19", "M14.12 14.12a3 3 0 1 1-4.24-4.24", "M1 1l22 22"],
+    "grid": [
+      "M3 3h7v7H3z",
+      "M14 3h7v7h-7z",
+      "M3 14h7v7H3z",
+      "M14 14h7v7h-7z",
+    ],
+    "wall": [
+      "M3 4h10v7H3z",
+      "M15 4h6v7h-6z",
+      "M3 13h6v7H3z",
+      "M11 13h10v7H11z",
+    ],
+    "masonry": [
+      "M3 3h5v9H3z",
+      "M3 14h5v7H3z",
+      "M10 3h5v5h-5z",
+      "M10 10h5v11h-5z",
+      "M17 3h4v12h-4z",
+      "M17 17h4v4h-4z",
+    ],
+    "sliders": [
+      "M4 6h10",
+      "M18 6h2",
+      "M4 12h4",
+      "M12 12h8",
+      "M4 18h12",
+      "M20 18h0",
+      "M16 4v4",
+      "M10 10v4",
+      "M18 16v4",
+    ],
+    "chevrons-left": [
+      "M11 17l-5-5 5-5",
+      "M18 17l-5-5 5-5",
+    ],
+    "chevrons-right": [
+      "M13 17l5-5-5-5",
+      "M6 17l5-5-5-5",
+    ],
   };
 </script>
 
