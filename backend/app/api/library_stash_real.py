@@ -89,6 +89,11 @@ def list_stash_videos(
     )
 
 
+def _link_base(request: Request) -> str:
+    s = request.app.state.settings
+    return s.stash_public_url or s.stash_url or ""
+
+
 @router.get("/library/stash/images/{id}")
 def get_stash_image(request: Request, id: str):
     if not valid_id(id):
@@ -101,7 +106,7 @@ def get_stash_image(request: Request, id: str):
     if dto is None:
         raise ApiError(404, "not_found", "Item not found")
     try:
-        return image_detail(dto)
+        return image_detail(dto, link_base=_link_base(request))
     except (KeyError, TypeError, ValueError):
         raise ApiError(502, "upstream_error", "Stash returned an unreadable item") from None
 
@@ -118,7 +123,7 @@ def get_stash_video(request: Request, id: str):
     if dto is None:
         raise ApiError(404, "not_found", "Item not found")
     try:
-        return video_detail(dto)
+        return video_detail(dto, link_base=_link_base(request))
     except (KeyError, TypeError, ValueError):
         raise ApiError(502, "upstream_error", "Stash returned an unreadable item") from None
 

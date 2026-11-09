@@ -389,6 +389,58 @@ def test_no_secret_leak_detail(tmp_path):
     client = make_client(tmp_path, handler)
     r = client.get("/api/library/stash/images/1")
     assert r.status_code == 200
-    body_str = r.text
+    data = r.json()
+    assert data["stash_link"] == f"{URL}/images/1"
+    data["stash_link"] = ""
+    body_str = json.dumps(data)
     assert KEY not in body_str
     assert URL not in body_str
+
+
+def _scene_client(tmp_path, **over):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"data": {"findScene": scene_dto("7", **over)}})
+
+    return make_client(tmp_path, handler)
+
+
+def test_video_detail_fallback_streams(tmp_path):
+    streams = [
+        {
+            "url": f"{URL}/scene/7/stream.mp4?apikey={KEY}&resolution=ORIGINAL",
+            "mime_type": "video/mp4",
+            "label": "Direct stream",
+        },
+        {
+            "url": f"{URL}/scene/7/stream.m3u8?apikey={KEY}",
+            "mime_type": "application/vnd.apple.mpegurl",
+            "label": "HLS",
+        },
+        {"url": f"{URL}/scene/7/evil.exe", "mime_type": "x", "label": "bad"},
+    ]
+    r = _scene_client(tmp_path, sceneStreams=streams).get("/api/library/stash/videos/7")
+    assert r.status_code == 200
+    data = r.json()
+    assert [s["url"] for s in data["fallback_streams"]] == [
+        "/api/media/stash/videos/7/s/stream.mp4?resolution=ORIGINAL",
+        "/api/media/stash/videos/7/s/stream.m3u8",
+    ]
+    assert [s["label"] for s in data["fallback_streams"]] == ["Direct stream", "HLS"]
+    assert data["stash_link"] == f"{URL}/scenes/7"
+    data["stash_link"] = ""
+    body_str = json.dumps(data)
+    assert KEY not in body_str
+    assert URL not in body_str
+    assert "apikey" not in body_str
+
+
+def test_video_detail_public_url(tmp_path):
+    client = _scene_client(tmp_path)
+    client.app.state.settings.stash_public_url = "https://pub.example/"
+    r = client.get("/api/library/stash/videos/7")
+    assert r.json()["stash_link"] == "https://pub.example/scenes/7"
+
+
+def test_video_detail_no_streams(tmp_path):
+    r = _scene_client(tmp_path).get("/api/library/stash/videos/7")
+    assert r.json()["fallback_streams"] == []

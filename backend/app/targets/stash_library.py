@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import math
 import mimetypes
+import re
 import secrets
 from pathlib import PurePosixPath
+from urllib.parse import parse_qs, urlsplit
 
-from app.models import LibraryItem, LibraryItemDetail, Problem, Tag
+from app.models import LibraryItem, LibraryItemDetail, Problem, StreamOption, Tag
+
+_SEGMENT_RE = re.compile(r"^(stream\.(mp4|webm|m3u8|ts)|[0-9]+\.ts)$")
+_RES_RE = re.compile(r"^[A-Z0-9_]+$")
 
 
 def valid_id(id: str) -> bool:
@@ -66,6 +71,28 @@ def _video_mime(files: list[dict]) -> str | None:
     return mimetypes.guess_type(basename)[0]
 
 
+def _fallback_streams(fid: str, dto: dict) -> list[StreamOption]:
+    streams: list[StreamOption] = []
+    for s in dto.get("sceneStreams") or []:
+        parts = urlsplit(s["url"])
+        name = parts.path.rstrip("/").rsplit("/", 1)[-1]
+        if not _SEGMENT_RE.match(name):
+            continue
+        query = parse_qs(parts.query)
+        resolution = query.get("resolution", [None])[0]
+        url = f"/api/media/stash/videos/{fid}/s/{name}"
+        if resolution is not None and _RES_RE.match(resolution):
+            url += f"?resolution={resolution}"
+        streams.append(
+            StreamOption(
+                url=url,
+                label=s.get("label") or name,
+                mime=s.get("mime_type") or "video/mp4",
+            )
+        )
+    return streams
+
+
 def image_item(dto: dict) -> LibraryItem:
     """Map a Stash image DTO to a ``LibraryItem``."""
     fid = str(dto["id"])
@@ -89,7 +116,7 @@ def video_item(dto: dict) -> LibraryItem:
     return LibraryItem(**kw)
 
 
-def image_detail(dto: dict) -> LibraryItemDetail:
+def image_detail(dto: dict, link_base: str = "") -> LibraryItemDetail:
     """Map a Stash image DTO to a ``LibraryItemDetail``."""
     fid = str(dto["id"])
     kw = _stash_common(
@@ -101,10 +128,11 @@ def image_detail(dto: dict) -> LibraryItemDetail:
     files = dto.get("visual_files") or []
     kw["full_url"] = f"/api/media/stash/images/{fid}/full"
     kw["mime"] = mimetypes.guess_type(files[0]["basename"])[0] if files else None
+    kw["stash_link"] = f"{link_base.rstrip('/')}/images/{fid}" if link_base else None
     return LibraryItemDetail(**kw)
 
 
-def video_detail(dto: dict) -> LibraryItemDetail:
+def video_detail(dto: dict, link_base: str = "") -> LibraryItemDetail:
     """Map a Stash video (scene) DTO to a ``LibraryItemDetail``."""
     fid = str(dto["id"])
     kw = _stash_common(
@@ -119,6 +147,8 @@ def video_detail(dto: dict) -> LibraryItemDetail:
     kw["video_codec"] = files[0].get("video_codec") if files else None
     dur = files[0]["duration"] if files else None
     kw["duration_s"] = float(dur) if dur is not None else None
+    kw["fallback_streams"] = _fallback_streams(fid, dto)
+    kw["stash_link"] = f"{link_base.rstrip('/')}/scenes/{fid}" if link_base else None
     return LibraryItemDetail(**kw)
 
 
