@@ -1,5 +1,8 @@
 let current: Element | null = null;
 let mo: MutationObserver | null = null;
+export const REVEAL_DELAY_MS = 300;
+let pending: ReturnType<typeof setTimeout> | null = null;
+let pendingEl: Element | null = null;
 
 export function mediaSrc(el: Element): string {
   if (el instanceof HTMLImageElement) {
@@ -32,7 +35,30 @@ export function revealTarget(target: EventTarget | null, root: HTMLElement): Ele
   return el;
 }
 
+function clearPending(): void {
+  if (pending !== null) {
+    clearTimeout(pending);
+    pending = null;
+  }
+  pendingEl = null;
+}
+
+function scheduleReveal(el: Element): void {
+  if (el === current) {
+    clearPending();
+    return;
+  }
+  clearPending();
+  pendingEl = el;
+  pending = setTimeout(() => {
+    pending = null;
+    pendingEl = null;
+    reveal(el);
+  }, REVEAL_DELAY_MS);
+}
+
 function hide(): void {
+  clearPending();
   if (mo) {
     mo.disconnect();
     mo = null;
@@ -62,14 +88,14 @@ export function installReveal(root: HTMLElement = document.documentElement): () 
   const onPointerOver = (e: PointerEvent) => {
     if (e.pointerType !== "mouse" && e.pointerType !== "pen") return;
     const el = revealTarget(e.target, root);
-    if (el) reveal(el);
+    if (el) scheduleReveal(el);
   };
 
   const onPointerOut = (e: PointerEvent) => {
     if (e.pointerType !== "mouse" && e.pointerType !== "pen") return;
-    if (!current) return;
     const el = revealTarget(e.target, root);
-    if (!el || el !== current) return;
+    if (!el) return;
+    if (el !== current && el !== pendingEl) return;
     const scope = scopeOf(el);
     const related = e.relatedTarget;
     if (!(related instanceof Node) || !scope.contains(related)) hide();
@@ -78,13 +104,13 @@ export function installReveal(root: HTMLElement = document.documentElement): () 
   const onFocusIn = (e: FocusEvent) => {
     if (lastPointerType === "touch") return;
     const el = revealTarget(e.target, root);
-    if (el) reveal(el);
+    if (el) scheduleReveal(el);
   };
 
   const onFocusOut = (e: FocusEvent) => {
-    if (!current) return;
     const el = revealTarget(e.target, root);
-    if (!el || el !== current) return;
+    if (!el) return;
+    if (el !== current && el !== pendingEl) return;
     const scope = scopeOf(el);
     const related = e.relatedTarget;
     if (!(related instanceof Node) || !scope.contains(related)) hide();
