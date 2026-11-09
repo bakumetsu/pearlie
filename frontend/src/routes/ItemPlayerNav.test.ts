@@ -243,6 +243,7 @@ describe("T-46 player nav repro", () => {
     setVideoTime(42);
     expect(player.time).toBe(42);
 
+    await new Promise((r) => setTimeout(r, 50)); // let svelte flush before leaving
     // navigate away → mini mode
     history.pushState({}, "", "/library");
     window.dispatchEvent(new PopStateEvent("popstate"));
@@ -264,7 +265,7 @@ describe("T-46 player nav repro", () => {
       expect(player.item?.id).toBe("v1");
     });
 
-    expect(player.mode).toBe("stage");
+    await vi.waitFor(() => expect(player.mode).toBe("stage"));
     expect(player.time).toBe(42);
     expect(loadFn.mock.calls.length).toBe(loadCountBefore);
   });
