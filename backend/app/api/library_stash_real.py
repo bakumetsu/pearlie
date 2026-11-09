@@ -5,7 +5,8 @@ import secrets
 from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
-from app.models import LibraryItem, Page, PatchBody
+from app.models import LibraryItem, Page, PageStats, PatchBody
+from app.paging import clamp_page, clamp_page_size, pages_for
 from app.targets.stash_client import StashClient, StashError
 from app.targets.stash_library import (
     image_detail,
@@ -25,6 +26,22 @@ def _up(err: StashError) -> ApiError:
     return ApiError(err.status, err.code, err.message)
 
 
+def _fetch_page(fetch, page: int, page_size: int) -> tuple[list[dict], int, dict, int]:
+    """Fetch a page; clamp *page* if out of range and re-fetch.
+
+    *fetch* is called as ``fetch(p, page_size)``.
+    Returns ``(dtos, count, agg, served)``.
+    """
+    dtos, count, agg = fetch(page, page_size)
+    pages = pages_for(count, page_size)
+    if page > max(pages, 1):
+        served = clamp_page(page, pages)
+        dtos, count, agg = fetch(served, page_size)
+    else:
+        served = page
+    return dtos, count, agg, served
+
+
 @router.get("/library/stash/images", response_model=Page[LibraryItem])
 def list_stash_images(
     request: Request,
@@ -36,22 +53,31 @@ def list_stash_images(
     seed: int | None = Query(None, ge=0, lt=10**8),
 ) -> Page[LibraryItem]:
     client: StashClient = request.app.state.stash
+    page_size = clamp_page_size("stash_images", page_size)
     if sort == "random":
         seed = seed if seed is not None else secrets.randbelow(10**8)
     else:
         seed = None
     field, direction = stash_sort(sort, seed)
     try:
-        dtos, count = client.list_images(page, page_size, q, field, direction)
+        dtos, count, agg, served = _fetch_page(
+            lambda p, ps: client.list_images(p, ps, q, field, direction),
+            page,
+            page_size,
+        )
     except StashError as e:
         raise _up(e) from None
     items, bad = map_items(dtos, image_item)
+    pages = pages_for(count, page_size)
+    stats = PageStats(megapixels=agg["megapixels"], size_bytes=agg["size_bytes"])
     return Page[LibraryItem](
         items=items,
-        page=page,
+        page=served,
         page_size=page_size,
         total=count,
-        next_page=page + 1 if page * page_size < count else None,
+        pages=pages,
+        stats=stats,
+        next_page=served + 1 if served * page_size < count else None,
         notice=list_notice(favorite, bad),
         seed=seed,
     )
@@ -68,22 +94,31 @@ def list_stash_videos(
     seed: int | None = Query(None, ge=0, lt=10**8),
 ) -> Page[LibraryItem]:
     client: StashClient = request.app.state.stash
+    page_size = clamp_page_size("stash_videos", page_size)
     if sort == "random":
         seed = seed if seed is not None else secrets.randbelow(10**8)
     else:
         seed = None
     field, direction = stash_sort(sort, seed)
     try:
-        dtos, count = client.list_scenes(page, page_size, q, field, direction)
+        dtos, count, agg, served = _fetch_page(
+            lambda p, ps: client.list_scenes(p, ps, q, field, direction),
+            page,
+            page_size,
+        )
     except StashError as e:
         raise _up(e) from None
     items, bad = map_items(dtos, video_item)
+    pages = pages_for(count, page_size)
+    stats = PageStats(megapixels=agg["megapixels"], size_bytes=agg["size_bytes"])
     return Page[LibraryItem](
         items=items,
-        page=page,
+        page=served,
         page_size=page_size,
         total=count,
-        next_page=page + 1 if page * page_size < count else None,
+        pages=pages,
+        stats=stats,
+        next_page=served + 1 if served * page_size < count else None,
         notice=list_notice(favorite, bad),
         seed=seed,
     )

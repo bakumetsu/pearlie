@@ -50,14 +50,14 @@ SCENE_FIELDS = (
 )
 LIST_IMAGES = (
     "query($f: FindFilterType) { findImages(filter: $f) "
-    "{ count images { " + IMAGE_FIELDS + " } } }"
+    "{ count megapixels filesize images { " + IMAGE_FIELDS + " } } }"
 )
 GET_IMAGE = (
     "query($id: ID!) { findImage(id: $id) { " + IMAGE_FIELDS + " } }"
 )
 LIST_SCENES = (
     "query($f: FindFilterType) { findScenes(filter: $f) "
-    "{ count scenes { " + SCENE_FIELDS + " } } }"
+    "{ count filesize scenes { " + SCENE_FIELDS + " } } }"
 )
 GET_SCENE = (
     "query($id: ID!) { findScene(id: $id) { " + SCENE_FIELDS
@@ -188,8 +188,8 @@ class StashClient:
 
     def list_images(
         self, page: int, per_page: int, q: str, sort: str, direction: str
-    ) -> tuple[list[dict], int]:
-        """Return a page of images and the total count."""
+    ) -> tuple[list[dict], int, dict]:
+        """Return a page of images, the total count, and aggregate stats."""
         data = self._gql(
             LIST_IMAGES,
             {
@@ -202,7 +202,9 @@ class StashClient:
                 }
             },
         )
-        return data["findImages"]["images"], data["findImages"]["count"]
+        r = data["findImages"]
+        agg = {"megapixels": r.get("megapixels"), "size_bytes": r.get("filesize")}
+        return r["images"], r["count"], agg
 
     def get_image(self, id: str) -> dict | None:
         """Return the image dict for *id*, or ``None``."""
@@ -211,8 +213,8 @@ class StashClient:
 
     def list_scenes(
         self, page: int, per_page: int, q: str, sort: str, direction: str
-    ) -> tuple[list[dict], int]:
-        """Return a page of scenes and the total count."""
+    ) -> tuple[list[dict], int, dict]:
+        """Return a page of scenes, the total count, and aggregate stats."""
         data = self._gql(
             LIST_SCENES,
             {
@@ -225,7 +227,9 @@ class StashClient:
                 }
             },
         )
-        return data["findScenes"]["scenes"], data["findScenes"]["count"]
+        r = data["findScenes"]
+        agg = {"megapixels": None, "size_bytes": r.get("filesize")}
+        return r["scenes"], r["count"], agg
 
     def get_scene(self, id: str) -> dict | None:
         """Return the scene dict (with streams) for *id*, or ``None``."""
