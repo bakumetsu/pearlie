@@ -137,8 +137,9 @@ Notes:
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/search?q=&sources=&page=` | one search across library and sites; results grouped per section |
+| GET | `/api/search?q=&sources=&page=&page_size=` | one search across library and sites; results grouped per section |
 | GET | `/api/library/stash/images` · `/videos` · `/api/library/komga/series` · `/books` | the "See all" views |
+| GET / PUT | `/api/view-settings`, `/api/view-settings/{source}` | per-source grid view (`mode` grid, wall, masonry or list; `per_page`; `zoom` 1-5), stored as `view.<source>` in the settings table (in memory in fixture mode). GET fills defaults (grid, 60, 3; nhentai 25) and returns `per_page_options` and `per_page_max`; PUT answers 422 `invalid` for an unknown source, mode, zoom, or a `per_page` outside 1 to the source cap |
 | GET | `/api/library/{kind}/{id}` | item details |
 | PATCH | `/api/library/{kind}/{id}` | rating, favorite, tags |
 | DELETE | `/api/library/{kind}/{id}` | move to trash; returns an undo token |
@@ -151,6 +152,8 @@ Notes:
 | GET / PUT | `/api/rules`; POST `/api/rules/test` | filters (base list returned read-only) |
 | POST | `/api/library/komga/books/{id}/progress` | reading progress |
 | GET | `/api/health` | Stash, Komga, mounts, sites |
+
+Paging fields: list and search answers carry `page` (the page actually served), `page_size`, `total`, `pages` (null where the source gives no count, such as Danbooru) and, for Stash, `stats {megapixels, size_bytes}`. `page_size` is clamped to the source cap (200 Stash, Komga, Danbooru; 100 Gelbooru, Rule34; 25 nhentai; search `page_size` above 200 is a 422). A `page` past the last one is served as the last page, never an error. With several sources in one search `page_size` is ignored (each section keeps its short preview) and the section `page_size` is null.
 
 Auth: a login that returns a token (cookie for the web UI, bearer token for iOS).
 
