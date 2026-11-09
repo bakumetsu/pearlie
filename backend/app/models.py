@@ -278,3 +278,17 @@ class Health(BaseModel):
     db: Literal["ok", "error"] = "ok"
     mounts: list[Mount] = Field(default_factory=list)
     sites: list[Site] = Field(default_factory=list)
+
+
+class DestinationItem(BaseModel):
+    site: str
+    folder: str
+
+
+class Destinations(BaseModel):
+    default_folder: str
+    items: list[DestinationItem]
+
+
+class FolderBody(BaseModel):
+    folder: str

@@ -37,6 +37,8 @@ class SourceError(Exception):
 
 class Source(Protocol):
     id: str
+    target: str  # "stash" or "komga": where saves of this source go
+    file_hosts: tuple[str, ...]  # hosts a post's file_url may point to
 
     def search(self, tags: list[str], page: int = 1) -> SearchPage: ...
     def get_post(self, post_id: str) -> Post: ...

@@ -6,8 +6,8 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import fixture as fixture_api
 from app.api import (
+    destinations,
     jobs,
     library_komga,
     library_komga_real,
@@ -20,12 +20,14 @@ from app.api import (
     search_real,
     trash,
 )
+from app.api import fixture as fixture_api
 from app.api.errors import install as install_errors
 from app.api.health import router as health_router
 from app.config import ConfigError, Settings, load_settings
 from app.db import init_db
 from app.komga import Komga
 from app.sources.danbooru import Danbooru
+from app.targets.stash_client import StashClient
 
 FIXTURE_ROUTERS = {
     "search": search.router,
@@ -66,6 +68,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     else:
         app.state.komga = None
 
+    app.state.stash = (
+        StashClient(settings.stash_url, settings.stash_api_key.get_secret_value())
+        if settings.stash_url
+        else None
+    )
+
     for name in real:
         if name not in REAL_ROUTERS:
             raise ConfigError(f"PEARLIE_REAL names '{name}' but it has no real implementation yet")
@@ -83,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.include_router(fixture_api.router)
     app.state.fixture_routers = mounted_fixture
 
+    app.include_router(destinations.router)
     app.include_router(health_router)
 
     static_dir: Path = settings.static_dir
