@@ -73,6 +73,14 @@
   const prev = $derived(hasList ? nearestLibrary(idx, -1) : null);
   const next = $derived(hasList ? nearestLibrary(idx, 1) : null);
 
+  const canPrev = $derived(hasList && (prev !== null || seeAllGrid.page > 1));
+  const canNext = $derived(
+    hasList &&
+      (next !== null ||
+        seeAllGrid.hasNext ||
+        (seeAllGrid.pages !== null && seeAllGrid.page < seeAllGrid.pages)),
+  );
+
   const preload = $derived(
     next?.kind === "image" ? ((next as { full_url?: string }).full_url ?? null) : null,
   );
@@ -86,6 +94,7 @@
     if (seeAllGrid.hasNext || (seeAllGrid.pages !== null && seeAllGrid.page < seeAllGrid.pages)) {
       void (async () => {
         await seeAllGrid.goTo(seeAllGrid.page + 1);
+        if (seeAllGrid.status === "error") return;
         const first = seeAllGrid.items.find((t) => !("post_id" in t));
         if (first) router.navigate(itemHref(first as LibraryItem));
       })();
@@ -96,6 +105,21 @@
     lastNav = Date.now();
     if (prev) {
       router.navigate(itemHref(prev));
+      return;
+    }
+    if (seeAllGrid.page > 1) {
+      void (async () => {
+        await seeAllGrid.goTo(seeAllGrid.page - 1);
+        if (seeAllGrid.status === "error") return;
+        const items = seeAllGrid.items;
+        for (let i = items.length - 1; i >= 0; i--) {
+          const t = items[i]!;
+          if (!("post_id" in t)) {
+            router.navigate(itemHref(t as LibraryItem));
+            return;
+          }
+        }
+      })();
     }
   }
 
@@ -189,10 +213,10 @@
     </button>
     <h1 class="bar-title">{view.detail?.title ?? "\u2026"}</h1>
     {#if hasList}
-      <button class="bar-btn" aria-label="Previous item" disabled={!prev} onclick={goPrev}>
+      <button class="bar-btn" aria-label="Previous item" disabled={!canPrev} onclick={goPrev}>
         <Icon name="chevron-left" />
       </button>
-      <button class="bar-btn" aria-label="Next item" disabled={!next} onclick={goNext}>
+      <button class="bar-btn" aria-label="Next item" disabled={!canNext} onclick={goNext}>
         <Icon name="chevron-right" />
       </button>
     {/if}
