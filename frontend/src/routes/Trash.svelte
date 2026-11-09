@@ -112,9 +112,9 @@
 		align-items: center;
 		gap: 0.5rem;
 		padding: 0.5rem 0.75rem;
-		border-radius: var(--radius, 6px);
-		background: var(--surface, #f5f5f5);
-		border: 1px solid var(--border, #ddd);
+		border-radius: var(--r-sm);
+		background: var(--surface);
+		border: 1px solid var(--line);
 		margin-bottom: 1rem;
 		font-size: 0.875rem;
 	}
@@ -130,22 +130,27 @@
 		gap: 0.375rem;
 		min-height: 44px;
 		padding: 0 0.75rem;
-		border: 1px solid var(--border, #ddd);
-		border-radius: var(--radius, 6px);
-		background: var(--surface, #fff);
-		color: var(--fg, #111);
+		border: 1px solid var(--line);
+		border-radius: var(--r-sm);
+		background: var(--surface);
+		color: var(--text);
 		font-size: 0.875rem;
 		cursor: pointer;
 	}
 
 	.btn:hover {
-		background: var(--surface-hover, #f0f0f0);
+		background: var(--line);
 	}
 
 	.danger {
-		background: var(--danger-bg, #fee);
-		color: var(--danger-fg, #c00);
-		border-color: var(--danger-bg, #fee);
+		background: var(--danger-bg);
+		color: var(--danger-fg);
+		border-color: var(--danger-bg);
+	}
+
+	button:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
 	}
 
 	.danger:hover {
@@ -157,9 +162,9 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.5rem;
-		background: var(--surface, #fff);
-		border: 1px solid var(--border, #ddd);
-		border-radius: var(--radius, 6px);
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--r-sm);
 		padding: 0.5rem 0.75rem;
 		font-size: 0.875rem;
 	}
@@ -168,19 +173,20 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--s-2);
 	}
 
 	.row {
 		display: grid;
 		grid-template-columns: 28px 1fr auto;
+		gap: var(--s-3);
 		align-items: center;
-		gap: 0.75rem;
-		padding: 0.5rem 0;
-		border-bottom: 1px solid var(--border, #eee);
-	}
-
-	.row:last-child {
-		border-bottom: none;
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--r-md);
+		padding: var(--s-3);
 	}
 
 	.text {
@@ -202,15 +208,15 @@
 		justify-content: center;
 		width: 44px;
 		height: 44px;
-		border: none;
+		border: 1px solid var(--line);
 		background: transparent;
-		border-radius: var(--radius, 6px);
+		border-radius: var(--r-sm);
 		cursor: pointer;
-		color: var(--fg, #111);
+		color: var(--text);
 	}
 
 	.actions button:hover {
-		background: var(--surface-hover, #f0f0f0);
+		background: var(--line);
 	}
 
 	.skel {
