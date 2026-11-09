@@ -9,7 +9,8 @@
     | "clock" | "minus" | "upload" | "columns" | "settings" | "arrow-left-right" | "rotate-ccw"
     | "help" | "chevron-up" | "list" | "fit-width" | "fit-height" | "fit-both" | "fit-actual" | "mode-single" | "mode-spread" | "mode-scroll"
     | "home" | "wrench" | "eye" | "eye-off"
-    | "grid" | "wall" | "masonry" | "sliders" | "chevrons-left" | "chevrons-right";
+    | "grid" | "wall" | "masonry" | "sliders" | "chevrons-left" | "chevrons-right"
+    | "skip-back" | "skip-forward" | "rewind" | "fast-forward";
 
   const paths: Record<IconName, string[]> = {
     "search": [
@@ -307,6 +308,22 @@
     "chevrons-right": [
       "M13 17l5-5-5-5",
       "M6 17l5-5-5-5",
+    ],
+    "skip-back": [
+      "M19 20L9 12l10-8v16z",
+      "M5 19V5",
+    ],
+    "skip-forward": [
+      "M5 4l10 8-10 8V4z",
+      "M19 5v14",
+    ],
+    "rewind": [
+      "M11 19L2 12l9-7v14z",
+      "M22 19l-9-7 9-7v14z",
+    ],
+    "fast-forward": [
+      "M13 19l9-7-9-7v14z",
+      "M2 19l9-7-9-7v14z",
     ],
   };
 </script>
