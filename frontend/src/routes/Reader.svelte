@@ -13,6 +13,7 @@
 	import { loadSettings, saveSettings, type Settings } from "../lib/reader/settings";
 	import {
 		clampPage,
+		bookStart,
 		defaultMode,
 		buildGroups,
 		groupOf,
@@ -190,8 +191,9 @@
 	}
 
 	function openBook(b: LibraryItem) {
+		if (b.id === bookId) { popover = null; return; }
 		progress.flush();
-		const start = b.read_page && b.page_count && b.read_page < b.page_count ? b.read_page : 1;
+		const start = bookStart(b);
 		router.navigate("/read/" + encodeURIComponent(b.id) + "?p=" + start + "&series=" + (seriesId ?? ""));
 		show(b.title);
 	}
@@ -381,7 +383,7 @@
 			onhelp={() => togglePopover("help")}
 			onprev={() => turn(-1)}
 			onnext={() => turn(1)}
-			onlist={() => (popover = "books")}
+			onlist={() => togglePopover("books")}
 			onjump={(n) => go(n)}
 			onthumbs={() => (thumbsOpen = !thumbsOpen)}
 			onzoomin={() => setZoomValue(zoomStep(settings.zoom, 1))}
