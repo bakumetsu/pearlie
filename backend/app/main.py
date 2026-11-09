@@ -1,6 +1,9 @@
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx
 import uvicorn
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -9,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api import (
     destinations,
     jobs,
+    jobs_real,
     library_komga,
     library_komga_real,
     library_stash,
@@ -25,8 +29,11 @@ from app.api.errors import install as install_errors
 from app.api.health import router as health_router
 from app.config import ConfigError, Settings, load_settings
 from app.db import init_db
+from app.jobs.worker import JobWorker
 from app.komga import Komga
+from app.sources.base import Source
 from app.sources.danbooru import Danbooru
+from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
 
 FIXTURE_ROUTERS = {
@@ -43,6 +50,7 @@ REAL_ROUTERS: dict[str, APIRouter] = {
     "search": search_real.router,
     "library_komga": library_komga_real.router,
     "media_komga": media_komga_real.router,
+    "jobs": jobs_real.router,
 }
 
 logger = logging.getLogger("pearlie")
@@ -53,10 +61,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings = load_settings()
     init_db(settings.db_path)
     logger.info(settings.safe_summary())
-    app = FastAPI()
+
+    @asynccontextmanager
+    async def lifespan(app_: FastAPI) -> AsyncIterator[None]:
+        worker: JobWorker | None = getattr(app_.state, "worker", None)
+        if worker is not None and settings.worker_enabled:
+            worker.start()
+        try:
+            yield
+        finally:
+            if worker is not None and settings.worker_enabled:
+                worker.stop()
+
+    app = FastAPI(lifespan=lifespan)
     install_errors(app)
     app.state.settings = settings
-    app.state.sources = {"danbooru": Danbooru()}
+    sources: dict[str, Source] = {"danbooru": Danbooru()}
+    app.state.sources = sources
 
     real = {n.strip() for n in settings.real.split(",") if n.strip()}
     if real & {"library_komga", "media_komga"}:
@@ -73,6 +94,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.stash_url
         else None
     )
+
+    app.state.worker = None
+    if "jobs" in real:
+        if app.state.stash is None:
+            raise ConfigError("PEARLIE_STASH_URL must be set when jobs is real")
+        http = httpx.Client()
+        stash_target = StashTarget(settings, app.state.stash, http, app.state.sources)
+        app.state.worker = JobWorker(
+            settings.db_path,
+            app.state.sources,
+            {"stash": stash_target},
+            interval_s=settings.download_interval_s,
+            startup_hooks=[stash_target.cleanup_temp],
+        )
 
     for name in real:
         if name not in REAL_ROUTERS:
