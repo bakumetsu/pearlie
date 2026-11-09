@@ -176,3 +176,25 @@ def test_real_persists_across_apps(tmp_path):
     sources = r.json()["sources"]
     assert sources["stash_videos"]["mode"] == "wall"
     assert sources["stash_videos"]["per_page"] == 100
+
+
+def test_real_non_object_stored_rows_fall_back(tmp_path):
+    c = real_client(tmp_path)
+    conn = sqlite3.connect(tmp_path / "p.db")
+    conn.execute("INSERT INTO settings (key, value) VALUES ('view.danbooru', '[1]')")
+    conn.execute("INSERT INTO settings (key, value) VALUES ('view.gelbooru', '\"x\"')")
+    conn.execute("INSERT INTO settings (key, value) VALUES ('view.rule34', '5')")
+    conn.commit()
+    conn.close()
+    r = c.get("/api/view-settings")
+    assert r.status_code == 200
+    sources = r.json()["sources"]
+    assert sources["danbooru"]["mode"] == "grid"
+    assert sources["danbooru"]["per_page"] == 60
+    assert sources["danbooru"]["zoom"] == 3
+    assert sources["gelbooru"]["mode"] == "grid"
+    assert sources["gelbooru"]["per_page"] == 60
+    assert sources["gelbooru"]["zoom"] == 3
+    assert sources["rule34"]["mode"] == "grid"
+    assert sources["rule34"]["per_page"] == 60
+    assert sources["rule34"]["zoom"] == 3

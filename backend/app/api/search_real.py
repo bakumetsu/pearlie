@@ -17,6 +17,7 @@ from app.models import (
     WebItem,
     WebSource,
 )
+from app.paging import PAGE_SIZE_CAPS, clamp_page_size
 from app.sources.base import Source, SourceError
 
 router = APIRouter(prefix="/api")
@@ -101,7 +102,9 @@ def search(
                         total=page_result.total,
                         pages=page_result.pages,
                         next_page=page_result.next_page,
-                        page_size=page_size if not multi else None,
+                        page_size=clamp_page_size(sid, page_size)
+                        if not multi and sid in PAGE_SIZE_CAPS
+                        else None,
                         hidden=0,
                         error=(
                             Problem(

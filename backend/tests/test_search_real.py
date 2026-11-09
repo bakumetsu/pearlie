@@ -129,6 +129,22 @@ def test_search_multi_ignores_page_size(tmp_path):
     assert recorded["url"].params["limit"] == "60"
 
 
+def test_search_page_size_is_what_source_used(tmp_path):
+    """page_size is clamped by the source cap and reflected in section and limit."""
+    recorded: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        recorded["url"] = request.url
+        return httpx.Response(200, json=load("search"))
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/search?q=1girl&sources=danbooru&page_size=200")
+    assert r.status_code == 200
+    section = r.json()["sections"][0]
+    assert section["page_size"] == 200
+    assert recorded["url"].params["limit"] == "200"
+
+
 def test_search_unknown_source(tmp_path):
     """Requesting an unconfigured source returns 422 with an invalid code."""
 

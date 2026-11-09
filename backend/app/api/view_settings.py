@@ -57,6 +57,8 @@ def _stored(request: Request) -> dict[str, View]:
             value: View = json.loads(row["value"])
         except (json.JSONDecodeError, TypeError):
             continue
+        if not isinstance(value, dict):
+            continue
         result[source] = value
     return result
 
