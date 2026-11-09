@@ -243,7 +243,18 @@ class StashTarget:
 
         dup = self._dedupe(post.source, post.post_id, post.md5)
         if dup is not None:
-            return SaveResult(status="duplicate", image_id=dup or None)
+            img, via = dup
+            return SaveResult(
+                status="duplicate",
+                image_id=img or None,
+                notices=[
+                    Problem(
+                        code="duplicate",
+                        message=f"already saved ({via})"
+                        + (f", image {img}" if img else ""),
+                    )
+                ],
+            )
 
         url = self._check_host(post)
         ext = self._ext(url)
@@ -268,7 +279,18 @@ class StashTarget:
             dup = self._dedupe(post.source, post.post_id, md5)
             if dup is not None:
                 temp.unlink(missing_ok=True)
-                return SaveResult(status="duplicate", image_id=dup or None)
+                img, via = dup
+                return SaveResult(
+                    status="duplicate",
+                    image_id=img or None,
+                    notices=[
+                        Problem(
+                            code="duplicate",
+                            message=f"already saved ({via})"
+                            + (f", image {img}" if img else ""),
+                        )
+                    ],
+                )
 
         dest, _resumed = self._move(
             temp,
@@ -287,8 +309,9 @@ class StashTarget:
         if image_id is None:
             raise SaveError("image_not_found", "Stash did not index the file", 502)
 
+        created: list[str] = []
         try:
-            tag_ids = self._tag_ids(tags)
+            tag_ids, created = self._tag_ids(tags)
             self._client.image_update(
                 image_id,
                 tag_ids,
@@ -297,6 +320,13 @@ class StashTarget:
         except StashError:
             msg = "tags and url could not be applied in Stash"
             notices.append(Problem(code="tags_not_applied", message=msg))
+        if created:
+            notices.append(
+                Problem(
+                    code="tags_created",
+                    message="created tags: " + ", ".join(created),
+                )
+            )
 
         self._record(post, md5, image_id)
 
@@ -307,7 +337,9 @@ class StashTarget:
             notices=notices,
         )
 
-    def _dedupe(self, source: str, post_id: str, md5: str | None) -> str | None:
+    def _dedupe(
+        self, source: str, post_id: str, md5: str | None
+    ) -> tuple[str, str] | None:
         conn = connect(self._settings.db_path)
         try:
             cur = conn.execute(
@@ -317,7 +349,7 @@ class StashTarget:
             )
             row = cur.fetchone()
             if row is not None:
-                return row["image_id"] or ""
+                return (row["image_id"] or "", "saved_items by post")
             if md5:
                 cur = conn.execute(
                     "SELECT image_id FROM saved_items WHERE md5 = ? LIMIT 1",
@@ -325,7 +357,7 @@ class StashTarget:
                 )
                 row = cur.fetchone()
                 if row is not None:
-                    return row["image_id"] or ""
+                    return (row["image_id"] or "", "saved_items by md5")
         finally:
             conn.close()
 
@@ -333,7 +365,7 @@ class StashTarget:
             img = self._client.find_image_by_checksum(md5)
             if img:
                 self._insert(source, post_id, md5, img)
-                return img
+                return (img, "Stash checksum")
         return None
 
     def _record(self, post: Post, md5: str, image_id: str) -> None:
@@ -367,7 +399,7 @@ class StashTarget:
                 raise SaveError("scan_timeout", "Stash scan timed out", 504)
             self._sleep(1.0)
 
-    def _tag_ids(self, tags: list[str]) -> list[str]:
+    def _tag_ids(self, tags: list[str]) -> tuple[list[str], list[str]]:
         seen: set[str] = set()
         names: list[str] = []
         for t in tags:
@@ -375,17 +407,24 @@ class StashTarget:
             if n and n not in seen:
                 seen.add(n)
                 names.append(n)
-        return [self._tag_id(n) for n in names]
+        ids: list[str] = []
+        created: list[str] = []
+        for n in names:
+            tid, was_created = self._tag_id(n)
+            ids.append(tid)
+            if was_created:
+                created.append(n)
+        return ids, created
 
-    def _tag_id(self, name: str) -> str:
+    def _tag_id(self, name: str) -> tuple[str, bool]:
         hits = self._client.find_tags(name)
         for h in hits:
             if h["name"].lower() == name:
-                return h["id"]
+                return h["id"], False
         try:
-            return self._client.tag_create(name)
+            return self._client.tag_create(name), True
         except StashError:
             for h in self._client.find_tags(name):
                 if h["name"].lower() == name:
-                    return h["id"]
+                    return h["id"], False
             raise

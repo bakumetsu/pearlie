@@ -274,6 +274,10 @@ def test_happy_path(
     assert (tmp_path / "other" / "fake_42.png").read_bytes() == b"pngbytes"
     assert len(site_requests) == 1
     assert list((tmp_path / "temp").glob("*")) == []
+    assert any(
+        n.code == "tags_created" and n.message == "created tags: blue hair"
+        for n in result.notices
+    )
 
     conn = connect(settings.db_path)
     row = conn.execute(
@@ -338,6 +342,9 @@ def test_duplicate_saved_items_post(
     assert result.status == "duplicate"
     assert result.image_id == "7"
     assert site_requests == []
+    assert len(result.notices) == 1
+    assert result.notices[0].code == "duplicate"
+    assert "saved_items by post" in result.notices[0].message
 
 
 def test_duplicate_saved_items_md5_other_post(
@@ -361,6 +368,9 @@ def test_duplicate_saved_items_md5_other_post(
     assert result.status == "duplicate"
     assert result.image_id == "8"
     assert site_requests == []
+    assert len(result.notices) == 1
+    assert result.notices[0].code == "duplicate"
+    assert "saved_items by md5" in result.notices[0].message
 
 
 def test_duplicate_stash_checksum(
@@ -376,6 +386,9 @@ def test_duplicate_stash_checksum(
     assert result.status == "duplicate"
     assert result.image_id == "5"
     assert site_requests == []
+    assert len(result.notices) == 1
+    assert result.notices[0].code == "duplicate"
+    assert "Stash checksum" in result.notices[0].message
 
     conn = connect(settings.db_path)
     row = conn.execute(
@@ -592,8 +605,9 @@ def test_tag_exists(
 ) -> None:
     patch_folder(monkeypatch)
     target = make_target(tag_hits=([{"id": "t1", "name": "Blue Hair"}],))
-    tag_id = target._tag_id("blue hair")
+    tag_id, created = target._tag_id("blue hair")
     assert tag_id == "t1"
+    assert created is False
     assert "tagCreate" not in _graphql_ops(graphql_calls)
     assert "findTags" in _graphql_ops(graphql_calls)
 
@@ -615,8 +629,9 @@ def test_tag_wildcard_exact_pick(
                 ],
             ),
     )
-    tag_id = target._tag_id("blue hair")
+    tag_id, created = target._tag_id("blue hair")
     assert tag_id == "t3"
+    assert created is False
     assert "tagCreate" not in _graphql_ops(graphql_calls)
 
 
@@ -651,7 +666,7 @@ def test_image_update_failure_notice(
     target = make_target(image_update_error=True)
     result = target.save(make_post(), ["blue hair"])
     assert result.image_id == "7"
-    assert [n.code for n in result.notices] == ["tags_not_applied"]
+    assert [n.code for n in result.notices] == ["tags_not_applied", "tags_created"]
     conn = connect(settings.db_path)
     row = conn.execute(
         "SELECT source, post_id, md5, target, image_id FROM saved_items "
