@@ -74,7 +74,14 @@ class JobStore:
                         "INSERT INTO jobs "
                         "(source, post_id, status, target, title, thumb_url, post_json) "
                         "VALUES (?, ?, 'queued', ?, ?, ?, ?)",
-                        (post.source, post.post_id, target, title, thumb_url, post.model_dump_json()),
+                        (
+                            post.source,
+                            post.post_id,
+                            target,
+                            title,
+                            thumb_url,
+                            post.model_dump_json(),
+                        ),
                     )
                     conn.commit()
                     return str(cur.lastrowid)
