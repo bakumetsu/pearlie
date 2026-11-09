@@ -18,6 +18,16 @@ SectionId = Literal[
     "rule34",
     "nhentai",
 ]
+ViewSource = Literal[
+    "stash_images",
+    "stash_videos",
+    "komga_series",
+    "komga_books",
+    "danbooru",
+    "gelbooru",
+    "rule34",
+    "nhentai",
+]
 JobState = Literal["queued", "running", "done", "failed", "needs_click", "skipped"]
 State = Literal["ok", "down", "not_configured"]
 MappingTo = Literal[
@@ -122,10 +132,18 @@ class WebItem(BaseModel):
     blur: Blur | None = None
 
 
+class PageStats(BaseModel):
+    megapixels: float | None = None
+    size_bytes: int | None = None
+
+
 class Section(BaseModel):
     id: SectionId
     title: str
     total: int | None = None
+    pages: int | None = None
+    stats: PageStats | None = None
+    page_size: int | None = None
     items: list[LibraryItem | WebItem] = Field(default_factory=list)
     hidden: int = 0
     next_page: int | None = None
@@ -140,6 +158,8 @@ class Page[T](BaseModel):
     page: int
     page_size: int
     total: int
+    pages: int | None = None
+    stats: PageStats | None = None
     next_page: int | None = None
     notice: Problem | None = None
     seed: int | None = None
