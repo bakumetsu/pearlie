@@ -167,4 +167,17 @@ describe("createPlayer", () => {
     await new Promise<void>((r) => setTimeout(r, 0));
     expect(p.playing).toBe(false);
   });
+
+  it("source error walks the fallbacks, then marks failed", () => {
+    const p = createPlayer();
+    p.open({ ...item1, fallbacks: [{ url: "/a", mime: "video/mp4" }, { url: "/b", mime: "video/mp4" }] });
+    expect(p.onSourceError()).toBe("/a");
+    expect(p.failed).toBe(false);
+    expect(p.onSourceError()).toBe("/b");
+    expect(p.failed).toBe(false);
+    expect(p.onSourceError()).toBeNull();
+    expect(p.failed).toBe(true);
+    p.open(item2);
+    expect(p.failed).toBe(false);
+  });
 });

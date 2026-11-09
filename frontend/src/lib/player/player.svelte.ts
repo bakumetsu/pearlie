@@ -19,9 +19,11 @@ export function createPlayer() {
     volume: 1,
     muted: false,
     slot: null as Rect | null,
+    failed: false,
   });
 
   let el: VideoLike | null = null;
+  let fallbackIdx = 0;
 
   return {
     get mode(): PlayerMode { return state.mode; },
@@ -32,6 +34,7 @@ export function createPlayer() {
     get volume(): number { return state.volume; },
     get muted(): boolean { return state.muted; },
     get slot(): Rect | null { return state.slot; },
+    get failed(): boolean { return state.failed; },
 
     attach(v: VideoLike | null): void {
       el = v;
@@ -48,6 +51,8 @@ export function createPlayer() {
       }
       el?.pause();
       state.item = item;
+      state.failed = false;
+      fallbackIdx = 0;
       state.time = 0;
       state.duration = 0;
       state.playing = false;
@@ -127,6 +132,19 @@ export function createPlayer() {
       state.playing = false;
       state.slot = null;
       state.mode = "hidden";
+      state.failed = false;
+    },
+
+    /** Next fallback url after a source error, or null (and failed) when all are used. */
+    onSourceError(): string | null {
+      const fb = state.item?.fallbacks ?? [];
+      if (fallbackIdx < fb.length) {
+        const url = fb[fallbackIdx].url;
+        fallbackIdx += 1;
+        return url;
+      }
+      state.failed = true;
+      return null;
     },
 
     onTime(t: number, d: number): void {

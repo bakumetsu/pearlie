@@ -5,7 +5,6 @@
   import PlayerBar from "./PlayerBar.svelte";
 
   let video: HTMLVideoElement | null = null;
-  let fallbackIdx = 0;
 
   let vp = $state({ w: window.innerWidth, h: window.innerHeight });
 
@@ -49,7 +48,6 @@
   $effect(() => {
     const item = player.item;
     if (item !== null && video !== null) {
-      fallbackIdx = 0;
       video.load();
     }
   });
@@ -59,10 +57,9 @@
   }
 
   function onVideoError(): void {
-    const fb = player.item?.fallbacks ?? [];
-    if (video && fallbackIdx < fb.length) {
-      video.src = fb[fallbackIdx].url;
-      fallbackIdx += 1;
+    const url = player.onSourceError();
+    if (video && url !== null) {
+      video.src = url;
       video.load();
       if (player.playing) void video.play();
     }

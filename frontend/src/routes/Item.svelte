@@ -245,6 +245,14 @@
           />
         {:else if view.detail.kind === "video"}
           <StageSlot id={view.detail.id} />
+          {#if player.failed || view.detail.notice?.code === "streams_unavailable"}
+            <p class="notice" role="status">
+              This video cannot be played here.
+              {#if view.detail.stash_link}
+                <a class="stash-link" href={view.detail.stash_link} target="_blank" rel="noopener noreferrer">Open in Stash</a>
+              {/if}
+            </p>
+          {/if}
         {:else if view.detail.kind === "series"}
           <div class="series">
             {#if view.detail.notice}<p class="notice" role="status">{view.detail.notice.message}</p>{/if}
@@ -336,6 +344,7 @@
   }
 
   .notice { margin: 0 0 var(--s-2); font-size: 0.875rem; color: var(--muted); }
+  .stash-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--s-2); }
 
   .series {
     width: 100%;
