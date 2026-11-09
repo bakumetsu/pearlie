@@ -511,15 +511,15 @@ def test_series_item_tags_empty():
     assert [t.name for t in series_detail(dto, []).tags] == []
 
 
-def test_mixed_mode_serves_real_komga_not_fixtures(tmp_path):
-    """Mixed mode (fixture) with real library_komga serves live Komga data, not fixtures."""
+def test_real_mode_serves_real_komga_not_fixtures(tmp_path):
+    """Real mode with library_komga serves live Komga data, not fixtures."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=page_of([book_dto()]))
 
     app = create_app(
         Settings(
-            mode="fixture",
+            mode="real",
             real="library_komga",
             komga_url=URL,
             db_path=tmp_path / "p.db",
