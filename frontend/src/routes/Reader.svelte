@@ -54,7 +54,7 @@
 	let settings = $state<Settings>({ mode: null, fit: "both", dir: "ltr", zoom: 100 });
 
 	// ── derived ────────────────────────────────────────────────────────
-	const mode = $derived<Mode>(settings.mode ?? defaultMode(window.innerWidth, window.innerHeight));
+	const mode = $derived<Mode>(settings.mode ?? defaultMode());
 	const groups = $derived(buildGroups(count, mode, wide));
 	const shown = $derived(groupOf(groups, page));
 	const idx = $derived(books.findIndex((b) => b.id === bookId));

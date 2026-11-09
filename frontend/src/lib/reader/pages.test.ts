@@ -48,24 +48,8 @@ describe("clampPage", () => {
 });
 
 describe("defaultMode", () => {
-  it("single for 1440x900", () => {
-    expect(defaultMode(1440, 900)).toBe("single");
-  });
-
-  it("single for 1080x1920", () => {
-    expect(defaultMode(1080, 1920)).toBe("single");
-  });
-
-  it("single for 768x1024", () => {
-    expect(defaultMode(768, 1024)).toBe("single");
-  });
-
-  it("single for 1000x800", () => {
-    expect(defaultMode(1000, 800)).toBe("single");
-  });
-
-  it("single for 899x600", () => {
-    expect(defaultMode(899, 600)).toBe("single");
+  it("is single", () => {
+    expect(defaultMode()).toBe("single");
   });
 });
 

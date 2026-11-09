@@ -22,7 +22,7 @@ export function pageSrc(template: string, n: number): string {
   return template.replace("{n}", String(n));
 }
 
-export function defaultMode(_width: number, _height: number): Mode {
+export function defaultMode(): Mode {
   return "single";
 }
 
