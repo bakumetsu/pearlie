@@ -95,7 +95,9 @@ Save flow for one image:
 5. Per tag: `findTags(tag_filter: { name: { value, modifier: EQUALS } })`, else `tagCreate(input: { name })`.
 6. `imageUpdate(input: { id, tag_ids, urls: [sourceUrl] })`.
 
-Browsing: `findImages` (`paths { thumbnail image }`), `findScenes` (`paths { screenshot preview }`), `sceneStreams(id)` for playback. Editing: `imageUpdate` / `sceneUpdate` for rating, favorite and tags.
+Browsing: `findImages` (`paths { thumbnail image }`), `findScenes` (`paths { screenshot }`, plus `date` and `studio { name }`, names to confirm in the Stash playground), `sceneStreams(id)` for playback. Editing: `imageUpdate` / `sceneUpdate` for rating, favorite and tags.
+
+Video card: video tiles show the poster with a resolution badge (bottom left) and duration (bottom right), then title and a muted "studio - date" line. On mouse hover or a 500 ms touch long-press a muted looping preview plays from `/api/media/stash/scene/{id}/preview`, a proxy of Stash's REST `/scene/{id}/preview` that passes `Range` through (206 with `Content-Range`) and maps an upstream 404 to 404. One preview plays at a time; it stops on leave, release, scroll, unmount or a video error (the poster stays). No preview with reduced motion; with SFW on it plays only on a card the user already revealed.
 
 Library browsing (read-only, `backend/app/targets/stash_client.py`). Check these exact queries in `http://<stash>/playground` before a live test:
 - Images: `query($f: FindFilterType) { findImages(filter: $f) { count images { id title rating100 created_at urls tags { name } visual_files { ... on ImageFile { basename width height size } } } } }`, detail `findImage(id: $id)` with the same fields.
