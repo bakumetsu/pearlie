@@ -215,14 +215,15 @@
 
   async function onPerPage(n: number) {
     const first = (grid.page - 1) * vs.per_page + 1;
-    const ok = await viewSettings.set(source, { per_page: n });
-    if (!ok) return;
+    if (!Number.isInteger(n) || n < 1 || n > vs.per_page_max) return;
+    // URL and store change in the same tick so the grid effect sees the new pair once
     const qs = new SvelteURLSearchParams(match.query);
     const pg = remapPage(first, n);
     if (pg === 1) qs.delete("page");
     else qs.set("page", String(pg));
     const search = qs.toString();
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
+    await viewSettings.set(source, { per_page: n });
   }
 
   function onMode(m: Mode) {
