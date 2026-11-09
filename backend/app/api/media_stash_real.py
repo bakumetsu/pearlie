@@ -161,10 +161,14 @@ def video_segment(request: Request, id: str, name: str):
 
     stash = request.app.state.stash
     fwd = _forward_range(request)
+    # Stash serves HLS segments under the playlist path: stream.m3u8/{n}.ts
+    upstream_path = (
+        f"/scene/{id}/stream.m3u8/{name}"
+        if name[0].isdigit()
+        else f"/scene/{id}/{name}"
+    )
     try:
-        upstream = stash.open_media(
-            f"/scene/{id}/{name}", params=params, headers=fwd
-        )
+        upstream = stash.open_media(upstream_path, params=params, headers=fwd)
     except StashError as err:
         raise ApiError(err.status, err.code, err.message) from None
 
