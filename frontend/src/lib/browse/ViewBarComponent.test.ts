@@ -2,10 +2,11 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/svelte";
 import ViewBarComponent from "./ViewBar.svelte";
+import type { Mode } from "./layout";
 
 function baseProps() {
   return {
-    mode: "grid",
+    mode: "grid" as Mode,
     perPage: 60,
     zoom: 3,
     options: [20, 40, 60, 100, 200],
