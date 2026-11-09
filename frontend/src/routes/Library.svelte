@@ -9,6 +9,8 @@
   import Tile from "../lib/components/Tile.svelte";
   import { onMount } from "svelte";
   import { SvelteURLSearchParams } from "svelte/reactivity";
+  import { HUBS, loadHub, saveHub, hubKinds } from "../lib/library/hub";
+  import type { Hub } from "../lib/library/hub";
 
   let { match }: { match: Match } = $props();
 
@@ -44,6 +46,9 @@
 
   let notice = $state<string | null>(null);
 
+  let hub = $state<Hub>(loadHub());
+  const visibleRows = $derived(ROWS.filter((r) => hubKinds(hub, ROWS.map((x) => x.kind)).includes(r.kind)));
+
   const fav = $derived(match.query.get("favorite") === "true");
 
   async function loadRow(kind: Kind, signal?: AbortSignal) {
@@ -71,14 +76,14 @@
   $effect(() => {
     const controller = new AbortController();
     notice = null;
-    for (const { kind } of ROWS) {
+    for (const { kind } of visibleRows) {
       loadRow(kind, controller.signal);
     }
     return () => controller.abort();
   });
 
   const allEmpty = $derived(
-    ROWS.every(({ kind }) => rowStates[kind].status === "done" && rowStates[kind].items.length === 0),
+    visibleRows.every(({ kind }) => rowStates[kind].status === "done" && rowStates[kind].items.length === 0),
   );
 
   function toggleFav(value: boolean) {
@@ -87,6 +92,11 @@
     else qs.delete("favorite");
     const search = qs.toString();
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
+  }
+
+  function setHub(h: Hub) {
+    hub = h;
+    saveHub(h);
   }
 
   function seeAllHref(base: string): string {
@@ -102,7 +112,19 @@
   <h1 class="sr-only" tabindex="-1" bind:this={h1}>Library</h1>
   <h2 class="page-title">Library</h2>
 
-  <div class="chips">
+  <div class="chips hubs" role="group" aria-label="Source">
+    {#each HUBS as h (h.id)}
+      <button
+        class="chip"
+        aria-pressed={hub === h.id}
+        onclick={() => setHub(h.id)}
+      >
+        {h.label}
+      </button>
+    {/each}
+  </div>
+
+  <div class="chips" role="group" aria-label="Filter">
     <button
       class="chip"
       aria-pressed={!fav}
@@ -127,7 +149,7 @@
       <a class="btn" href="/" onclick={onNav}>Go to Search</a>
     </div>
   {:else}
-    {#each ROWS as row (row.kind)}
+    {#each visibleRows as row (row.kind)}
       {@const rs = rowStates[row.kind]}
       <SectionRow
         title={row.title}

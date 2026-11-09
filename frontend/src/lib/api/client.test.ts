@@ -39,6 +39,18 @@ describe("createApi", () => {
     }
   });
 
+  it("list sends the integer seed so pages of a random order stay stable", async () => {
+    const fakeFetch = vi.fn().mockImplementation(() => Promise.resolve(ok({ items: [] })));
+    const api = createApi("", fakeFetch);
+
+    await api.list("series", { sort: "random", seed: 42, page: 2 });
+
+    const url = fakeFetch.mock.calls[0][0] as string;
+    expect(url).toContain("sort=random");
+    expect(url).toContain("seed=42");
+    expect(url).toContain("page=2");
+  });
+
   it("save sends POST with JSON body and returns job_id", async () => {
     const fakeFetch = vi.fn().mockResolvedValue(ok({ job_id: "j-1" }));
     const api = createApi("", fakeFetch);

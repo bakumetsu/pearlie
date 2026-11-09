@@ -61,15 +61,7 @@
   }
   const progressPct = $derived(getProgress());
 
-  const aspectRatio = $derived(
-    isWeb
-      ? "1 / 1"
-      : (item as LibraryItem).kind === "video"
-        ? "16 / 9"
-        : (item as LibraryItem).kind === "image"
-          ? "1 / 1"
-          : "2 / 3"
-  );
+  const aspectRatio = $derived(isWeb ? "1 / 1" : "2 / 3");
 </script>
 
 {#if isWeb}
@@ -129,6 +121,7 @@
   }
   .tile.lib {
     display: block;
+    min-width: 0;
   }
   .media {
     position: relative;
@@ -137,6 +130,8 @@
     background: var(--surface);
   }
   .media img {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
