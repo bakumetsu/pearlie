@@ -2,7 +2,7 @@ import { resetReveals } from "./sfw-reveal";
 
 export const SFW_KEY = "pearlie.sfw";
 
-export function loadSfw(storage: Storage = localStorage): boolean {
+export function loadSfw(storage: Pick<Storage, "getItem"> = localStorage): boolean {
   try {
     return storage.getItem(SFW_KEY) === "1";
   } catch {
@@ -10,7 +10,7 @@ export function loadSfw(storage: Storage = localStorage): boolean {
   }
 }
 
-export function saveSfw(on: boolean, storage: Storage = localStorage): void {
+export function saveSfw(on: boolean, storage: Pick<Storage, "setItem"> = localStorage): void {
   try {
     storage.setItem(SFW_KEY, on ? "1" : "0");
   } catch {
@@ -25,7 +25,7 @@ interface SfwStore {
 }
 
 export function createSfw(
-  storage: Storage = localStorage,
+  storage: Pick<Storage, "getItem" | "setItem"> = localStorage,
   root: HTMLElement = document.documentElement,
 ): SfwStore {
   let state = $state(loadSfw(storage));

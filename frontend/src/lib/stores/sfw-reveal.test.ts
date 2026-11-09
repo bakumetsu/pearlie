@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { installReveal, resetReveals } from "./sfw-reveal";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { installReveal } from "./sfw-reveal";
 
 function makeRoot(sfwOn: boolean = true): HTMLDivElement {
   const root = document.createElement("div");

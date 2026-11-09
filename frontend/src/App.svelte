@@ -21,6 +21,8 @@
   import Item from "./routes/Item.svelte";
   import PlayerHost from "./lib/player/PlayerHost.svelte";
   import MiniDock from "./lib/player/MiniDock.svelte";
+  import SfwToggle from "./lib/components/SfwToggle.svelte";
+  import { installReveal } from "./lib/stores/sfw-reveal";
 
   const router = createRouter();
   setRouter(router);
@@ -35,8 +37,10 @@
     const off = router.subscribe((m) => {
       match = m;
     });
+    const offReveal = installReveal();
     jobs.start();
     return () => {
+      offReveal();
       jobs.stop();
       off();
       router.destroy();
@@ -77,6 +81,7 @@
   {/key}
 </main>
 
+<SfwToggle />
 <Toast />
 <PlayerHost />
 <MiniDock />

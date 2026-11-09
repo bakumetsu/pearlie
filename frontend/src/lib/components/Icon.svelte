@@ -8,7 +8,7 @@
     | "star-filled" | "volume" | "volume-x" | "pip" | "maximize" | "minimize" | "undo"
     | "clock" | "minus" | "upload" | "columns" | "settings" | "arrow-left-right" | "rotate-ccw"
     | "help" | "chevron-up" | "list" | "fit-width" | "fit-height" | "fit-both" | "fit-actual" | "mode-single" | "mode-spread" | "mode-scroll"
-    | "home" | "wrench";
+    | "home" | "wrench" | "eye" | "eye-off";
 
   const paths: Record<IconName, string[]> = {
     "search": [
@@ -266,6 +266,8 @@
     "wrench": [
       "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z",
     ],
+    "eye": ["M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z", "M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"],
+    "eye-off": ["M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94", "M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19", "M14.12 14.12a3 3 0 1 1-4.24-4.24", "M1 1l22 22"],
   };
 </script>
 
