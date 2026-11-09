@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.config import ConfigError, Settings
@@ -50,14 +51,14 @@ def make_client(
 ) -> tuple[TestClient, dict[str, FakeSource], Path]:
     db_path = tmp_path / "p.db"
     init_db(db_path)
-    settings = Settings(  # pyright: ignore[reportCallIssue]
+    settings = Settings(
         mode="real",
         real="jobs",
         db_path=db_path,
         static_dir=tmp_path / "nostatic",
         stash_url="http://stash.invalid",
         worker_enabled=False,
-        _env_file=None,
+        _env_file=None,  # pyright: ignore[reportCallIssue]
         **kwargs,
     )
     app = create_app(settings)
@@ -255,19 +256,19 @@ def test_no_secrets(tmp_path: Path) -> None:
 def test_create_app_no_stash_url(tmp_path: Path) -> None:
     with pytest.raises(ConfigError):
         create_app(
-            Settings(  # pyright: ignore[reportCallIssue]
+            Settings(
                 mode="real",
                 real="jobs",
                 db_path=tmp_path / "p.db",
                 static_dir=tmp_path / "nostatic",
                 stash_url="",
-                _env_file=None,
+                _env_file=None,  # pyright: ignore[reportCallIssue]
             )
         )
 
 
 def test_worker_wake(tmp_path: Path) -> None:
     client, _, _ = make_client(tmp_path)
-    assert isinstance(client.app.state.worker, JobWorker)
+    assert isinstance(cast(FastAPI, client.app).state.worker, JobWorker)
     resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
     assert resp.status_code == 202
