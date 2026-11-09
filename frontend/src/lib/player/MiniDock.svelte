@@ -6,6 +6,7 @@
   import { getRouter } from "../ctx";
   import { linkClick } from "../router";
 
+  const router = getRouter();
   let pipOk = $state(false);
 
   $effect(() => {
@@ -43,7 +44,7 @@
     <a
       class="title"
       href={player.item.href}
-      onclick={(e: MouseEvent) => linkClick(e, getRouter())}
+      onclick={(e: MouseEvent) => linkClick(e, router)}
     >
       {player.item.title}
     </a>
