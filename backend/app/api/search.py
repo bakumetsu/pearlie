@@ -6,6 +6,7 @@ from app.api.errors import ApiError
 from app.fixtures.scenarios import active, slow_dependency
 from app.fixtures.store import store
 from app.models import LibraryItem, Problem, SearchResponse, Section, SectionId, WebItem
+from app.paging import clamp_page, clamp_page_size, pages_for
 
 router = APIRouter(prefix="/api", dependencies=[Depends(slow_dependency)])
 
@@ -37,7 +38,12 @@ def _filtered(source: str, q: str) -> list:
 
 
 @router.get("/search")
-def search(q: str = "", sources: str = "", page: int = Query(1, ge=1)) -> SearchResponse:
+def search(
+    q: str = "",
+    sources: str = "",
+    page: int = Query(1, ge=1),
+    page_size: int = Query(60, ge=1, le=200),
+) -> SearchResponse:
     """Search across library and web sources."""
     ids = (
         _DEFAULT.split(",") if not sources else [s.strip() for s in sources.split(",") if s.strip()]
@@ -66,7 +72,11 @@ def search(q: str = "", sources: str = "", page: int = Query(1, ge=1)) -> Search
                     )
                 )
             else:
-                pg, sz = (page, 60) if single else (1, 12)
+                if single:
+                    sz = clamp_page_size(sid, page_size)
+                    pg = page
+                else:
+                    pg, sz = 1, 12
                 res = store.list_library(kinds, pg, sz, q, "newest", None)
                 if res is None:
                     raise ApiError(422, "invalid", "Bad source", field="sources")
@@ -77,7 +87,9 @@ def search(q: str = "", sources: str = "", page: int = Query(1, ge=1)) -> Search
                         title=title,
                         items=items,
                         total=res.total,
+                        pages=pages_for(res.total, sz),
                         next_page=res.next_page,
+                        page_size=sz if single else None,
                         hidden=hidden,
                     )
                 )
@@ -111,17 +123,27 @@ def search(q: str = "", sources: str = "", page: int = Query(1, ge=1)) -> Search
                 flt = _filtered(sid, q)
                 total = len(flt)
                 if single:
-                    start = (page - 1) * 60
-                    items, nxt = flt[start : start + 60], (page + 1 if start + 60 < total else None)
+                    size = clamp_page_size(sid, page_size)
+                    pages = pages_for(total, size)
+                    pg = clamp_page(page, pages)
+                    start = (pg - 1) * size
+                    items, nxt = (
+                        flt[start : start + size],
+                        (pg + 1 if start + size < total else None),
+                    )
+                    _pages, _page_size = pages, size
                 else:
                     items, nxt = flt[:18], (2 if total > 18 else None)
+                    _pages, _page_size = None, None
                 sections.append(
                     Section(
                         id=cast(SectionId, sid),
                         title=title,
                         items=cast(list[LibraryItem | WebItem], items),
                         total=total,
+                        pages=_pages,
                         next_page=nxt,
+                        page_size=_page_size,
                         hidden=hidden,
                     )
                 )

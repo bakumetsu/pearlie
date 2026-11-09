@@ -23,6 +23,7 @@ from app.models import (
     ProgressBody,
     ProgressResult,
 )
+from app.paging import clamp_page, clamp_page_size, pages_for
 
 router = APIRouter(prefix="/api")
 
@@ -65,6 +66,8 @@ def _random_page(
         cache.put(key, ordered, truncated)
     else:
         ordered, truncated = cached
+    pages = pages_for(len(ordered), page_size)
+    page = clamp_page(page, pages)
     chunk, next_page = page_slice(ordered, page, page_size)
     notice: Problem | None
     if truncated:
@@ -78,6 +81,7 @@ def _random_page(
         items=[mapper(r) for r in chunk],
         page=page,
         page_size=page_size,
+        pages=pages,
         total=len(ordered),
         next_page=next_page,
         notice=notice,
@@ -99,6 +103,19 @@ def _ignored_notice(sort: str, favorite: bool | None) -> Problem | None:
     )
 
 
+def _fetch_page(
+    fetch: Callable[[int, int], dict], page: int, page_size: int
+) -> tuple[dict, int, int]:
+    reply = fetch(page - 1, page_size)
+    pages = pages_for(reply["totalElements"], page_size)
+    if page > max(pages, 1):
+        served = clamp_page(page, pages)
+        reply = fetch(served - 1, page_size)
+    else:
+        served = page
+    return (reply, pages, served)
+
+
 @router.get("/library/komga/series", response_model=Page[LibraryItem])
 def list_komga_series(
     request: Request,
@@ -110,21 +127,27 @@ def list_komga_series(
     seed: int | None = Query(None, ge=0, lt=10**8),
 ) -> Page[LibraryItem]:
     komga: Komga = request.app.state.komga
+    page_size = clamp_page_size("komga_series", page_size)
     if sort == "random":
         return _random_page(
             request, "series", komga.list_series, series_item, page, page_size, q, seed, favorite
         )
     try:
         # Pearlie pages are 1-based; Komga expects 0-based (sole conversion point).
-        reply = komga.list_series(page=page - 1, size=page_size, sort="createdDate,desc", q=q)
+        reply, pages, served = _fetch_page(
+            lambda p0, size: komga.list_series(page=p0, size=size, sort="createdDate,desc", q=q),
+            page,
+            page_size,
+        )
     except KomgaError as e:
         raise _up(e) from None
     return Page[LibraryItem](
         items=[series_item(r) for r in reply["content"]],
-        page=page,
+        page=served,
         page_size=page_size,
+        pages=pages,
         total=reply["totalElements"],
-        next_page=page + 1 if not reply["last"] else None,
+        next_page=served + 1 if not reply["last"] else None,
         notice=_ignored_notice(sort, favorite),
     )
 
@@ -140,21 +163,27 @@ def list_komga_books(
     seed: int | None = Query(None, ge=0, lt=10**8),
 ) -> Page[LibraryItem]:
     komga: Komga = request.app.state.komga
+    page_size = clamp_page_size("komga_books", page_size)
     if sort == "random":
         return _random_page(
             request, "books", komga.list_books, book_item, page, page_size, q, seed, favorite
         )
     try:
         # Pearlie pages are 1-based; Komga expects 0-based (sole conversion point).
-        reply = komga.list_books(page=page - 1, size=page_size, sort="createdDate,desc", q=q)
+        reply, pages, served = _fetch_page(
+            lambda p0, size: komga.list_books(page=p0, size=size, sort="createdDate,desc", q=q),
+            page,
+            page_size,
+        )
     except KomgaError as e:
         raise _up(e) from None
     return Page[LibraryItem](
         items=[book_item(r) for r in reply["content"]],
-        page=page,
+        page=served,
         page_size=page_size,
+        pages=pages,
         total=reply["totalElements"],
-        next_page=page + 1 if not reply["last"] else None,
+        next_page=served + 1 if not reply["last"] else None,
         notice=_ignored_notice(sort, favorite),
     )
 

@@ -25,7 +25,7 @@ class FakeSource:
     target: str = "stash"
     file_hosts: tuple[str, ...] = ("img.example",)
 
-    def search(self, tags: list[str], page: int = 1) -> SearchPage:
+    def search(self, tags: list[str], page: int = 1, page_size: int | None = None) -> SearchPage:
         raise NotImplementedError
 
     def get_post(self, post_id: str) -> Post:

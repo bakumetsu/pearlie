@@ -25,6 +25,7 @@ from app.api import (
     search,
     search_real,
     trash,
+    view_settings,
 )
 from app.api import fixture as fixture_api
 from app.api.errors import install as install_errors
@@ -139,6 +140,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.fixture_routers = mounted_fixture
 
     app.include_router(destinations.router)
+    app.include_router(view_settings.router)
     app.include_router(health_router)
 
     static_dir: Path = settings.static_dir

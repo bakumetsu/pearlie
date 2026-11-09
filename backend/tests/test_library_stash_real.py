@@ -121,7 +121,7 @@ def test_images_list_graphql_variables(tmp_path):
     def handler(request: httpx.Request) -> httpx.Response:
         captured["body"] = json.loads(request.content)
         return httpx.Response(200, json={
-            "data": {"findImages": {"count": 1, "images": [image_dto()]}}
+            "data": {"findImages": {"count": 100, "images": [image_dto()]}}
         })
 
     client = make_client(tmp_path, handler)
@@ -137,6 +137,124 @@ def test_images_list_graphql_variables(tmp_path):
 # ---------------------------------------------------------------------------
 # 2 – videos list: sort=random, favorite=true
 # ---------------------------------------------------------------------------
+
+
+def test_images_stats_and_pages(tmp_path):
+    """List response carries stats and correct pagination metadata."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "data": {
+                "findImages": {
+                    "count": 101,
+                    "megapixels": 5149.0,
+                    "filesize": 3000,
+                    "images": [image_dto()],
+                }
+            }
+        })
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/library/stash/images?page=1&page_size=20")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["pages"] == 6
+    assert body["stats"] == {"megapixels": 5149.0, "size_bytes": 3000}
+    assert body["page"] == 1
+    assert body["page_size"] == 20
+
+
+def test_images_page_clamped_to_last(tmp_path):
+    """Out-of-range page is clamped; both the original and clamped page are sent to Stash."""
+    pages: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        pages.append(body["variables"]["f"]["page"])
+        return httpx.Response(200, json={
+            "data": {
+                "findImages": {
+                    "count": 101,
+                    "images": [image_dto()],
+                }
+            }
+        })
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/library/stash/images?page=99&page_size=20")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["page"] == 6
+    assert body["next_page"] is None
+    assert pages == [99, 6]
+
+
+def test_images_page_size_capped(tmp_path):
+    """page_size=200 is the Stash max; no cap below 200 applies."""
+    recorded: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        recorded.append(body["variables"]["f"]["per_page"])
+        return httpx.Response(200, json={
+            "data": {
+                "findImages": {
+                    "count": 1,
+                    "images": [image_dto()],
+                }
+            }
+        })
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/library/stash/images?page_size=200")
+    assert r.status_code == 200
+    assert r.json()["page_size"] == 200
+    assert recorded == [200]
+
+
+def test_videos_stats_size_only(tmp_path):
+    """Videos list stats have megapixels None and size_bytes from filesize."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "data": {
+                "findScenes": {
+                    "count": 3,
+                    "filesize": 777,
+                    "scenes": [scene_dto()],
+                }
+            }
+        })
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/library/stash/videos")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["stats"] == {"megapixels": None, "size_bytes": 777}
+    assert body["pages"] == 1
+
+
+def test_empty_library_pages_zero_serves_page_one(tmp_path):
+    """Empty library: total 0, pages 0, items empty; page clamped to 1."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "data": {
+                "findImages": {
+                    "count": 0,
+                    "images": [],
+                }
+            }
+        })
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/library/stash/images?page=5")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 0
+    assert body["pages"] == 0
+    assert body["items"] == []
+    assert body["page"] == 1
 
 
 def test_videos_list_basic(tmp_path):

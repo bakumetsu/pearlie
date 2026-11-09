@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from app.paging import clamp_page_size
 from app.sources.base import Post, Rating, SearchPage, SourceError
 from app.sources.throttle import Throttle
 
@@ -76,15 +77,16 @@ class Danbooru:
         except Exception:
             raise SourceError("upstream_error", "Danbooru sent invalid JSON") from None
 
-    def search(self, tags: list[str], page: int = 1) -> SearchPage:
+    def search(self, tags: list[str], page: int = 1, page_size: int | None = None) -> SearchPage:
         """Search posts by a list of tags."""
+        size = clamp_page_size("danbooru", page_size or self._page_size)
         cleaned = [t.strip() for t in tags if t.strip()]
         server_tags = cleaned[: self._tag_limit]
         local_tags = cleaned[self._tag_limit :]
         query = " ".join(server_tags)
         data = self._get(
             "/posts.json",
-            params={"tags": query, "page": page, "limit": self._page_size},
+            params={"tags": query, "page": page, "limit": size},
         )
         if not isinstance(data, list):
             raise SourceError("upstream_error", "Danbooru sent invalid JSON")
@@ -97,7 +99,7 @@ class Danbooru:
             post = self._to_post(d)
             if self._matches(post, local_tags):
                 posts.append(post)
-        next_page = page + 1 if raw_count == self._page_size else None
+        next_page = page + 1 if raw_count == size else None
         return SearchPage(posts=posts, page=page, next_page=next_page, dropped=dropped)
 
     def _matches(self, post: Post, local_tags: list[str]) -> bool:

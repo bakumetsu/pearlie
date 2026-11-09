@@ -240,22 +240,34 @@ def test_list_notice():
 
 
 def test_stash_client_list_images():
-    """list_images sends correct variables and returns (images, count)."""
+    """list_images sends correct variables and returns (images, count, agg)."""
     captured: dict = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
         captured["body"] = json.loads(request.content)
         return httpx.Response(
-            200, json={"data": {"findImages": {"count": 7, "images": [image_dto()]}}}
+            200,
+            json={
+                "data": {
+                    "findImages": {
+                        "count": 7,
+                        "megapixels": 12.5,
+                        "filesize": 4096,
+                        "images": [image_dto()],
+                    }
+                }
+            },
         )
 
     client = make_stash_client(handler)
-    images, count = client.list_images(
+    images, count, agg = client.list_images(
         page=2, per_page=5, q="x", sort="created_at", direction="DESC"
     )
     assert count == 7
     assert len(images) == 1
     assert images[0]["id"] == "1"
+    assert agg == {"megapixels": 12.5, "size_bytes": 4096}
+    assert "megapixels filesize" in captured["body"]["query"]
     assert captured["body"]["variables"] == {
         "f": {"page": 2, "per_page": 5, "q": "x", "sort": "created_at", "direction": "DESC"},
     }
@@ -272,22 +284,32 @@ def test_stash_client_get_image_none():
 
 
 def test_stash_client_list_scenes():
-    """list_scenes sends correct variables and returns (scenes, count)."""
+    """list_scenes sends correct variables and returns (scenes, count, agg)."""
     captured: dict = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
         captured["body"] = json.loads(request.content)
         return httpx.Response(
-            200, json={"data": {"findScenes": {"count": 3, "scenes": [scene_dto()]}}}
+            200,
+            json={
+                "data": {
+                    "findScenes": {
+                        "count": 3,
+                        "filesize": 999,
+                        "scenes": [scene_dto()],
+                    }
+                }
+            },
         )
 
     client = make_stash_client(handler)
-    scenes, count = client.list_scenes(
+    scenes, count, agg = client.list_scenes(
         page=1, per_page=10, q="", sort="rating", direction="DESC"
     )
     assert count == 3
     assert len(scenes) == 1
     assert scenes[0]["id"] == "2"
+    assert agg == {"megapixels": None, "size_bytes": 999}
     assert captured["body"]["variables"]["f"]["sort"] == "rating"
 
 
