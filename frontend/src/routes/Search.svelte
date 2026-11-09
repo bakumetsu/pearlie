@@ -134,7 +134,7 @@
 
 <div class="page">
   <header class="header">
-    <h1 class="sr-only" tabindex="-1" bind:this={h1}>Search</h1>
+    <h1 class="sr-only" tabindex="-1" bind:this={h1}>Discover</h1>
     <ChipField chips={query.chips} onchange={handleChipsChange} />
     <PillBar
       pill={query.pill}

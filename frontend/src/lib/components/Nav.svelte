@@ -11,11 +11,13 @@
   let { current, queueBadge, onnavigate, variant = "rail" }: Props = $props();
 
   const items = [
-    { name: "search", label: "Search", icon: "search", path: "/" },
+    { name: "discover", label: "Discover", icon: "search", path: "/" },
+    { name: "home", label: "Home", icon: "home", path: "/home" },
     { name: "library", label: "Library", icon: "library", path: "/library" },
     { name: "queue", label: "Queue", icon: "queue", path: "/queue" },
     { name: "rules", label: "Rules", icon: "rules", path: "/rules" },
     { name: "trash", label: "Trash", icon: "trash", path: "/trash" },
+    { name: "option", label: "Option", icon: "wrench", path: "/option" },
   ] as const;
 
   function isActive(name: string): boolean {

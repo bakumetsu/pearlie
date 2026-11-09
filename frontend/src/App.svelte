@@ -7,8 +7,10 @@
   import { setRouter, setJobs } from "./lib/ctx";
   import { createJobs } from "./lib/stores/jobs.svelte";
   import Queue from "./routes/Queue.svelte";
+  import Home from "./routes/Home.svelte";
   import Rules from "./routes/Rules.svelte";
   import Trash from "./routes/Trash.svelte";
+  import Option from "./routes/Option.svelte";
   import Reader from "./routes/Reader.svelte";
   import { setApi, createApi } from "./lib/api/client";
   import Nav from "./lib/components/Nav.svelte";
@@ -46,8 +48,10 @@
 
 <main style="margin-left: var(--rail-w)">
   {#key match.name}
-    {#if match.name === "search"}
+    {#if match.name === "discover"}
       <Search {match} />
+    {:else if match.name === "home"}
+      <Home />
     {:else if match.name === "library"}
       <Library {match} />
     {:else if match.name === "seeall" || match.name.startsWith("library_")}
@@ -62,6 +66,8 @@
       <Rules />
     {:else if match.name === "trash"}
       <Trash />
+    {:else if match.name === "option"}
+      <Option />
     {:else}
       <section class="placeholder">
         <h1 tabindex="-1">Page not found</h1>

@@ -4,9 +4,30 @@ import { matchRoute, hrefOf, createRouter, linkClick, ROUTES } from "./router";
 describe("matchRoute", () => {
   it("matches root", () => {
     const m = matchRoute("/", "");
-    expect(m.name).toBe("search");
+    expect(m.name).toBe("discover");
     expect(m.params).toEqual({});
     expect(m.path).toBe("/");
+  });
+
+  it("matches /discover", () => {
+    const m = matchRoute("/discover", "");
+    expect(m.name).toBe("discover");
+    expect(m.params).toEqual({});
+    expect(m.path).toBe("/discover");
+  });
+
+  it("matches /home", () => {
+    const m = matchRoute("/home", "");
+    expect(m.name).toBe("home");
+    expect(m.params).toEqual({});
+    expect(m.path).toBe("/home");
+  });
+
+  it("matches /option", () => {
+    const m = matchRoute("/option", "");
+    expect(m.name).toBe("option");
+    expect(m.params).toEqual({});
+    expect(m.path).toBe("/option");
   });
 
   it("matches trailing-slash path", () => {

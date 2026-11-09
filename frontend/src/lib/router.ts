@@ -2,7 +2,9 @@
 export type RouteDef = { name: string; pattern: string };
 
 export const ROUTES: RouteDef[] = [
-  { name: "search", pattern: "/" },
+  { name: "discover", pattern: "/" },
+  { name: "discover", pattern: "/discover" },
+  { name: "home", pattern: "/home" },
   { name: "library", pattern: "/library" },
   { name: "seeall", pattern: "/see-all" },
   { name: "library_images", pattern: "/library/stash/images" },
@@ -14,6 +16,7 @@ export const ROUTES: RouteDef[] = [
   { name: "queue", pattern: "/queue" },
   { name: "trash", pattern: "/trash" },
   { name: "rules", pattern: "/rules" },
+  { name: "option", pattern: "/option" },
 ];
 
 export type Match = { name: string; params: Record<string, string>; query: URLSearchParams; path: string };

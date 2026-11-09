@@ -145,8 +145,8 @@
 
   {#if allEmpty}
     <div class="empty-card">
-      <p>Nothing here yet. Save something from Search</p>
-      <a class="btn" href="/" onclick={onNav}>Go to Search</a>
+      <p>Nothing here yet. Save something from Discover</p>
+      <a class="btn" href="/" onclick={onNav}>Go to Discover</a>
     </div>
   {:else}
     {#each visibleRows as row (row.kind)}
