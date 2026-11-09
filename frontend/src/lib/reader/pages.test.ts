@@ -20,6 +20,7 @@ import {
   WHEEL_MIN_DELTA,
   WHEEL_MIN_GAP_MS,
   keyAction,
+  slideFrom,
 } from "./pages";
 
 describe("clampPage", () => {
@@ -556,5 +557,55 @@ describe("bookStart", () => {
 
   it("missing page_count returns 1", () => {
     expect(bookStart({ read_page: 5 })).toBe(1);
+  });
+});
+
+describe("slideFrom", () => {
+  const groups = [[1], [2, 3], [4, 5]];
+
+  it("ltr forward slides from the right", () => {
+    expect(slideFrom(1, 2, groups, "ltr")).toBe("right");
+    expect(slideFrom(3, 4, groups, "ltr")).toBe("right");
+  });
+
+  it("ltr backward slides from the left", () => {
+    expect(slideFrom(2, 1, groups, "ltr")).toBe("left");
+    expect(slideFrom(4, 3, groups, "ltr")).toBe("left");
+  });
+
+  it("rtl forward slides from the left", () => {
+    expect(slideFrom(1, 2, groups, "rtl")).toBe("left");
+    expect(slideFrom(3, 4, groups, "rtl")).toBe("left");
+  });
+
+  it("rtl backward slides from the right", () => {
+    expect(slideFrom(2, 1, groups, "rtl")).toBe("right");
+    expect(slideFrom(4, 3, groups, "rtl")).toBe("right");
+  });
+
+  it("same page returns null", () => {
+    expect(slideFrom(2, 2, groups, "ltr")).toBeNull();
+    expect(slideFrom(3, 3, groups, "rtl")).toBeNull();
+  });
+
+  it("jump of two groups returns null", () => {
+    expect(slideFrom(1, 4, groups, "ltr")).toBeNull();
+    expect(slideFrom(5, 1, groups, "ltr")).toBeNull();
+    expect(slideFrom(1, 4, groups, "rtl")).toBeNull();
+    expect(slideFrom(5, 1, groups, "rtl")).toBeNull();
+  });
+
+  it("unknown page returns null", () => {
+    expect(slideFrom(1, 2, [[1], [3]], "ltr")).toBeNull();
+    expect(slideFrom(2, 1, [[1], [3]], "ltr")).toBeNull();
+    expect(slideFrom(1, 2, [[1], [3]], "rtl")).toBeNull();
+    expect(slideFrom(2, 1, [[1], [3]], "rtl")).toBeNull();
+  });
+
+  it("two-page group with prev as second page resolves by group index", () => {
+    expect(slideFrom(3, 4, groups, "ltr")).toBe("right");
+    expect(slideFrom(3, 1, groups, "ltr")).toBe("left");
+    expect(slideFrom(3, 4, groups, "rtl")).toBe("left");
+    expect(slideFrom(3, 1, groups, "rtl")).toBe("right");
   });
 });

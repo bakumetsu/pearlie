@@ -96,3 +96,73 @@ describe("Stage dblclick zoom", () => {
     expect(props.onzoom).toHaveBeenCalledWith(100);
   });
 });
+
+describe("Stage page slide", () => {
+  it("first mount has no data-from", () => {
+    const { container } = render(
+      Stage,
+      makeProps({ groups: [[1], [2], [3]], page: 1, shown: [1] }) as never,
+    );
+    const row = container.querySelector(".row")!;
+    expect(row.getAttribute("data-from")).toBeNull();
+  });
+
+  it("ltr page 1→2: data-from is right", async () => {
+    const props = makeProps({ groups: [[1], [2], [3]], page: 1, shown: [1] });
+    const { container, rerender } = render(Stage, props as never);
+    await rerender({ ...props, page: 2, shown: [2] } as never);
+    const row = container.querySelector(".row")!;
+    expect(row.getAttribute("data-from")).toBe("right");
+  });
+
+  it("ltr page 2→1: data-from is left", async () => {
+    const props = makeProps({ groups: [[1], [2], [3]], page: 2, shown: [2] });
+    const { container, rerender } = render(Stage, props as never);
+    await rerender({ ...props, page: 1, shown: [1] } as never);
+    const row = container.querySelector(".row")!;
+    expect(row.getAttribute("data-from")).toBe("left");
+  });
+
+  it("rtl page 1→2: data-from is left", async () => {
+    const props = makeProps({
+      groups: [[1], [2], [3]],
+      page: 1,
+      shown: [1],
+      dir: "rtl",
+    });
+    const { container, rerender } = render(Stage, props as never);
+    await rerender({ ...props, page: 2, shown: [2] } as never);
+    const row = container.querySelector(".row")!;
+    expect(row.getAttribute("data-from")).toBe("left");
+  });
+
+  it("jump 1→3: no data-from", async () => {
+    const props = makeProps({ groups: [[1], [2], [3]], page: 1, shown: [1] });
+    const { container, rerender } = render(Stage, props as never);
+    await rerender({ ...props, page: 3, shown: [3] } as never);
+    const row = container.querySelector(".row")!;
+    expect(row.getAttribute("data-from")).toBeNull();
+  });
+
+  it("reduced motion: no data-from on page change", async () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, "matchMedia", {
+      value: () => ({ matches: true }),
+      writable: true,
+      configurable: true,
+    });
+    try {
+      const props = makeProps({ groups: [[1], [2], [3]], page: 1, shown: [1] });
+      const { container, rerender } = render(Stage, props as never);
+      await rerender({ ...props, page: 2, shown: [2] } as never);
+      const row = container.querySelector(".row")!;
+      expect(row.getAttribute("data-from")).toBeNull();
+    } finally {
+      Object.defineProperty(window, "matchMedia", {
+        value: originalMatchMedia,
+        writable: true,
+        configurable: true,
+      });
+    }
+  });
+});

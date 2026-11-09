@@ -4,7 +4,7 @@
 	import BookList from "./BookList.svelte";
 	import BottomCard from "./BottomCard.svelte";
 	import ThumbStrip from "./ThumbStrip.svelte";
-	import ZoomPill from "./ZoomPill.svelte";
+
 	import SettingsPopover from "./SettingsPopover.svelte";
 	import HelpSheet from "./HelpSheet.svelte";
 
@@ -109,9 +109,8 @@
 	onfocusout={() => onfocus(false)}
 >
 	<BookPill {title} {index} {total} {hasSeries} {onprev} {onnext} {onlist} />
-	<Rail {fit} {mode} {fullscreen} settingsOpen={popover === "settings"} {onback} {onsettings} {onfit} {onmode} {onfullscreen} {onhelp} />
+	<Rail {fit} {mode} {fullscreen} settingsOpen={popover === "settings"} {zoom} {hidden} {onback} {onsettings} {onfit} {onmode} {onfullscreen} {onhelp} {onzoomin} {onzoomout} {onzoomreset} />
 	<BottomCard {count} {shown} {dir} {thumbsOpen} {onjump} {onthumbs} />
-	<ZoomPill {zoom} {thumbsOpen} onin={onzoomin} onout={onzoomout} onreset={onzoomreset} />
 	{#if thumbsOpen}
 		<ThumbStrip {count} {shown} template={thumbTpl} {wide} {onjump} />
 	{/if}
