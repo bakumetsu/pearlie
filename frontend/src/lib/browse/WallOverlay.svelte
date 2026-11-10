@@ -9,6 +9,7 @@
   import ImageStage from "../item/ImageStage.svelte";
   import Icon from "../components/Icon.svelte";
   import { pageOptions, rangeText, clampInput } from "./pager";
+  import { swipeDir } from "./swipe";
   import RatingStars from "../item/RatingStars.svelte";
   import { itemHref } from "../item/kinds";
 
@@ -44,6 +45,10 @@
   let stepping = $state(false);
   let deleting = $state(false);
   let fieldText = $state("");
+
+  let swipeStart: { id: number; x: number; y: number } | null = null;
+  let swipeHandled = false;
+  let activePointers = new Set<number>();
 
   // svelte-ignore state_referenced_locally
   // grid, api and toasts are fixed for the lifetime of the overlay
@@ -236,10 +241,56 @@
     }
   }
 
+  function onSwipePointerDown(e: PointerEvent) {
+    if (e.pointerType !== "touch") return;
+    activePointers.add(e.pointerId);
+    if (
+      activePointers.size > 1 ||
+      zoomed ||
+      stepping || deleting ||
+      (e.target as HTMLElement).closest("button, a, select, input") !== null
+    ) {
+      swipeStart = null;
+    } else {
+      swipeStart = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    }
+  }
+
+  function onSwipePointerUp(e: PointerEvent) {
+    activePointers.delete(e.pointerId);
+    if (swipeStart && swipeStart.id === e.pointerId) {
+      const dir = swipeDir(e.clientX - swipeStart.x, e.clientY - swipeStart.y);
+      swipeStart = null;
+      if (dir !== null) {
+        swipeHandled = true;
+        setTimeout(() => {
+          swipeHandled = false;
+        }, 0);
+        void step(dir);
+      }
+    }
+  }
+
+  function onSwipePointerCancel(e: PointerEvent) {
+    activePointers.delete(e.pointerId);
+    swipeStart = null;
+  }
+
+  function onSwipeClickGuard(e: MouseEvent) {
+    if (swipeHandled) {
+      swipeHandled = false;
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }
+
   function onLayerClick(e: MouseEvent) {
+    const target = e.target as HTMLElement;
     if (
       e.target === e.currentTarget ||
-      (e.target as HTMLElement).classList.contains("stage")
+      target.classList.contains("mid") ||
+      target.classList.contains("stage-wrap") ||
+      target.classList.contains("stage")
     ) {
       onclose();
     }
@@ -316,7 +367,14 @@
     >
       <Icon name="chevron-left" size={30} />
     </button>
-    <div class="stage-wrap" aria-busy={busy}>
+    <div
+      class="stage-wrap"
+      aria-busy={busy}
+      onpointerdown={onSwipePointerDown}
+      onpointerup={onSwipePointerUp}
+      onpointercancel={onSwipePointerCancel}
+      onclickcapture={onSwipeClickGuard}
+    >
       {#if view.status === "gone" || view.status === "error"}
         <p class="msg" role="status">Could not load this image.</p>
       {:else if imageSrc}
@@ -495,6 +553,10 @@
 
   .stage-wrap[aria-busy="true"] {
     opacity: 0.6;
+  }
+
+  .stage-wrap :global(.stage:not(.zoomed)) {
+    touch-action: pan-y pinch-zoom;
   }
 
   .msg {

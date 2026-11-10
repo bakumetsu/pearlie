@@ -523,3 +523,136 @@ describe("WallOverlay delete", () => {
     await waitFor(() => expect(api.deleteItem).toHaveBeenCalledWith("images", "b"));
   });
 });
+
+describe("WallOverlay swipe", () => {
+  function firePointer(
+    el: HTMLElement,
+    type: "pointerdown" | "pointerup" | "pointercancel",
+    init: { pointerType: string; pointerId: number; clientX: number; clientY: number },
+  ) {
+    const event = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      clientX: init.clientX,
+      clientY: init.clientY,
+    });
+    Object.defineProperty(event, "pointerType", { value: init.pointerType });
+    Object.defineProperty(event, "pointerId", { value: init.pointerId });
+    return fireEvent(el, event);
+  }
+
+  async function getStageWrap(container: HTMLElement) {
+    await waitFor(() => {
+      expect(container.querySelector(".stage-wrap")?.getAttribute("aria-busy")).toBe("false");
+    });
+    return container.querySelector(".stage-wrap") as HTMLElement;
+  }
+
+  it("touch swipe left of 100px with dy 10 steps to next", async () => {
+    const onstep = vi.fn();
+    const { container } = mount({ onstep });
+    const stageWrap = await getStageWrap(container);
+    await firePointer(stageWrap, "pointerdown", { pointerType: "touch", pointerId: 1, clientX: 100, clientY: 50 });
+    await firePointer(stageWrap, "pointerup", { pointerType: "touch", pointerId: 1, clientX: 0, clientY: 60 });
+    await waitFor(() => expect(onstep).toHaveBeenCalledWith("b"));
+  });
+
+  it("touch swipe right on id b steps to previous", async () => {
+    const onstep = vi.fn();
+    const { container } = mount({ id: "b", onstep });
+    const stageWrap = await getStageWrap(container);
+    await firePointer(stageWrap, "pointerdown", { pointerType: "touch", pointerId: 1, clientX: 0, clientY: 50 });
+    await firePointer(stageWrap, "pointerup", { pointerType: "touch", pointerId: 1, clientX: 100, clientY: 60 });
+    await waitFor(() => expect(onstep).toHaveBeenCalledWith("a"));
+  });
+
+  it("a 40px touch swipe does not step", async () => {
+    const onstep = vi.fn();
+    const { container } = mount({ onstep });
+    const stageWrap = await getStageWrap(container);
+    await firePointer(stageWrap, "pointerdown", { pointerType: "touch", pointerId: 1, clientX: 100, clientY: 50 });
+    await firePointer(stageWrap, "pointerup", { pointerType: "touch", pointerId: 1, clientX: 60, clientY: 60 });
+    await waitFor(() => {});
+    expect(onstep).not.toHaveBeenCalled();
+  });
+
+  it("a touch swipe with too much vertical motion does not step", async () => {
+    const onstep = vi.fn();
+    const { container } = mount({ onstep });
+    const stageWrap = await getStageWrap(container);
+    await firePointer(stageWrap, "pointerdown", { pointerType: "touch", pointerId: 1, clientX: 100, clientY: 50 });
+    await firePointer(stageWrap, "pointerup", { pointerType: "touch", pointerId: 1, clientX: 0, clientY: 150 });
+    await waitFor(() => {});
+    expect(onstep).not.toHaveBeenCalled();
+  });
+
+  it("mouse pointer events do not step", async () => {
+    const onstep = vi.fn();
+    const { container } = mount({ onstep });
+    const stageWrap = await getStageWrap(container);
+    await firePointer(stageWrap, "pointerdown", { pointerType: "mouse", pointerId: 1, clientX: 100, clientY: 50 });
+    await firePointer(stageWrap, "pointerup", { pointerType: "mouse", pointerId: 1, clientX: 0, clientY: 60 });
+    await waitFor(() => {});
+    expect(onstep).not.toHaveBeenCalled();
+  });
+
+  it("pointercancel after a 100px touch move does not step", async () => {
+    const onstep = vi.fn();
+    const { container } = mount({ onstep });
+    const stageWrap = await getStageWrap(container);
+    await firePointer(stageWrap, "pointerdown", { pointerType: "touch", pointerId: 1, clientX: 100, clientY: 50 });
+    await firePointer(stageWrap, "pointercancel", { pointerType: "touch", pointerId: 1, clientX: 0, clientY: 50 });
+    await waitFor(() => {});
+    expect(onstep).not.toHaveBeenCalled();
+  });
+
+  it("a touch swipe starting on the image button does not step", async () => {
+    const onstep = vi.fn();
+    const { container } = mount({ onstep });
+    const stageWrap = await getStageWrap(container);
+    const imgbtn = await waitFor(() => {
+      const el = container.querySelector("button.imgbtn");
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await firePointer(imgbtn, "pointerdown", { pointerType: "touch", pointerId: 1, clientX: 100, clientY: 50 });
+    await firePointer(stageWrap, "pointerup", { pointerType: "touch", pointerId: 1, clientX: 0, clientY: 60 });
+    await waitFor(() => {});
+    expect(onstep).not.toHaveBeenCalled();
+  });
+
+  it("touch swipe is ignored while zoomed", async () => {
+    const onstep = vi.fn();
+    const { container, getByRole } = mount({ onstep });
+    const stageWrap = await getStageWrap(container);
+    const zoomBtn = getByRole("button", { name: "Zoom" });
+    await fireEvent.click(zoomBtn);
+    expect(zoomBtn.getAttribute("aria-pressed")).toBe("true");
+    await firePointer(stageWrap, "pointerdown", { pointerType: "touch", pointerId: 1, clientX: 100, clientY: 50 });
+    await firePointer(stageWrap, "pointerup", { pointerType: "touch", pointerId: 1, clientX: 0, clientY: 60 });
+    await waitFor(() => {});
+    expect(onstep).not.toHaveBeenCalled();
+  });
+
+  it("backdrop clicks on layer/mid close, but image click does not", async () => {
+    const onclose = vi.fn();
+    const { container } = mount({ onclose });
+    const layer = container.querySelector(".layer") as HTMLElement;
+    const mid = container.querySelector(".mid") as HTMLElement;
+    const stageWrap = await getStageWrap(container);
+    const img = await waitFor(() => {
+      const el = stageWrap.querySelector("img");
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+
+    fireEvent.click(img);
+    expect(onclose).not.toHaveBeenCalled();
+
+    fireEvent.click(mid);
+    expect(onclose).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(layer);
+    expect(onclose).toHaveBeenCalledTimes(2);
+  });
+});
