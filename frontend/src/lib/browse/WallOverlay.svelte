@@ -580,6 +580,7 @@
     display: grid;
     place-items: center;
     opacity: 0.7;
+    z-index: 1;
   }
 
   .nav:hover:not(:disabled) {
