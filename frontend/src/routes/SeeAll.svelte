@@ -4,7 +4,7 @@
   import { getRouter } from "../lib/ctx";
   import { linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
-  import type { Kind, WebItem } from "../lib/api/client";
+  import type { Kind, WebItem, LibraryItem } from "../lib/api/client";
   import { ApiError as ApiErrorClass } from "../lib/api/client";
   import { seeAllGrid } from "../lib/stores/shared.svelte";
   import Icon from "../lib/components/Icon.svelte";
@@ -17,6 +17,8 @@
   import ResultsGrid from "../lib/browse/ResultsGrid.svelte";
   import Pager from "../lib/browse/Pager.svelte";
   import ViewBar from "../lib/browse/ViewBar.svelte";
+  import WallOverlay from "../lib/browse/WallOverlay.svelte";
+  import { parseOpen, openKey, withOpen } from "../lib/browse/overlayState";
 
   let { match }: { match: Match } = $props();
 
@@ -71,6 +73,56 @@
   });
 
   const grid = seeAllGrid;
+
+  const wallMode = $derived(source === "stash_images" && (vs.mode === "wall" || vs.mode === "masonry"));
+  const rawOpen = $derived(parseOpen(match.query));
+  const openId = $derived(wallMode && viewSettings.ready ? rawOpen : null);
+  const isOpen = $derived(openId !== null);
+  let openedByPush = false;
+  let openedPage = 0;
+  let lastOpenId = "";
+  $effect(() => { if (openId) lastOpenId = openId; });
+
+  function navQuery(qs: string, replace: boolean) {
+    router.navigate(match.path + (qs ? `?${qs}` : ""), replace ? { replace: true } : undefined);
+  }
+  function openItem(item: LibraryItem) {
+    openedByPush = true;
+    openedPage = grid.page;
+    navQuery(withOpen(match.query, openKey(item.id)), false);
+  }
+  function onStep(id: string) {
+    navQuery(withOpen(match.query, openKey(id)), true);
+  }
+  function closeOverlay() {
+    if (openedByPush && grid.page === openedPage) {
+      openedByPush = false;
+      history.back();
+    } else {
+      openedByPush = false;
+      navQuery(withOpen(match.query, null), true);
+    }
+  }
+
+  // Stale param: remove open key when not applicable
+  $effect(() => {
+    if (!viewSettings.ready) return;
+    if (rawOpen !== null && openId === null) navQuery(withOpen(match.query, null), true);
+  });
+
+  // Scroll lock and focus return (depends on isOpen only, not openId)
+  $effect(() => {
+    if (!isOpen) return;
+    const y = window.scrollY;
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.documentElement.style.overflow = "";
+      window.scrollTo(0, y);
+      const tile = document.querySelector<HTMLElement>(`[data-key="${openKey(lastOpenId)}"]`);
+      tile?.scrollIntoView({ block: "nearest" });
+      tile?.focus();
+    };
+  });
 
   const listKey = $derived(
     [source, q, sort, favorite ? "1" : "0", seed ?? "", String(vs.per_page)].join("|"),
@@ -143,6 +195,7 @@
     const status = grid.status;
     const gp = grid.page;
     if (status !== "done") return;
+    if (untrack(() => openId) !== null) return;
     const pg = untrack(() => page);
     if (gp !== pg) return;
     const key = untrack(() => listKey) + "|" + String(gp);
@@ -185,6 +238,8 @@
     const search = qs.toString();
     router.navigate(match.path + (search ? `?${search}` : ""));
   }
+
+  function onOverlayPage(p: number) { setPage(p); }
 
   function onSortChange(value: string) {
     const qs = new SvelteURLSearchParams(match.query);
@@ -239,6 +294,7 @@
   }
 
   function onKey(e: KeyboardEvent) {
+    if (openId !== null) return;
     const t = e.target as HTMLElement | null;
     if (t) {
       const tag = t.tagName;
@@ -264,7 +320,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<div class="content">
+<div class="content" inert={openId !== null}>
   <h1 class="sr-only" tabindex="-1" bind:this={h1}>{title}</h1>
 
   <header class="sticky-header">
@@ -320,7 +376,7 @@
   {:else if grid.items.length === 0}
     <div class="empty">Nothing here.</div>
   {:else}
-    <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} />
+    <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} />
   {/if}
 
   {#if grid.status !== "error" && grid.status !== "idle"}
@@ -328,6 +384,10 @@
   {/if}
   {/if}
 </div>
+
+{#if openId !== null}
+  <WallOverlay id={openId} grid={grid} perPage={vs.per_page} api={api} toasts={toasts} onstep={onStep} onclose={closeOverlay} onpage={onOverlayPage} />
+{/if}
 
 <style>
   .content { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--s-4); }
