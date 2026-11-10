@@ -28,8 +28,7 @@ def load_base_list(path: Path) -> dict[str, tuple[str, ...]]:
         else:
             tag = fold(stripped)
             aliases = ()
-        if ":" in tag or any(":" in a for a in aliases):
-            raise BaseListError(f"scoped entries not allowed in base list: {stripped}")
+
         result[tag] = result.get(tag, ()) + aliases
 
     if not result:

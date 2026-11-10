@@ -134,6 +134,7 @@ Notes:
 - Library view: matching items are hidden or blurred; a one-time report lists them. Pearlie never deletes on its own.
 - Matching: lowercase, space = underscore = hyphen, optional type scope (`artist:x`), alias table across sites.
 - UI: chips per list, tap a tag on any post to reject it, JSON import/export, `POST /api/rules/test` shows which rule decides.
+- Save-time check (shipped, `backend/app/filters/`): `POST /api/save` runs base list, then the user reject list, against the post's full tag metadata; the first match decides and the save is refused with 422 `rejected_by_rule` plus `layer` (`base` or `reject`), `rule`, `tag` and `alias` (null unless an alias matched). The base list is `filters/base_list.txt` (one tag per line, optional `tag: alias1, alias2`), shipped inside the package, loaded once at import and never writable through the API; a missing, unreadable or empty file raises at startup (fail closed). The reject list is read from the SQLite `rules` table (`list='reject'`, `enabled=1`; no writer API yet). Every tag scope of the post is checked, each tag by bare name and as `scope:name` (a bare rule matches any scope, a `scope:name` rule only that scope); title and description are not checked in this minimal version (phase 3). Normalization is `filters/aliases.fold`: lowercase, runs of space, underscore and hyphen become one underscore. Warn, require and tag mapping are phase 3.
 
 ## 9. API (first version)
 
