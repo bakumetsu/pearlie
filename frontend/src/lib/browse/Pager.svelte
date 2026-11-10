@@ -18,6 +18,8 @@
     total,
     stats,
     onpage,
+    showStats = true,
+    spaced = false,
     selectEl = $bindable<HTMLSelectElement | HTMLInputElement | null>(null),
   }: {
     page: number;
@@ -28,6 +30,8 @@
     total: number | null;
     stats: PageStats | null;
     onpage: (p: number) => void;
+    showStats?: boolean;
+    spaced?: boolean;
     selectEl?: HTMLSelectElement | HTMLInputElement | null;
   } = $props();
 
@@ -50,6 +54,7 @@
   }
 </script>
 
+<div class="pager-wrap" class:spaced>
 <nav class="pager" aria-label="Pages">
   <button
     type="button"
@@ -114,11 +119,11 @@
       <Icon name="chevrons-right" />
     </button>
   {/if}
-
-  {#if range}
+</nav>
+  {#if showStats && range}
     <div class="range">{range}</div>
   {/if}
-</nav>
+</div>
 
 <style>
   .pager {
@@ -172,5 +177,16 @@
   .cur,
   .range {
     color: var(--text);
+  }
+
+  .pager-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pager-wrap.spaced {
+    margin: 16px 0;
   }
 </style>

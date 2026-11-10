@@ -151,4 +151,24 @@ describe("PagerComponent", () => {
     expect(onpage).not.toHaveBeenCalledWith(999);
     expect(input.value).toBe("3");
   });
+
+  it("stats: megapixels text rendered when showStats is true", () => {
+    const props = {
+      ...baseProps(),
+      stats: { megapixels: 1234, size_bytes: 1073741824 },
+    };
+    render(PagerComponent, props);
+    expect(screen.getByText(/Megapixels/)).not.toBeNull();
+  });
+
+  it("stats: no megapixels or range text when showStats is false", () => {
+    const props = {
+      ...baseProps(),
+      stats: { megapixels: 1234, size_bytes: 1073741824 },
+      showStats: false,
+    };
+    render(PagerComponent, props);
+    expect(screen.queryByText(/Megapixels/)).toBeNull();
+    expect(screen.queryByText(/of 600/)).toBeNull();
+  });
 });
