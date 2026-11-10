@@ -3,7 +3,7 @@
   import VideoCard from "./VideoCard.svelte";
   import type { LibraryItem, WebItem } from "../api/client";
 
-  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, variant = "grid", aspect }: {
+  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect }: {
     item: LibraryItem | WebItem;
     href?: string;
     onnavigate?: (e: MouseEvent) => void;
@@ -11,6 +11,7 @@
     savedHref?: string;
     onsave?: () => void;
     onopen?: () => void;
+    onopenitem?: (item: LibraryItem) => void;
     variant?: "grid" | "wall" | "masonry" | "list";
     aspect?: number;
   } = $props();
@@ -43,6 +44,17 @@
     } else {
       onopen?.();
     }
+  }
+
+  function handleLibClick(e: MouseEvent) {
+    const l = item as LibraryItem;
+    const plain = e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey;
+    if (onopenitem && l.kind === "image" && plain && !e.defaultPrevented) {
+      e.preventDefault();
+      onopenitem(l);
+      return;
+    }
+    onnavigate?.(e);
   }
 
   function formatDuration(s: number): string {
@@ -117,7 +129,7 @@
   </div>
 {:else}
   {@const l = item as LibraryItem}
-  <a class="tile lib {variant}" href={href} onclick={onnavigate}>
+  <a class="tile lib {variant}" href={href} data-key={`${l.kind}:${l.id}`} onclick={handleLibClick}>
     {#if l.kind === "video"}
       <VideoCard item={l} {variant} {aspectRatio} {blurred} meta={metaLine()} onmediaclick={handleMediaClick} onmediakeydown={handleMediaKeydown} />
     {:else}

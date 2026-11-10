@@ -16,6 +16,7 @@
     saveStates,
     onsave,
     onnavigate,
+    onopenitem,
   }: {
     items: (LibraryItem | WebItem)[];
     mode: Mode;
@@ -25,6 +26,7 @@
     saveStates: Record<string, "queued" | "in_library">;
     onsave: (item: WebItem) => void;
     onnavigate: (e: MouseEvent) => void;
+    onopenitem?: (item: LibraryItem) => void;
   } = $props();
 
   let width = $state(0);
@@ -112,6 +114,7 @@
       aspect={aspect}
       href={itemHref(item as LibraryItem)}
       onnavigate={onnavigate}
+      onopenitem={onopenitem}
     />
   {/if}
 {/snippet}
