@@ -11,7 +11,7 @@ function loadRate(): number {
   return 1;
 }
 
-export type PlayerItem = { id: string; title: string; streamUrl: string; posterUrl: string; href: string; fallbacks?: { url: string; mime: string }[] };
+export type PlayerItem = { id: string; title: string; streamUrl: string; posterUrl: string; href: string; fallbacks?: { url: string; mime: string; label?: string }[] };
 export interface VideoLike {
   play(): Promise<void>;
   pause(): void;
@@ -19,6 +19,10 @@ export interface VideoLike {
   volume: number;
   muted: boolean;
   playbackRate?: number;
+  loop?: boolean;
+  src?: string;
+  load?(): void;
+  addEventListener?(type: string, cb: () => void, opts?: { once?: boolean }): void;
 }
 
 export type PlayerNav = { next(): void; prev(): void; canNext(): boolean; canPrev(): boolean };
@@ -36,6 +40,8 @@ export function createPlayer() {
     slot: null as Rect | null,
     failed: false,
     rate: loadRate(),
+    loop: false,
+    sourceIdx: -1,
   });
 
   let el: VideoLike | null = null;
@@ -48,6 +54,10 @@ export function createPlayer() {
     if (el !== null) el.playbackRate = state.rate;
   }
 
+  function applyLoop(): void {
+    if (el !== null) el.loop = state.loop;
+  }
+
   return {
     get mode(): PlayerMode { return state.mode; },
     get item(): PlayerItem | null { return state.item; },
@@ -57,6 +67,8 @@ export function createPlayer() {
     get volume(): number { return state.volume; },
     get muted(): boolean { return state.muted; },
     get rate(): number { return state.rate; },
+    get loop(): boolean { return state.loop; },
+    get sourceIdx(): number { return state.sourceIdx; },
     get slot(): Rect | null { return state.slot; },
     get failed(): boolean { return state.failed; },
 
@@ -66,6 +78,7 @@ export function createPlayer() {
         v.volume = state.volume;
         v.muted = state.muted;
         applyRate();
+        applyLoop();
       }
     },
 
@@ -84,8 +97,11 @@ export function createPlayer() {
       state.ended = false;
       state.slot = null;
       state.mode = "stage";
+      state.loop = false;
+      state.sourceIdx = -1;
       autoplay = false;
       applyRate();
+      applyLoop();
     },
 
     swap(item: PlayerItem): void {
@@ -98,8 +114,11 @@ export function createPlayer() {
       state.duration = 0;
       state.playing = false;
       state.ended = false;
+      state.loop = false;
+      state.sourceIdx = -1;
       autoplay = true;
       applyRate();
+      applyLoop();
     },
 
     consumeAutoplay(): boolean {
@@ -174,6 +193,40 @@ export function createPlayer() {
       if (el !== null) el.muted = state.muted;
     },
 
+    setLoop(on: boolean): void {
+      state.loop = on;
+      applyLoop();
+    },
+
+    playSource(url: string, keep: boolean): void {
+      if (el === null || el.src === undefined) return;
+      const v = el;
+      const t = v.currentTime;
+      const wasPlaying = state.playing;
+      v.src = url;
+      v.load?.();
+      if (keep) {
+        v.addEventListener?.("loadedmetadata", () => {
+          v.currentTime = t;
+          if (wasPlaying) v.play().catch(() => { state.playing = false; });
+        }, { once: true });
+      } else if (wasPlaying) {
+        void v.play();
+      }
+    },
+
+    setQuality(i: number): void {
+      const item = state.item;
+      if (item === null) return;
+      const fb = item.fallbacks ?? [];
+      if (i < -1 || i >= fb.length) return;
+      if (i === state.sourceIdx) return;
+      const url = i === -1 ? item.streamUrl : fb[i].url;
+      state.sourceIdx = i;
+      fallbackIdx = i + 1;
+      this.playSource(url, true);
+    },
+
     reapplyRate(): void {
       applyRate();
     },
@@ -220,12 +273,15 @@ export function createPlayer() {
       state.slot = null;
       state.mode = "hidden";
       state.failed = false;
+      state.loop = false;
+      state.sourceIdx = -1;
     },
 
     /** Next fallback url after a source error, or null (and failed) when all are used. */
     onSourceError(): string | null {
       const fb = state.item?.fallbacks ?? [];
       if (fallbackIdx < fb.length) {
+        state.sourceIdx = fallbackIdx;
         const url = fb[fallbackIdx].url;
         fallbackIdx += 1;
         return url;
