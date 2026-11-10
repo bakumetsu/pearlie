@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { untrack, tick } from "svelte";
   import type { Match } from "../lib/router";
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
@@ -15,6 +15,7 @@
   import ItemPanel from "../lib/item/ItemPanel.svelte";
   import SeriesGrid from "../lib/item/SeriesGrid.svelte";
   import { rejectTag } from "../lib/item/reject";
+  import { PHONE_MAX, initialOpen, savePanel } from "../lib/item/panelState";
   import Icon from "../lib/components/Icon.svelte";
 
   let { match }: { match: Match } = $props();
@@ -25,6 +26,13 @@
 
   let zoomed = $state(false);
   let lastNav = 0;
+
+  let vw = $state(window.innerWidth);
+  const phone = $derived(vw < PHONE_MAX);
+  let panelOpen = $state(initialOpen(window.innerWidth));
+  let panelEl = $state<HTMLElement | null>(null);
+  let handleEl = $state<HTMLButtonElement | null>(null);
+  let closeEl = $state<HTMLButtonElement | null>(null);
 
   const kind = $derived(toPlural(match.params.kinds ?? ""));
   const id = $derived(match.params.id ?? "");
@@ -53,6 +61,7 @@
       : -1,
   );
   const hasList = $derived(idx >= 0);
+  const hasPanel = $derived(kind !== null && (view.status === "loading" || (view.status === "ready" && !!view.detail)));
 
   const key = $derived(kind !== null ? toSingular(kind) + ":" + id : "");
 
@@ -109,6 +118,11 @@
   }
 
   function onKey(e: KeyboardEvent): void {
+    if (e.key === "Escape" && phone && panelOpen && panelEl && e.target instanceof Node && panelEl.contains(e.target)) {
+      e.preventDefault();
+      void togglePanel();
+      return;
+    }
     const el = e.target as HTMLElement | null;
     if (
       el &&
@@ -172,9 +186,17 @@
       else goPrev();
     }
   }
+
+  async function togglePanel(): Promise<void> {
+    panelOpen = !panelOpen;
+    savePanel(panelOpen);
+    await tick();
+    if (panelOpen) closeEl?.focus();
+    else handleEl?.focus();
+  }
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} bind:innerWidth={vw} />
 
 <div class="item">
   <header class="bar">
@@ -203,7 +225,7 @@
     </button>
   </header>
 
-  <div class="body" onwheel={onWheel}>
+  <div class="body" class:phone class:collapsed={!panelOpen} onwheel={onWheel}>
     {#if kind === null || view.status === "gone"}
       <div class="state">
         <p>This item is gone</p>
@@ -211,7 +233,10 @@
       </div>
     {:else if view.status === "loading"}
       <div class="stage" aria-busy="true"><div class="skel"></div></div>
-      <aside class="panel" aria-busy="true"><div class="skel"></div></aside>
+      <aside class="panel" aria-busy="true" inert={!panelOpen} aria-hidden={!panelOpen} bind:this={panelEl}>
+        <button class="panel-btn" bind:this={closeEl} aria-label="Hide panel" aria-expanded={panelOpen} onclick={() => void togglePanel()}><Icon name="chevrons-right" /></button>
+        <div class="skel"></div>
+      </aside>
     {:else if view.status === "error"}
       <div class="state">
         <p>Could not load this item</p>
@@ -253,7 +278,8 @@
           </div>
         {/if}
       </div>
-      <aside class="panel">
+      <aside class="panel" inert={!panelOpen} aria-hidden={!panelOpen} bind:this={panelEl}>
+        <button class="panel-btn" bind:this={closeEl} aria-label="Hide panel" aria-expanded={panelOpen} onclick={() => void togglePanel()}><Icon name="chevrons-right" /></button>
         <ItemPanel
           detail={view.detail}
           tags={view.tagStrings}
@@ -263,6 +289,9 @@
           onrejecttag={(t) => void rejectTag(api, toasts, t)}
         />
       </aside>
+    {/if}
+    {#if !panelOpen && hasPanel}
+      <button class="handle" bind:this={handleEl} aria-label="Show panel" aria-expanded={panelOpen} onclick={() => void togglePanel()}><Icon name="chevrons-left" /></button>
     {/if}
   </div>
 </div>
@@ -317,6 +346,16 @@
     grid-template-columns: minmax(0, 1fr) 360px;
     min-height: 0;
     overflow: hidden;
+    position: relative;
+    transition: grid-template-columns 250ms ease;
+  }
+
+  .body.collapsed:not(.phone) {
+    grid-template-columns: minmax(0, 1fr) 0px;
+  }
+
+  .body.phone {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .stage {
@@ -346,6 +385,76 @@
     padding: var(--s-4);
     border-left: 1px solid var(--line);
     background: var(--surface);
+    min-width: 0;
+    transition: visibility 0s linear 0s;
+  }
+
+  .body.collapsed:not(.phone) .panel {
+    visibility: hidden;
+    padding-left: 0;
+    padding-right: 0;
+    border-left-width: 0;
+    overflow: hidden;
+    transition: visibility 0s linear 250ms;
+  }
+
+  .body.phone .panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(360px, calc(100% - 16px));
+    z-index: 5;
+    transform: translateX(0);
+    transition: transform 250ms ease, visibility 0s linear 0s;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .body.phone.collapsed .panel {
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform 250ms ease, visibility 0s linear 250ms;
+    pointer-events: none;
+  }
+
+  .panel-btn {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: var(--s-1);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    margin: 0 0 var(--s-2) auto;
+  }
+
+  .handle {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--line);
+    border-right: none;
+    border-radius: var(--s-1) 0 0 var(--s-1);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    position: absolute;
+    top: var(--s-3);
+    right: 0;
+    z-index: 4;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .body,
+    .panel,
+    .body.phone .panel,
+    .body.collapsed:not(.phone) .panel,
+    .body.phone.collapsed .panel {
+      transition: none;
+    }
   }
 
   .state button {
