@@ -539,7 +539,8 @@
     place-items: center;
     background: none;
     border: 0;
-    color: inherit;
+    color: rgba(255, 255, 255, 0.75);
+    border-radius: 50%;
     cursor: pointer;
     text-decoration: none;
   }
@@ -549,8 +550,15 @@
     border-radius: var(--r-md);
   }
 
-  .act.danger {
-    color: #ff6b6b;
+  .act:hover,
+  .act:focus-visible {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .act.danger:hover,
+  .act.danger:focus-visible {
+    color: var(--danger-hot);
   }
 
   .bar-left :global(button) {
