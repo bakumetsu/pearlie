@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Api } from "../api/client";
 import { toasts } from "./toasts.svelte";
-import { createViewSettings, DEFAULTS } from "./viewSettings.svelte";
+import { createViewSettings, PLACEHOLDER } from "./viewSettings.svelte";
 
 function makeApi(overrides: Partial<Record<string, unknown>> = {}): Api & Record<string, unknown> {
   const api: Record<string, unknown> = {
     getViewSettings: vi.fn().mockResolvedValue({ sources: {} }),
     putViewSetting: vi.fn().mockImplementation((_source: string, body: { mode: string; per_page: number; zoom: number }) =>
-      Promise.resolve({ mode: body.mode, per_page: body.per_page, zoom: body.zoom, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200 }),
+      Promise.resolve({ mode: body.mode, per_page: body.per_page, zoom: body.zoom, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200, modes: ["grid", "wall", "masonry", "list"] }),
     ),
     ...overrides,
   };
@@ -22,16 +22,15 @@ describe("viewSettings store", () => {
   it("has defaults before load", () => {
     const store = createViewSettings();
     expect(store.ready).toBe(false);
-    expect(store.sources.danbooru).toEqual(DEFAULTS.danbooru);
-    expect(store.sources.stash_images).toEqual(DEFAULTS.stash_images);
-    expect(store.sources.nhentai).toEqual(DEFAULTS.nhentai);
+    expect(store.get("danbooru")).toEqual(PLACEHOLDER);
+    expect(store.get("stash_images")).toEqual(PLACEHOLDER);
   });
 
   it("load merges server values and sets ready", async () => {
     const api = makeApi({
       getViewSettings: vi.fn().mockResolvedValue({
         sources: {
-          danbooru: { mode: "list", per_page: 40, zoom: 5, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200 },
+          danbooru: { mode: "list", per_page: 40, zoom: 5, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200, modes: ["grid", "wall", "masonry", "list"] },
         },
       }),
     });
@@ -39,9 +38,9 @@ describe("viewSettings store", () => {
     await store.load(api);
 
     expect(store.ready).toBe(true);
-    expect(store.sources.danbooru).toEqual({ mode: "list", per_page: 40, zoom: 5, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200 });
-    // Server omitted stash_images, so default is kept
-    expect(store.sources.stash_images).toEqual(DEFAULTS.stash_images);
+    expect(store.sources.danbooru).toEqual({ mode: "list", per_page: 40, zoom: 5, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200, modes: ["grid", "wall", "masonry", "list"] });
+    // Server omitted stash_images, so placeholder is returned
+    expect(store.get("stash_images")).toEqual(PLACEHOLDER);
   });
 
   it("load failure keeps defaults and sets ready true without throwing", async () => {
@@ -52,8 +51,8 @@ describe("viewSettings store", () => {
     await expect(store.load(api)).resolves.toBeUndefined();
 
     expect(store.ready).toBe(true);
-    expect(store.sources.danbooru).toEqual(DEFAULTS.danbooru);
-    expect(store.sources.stash_images).toEqual(DEFAULTS.stash_images);
+    expect(store.get("danbooru")).toEqual(PLACEHOLDER);
+    expect(store.get("stash_images")).toEqual(PLACEHOLDER);
   });
 
   it("load twice calls getViewSettings once", async () => {
@@ -77,7 +76,13 @@ describe("viewSettings store", () => {
 
   it("set with invalid per_page returns false, no PUT, value unchanged", async () => {
     // per_page 0
-    const api0 = makeApi();
+    const api0 = makeApi({
+      getViewSettings: vi.fn().mockResolvedValue({
+        sources: {
+          gelbooru: { mode: "grid", per_page: 60, zoom: 3, per_page_options: [20, 40, 60, 100], per_page_max: 100, modes: ["grid", "wall", "masonry", "list"] },
+        },
+      }),
+    });
     const s0 = createViewSettings();
     await s0.load(api0);
     const before0 = { ...s0.sources.gelbooru };
@@ -87,7 +92,13 @@ describe("viewSettings store", () => {
     expect(s0.sources.gelbooru).toEqual(before0);
 
     // per_page 61.5 (not a whole number)
-    const apiF = makeApi();
+    const apiF = makeApi({
+      getViewSettings: vi.fn().mockResolvedValue({
+        sources: {
+          gelbooru: { mode: "grid", per_page: 60, zoom: 3, per_page_options: [20, 40, 60, 100], per_page_max: 100, modes: ["grid", "wall", "masonry", "list"] },
+        },
+      }),
+    });
     const sF = createViewSettings();
     await sF.load(apiF);
     const beforeF = { ...sF.sources.gelbooru };
@@ -97,7 +108,13 @@ describe("viewSettings store", () => {
     expect(sF.sources.gelbooru).toEqual(beforeF);
 
     // per_page 101 for gelbooru (cap is 100)
-    const apiC = makeApi();
+    const apiC = makeApi({
+      getViewSettings: vi.fn().mockResolvedValue({
+        sources: {
+          gelbooru: { mode: "grid", per_page: 60, zoom: 3, per_page_options: [20, 40, 60, 100], per_page_max: 100, modes: ["grid", "wall", "masonry", "list"] },
+        },
+      }),
+    });
     const sC = createViewSettings();
     await sC.load(apiC);
     const beforeC = { ...sC.sources.gelbooru };
@@ -141,9 +158,57 @@ describe("viewSettings store", () => {
     expect(api.putViewSetting).not.toHaveBeenCalled();
   });
 
-  it("get for unknown source returns danbooru defaults shape", () => {
+  it("get for unknown source returns placeholder", () => {
     const store = createViewSettings();
     const val = store.get("nonexistent_source");
-    expect(val).toEqual(DEFAULTS.danbooru);
+    expect(val).toEqual(PLACEHOLDER);
+  });
+
+  it("load coerces mode to first allowed mode when server sends disallowed mode", async () => {
+    const api = makeApi({
+      getViewSettings: vi.fn().mockResolvedValue({
+        sources: {
+          stash_videos: { mode: "grid", per_page: 60, zoom: 3, per_page_options: [60], per_page_max: 200, modes: ["wall", "list"] },
+        },
+      }),
+    });
+    const store = createViewSettings();
+    await store.load(api);
+
+    expect(store.sources.stash_videos.mode).toBe("wall");
+  });
+
+  it("load keeps allowed mode when server sends valid mode", async () => {
+    const api = makeApi({
+      getViewSettings: vi.fn().mockResolvedValue({
+        sources: {
+          komga_series: { mode: "list", per_page: 60, zoom: 3, per_page_options: [60], per_page_max: 200, modes: ["grid", "list"] },
+        },
+      }),
+    });
+    const store = createViewSettings();
+    await store.load(api);
+
+    expect(store.sources.komga_series.mode).toBe("list");
+  });
+
+  it("set rejects disallowed mode and accepts allowed mode", async () => {
+    const api = makeApi({
+      getViewSettings: vi.fn().mockResolvedValue({
+        sources: {
+          stash_videos: { mode: "wall", per_page: 60, zoom: 3, per_page_options: [60], per_page_max: 200, modes: ["wall", "list"] },
+        },
+      }),
+    });
+    const store = createViewSettings();
+    await store.load(api);
+
+    const r1 = await store.set("stash_videos", { mode: "grid" });
+    expect(r1).toBe(false);
+    expect(api.putViewSetting).not.toHaveBeenCalled();
+
+    const r2 = await store.set("stash_videos", { mode: "list" });
+    expect(r2).toBe(true);
+    expect(api.putViewSetting).toHaveBeenCalledWith("stash_videos", { mode: "list", per_page: 60, zoom: 3 });
   });
 });

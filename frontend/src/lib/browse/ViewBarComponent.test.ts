@@ -7,6 +7,7 @@ import type { Mode } from "./layout";
 function baseProps() {
   return {
     mode: "grid" as Mode,
+    modes: ["grid", "wall", "masonry", "list"] as Mode[],
     perPage: 60,
     zoom: 3,
     options: [20, 40, 60, 100, 200],
@@ -102,6 +103,33 @@ describe("ViewBarComponent", () => {
 
     await fireEvent.change(slider, { target: { value: "4" } });
     expect(props.onzoom).toHaveBeenCalledWith(4);
+  });
+
+  it("modes [wall, list] renders exactly two mode buttons: Wall and List", () => {
+    render(ViewBarComponent, { ...baseProps(), modes: ["wall", "list"] as Mode[] });
+
+    expect(screen.getByRole("button", { name: "Wall" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "List" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Grid" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Masonry" })).toBeNull();
+  });
+
+  it("modes [grid, list] renders exactly Grid and List", () => {
+    render(ViewBarComponent, { ...baseProps(), modes: ["grid", "list"] as Mode[] });
+
+    expect(screen.getByRole("button", { name: "Grid" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "List" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Wall" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Masonry" })).toBeNull();
+  });
+
+  it("clicking an offered button calls onmode with that mode", async () => {
+    const props = { ...baseProps(), modes: ["wall", "list"] as Mode[] };
+    render(ViewBarComponent, props);
+
+    const listBtn = screen.getByRole("button", { name: "List" });
+    await fireEvent.click(listBtn);
+    expect(props.onmode).toHaveBeenCalledWith("list");
   });
 
   it("phone: View button opens sheet dialog with controls and Done", async () => {
