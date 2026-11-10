@@ -3,7 +3,8 @@
   import { onDestroy } from "svelte";
   import { videoPreview } from "../stores/videoPreview.svelte";
   import type { LibraryItem } from "../api/client";
-  import Icon from "./Icon.svelte";
+  import { formatDuration } from "../format";
+  import FavBadge from "./FavBadge.svelte";
 
   let {
     item,
@@ -173,18 +174,6 @@
     videoPreview.stop(key);
   });
 
-  // --- duration format (copied from Tile) ---
-  function formatDuration(s: number): string {
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = Math.floor(s % 60);
-    if (h > 0) {
-      return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-    }
-    return `${m}:${String(sec).padStart(2, "0")}`;
-  }
-
-
 </script>
 
 <div
@@ -230,9 +219,7 @@
   {/if}
 
   {#if variant !== "list" && item.favorite}
-    <span class="fav">
-      <Icon name="heart-filled" size={14} />
-    </span>
+    <FavBadge />
   {/if}
 
   {#if blurred}
@@ -297,13 +284,6 @@
     font-size: var(--t-13);
     font-weight: 600;
     border-radius: var(--r-md);
-  }
-  .fav {
-    position: absolute;
-    top: var(--s-1);
-    right: var(--s-1);
-    z-index: 1;
-    color: var(--danger-fg);
   }
   .duration,
   .res {

@@ -2,6 +2,8 @@
   import Icon from "./Icon.svelte";
   import VideoCard from "./VideoCard.svelte";
   import type { LibraryItem, WebItem } from "../api/client";
+  import { formatDuration } from "../format";
+  import FavBadge from "./FavBadge.svelte";
 
   let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, landscape = false }: {
     item: LibraryItem | WebItem;
@@ -58,13 +60,7 @@
     onnavigate?.(e);
   }
 
-  function formatDuration(s: number): string {
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = Math.floor(s % 60);
-    if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-    return `${m}:${String(sec).padStart(2, "0")}`;
-  }
+
 
   function getProgress(): number {
     if (isWeb) return 0;
@@ -138,7 +134,7 @@
     <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick} role="button" tabindex="0" onkeydown={handleMediaKeydown}>
       <img src={l.thumb_url} alt="" loading="lazy" class:blur-img={blurred} />
       {#if variant !== "list" && l.favorite}
-        <span class="fav"><Icon name="heart-filled" size={14} /></span>
+        <FavBadge />
       {/if}
 
       {#if l.kind === "series" || l.kind === "book"}
@@ -202,13 +198,6 @@
     font-size: var(--t-13);
     font-weight: 600;
     border-radius: var(--r-md);
-  }
-  .fav {
-    position: absolute;
-    top: var(--s-1);
-    right: var(--s-1);
-    z-index: 1;
-    color: var(--danger-fg);
   }
   .duration {
     position: absolute;

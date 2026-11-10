@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
-const source = readFileSync(join(process.cwd(), "src/lib/components/SectionRow.svelte"), "utf8");
+import source from "./SectionRow.svelte?raw";
 
 function rule(src: string, selector: string): string {
   const start = src.indexOf(selector + " {");
