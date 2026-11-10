@@ -9,6 +9,8 @@
   import ImageStage from "../item/ImageStage.svelte";
   import Icon from "../components/Icon.svelte";
   import { pageOptions, rangeText, clampInput } from "./pager";
+  import RatingStars from "../item/RatingStars.svelte";
+  import { itemHref } from "../item/kinds";
 
   type OverlayGrid = ListGrid &
     GridLike & {
@@ -100,6 +102,19 @@
     })
   );
 
+  function toggleZoom() {
+    zoomed = !zoomed;
+  }
+
+  const canRate = $derived(view.status === "ready" && view.detail?.id === id);
+
+  function rate(n: number) {
+    if (!canRate) return;
+    void view.setRating(n);
+  }
+
+  const detailsHref = $derived(itemHref({ kind: "image", id }));
+
   async function step(dir: 1 | -1) {
     if (stepping) return;
     if (!canStep(grid, key, dir, { cross: true, kind: "image" })) return;
@@ -171,6 +186,14 @@
       e.stopPropagation();
       if (zoomed) zoomed = false;
       else onclose();
+    } else if (e.key === "z") {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleZoom();
+    } else if (/^[1-5]$/.test(e.key)) {
+      e.preventDefault();
+      e.stopPropagation();
+      rate(Number(e.key));
     }
   }
 
@@ -273,10 +296,10 @@
   </div>
 
   <div class="bottom">
-    <div class="bar-left"></div>
+    <div class="bar-left"><RatingStars value={canRate ? (view.detail?.rating ?? null) : null} onrate={rate} /></div>
     <div class="bar-name">{name}</div>
-    <div class="bar-right"></div>
-    <!-- bar-left / bar-right: hooks for the next card -->
+    <div class="bar-right"><button type="button" class="act" aria-label="Zoom" aria-pressed={zoomed} onclick={toggleZoom}><Icon name={zoomed ? "zoom-out" : "zoom-in"} size={22} /></button><a class="act" href={detailsHref} aria-label="Details"><Icon name="info" size={22} /></a></div>
+    <!-- bar-right: action group (zoom, details, trash); room for a favourite heart between zoom and details -->
   </div>
 </div>
 
@@ -453,6 +476,43 @@
     font-weight: 600;
     overflow-wrap: anywhere;
     max-width: 460px;
+  }
+
+  .bar-left {
+    display: flex;
+    align-items: center;
+    justify-self: start;
+  }
+
+  .bar-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--s-2);
+  }
+
+  .act {
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .act[aria-pressed="true"] {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: var(--r-md);
+  }
+
+  .bar-left :global(button) {
+    min-width: 44px;
+    min-height: 44px;
   }
 
   button:focus-visible,

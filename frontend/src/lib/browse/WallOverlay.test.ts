@@ -30,12 +30,13 @@ function makeGrid(over: Record<string, unknown> = {}) {
     markCrossed: vi.fn(),
     removeById: vi.fn(() => null),
     restore: vi.fn(),
+    updateById: vi.fn(() => true),
     ...over,
   };
 }
 
-function makeApi(): Api {
-  return {
+function makeApi(over: Record<string, unknown> = {}): Api {
+  const base = {
     getItem: vi.fn(
       async (_k: string, id: string) => ({
         kind: "image",
@@ -47,9 +48,12 @@ function makeApi(): Api {
         added_at: "2026-01-01",
         file_name: id + ".jpg",
         tags: [],
+        rating: 3,
       }),
     ),
-  } as unknown as Api;
+    patchItem: vi.fn(async () => ({})),
+  };
+  return { ...base, ...over } as unknown as Api;
 }
 
 function makeToasts() {
@@ -249,5 +253,163 @@ describe("WallOverlay", () => {
     const dialog = container.querySelector(".layer")!;
     fireEvent.click(dialog);
     expect(onclose).toHaveBeenCalledTimes(1);
+  });
+
+  it("zoom button and z key share one state", async () => {
+    const { getByRole, container } = mount();
+    const dialog = container.querySelector(".layer")!;
+
+    await waitFor(() => {
+      const radio = getByRole("radio", { name: "Rating 3 of 5" });
+      expect(radio.getAttribute("aria-checked")).toBe("true");
+    });
+
+    const zoomBtn = getByRole("button", { name: "Zoom" });
+    expect(zoomBtn.getAttribute("aria-pressed")).toBe("false");
+
+    await fireEvent.keyDown(dialog, { key: "z" });
+    expect(zoomBtn.getAttribute("aria-pressed")).toBe("true");
+
+    await fireEvent.click(zoomBtn);
+    expect(zoomBtn.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("Escape un-zooms first; second Escape closes", async () => {
+    const onclose = vi.fn();
+    const { getByRole, container } = mount({ onclose });
+    const dialog = container.querySelector(".layer")!;
+
+    await waitFor(() => {
+      const radio = getByRole("radio", { name: "Rating 3 of 5" });
+      expect(radio.getAttribute("aria-checked")).toBe("true");
+    });
+
+    const zoomBtn = getByRole("button", { name: "Zoom" });
+
+    await fireEvent.keyDown(dialog, { key: "z" });
+    expect(zoomBtn.getAttribute("aria-pressed")).toBe("true");
+
+    await fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onclose).not.toHaveBeenCalled();
+    expect(zoomBtn.getAttribute("aria-pressed")).toBe("false");
+
+    await fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onclose).toHaveBeenCalledTimes(1);
+  });
+
+  it("key 4 calls api.patchItem with rating:4; pressing same value again clears with rating:null", async () => {
+    const patchItem = vi.fn(async () => ({}));
+    const { getByRole, container } = mount({ api: makeApi({ patchItem }) });
+    const dialog = container.querySelector(".layer")!;
+
+    await waitFor(() => {
+      const radio = getByRole("radio", { name: "Rating 3 of 5" });
+      expect(radio.getAttribute("aria-checked")).toBe("true");
+    });
+
+    await fireEvent.keyDown(dialog, { key: "4" });
+    await waitFor(() => {
+      expect(patchItem).toHaveBeenCalledWith("images", "a", { rating: 4 });
+    });
+
+    await waitFor(() => {
+      const radio4 = getByRole("radio", { name: "Rating 4 of 5" });
+      expect(radio4.getAttribute("aria-checked")).toBe("true");
+    });
+
+    await fireEvent.keyDown(dialog, { key: "4" });
+    await waitFor(() => {
+      expect(patchItem).toHaveBeenCalledWith("images", "a", { rating: null });
+    });
+  });
+
+  it("patchItem rejects: rating rolls back and error toast shown", async () => {
+    const patchItem = vi.fn(async () => { throw new Error("fail"); });
+    const toasts = makeToasts();
+    const { getByRole, container } = mount({ api: makeApi({ patchItem }), toasts });
+    const dialog = container.querySelector(".layer")!;
+
+    await waitFor(() => {
+      const radio = getByRole("radio", { name: "Rating 3 of 5" });
+      expect(radio.getAttribute("aria-checked")).toBe("true");
+    });
+
+    await fireEvent.keyDown(dialog, { key: "4" });
+
+    await waitFor(() => {
+      expect(patchItem).toHaveBeenCalledWith("images", "a", { rating: 4 });
+    });
+
+    await waitFor(() => {
+      const radio3 = getByRole("radio", { name: "Rating 3 of 5" });
+      expect(radio3.getAttribute("aria-checked")).toBe("true");
+    });
+
+    expect(toasts.push).toHaveBeenCalledWith({ kind: "error", message: "Could not save the rating. Try again." });
+  });
+
+  it("before detail loads, key 4 and star click do not call patchItem", async () => {
+    const patchItem = vi.fn();
+    const api = {
+      ...makeApi({ patchItem }),
+      getItem: vi.fn(() => new Promise(() => {})),
+    } as unknown as Api;
+    const { queryByRole, container } = mount({ api });
+    const dialog = container.querySelector(".layer")!;
+
+    await fireEvent.keyDown(dialog, { key: "4" });
+
+    const star = queryByRole("radio", { name: "Rating 4 of 5" });
+    if (star) {
+      await fireEvent.click(star);
+    }
+
+    expect(patchItem).not.toHaveBeenCalled();
+  });
+
+  it("keys 1-5 and z ignored while focus is in the page select", async () => {
+    const patchItem = vi.fn(async () => ({}));
+    const { getByLabelText, getByRole } = mount({ api: makeApi({ patchItem }) });
+
+    await waitFor(() => {
+      const radio = getByRole("radio", { name: "Rating 3 of 5" });
+      expect(radio.getAttribute("aria-checked")).toBe("true");
+    });
+
+    const select = getByLabelText("Page");
+    await fireEvent.keyDown(select, { key: "4" });
+    await fireEvent.keyDown(select, { key: "z" });
+
+    expect(getByRole("button", { name: "Zoom" }).getAttribute("aria-pressed")).toBe("false");
+    expect(patchItem).not.toHaveBeenCalled();
+  });
+
+  it("Details link has href '/item/images/a'", async () => {
+    const { getByRole } = mount();
+
+    await waitFor(() => {
+      const radio = getByRole("radio", { name: "Rating 3 of 5" });
+      expect(radio.getAttribute("aria-checked")).toBe("true");
+    });
+
+    const link = getByRole("link", { name: "Details" });
+    expect(link.getAttribute("href")).toBe("/item/images/a");
+  });
+
+  it("grid.updateById called with ('image:a', {rating:4}) after rating succeeds", async () => {
+    const patchItem = vi.fn(async () => ({}));
+    const { getByRole, container, grid } = mount({ api: makeApi({ patchItem }) });
+    const dialog = container.querySelector(".layer")!;
+
+    await waitFor(() => {
+      const radio = getByRole("radio", { name: "Rating 3 of 5" });
+      expect(radio.getAttribute("aria-checked")).toBe("true");
+    });
+
+    await fireEvent.keyDown(dialog, { key: "4" });
+
+    await waitFor(() => {
+      expect(grid.updateById).toHaveBeenCalledWith("image:a", { rating: 4 });
+    });
   });
 });
