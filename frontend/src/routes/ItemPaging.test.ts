@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/svelte";
 import App from "../App.svelte";
-import { seeAllGrid } from "../lib/stores/shared.svelte";
+import { resetAllGrids } from "../lib/stores/shared.svelte";
 
 function tile(id: string) {
   return {
@@ -42,7 +42,7 @@ describe("Item prev/next across pages", () => {
   let pages: number[];
 
   beforeEach(() => {
-    seeAllGrid.reset();
+    resetAllGrids();
     vi.stubGlobal("localStorage", {
       getItem: () => null,
       setItem: () => {},

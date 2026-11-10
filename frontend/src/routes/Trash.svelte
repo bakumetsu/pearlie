@@ -5,9 +5,9 @@
 	import { getApi } from '../lib/api/client';
 	import { createTrash } from '../lib/stores/trash.svelte';
 	import { expiresLabel } from '../lib/trash/format';
-	import { seeAllGrid } from '../lib/stores/shared.svelte';
+	import { resetAllGrids } from '../lib/stores/shared.svelte';
 
-	const trash = createTrash(getApi(), { onRestored: () => seeAllGrid.reset() });
+	const trash = createTrash(getApi(), { onRestored: () => resetAllGrids() });
 
 	let h1: HTMLHeadingElement;
 

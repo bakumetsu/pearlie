@@ -6,7 +6,7 @@
   import { toPlural, toSingular, itemHref } from "../lib/item/kinds";
   import { nearestInList, canStep, stepInList } from "../lib/item/listNav";
   import { createItemView } from "../lib/item/itemView.svelte";
-  import { seeAllGrid, keyOf } from "../lib/stores/shared.svelte";
+  import { gridFor, keyOf } from "../lib/stores/shared.svelte";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { player } from "../lib/player/player.svelte";
   import { toPlayerItem } from "../lib/player/playerNav.svelte";
@@ -22,7 +22,7 @@
 
   const api = getApi();
   const router = getRouter();
-  const view = createItemView({ api, grid: seeAllGrid, toasts });
+  const view = createItemView({ api, grid: () => grid, toasts });
 
   let zoomed = $state(false);
   let lastNav = 0;
@@ -36,6 +36,7 @@
 
   const kind = $derived(toPlural(match.params.kinds ?? ""));
   const id = $derived(match.params.id ?? "");
+  const grid = $derived(gridFor(kind));
 
   $effect(() => {
     if (kind !== null) {
@@ -57,7 +58,7 @@
 
   const idx = $derived(
     kind !== null
-      ? seeAllGrid.items.findIndex((t) => keyOf(t) === toSingular(kind) + ":" + id)
+      ? grid.items.findIndex((t) => keyOf(t) === toSingular(kind) + ":" + id)
       : -1,
   );
   const hasList = $derived(idx >= 0);
@@ -65,11 +66,11 @@
 
   const key = $derived(kind !== null ? toSingular(kind) + ":" + id : "");
 
-  const prev = $derived(hasList ? nearestInList(seeAllGrid.items, idx, -1) : null);
-  const next = $derived(hasList ? nearestInList(seeAllGrid.items, idx, 1) : null);
+  const prev = $derived(hasList ? nearestInList(grid.items, idx, -1) : null);
+  const next = $derived(hasList ? nearestInList(grid.items, idx, 1) : null);
 
-  const canPrev = $derived(hasList && canStep(seeAllGrid, key, -1, { cross: true }));
-  const canNext = $derived(hasList && canStep(seeAllGrid, key, 1, { cross: true }));
+  const canPrev = $derived(hasList && canStep(grid, key, -1, { cross: true }));
+  const canNext = $derived(hasList && canStep(grid, key, 1, { cross: true }));
 
   const preload = $derived(
     next?.kind === "image" ? ((next as { full_url?: string }).full_url ?? null) : null,
@@ -81,7 +82,7 @@
       router.navigate(itemHref(next), { replace: true });
       return;
     }
-    void stepInList(seeAllGrid, key, 1, { cross: true }).then((t) => {
+    void stepInList(grid, key, 1, { cross: true }).then((t) => {
       if (t) router.navigate(itemHref(t), { replace: true });
     });
   }
@@ -92,7 +93,7 @@
       router.navigate(itemHref(prev), { replace: true });
       return;
     }
-    void stepInList(seeAllGrid, key, -1, { cross: true }).then((t) => {
+    void stepInList(grid, key, -1, { cross: true }).then((t) => {
       if (t) router.navigate(itemHref(t), { replace: true });
     });
   }

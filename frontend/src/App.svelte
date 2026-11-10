@@ -24,7 +24,7 @@
   import SfwToggle from "./lib/components/SfwToggle.svelte";
   import { installReveal } from "./lib/stores/sfw-reveal";
   import { player } from "./lib/player/player.svelte";
-  import { seeAllGrid } from "./lib/stores/shared.svelte";
+  import { gridFor } from "./lib/stores/shared.svelte";
   import { toasts } from "./lib/stores/toasts.svelte";
   import { createPlayerNav } from "./lib/player/playerNav.svelte";
 
@@ -36,7 +36,7 @@
   setJobs(jobs);
   player.setNav(createPlayerNav({
     player,
-    grid: seeAllGrid,
+    grid: gridFor("videos"),
     getDetail: (k, id) => api.getItem(k, id),
     navigate: (h) => router.navigate(h, { replace: true }),
     notify: (m) => toasts.push({ kind: "error", message: m }),
