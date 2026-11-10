@@ -187,6 +187,13 @@
     }
   }
 
+  // Handle auto-hide: true while the pointer is within 80 px of the right edge. Only a boolean is written, and only on change.
+  let handleNear = $state(false);
+  function onPointerMove(e: PointerEvent): void {
+    const near = window.innerWidth - e.clientX <= 80;
+    if (near !== handleNear) handleNear = near;
+  }
+
   async function togglePanel(): Promise<void> {
     panelOpen = !panelOpen;
     savePanel(panelOpen);
@@ -196,7 +203,7 @@
   }
 </script>
 
-<svelte:window onkeydown={onKey} bind:innerWidth={vw} />
+<svelte:window onkeydown={onKey} onpointermove={onPointerMove} bind:innerWidth={vw} />
 
 <div class="item">
   <header class="bar">
@@ -291,7 +298,7 @@
       </aside>
     {/if}
     {#if !panelOpen && hasPanel}
-      <button class="handle" bind:this={handleEl} aria-label="Show panel" aria-expanded={panelOpen} onclick={() => void togglePanel()}><Icon name="chevrons-left" /></button>
+      <button class="handle" class:near={handleNear} bind:this={handleEl} aria-label="Show panel" aria-expanded={panelOpen} onclick={() => void togglePanel()}><Icon name="chevrons-left" /></button>
     {/if}
   </div>
 </div>
@@ -442,13 +449,31 @@
     color: var(--text);
     cursor: pointer;
     position: absolute;
-    top: 50%;
+    top: var(--s-4);
     right: 0;
-    z-index: 4;
+    z-index: 22;
+  }
+
+  /* Phone keeps the old mid-height spot. */
+  .body.phone .handle {
+    top: 50%;
     transform: translateY(-50%);
   }
 
+  /* Hover devices: hide the handle (still focusable) unless the pointer is near the right edge or it has keyboard focus. */
+  @media (hover: hover) and (pointer: fine) {
+    .body:not(.phone) .handle {
+      opacity: 0;
+      transition: opacity 150ms ease;
+    }
+    .body:not(.phone) .handle.near,
+    .body:not(.phone) .handle:focus-visible {
+      opacity: 1;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
+    .body:not(.phone) .handle,
     .body,
     .panel,
     .body.phone .panel,
