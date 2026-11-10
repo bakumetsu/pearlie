@@ -27,7 +27,15 @@ def save(body: SaveBody) -> SaveAccepted:
     except Conflict as exc:
         raise ApiError(409, "already_saved", "Already saved", library_ref=exc.library_ref) from None
     except Rejected:
-        raise ApiError(422, "rejected_by_rule", "Rejected by a rule") from None
+        raise ApiError(
+            422,
+            "rejected_by_rule",
+            "Blocked by reject list: reject_alpha",
+            layer="reject",
+            rule="reject_alpha",
+            tag="reject_alpha",
+            alias=None,
+        ) from None
     return SaveAccepted(job_id=job_id)
 
 

@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Query, Request, Response
 
 from app.api.errors import ApiError
+from app.filters.rules import check, load_reject
 from app.jobs.store import JobStore
 from app.jobs.worker import JobWorker
 from app.models import Job, JobList, SaveAccepted, SaveBody
 from app.sources.base import Source, SourceError
 
 router = APIRouter(prefix="/api")
+logger = logging.getLogger("pearlie")
 
 _VALID_STATES: frozenset[str] = frozenset(
     ("queued", "running", "done", "failed", "needs_click", "skipped")
@@ -46,6 +50,20 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
         if e.status == 404 or e.code == "not_found":
             raise ApiError(404, "not_found", "Post not found") from None
         raise ApiError(502, e.code, e.message) from None
+    decision = check(post.tags, load_reject(request.app.state.settings.db_path))
+    if decision is not None:
+        logger.info(
+            "save blocked: layer=%s rule=%s tag=%s", decision.layer, decision.rule, decision.tag
+        )
+        raise ApiError(
+            422,
+            "rejected_by_rule",
+            f"Blocked by {decision.layer} list: {decision.rule}",
+            layer=decision.layer,
+            rule=decision.rule,
+            tag=decision.tag,
+            alias=decision.alias,
+        )
     job_id = store.enqueue(
         post,
         src.target,

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
+from app.db import connect
 from app.filters.aliases import alias_table, fold
 from app.filters.baselist import BASE_LIST
 
@@ -15,6 +17,18 @@ class Decision:
     rule: str
     tag: str
     alias: str | None
+
+
+def load_reject(db_path: Path) -> list[str]:
+    """Read the enabled user reject entries (`scope:pattern` or `pattern`) from the rules table."""
+    conn = connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT pattern, scope FROM rules WHERE list = 'reject' AND enabled = 1 ORDER BY id"
+        ).fetchall()
+    finally:
+        conn.close()
+    return [f"{r['scope']}:{r['pattern']}" if r["scope"] else r["pattern"] for r in rows]
 
 
 def check(post_tags: dict[str, list[str]], reject: Sequence[str]) -> Decision | None:
