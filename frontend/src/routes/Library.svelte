@@ -6,6 +6,8 @@
   import type { Match } from "../lib/router";
   import type { Kind, LibraryItem } from "../lib/api/client";
   import SectionRow from "../lib/components/SectionRow.svelte";
+
+  const ROW_PAGE_SIZE = 28;
   import Tile from "../lib/components/Tile.svelte";
   import { onMount } from "svelte";
   import { SvelteURLSearchParams } from "svelte/reactivity";
@@ -56,7 +58,7 @@
     try {
       const result = await api.list(
         kind,
-        { page_size: 12, favorite: fav ? true : undefined },
+        { page_size: ROW_PAGE_SIZE, favorite: fav ? true : undefined },
         signal,
       );
       if (signal?.aborted) return;
@@ -160,7 +162,7 @@
         onretry={() => loadRow(row.kind)}
       >
         {#if rs.status === "loading"}
-          {#each Array.from({ length: 6 }, (_, i) => i) as i (i)}
+          {#each Array.from({ length: 7 }, (_, i) => i) as i (i)}
             <div class="skeleton"></div>
           {/each}
         {:else}

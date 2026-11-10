@@ -100,6 +100,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--s-2);
+    min-width: 0;
   }
   .header {
     display: flex;
@@ -132,6 +133,7 @@
   }
   .strip-wrap {
     position: relative;
+    min-width: 0;
   }
   .strip {
     display: flex;
@@ -140,13 +142,14 @@
     scroll-snap-type: x proximity;
     scrollbar-width: none;
     padding: var(--s-1) 0;
+    min-width: 0;
   }
   .strip::-webkit-scrollbar {
     display: none;
   }
   .strip > :global(*) {
     scroll-snap-align: start;
-    flex: 0 0 160px;
+    flex: 0 0 max(120px, calc((100% - 6 * var(--s-2)) / 7));
   }
   .arrow {
     position: absolute;

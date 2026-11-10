@@ -61,6 +61,16 @@ describe("Library hub chips", () => {
     });
   });
 
+  it("requests 28 items per section row", async () => {
+    render(App);
+
+    await vi.waitFor(() => {
+      const rowUrls = recordedUrls.filter((u) => u.includes("/api/library/"));
+      expect(rowUrls.length).toBeGreaterThanOrEqual(4);
+      for (const u of rowUrls) expect(u).toContain("page_size=28");
+    });
+  });
+
   it("clicking Komga sets pressed state, persists hub, and swaps fetches", async () => {
     render(App);
 
