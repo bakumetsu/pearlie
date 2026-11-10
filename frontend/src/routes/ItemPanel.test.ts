@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/svelte";
 import App from "../App.svelte";
+import itemSrc from "./Item.svelte?raw";
 
 const PANEL_KEY = "pearlie.item.panel";
 
@@ -326,5 +327,40 @@ describe("Item side panel (T-53)", () => {
     await vi.waitFor(() => {
       expect(location.pathname).not.toBe("/item/images/1b");
     });
+  });
+
+  it("handle: near-edge pointermove shows it, far pointermove hides it (T-59)", async () => {
+    setWidth(1024);
+    vi.stubGlobal("localStorage", makeStorage("closed"));
+    await renderAndWait();
+
+    const handle = screen.getByRole("button", { name: "Show panel" });
+    expect(handle.classList.contains("near")).toBe(false);
+
+    await fireEvent(window, new MouseEvent("pointermove", { clientX: 1000 }));
+    expect(handle.classList.contains("near")).toBe(true);
+
+    await fireEvent(window, new MouseEvent("pointermove", { clientX: 500 }));
+    expect(handle.classList.contains("near")).toBe(false);
+  });
+
+  it("handle: panel open renders no handle (T-59)", async () => {
+    setWidth(1024);
+    vi.stubGlobal("localStorage", makeStorage("open"));
+    await renderAndWait();
+
+    expect(screen.queryByRole("button", { name: "Show panel" })).toBeNull();
+  });
+
+  it("handle: CSS sits above the player, aligned with the panel button, shown on focus (T-59)", () => {
+    const rule = itemSrc.match(/\n {2}\.handle \{([^}]*)\}/);
+    expect(rule).not.toBeNull();
+    const z = rule![1].match(/z-index:\s*(\d+)/);
+    expect(z).not.toBeNull();
+    expect(Number(z![1])).toBeGreaterThan(21);
+    expect(rule![1]).toMatch(/top:\s*var\(--s-4\)/);
+    expect(itemSrc).toMatch(/@media \(hover: hover\) and \(pointer: fine\)/);
+    expect(itemSrc).toMatch(/\.handle:focus-visible/);
+    expect(itemSrc).toMatch(/\.handle\.near/);
   });
 });
