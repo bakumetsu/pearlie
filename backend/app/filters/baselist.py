@@ -28,7 +28,6 @@ def load_base_list(path: Path) -> dict[str, tuple[str, ...]]:
         else:
             tag = fold(stripped)
             aliases = ()
-
         result[tag] = result.get(tag, ()) + aliases
 
     if not result:

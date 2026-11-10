@@ -13,8 +13,6 @@ class RulesInvalid(Exception):
         self.field = field
 
 
-
-
 def _hit(rule: str, tags: list[Tag]) -> bool:
     if ":" in rule:
         scope, value = rule.split(":", 1)
