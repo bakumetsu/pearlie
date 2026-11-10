@@ -6,13 +6,13 @@
   import type { Match } from "../lib/router";
   import type { Kind, LibraryItem } from "../lib/api/client";
   import SectionRow from "../lib/components/SectionRow.svelte";
-
-  const ROW_PAGE_SIZE = 28;
   import Tile from "../lib/components/Tile.svelte";
   import { onMount } from "svelte";
   import { SvelteURLSearchParams } from "svelte/reactivity";
   import { HUBS, loadHub, saveHub, hubKinds } from "../lib/library/hub";
   import type { Hub } from "../lib/library/hub";
+
+  const ROW_PAGE_SIZE = 28;
 
   let { match }: { match: Match } = $props();
 

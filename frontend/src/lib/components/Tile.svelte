@@ -60,8 +60,6 @@
     onnavigate?.(e);
   }
 
-
-
   function getProgress(): number {
     if (isWeb) return 0;
     const lib = item as LibraryItem;
