@@ -442,9 +442,10 @@
     color: var(--text);
     cursor: pointer;
     position: absolute;
-    top: var(--s-3);
+    top: 50%;
     right: 0;
     z-index: 4;
+    transform: translateY(-50%);
   }
 
   @media (prefers-reduced-motion: reduce) {
