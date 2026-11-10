@@ -303,6 +303,7 @@ describe("SeeAll + WallOverlay wiring", () => {
       );
     });
 
+    const fetchedBeforeClose = pages.length;
     const closeBtn = document.querySelector('button[aria-label="Close"]');
     expect(closeBtn).not.toBeNull();
     fireEvent.click(closeBtn!);
@@ -313,6 +314,8 @@ describe("SeeAll + WallOverlay wiring", () => {
       expect(location.search.includes("open")).toBe(false);
       expect(location.search.includes("page=2")).toBe(true);
     });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(pages.slice(fetchedBeforeClose)).not.toContain(1);
 
     expect(back).toHaveBeenCalledTimes(1);
     expect(location.search.includes("open")).toBe(false);
@@ -320,6 +323,12 @@ describe("SeeAll + WallOverlay wiring", () => {
     await waitFor(() => {
       expect(document.activeElement?.getAttribute("data-key")).toBe("image:2a");
     });
+
+    // Back after Close does not reopen the overlay
+    history.back();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(location.search.includes("open")).toBe(false);
 
     cleanup();
   });

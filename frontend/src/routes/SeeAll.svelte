@@ -95,7 +95,7 @@
     navQuery(withOpen(match.query, openKey(id)), true);
   }
   // Close after a page crossing: pop the opening entry, then replace it with the current page without `open`.
-  let pendingCloseQuery: string | null = null;
+  let pendingCloseQuery = $state<string | null>(null);
   function closeOverlay() {
     if (openedByPush && grid.page === openedPage) {
       openedByPush = false;
@@ -110,14 +110,17 @@
     }
   }
 
-  // Must stay before the grid effects: they skip while a close is pending.
+  // Pending close: popstate lands on the opening entry (no `open`, old page); replace it with the
+  // wanted query. The grid effects skip while pendingCloseQuery is set; it is cleared only once
+  // match.query equals it, so the skip never depends on effect order.
   $effect(() => {
     const path = match.path;
-    void match.query;
+    const cur = match.query.toString();
     if (pendingCloseQuery === null) return;
-    const qs = pendingCloseQuery;
-    pendingCloseQuery = null;
-    router.navigate(path + (qs ? `?${qs}` : ""), { replace: true });
+    const want = new SvelteURLSearchParams(pendingCloseQuery).toString();
+    if (cur === want) { pendingCloseQuery = null; return; }
+    if (parseOpen(match.query) !== null) return;
+    router.navigate(path + (want ? `?${want}` : ""), { replace: true });
   });
 
   // Stale param: remove open key when not applicable
