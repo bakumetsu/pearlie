@@ -256,7 +256,7 @@
     if (p === 1) qs.delete("page");
     else qs.set("page", String(p));
     const search = qs.toString();
-    router.navigate(match.path + (search ? `?${search}` : ""));
+    router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   }
 
 
@@ -400,7 +400,7 @@
   {/if}
 
   {#if grid.status !== "error" && grid.status !== "idle"}
-    <Pager page={grid.page} pages={grid.pages} hasNext={grid.hasNext} perPage={vs.per_page} shown={grid.items.length} total={grid.total} stats={grid.stats ? { megapixels: grid.stats.megapixels ?? null, size_bytes: grid.stats.size_bytes ?? null } : null} onpage={setPage} showStats={false} />
+    <Pager page={grid.page} pages={grid.pages} hasNext={grid.hasNext} perPage={vs.per_page} shown={grid.items.length} total={grid.total} stats={grid.stats ? { megapixels: grid.stats.megapixels ?? null, size_bytes: grid.stats.size_bytes ?? null } : null} onpage={setPage} showStats={false} spaced />
   {/if}
   {/if}
 </div>
