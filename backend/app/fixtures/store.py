@@ -49,6 +49,7 @@ _LIBRARY_KEYS = frozenset(
         "studio",
         "date",
         "size_bytes",
+        "file_name",
         "book_count",
         "read_count",
     }

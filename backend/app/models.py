@@ -75,6 +75,7 @@ class LibraryItem(BaseModel):
     studio: str | None = None
     date: str | None = None
     size_bytes: int | None = None
+    file_name: str | None = None
     page_count: int | None = None
     read_page: int | None = None
     book_count: int | None = None

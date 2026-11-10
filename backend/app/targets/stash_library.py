@@ -130,6 +130,12 @@ def _fallback_streams(fid: str, dto: dict) -> list[StreamOption]:
     return streams
 
 
+def _image_file_name(dto: dict) -> str | None:
+    """Return the basename of the first visual file, or None."""
+    basename = _first_file(dto.get("visual_files") or []).get("basename")
+    return basename if isinstance(basename, str) and basename else None
+
+
 def image_item(dto: dict) -> LibraryItem:
     """Map a Stash image DTO to a ``LibraryItem``."""
     fid = _fid(dto)
@@ -137,6 +143,7 @@ def image_item(dto: dict) -> LibraryItem:
         dto, "image", f"/api/media/stash/images/{fid}/thumb", "visual_files", "Image"
     )
     kw["tags"] = _tag_names(dto)
+    kw["file_name"] = _image_file_name(dto)
     return LibraryItem(**kw)
 
 
@@ -177,6 +184,7 @@ def image_detail(dto: dict, link_base: str = "") -> LibraryItemDetail:
     kw["full_url"] = f"/api/media/stash/images/{fid}/full"
     basename = _first_file(files).get("basename")
     kw["mime"] = mimetypes.guess_type(basename)[0] if basename else None
+    kw["file_name"] = _image_file_name(dto)
     kw["stash_link"] = f"{link_base.rstrip('/')}/images/{fid}" if link_base else None
     return LibraryItemDetail(**kw)
 

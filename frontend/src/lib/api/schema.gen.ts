@@ -900,6 +900,8 @@ export interface components {
             date?: string | null;
             /** Size Bytes */
             size_bytes?: number | null;
+            /** File Name */
+            file_name?: string | null;
             /** Page Count */
             page_count?: number | null;
             /** Read Page */
@@ -948,6 +950,8 @@ export interface components {
             date?: string | null;
             /** Size Bytes */
             size_bytes?: number | null;
+            /** File Name */
+            file_name?: string | null;
             /** Page Count */
             page_count?: number | null;
             /** Read Page */
