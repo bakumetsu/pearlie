@@ -280,6 +280,22 @@ describe("createItemView", () => {
       expect(toasts.push).toHaveBeenCalledWith({ kind: "info", message: "Restored" });
     });
 
+    it("onAction restores on the server but skips grid.restore when the grid page changed", async () => {
+      const { api, grid, toasts, view, preLoad } = setup();
+      const g = grid as unknown as { page?: number };
+      g.page = 1;
+      await preLoad();
+      api.deleteItem.mockResolvedValue(trashResult);
+      api.restore.mockResolvedValue({ item: gridItem });
+      grid.removeById.mockReturnValue({ item: gridItem, index: 0 });
+      await view.remove();
+      const undoToast = toasts.push.mock.calls.at(-1)?.[0];
+      g.page = 2;
+      await undoToast!.onAction!();
+      expect(api.restore).toHaveBeenCalledWith("tok-1");
+      expect(grid.restore).not.toHaveBeenCalled();
+    });
+
     it("onAction with 404 restore shows 'Can't undo any more' and skips grid.restore", async () => {
       const { api, grid, toasts, view, preLoad } = setup();
       await preLoad();

@@ -7,6 +7,7 @@ export interface GridLike {
   removeById(id: string): { item: LibraryItem | WebItem; index: number } | null;
   restore(entry: { item: LibraryItem | WebItem; index: number }): void;
   updateById?(id: string, patch: Partial<LibraryItem>): boolean;
+  page?: number;
 }
 export interface ToastsLike {
   push(t: { kind: "info" | "error" | "undo"; message: string; actionLabel?: string; onAction?: () => void }): number;
@@ -138,6 +139,7 @@ export function createItemView(deps: ItemDeps) {
         return;
       }
 
+      const page = deps.grid.page;
       const entry = deps.grid.removeById(itemKey({ kind: d.kind, id: d.id }));
       const token = trashResult.token;
 
@@ -148,7 +150,7 @@ export function createItemView(deps: ItemDeps) {
         onAction: async () => {
           try {
             await deps.api.restore(token);
-            if (entry !== null) deps.grid.restore(entry);
+            if (entry !== null && deps.grid.page === page) deps.grid.restore(entry);
             deps.toasts.push({ kind: "info", message: "Restored" });
           } catch (e) {
             if (e instanceof ApiError && e.status === 404) {

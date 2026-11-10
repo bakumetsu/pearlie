@@ -413,3 +413,113 @@ describe("WallOverlay", () => {
     });
   });
 });
+
+describe("WallOverlay delete", () => {
+  function delApi() {
+    return makeApi({
+      deleteItem: vi.fn(async () => ({ token: "t" })),
+      restore: vi.fn(async () => ({})),
+    });
+  }
+
+  function removingGrid(items: LibraryItem[]) {
+    const removeById = vi.fn((k: string) => {
+      const index = items.findIndex((it) => "image:" + it.id === k);
+      if (index === -1) return null;
+      const item = items[index];
+      items.splice(index, 1);
+      return { item, index };
+    });
+    return { items, removeById };
+  }
+
+  it("Delete key on 'b' calls deleteItem('images','b'), pushes an undo toast, steps to 'c'", async () => {
+    const onstep = vi.fn();
+    const toasts = makeToasts();
+    const api = delApi();
+    const items = makeItems();
+    const gridOver = { ...removingGrid(items) };
+    const { container, getByRole } = mount({ id: "b", api, toasts, onstep, grid: gridOver });
+    const dialog = container.querySelector(".layer")!;
+    await waitFor(() => expect(getByRole("radio", { name: "Rating 3 of 5" }).getAttribute("aria-checked")).toBe("true"));
+    await fireEvent.keyDown(dialog, { key: "Delete" });
+    await waitFor(() => expect(api.deleteItem).toHaveBeenCalledWith("images", "b"));
+    await waitFor(() => expect(onstep).toHaveBeenCalledWith("c"));
+    expect(toasts.push).toHaveBeenCalledWith(expect.objectContaining({ kind: "undo" }));
+  });
+
+  it("Delete on last item 'c' with hasNext false, pages 1, page 1 steps to previous 'b'", async () => {
+    const onstep = vi.fn();
+    const toasts = makeToasts();
+    const api = delApi();
+    const items = makeItems();
+    const gridOver = { ...removingGrid(items), hasNext: false, pages: 1, page: 1 };
+    const { container, getByRole } = mount({ id: "c", api, toasts, onstep, grid: gridOver });
+    const dialog = container.querySelector(".layer")!;
+    await waitFor(() => expect(getByRole("radio", { name: "Rating 3 of 5" }).getAttribute("aria-checked")).toBe("true"));
+    await fireEvent.keyDown(dialog, { key: "Delete" });
+    await waitFor(() => expect(api.deleteItem).toHaveBeenCalledWith("images", "c"));
+    await waitFor(() => expect(onstep).toHaveBeenCalledWith("b"));
+  });
+
+  it("Delete on the only item closes", async () => {
+    const onstep = vi.fn();
+    const onclose = vi.fn();
+    const toasts = makeToasts();
+    const api = delApi();
+    const items: LibraryItem[] = [
+      { kind: "image", id: "a", title: "A", thumb_url: "/t/a", favorite: false, added_at: "2026-01-01" },
+    ];
+    const gridOver = { ...removingGrid(items), hasNext: false, pages: 1, page: 1 };
+    const { container, getByRole } = mount({ id: "a", api, toasts, onstep, onclose, grid: gridOver });
+    const dialog = container.querySelector(".layer")!;
+    await waitFor(() => expect(getByRole("radio", { name: "Rating 3 of 5" }).getAttribute("aria-checked")).toBe("true"));
+    await fireEvent.keyDown(dialog, { key: "Delete" });
+    await waitFor(() => expect(api.deleteItem).toHaveBeenCalledWith("images", "a"));
+    expect(onclose).toHaveBeenCalled();
+    expect(onstep).not.toHaveBeenCalled();
+  });
+
+  it("two Delete presses make one deleteItem call", async () => {
+    let resolveFn!: () => void;
+    const promise = new Promise<{ token: string }>((res) => { resolveFn = () => res({ token: "t" }); });
+    const deleteItem = vi.fn(() => promise);
+    const api = makeApi({ deleteItem, restore: vi.fn(async () => ({})) });
+    const onstep = vi.fn();
+    const { container, getByRole } = mount({ id: "b", api, onstep });
+    const dialog = container.querySelector(".layer")!;
+    await waitFor(() => expect(getByRole("radio", { name: "Rating 3 of 5" }).getAttribute("aria-checked")).toBe("true"));
+    fireEvent.keyDown(dialog, { key: "Delete" });
+    fireEvent.keyDown(dialog, { key: "Delete" });
+    expect(deleteItem).toHaveBeenCalledTimes(1);
+    resolveFn();
+    await promise;
+    expect(deleteItem).toHaveBeenCalledTimes(1);
+  });
+
+  it("failed delete keeps the picture", async () => {
+    const deleteItem = vi.fn(async () => { throw new Error("fail"); });
+    const api = makeApi({ deleteItem, restore: vi.fn(async () => ({})) });
+    const toasts = makeToasts();
+    const onstep = vi.fn();
+    const onclose = vi.fn();
+    const { container, getByRole } = mount({ id: "b", api, toasts, onstep, onclose });
+    const dialog = container.querySelector(".layer")!;
+    await waitFor(() => expect(getByRole("radio", { name: "Rating 3 of 5" }).getAttribute("aria-checked")).toBe("true"));
+    await fireEvent.keyDown(dialog, { key: "Delete" });
+    await waitFor(() => expect(deleteItem).toHaveBeenCalledWith("images", "b"));
+    expect(onstep).not.toHaveBeenCalled();
+    expect(onclose).not.toHaveBeenCalled();
+    expect(toasts.push).toHaveBeenCalledWith(expect.objectContaining({ kind: "error" }));
+  });
+
+  it("Delete button 'Delete' has class act and click deletes", async () => {
+    const api = delApi();
+    const { getByRole } = mount({ id: "b", api });
+    await waitFor(() => expect(getByRole("radio", { name: "Rating 3 of 5" }).getAttribute("aria-checked")).toBe("true"));
+    const btn = getByRole("button", { name: "Delete" });
+    expect(btn.className).toContain("act");
+    fireEvent.click(btn);
+    await waitFor(() => expect(api.deleteItem).toHaveBeenCalledWith("images", "b"));
+  });
+});

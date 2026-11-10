@@ -5,7 +5,7 @@
   import { keyOf } from "../stores/shared.svelte";
   import { createItemView } from "../item/itemView.svelte";
   import type { GridLike, ToastsLike } from "../item/itemView.svelte";
-  import { canStep, stepInList, type ListGrid } from "../item/listNav";
+  import { canStep, stepInList, nearestInList, pageEdge, type ListGrid } from "../item/listNav";
   import ImageStage from "../item/ImageStage.svelte";
   import Icon from "../components/Icon.svelte";
   import { pageOptions, rangeText, clampInput } from "./pager";
@@ -42,6 +42,7 @@
   let closeEl: HTMLButtonElement | undefined = $state();
   let zoomed = $state(false);
   let stepping = $state(false);
+  let deleting = $state(false);
   let fieldText = $state("");
 
   // svelte-ignore state_referenced_locally
@@ -80,7 +81,7 @@
       ""
   );
 
-  const busy = $derived(view.status === "loading" || stepping);
+  const busy = $derived(view.status === "loading" || stepping || deleting);
 
   const canPrev = $derived(canStep(grid, key, -1, { cross: true, kind: "image" }));
   const canNext = $derived(canStep(grid, key, 1, { cross: true, kind: "image" }));
@@ -103,20 +104,21 @@
   );
 
   function toggleZoom() {
+    if (deleting) return;
     zoomed = !zoomed;
   }
 
   const canRate = $derived(view.status === "ready" && view.detail?.id === id);
 
   function rate(n: number) {
-    if (!canRate) return;
+    if (!canRate || deleting) return;
     void view.setRating(n);
   }
 
   const detailsHref = $derived(itemHref({ kind: "image", id }));
 
   async function step(dir: 1 | -1) {
-    if (stepping) return;
+    if (stepping || deleting) return;
     if (!canStep(grid, key, dir, { cross: true, kind: "image" })) return;
     stepping = true;
     try {
@@ -128,6 +130,39 @@
       }
     } finally {
       stepping = false;
+    }
+  }
+
+  async function onDelete() {
+    if (!canRate || deleting || stepping) return;
+    const idx = grid.items.findIndex((t) => keyOf(t) === key);
+    const target =
+      nearestInList(grid.items, idx, 1, "image") ?? nearestInList(grid.items, idx, -1, "image");
+    deleting = true;
+    try {
+      await view.remove();
+      if (view.status !== "gone") return;
+      if (target) {
+        onstep(target.id);
+        return;
+      }
+      const dir: 1 | -1 = pageEdge(grid, 1) ? 1 : -1;
+      if (pageEdge(grid, dir)) {
+        await grid.goTo(grid.page + dir);
+        if (grid.status !== "error") {
+          const items = grid.items;
+          const t = nearestInList(items, dir === 1 ? -1 : items.length, dir, "image");
+          if (t) {
+            grid.markCrossed();
+            onstep(t.id);
+            return;
+          }
+        }
+        toasts.push({ kind: "error", message: "Could not load the next page" });
+      }
+      onclose();
+    } finally {
+      deleting = false;
     }
   }
 
@@ -194,6 +229,10 @@
       e.preventDefault();
       e.stopPropagation();
       rate(Number(e.key));
+    } else if (e.key === "Delete") {
+      e.preventDefault();
+      e.stopPropagation();
+      void onDelete();
     }
   }
 
@@ -298,7 +337,7 @@
   <div class="bottom">
     <div class="bar-left"><RatingStars value={canRate ? (view.detail?.rating ?? null) : null} onrate={rate} /></div>
     <div class="bar-name">{name}</div>
-    <div class="bar-right"><button type="button" class="act" aria-label="Zoom" aria-pressed={zoomed} onclick={toggleZoom}><Icon name={zoomed ? "zoom-out" : "zoom-in"} size={22} /></button><a class="act" href={detailsHref} aria-label="Details"><Icon name="info" size={22} /></a></div>
+    <div class="bar-right"><button type="button" class="act" aria-label="Zoom" aria-pressed={zoomed} onclick={toggleZoom}><Icon name={zoomed ? "zoom-out" : "zoom-in"} size={22} /></button><a class="act" href={detailsHref} aria-label="Details"><Icon name="info" size={22} /></a><button type="button" class="act danger" aria-label="Delete" onclick={onDelete}><Icon name="trash" size={22} /></button></div>
     <!-- bar-right: action group (zoom, details, trash); room for a favourite heart between zoom and details -->
   </div>
 </div>
@@ -508,6 +547,10 @@
   .act[aria-pressed="true"] {
     background: rgba(255, 255, 255, 0.15);
     border-radius: var(--r-md);
+  }
+
+  .act.danger {
+    color: #ff6b6b;
   }
 
   .bar-left :global(button) {
