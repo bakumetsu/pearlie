@@ -1,6 +1,5 @@
 # base list: one tag per line, optional ": alias1, alias2"
-loli: lolicon, loli_shota
-shota: shotacon
 underage
 child
 toddlercon: toddler
+scat
