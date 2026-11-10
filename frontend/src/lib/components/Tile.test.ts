@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/svelte";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, cleanup, fireEvent } from "@testing-library/svelte";
 import Tile from "./Tile.svelte";
 import type { LibraryItem } from "../api/client";
 import src from "./SectionRow.svelte?raw";
@@ -35,5 +35,70 @@ describe("SectionRow scrollbar", () => {
     expect(src).toContain("::-webkit-scrollbar");
     expect(src).toContain('class="strip no-scrollbar"');
     expect(src).toContain('aria-label="Scroll right"');
+  });
+});
+
+describe("Tile onopenitem", () => {
+  const item: LibraryItem = {
+    kind: "image",
+    id: "1",
+    title: "T",
+    thumb_url: "/t.jpg",
+    added_at: "2025-01-01T00:00:00Z",
+    favorite: false,
+  };
+
+  it("plain click on image tile calls onopenitem with item, not onnavigate, and prevents default", () => {
+    const onopenitem = vi.fn();
+    const onnavigate = vi.fn();
+    const { container } = render(Tile, { item, href: "/x", onopenitem, onnavigate });
+    const anchor = container.querySelector("a.tile")!;
+    const evt = new MouseEvent("click", { bubbles: true, cancelable: true });
+    anchor.dispatchEvent(evt);
+    expect(onopenitem).toHaveBeenCalledWith(item);
+    expect(onnavigate).not.toHaveBeenCalled();
+    expect(evt.defaultPrevented).toBe(true);
+  });
+
+  it("ctrl-click calls onnavigate and not onopenitem", () => {
+    const onopenitem = vi.fn();
+    const onnavigate = vi.fn();
+    const { container } = render(Tile, { item, href: "/x", onopenitem, onnavigate });
+    const anchor = container.querySelector("a.tile")!;
+    fireEvent.click(anchor, { ctrlKey: true });
+    expect(onnavigate).toHaveBeenCalled();
+    expect(onopenitem).not.toHaveBeenCalled();
+  });
+
+  it("video tile plain click calls onnavigate, not onopenitem", () => {
+    const videoItem: LibraryItem = {
+      kind: "video",
+      id: "1",
+      title: "T",
+      thumb_url: "/t.jpg",
+      added_at: "2025-01-01T00:00:00Z",
+      favorite: false,
+    };
+    const onopenitem = vi.fn();
+    const onnavigate = vi.fn();
+    const { container } = render(Tile, { item: videoItem, href: "/x", onopenitem, onnavigate });
+    const anchor = container.querySelector("a.tile")!;
+    fireEvent.click(anchor);
+    expect(onnavigate).toHaveBeenCalled();
+    expect(onopenitem).not.toHaveBeenCalled();
+  });
+
+  it("without onopenitem, click calls onnavigate", () => {
+    const onnavigate = vi.fn();
+    const { container } = render(Tile, { item, href: "/x", onnavigate });
+    const anchor = container.querySelector("a.tile")!;
+    fireEvent.click(anchor);
+    expect(onnavigate).toHaveBeenCalled();
+  });
+
+  it('anchor has data-key "image:1"', () => {
+    const { container } = render(Tile, { item, href: "/x" });
+    const anchor = container.querySelector("a.tile")!;
+    expect(anchor.getAttribute("data-key")).toBe("image:1");
   });
 });
