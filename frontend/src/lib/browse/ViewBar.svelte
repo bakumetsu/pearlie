@@ -6,6 +6,7 @@
 
   let {
     mode,
+    modes,
     perPage,
     zoom,
     options,
@@ -16,6 +17,7 @@
     onzoompreview,
   }: {
     mode: Mode;
+    modes: Mode[];
     perPage: number;
     zoom: number;
     options: number[];
@@ -33,7 +35,6 @@
 
   const phone = $derived(vw < 720);
 
-  const MODES: Mode[] = ["grid", "wall", "masonry", "list"];
   const MODE_LABELS: Record<Mode, string> = {
     grid: "Grid",
     wall: "Wall",
@@ -93,7 +94,7 @@
     {/if}
   </div>
   <div class="modes">
-    {#each MODES as m (m)}
+    {#each modes as m (m)}
       <button
         type="button"
         aria-label={MODE_LABELS[m]}

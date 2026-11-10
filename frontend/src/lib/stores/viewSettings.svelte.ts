@@ -14,27 +14,11 @@ export const VIEW_SOURCES = [
   "nhentai",
 ] as const;
 
-export const DEFAULTS: Record<string, ViewSettingItem> = {
-  stash_images: { mode: "grid", per_page: 60, zoom: 3, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200 },
-  stash_videos: { mode: "grid", per_page: 60, zoom: 3, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200 },
-  komga_series: { mode: "grid", per_page: 60, zoom: 3, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200 },
-  komga_books: { mode: "grid", per_page: 60, zoom: 3, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200 },
-  danbooru: { mode: "grid", per_page: 60, zoom: 3, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200 },
-  gelbooru: { mode: "grid", per_page: 60, zoom: 3, per_page_options: [20, 40, 60, 100], per_page_max: 100 },
-  rule34: { mode: "grid", per_page: 60, zoom: 3, per_page_options: [20, 40, 60, 100], per_page_max: 100 },
-  nhentai: { mode: "grid", per_page: 25, zoom: 3, per_page_options: [25], per_page_max: 25 },
-};
-
-function copyDefaults(): Record<string, ViewSettingItem> {
-  const result: Record<string, ViewSettingItem> = {};
-  for (const key of Object.keys(DEFAULTS)) {
-    result[key] = { ...DEFAULTS[key], per_page_options: [...DEFAULTS[key].per_page_options] };
-  }
-  return result;
-}
+// Neutral value used until /api/view-settings has loaded or if it fails; real values and allowed modes come from the backend.
+export const PLACEHOLDER: ViewSettingItem = { mode: "grid", per_page: 60, zoom: 3, per_page_options: [60], per_page_max: 200, modes: ["grid","wall","masonry","list"] };
 
 export function createViewSettings() {
-  let sources: Record<string, ViewSettingItem> = $state(copyDefaults());
+  let sources: Record<string, ViewSettingItem> = $state({});
   let ready = $state(false);
   let _api: Api | null = null;
   let loading: Promise<void> | null = null;
@@ -46,13 +30,17 @@ export function createViewSettings() {
     loading = (async () => {
       try {
         const res = await api.getViewSettings();
-        const merged: Record<string, ViewSettingItem> = { ...copyDefaults() };
+        const merged: Record<string, ViewSettingItem> = {};
         for (const key of Object.keys(res.sources)) {
-          merged[key] = res.sources[key];
+          let item = res.sources[key];
+          if (!item.modes.includes(item.mode)) {
+            item = { ...item, mode: item.modes[0] };
+          }
+          merged[key] = item;
         }
         sources = merged;
       } catch {
-        // keep defaults on failure
+        // keep sources as-is on failure
       } finally {
         ready = true;
         loading = null;
@@ -62,12 +50,11 @@ export function createViewSettings() {
   }
 
   function get(source: string): ViewSettingItem {
-    return sources[source] ?? DEFAULTS["danbooru"];
+    return sources[source] ?? PLACEHOLDER;
   }
 
   function preview(source: string, partial: { zoom?: number }): void {
-    const current = sources[source];
-    if (!current) return;
+    const current = sources[source] ?? PLACEHOLDER;
     sources[source] = { ...current, ...partial };
   }
 
@@ -75,8 +62,11 @@ export function createViewSettings() {
     source: string,
     partial: Partial<Pick<ViewSettingItem, "mode" | "per_page" | "zoom">>,
   ): Promise<boolean> {
-    const current = sources[source];
-    if (!current) return false;
+    const current = sources[source] ?? PLACEHOLDER;
+
+    if (partial.mode !== undefined && !current.modes.includes(partial.mode)) {
+      return false;
+    }
 
     if (partial.per_page !== undefined) {
       const max = current.per_page_max;

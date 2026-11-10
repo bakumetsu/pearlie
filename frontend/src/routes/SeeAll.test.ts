@@ -18,6 +18,7 @@ describe("SeeAll paging", () => {
   let pages: number[];
   let sizes: number[];
   let served: (requested: number) => number;
+  let vsResponse: { status: number; body: unknown };
 
   beforeEach(() => {
     vi.stubGlobal("localStorage", {
@@ -47,6 +48,7 @@ describe("SeeAll paging", () => {
     pages = [];
     sizes = [];
     served = (r) => Math.min(r, 3);
+    vsResponse = { status: 404, body: {} };
     globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       const url = new URL(
         typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
@@ -54,8 +56,8 @@ describe("SeeAll paging", () => {
       );
       if (url.pathname === "/api/view-settings") {
         return Promise.resolve(
-          new Response(JSON.stringify({}), {
-            status: 404,
+          new Response(JSON.stringify(vsResponse.body), {
+            status: vsResponse.status,
             headers: { "Content-Type": "application/json" },
           }),
         );
@@ -151,5 +153,80 @@ describe("SeeAll paging", () => {
       expect(screen.getByText("Nothing here.")).toBeTruthy();
     });
     expect(screen.getAllByRole("button", { name: "Previous page" })[0]).toBeTruthy();
+  });
+
+  it("stash_videos with modes [wall,list] shows only Wall and List mode buttons", async () => {
+    vi.resetModules();
+    const { render: freshRender, screen: freshScreen, cleanup: freshCleanup } = await import("@testing-library/svelte");
+    const { default: FreshApp } = await import("../App.svelte");
+    vsResponse = {
+      status: 200,
+      body: {
+        sources: {
+          stash_videos: { mode: "wall", modes: ["wall", "list"], per_page: 60, zoom: 3, per_page_options: [60], per_page_max: 200 },
+        },
+      },
+    };
+    history.replaceState({}, "", "/see-all?source=stash_videos");
+    freshRender(FreshApp);
+    try {
+      await freshScreen.findByRole("button", { name: "List" });
+      expect(freshScreen.getByRole("button", { name: "Wall" })).toBeTruthy();
+      expect(freshScreen.getByRole("button", { name: "List" })).toBeTruthy();
+      expect(freshScreen.queryByRole("button", { name: "Grid" })).toBeNull();
+      expect(freshScreen.queryByRole("button", { name: "Masonry" })).toBeNull();
+    } finally {
+      freshCleanup();
+    }
+  });
+
+  it("komga_series with modes [grid,list] shows only Grid and List mode buttons", async () => {
+    vi.resetModules();
+    const { render: freshRender, screen: freshScreen, cleanup: freshCleanup } = await import("@testing-library/svelte");
+    const { default: FreshApp } = await import("../App.svelte");
+    vsResponse = {
+      status: 200,
+      body: {
+        sources: {
+          komga_series: { mode: "grid", modes: ["grid", "list"], per_page: 60, zoom: 3, per_page_options: [60], per_page_max: 200 },
+        },
+      },
+    };
+    history.replaceState({}, "", "/see-all?source=komga_series");
+    freshRender(FreshApp);
+    try {
+      await freshScreen.findByRole("button", { name: "List" });
+      expect(freshScreen.getByRole("button", { name: "Grid" })).toBeTruthy();
+      expect(freshScreen.getByRole("button", { name: "List" })).toBeTruthy();
+      expect(freshScreen.queryByRole("button", { name: "Wall" })).toBeNull();
+      expect(freshScreen.queryByRole("button", { name: "Masonry" })).toBeNull();
+    } finally {
+      freshCleanup();
+    }
+  });
+
+  it("stash_images route shows all four mode buttons", async () => {
+    vi.resetModules();
+    const { render: freshRender, screen: freshScreen, cleanup: freshCleanup } = await import("@testing-library/svelte");
+    const { default: FreshApp } = await import("../App.svelte");
+    vsResponse = {
+      status: 200,
+      body: {
+        sources: {
+          stash_images: { mode: "grid", modes: ["grid", "wall", "masonry", "list"], per_page: 60, zoom: 3, per_page_options: [20, 40, 60, 100, 200], per_page_max: 200 },
+        },
+      },
+    };
+    history.replaceState({}, "", "/see-all?source=stash_images");
+    freshRender(FreshApp);
+    try {
+      await freshScreen.findByRole("button", { name: "List" });
+      expect(freshScreen.getByRole("button", { name: "Grid" })).toBeTruthy();
+      expect(freshScreen.getByRole("button", { name: "Wall" })).toBeTruthy();
+      expect(freshScreen.getByRole("button", { name: "Masonry" })).toBeTruthy();
+      expect(freshScreen.getByRole("button", { name: "List" })).toBeTruthy();
+    } finally {
+      freshCleanup();
+    }
   });
 });

@@ -1280,6 +1280,8 @@ export interface components {
             per_page_options: number[];
             /** Per Page Max */
             per_page_max: number;
+            /** Modes */
+            modes: ("grid" | "wall" | "masonry" | "list")[];
         };
         /** ViewSettings */
         ViewSettings: {

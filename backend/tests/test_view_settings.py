@@ -52,7 +52,14 @@ def test_get_defaults(any_client):
         "zoom": 3,
         "per_page_options": [20, 40, 60, 100, 200],
         "per_page_max": 200,
+        "modes": ["grid", "wall", "masonry", "list"],
     }
+    assert sources["stash_videos"]["mode"] == "wall"
+    assert sources["stash_videos"]["modes"] == ["wall", "list"]
+    assert sources["komga_series"]["mode"] == "grid"
+    assert sources["komga_series"]["modes"] == ["grid", "list"]
+    assert sources["komga_books"]["modes"] == ["grid", "list"]
+    assert sources["danbooru"]["modes"] == ["grid", "wall", "masonry", "list"]
     assert sources["gelbooru"]["per_page_options"] == [20, 40, 60, 100]
     assert sources["gelbooru"]["per_page_max"] == 100
     assert sources["nhentai"]["per_page"] == 25
@@ -198,3 +205,35 @@ def test_real_non_object_stored_rows_fall_back(tmp_path):
     assert sources["rule34"]["mode"] == "grid"
     assert sources["rule34"]["per_page"] == 60
     assert sources["rule34"]["zoom"] == 3
+
+
+def test_disallowed_stored_mode_falls_back(client):
+    client.app.state.view_settings_mem = {
+        "stash_videos": {"mode": "grid", "per_page": 40, "zoom": 2},
+    }
+    r = client.get("/api/view-settings")
+    sources = r.json()["sources"]
+    assert sources["stash_videos"]["mode"] == "wall"
+    assert sources["stash_videos"]["per_page"] == 40
+    assert sources["stash_videos"]["zoom"] == 2
+    # store must not be rewritten
+    assert client.app.state.view_settings_mem["stash_videos"]["mode"] == "grid"
+
+
+def test_put_stash_videos_disallowed_mode(any_client):
+    r = any_client.put(
+        "/api/view-settings/stash_videos",
+        json={"mode": "grid", "per_page": 50, "zoom": 2},
+    )
+    assert r.status_code == 422
+    assert "mode must be one of" in r.text
+
+
+def test_put_stash_videos_allowed_mode(any_client):
+    r = any_client.put(
+        "/api/view-settings/stash_videos",
+        json={"mode": "wall", "per_page": 50, "zoom": 2},
+    )
+    assert r.status_code == 200
+    assert r.json()["mode"] == "wall"
+    assert r.json()["modes"] == ["wall", "list"]

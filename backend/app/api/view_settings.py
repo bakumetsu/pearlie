@@ -17,6 +17,16 @@ router = APIRouter(prefix="/api")
 
 SOURCES = list(get_args(ViewSource))
 MODES = get_args(ViewMode)
+MODES_BY_SOURCE: dict[str, tuple[ViewMode, ...]] = {
+    "stash_images": ("grid", "wall", "masonry", "list"),
+    "stash_videos": ("wall", "list"),
+    "komga_series": ("grid", "list"),
+    "komga_books": ("grid", "list"),
+    "danbooru": ("grid", "wall", "masonry", "list"),
+    "gelbooru": ("grid", "wall", "masonry", "list"),
+    "rule34": ("grid", "wall", "masonry", "list"),
+    "nhentai": ("grid", "wall", "masonry", "list"),
+}
 
 
 class View(TypedDict):
@@ -27,7 +37,7 @@ class View(TypedDict):
 
 def _default(source: str) -> View:
     return {
-        "mode": "grid",
+        "mode": MODES_BY_SOURCE[source][0],
         "per_page": 25 if source == "nhentai" else DEFAULT_PAGE_SIZE,
         "zoom": 3,
     }
@@ -91,18 +101,20 @@ def _valid(source: str, raw: Mapping[str, object] | None) -> View | None:
     mode = raw.get("mode")
     per_page = raw.get("per_page")
     zoom = raw.get("zoom")
-    if (
-        isinstance(mode, str)
-        and mode in MODES
-        and isinstance(per_page, int)
+    if not (
+        isinstance(per_page, int)
         and not isinstance(per_page, bool)
         and 1 <= per_page <= PAGE_SIZE_CAPS[source]
         and isinstance(zoom, int)
         and not isinstance(zoom, bool)
         and 1 <= zoom <= 5
     ):
-        return {"mode": cast(ViewMode, mode), "per_page": per_page, "zoom": zoom}
-    return None
+        return None
+    if not (isinstance(mode, str) and mode in MODES):
+        return None
+    if mode not in MODES_BY_SOURCE[source]:
+        mode = MODES_BY_SOURCE[source][0]
+    return {"mode": cast(ViewMode, mode), "per_page": per_page, "zoom": zoom}
 
 
 def _item(source: str, values: View) -> ViewSettingItem:
@@ -112,6 +124,7 @@ def _item(source: str, values: View) -> ViewSettingItem:
         zoom=values["zoom"],
         per_page_options=preset_options(source),
         per_page_max=PAGE_SIZE_CAPS[source],
+        modes=list(MODES_BY_SOURCE[source]),
     )
 
 
@@ -131,8 +144,13 @@ def get_view_settings(request: Request) -> ViewSettings:
 def put_view_setting(request: Request, source: str, body: ViewSettingBody) -> ViewSettingItem:
     if source not in SOURCES:
         raise ApiError(422, "invalid", f"Unknown source {source}", field="source")
-    if body.mode not in MODES:
-        raise ApiError(422, "invalid", "mode must be grid, wall, masonry or list", field="mode")
+    if body.mode not in MODES_BY_SOURCE[source]:
+        raise ApiError(
+            422,
+            "invalid",
+            "mode must be one of " + ", ".join(MODES_BY_SOURCE[source]),
+            field="mode",
+        )
     cap = PAGE_SIZE_CAPS[source]
     if body.per_page < 1 or body.per_page > cap:
         raise ApiError(422, "invalid", f"per_page must be 1 to {cap}", field="per_page")
