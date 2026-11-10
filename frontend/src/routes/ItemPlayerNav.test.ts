@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/svelte";
 import App from "../App.svelte";
-import { seeAllGrid } from "../lib/stores/shared.svelte";
+import { resetAllGrids } from "../lib/stores/shared.svelte";
 import { player } from "../lib/player/player.svelte";
 
 // ── helpers ───────────────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ describe("T-46 player nav repro", () => {
     });
 
     // reset app state
-    seeAllGrid.reset();
+    resetAllGrids();
     history.replaceState({}, "", "/see-all?source=stash_videos");
   });
 

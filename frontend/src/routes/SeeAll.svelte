@@ -6,7 +6,7 @@
   import type { Match } from "../lib/router";
   import type { Kind, WebItem, LibraryItem } from "../lib/api/client";
   import { ApiError as ApiErrorClass } from "../lib/api/client";
-  import { seeAllGrid } from "../lib/stores/shared.svelte";
+  import { gridFor } from "../lib/stores/shared.svelte";
   import Icon from "../lib/components/Icon.svelte";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { onMount } from "svelte";
@@ -72,7 +72,7 @@
     }
   });
 
-  const grid = seeAllGrid;
+  const grid = $derived(gridFor(kind));
 
   const wallMode = $derived(source === "stash_images" && (vs.mode === "wall" || vs.mode === "masonry"));
   const rawOpen = $derived(parseOpen(match.query));

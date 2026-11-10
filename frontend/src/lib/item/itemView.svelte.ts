@@ -12,7 +12,7 @@ export interface GridLike {
 export interface ToastsLike {
   push(t: { kind: "info" | "error" | "undo"; message: string; actionLabel?: string; onAction?: () => void }): number;
 }
-export type ItemDeps = { api: Api; grid: GridLike; toasts: ToastsLike; tagDebounceMs?: number };
+export type ItemDeps = { api: Api; grid: GridLike | (() => GridLike); toasts: ToastsLike; tagDebounceMs?: number };
 export type ItemStatus = "loading" | "ready" | "gone" | "error";
 
 export function createItemView(deps: ItemDeps) {
@@ -21,6 +21,7 @@ export function createItemView(deps: ItemDeps) {
     status: "loading" as ItemStatus,
     kind: null as Kind | null,
   });
+  const grid = (): GridLike => (typeof deps.grid === "function" ? deps.grid() : deps.grid);
   let currentId: string | null = null;
   let requestCounter = 0;
   let tagBase: string[] | null = null;
@@ -70,7 +71,7 @@ export function createItemView(deps: ItemDeps) {
 
       try {
         await deps.api.patchItem(kind, id, { rating: newRating });
-        deps.grid.updateById?.(itemKey({ kind: d.kind, id: d.id }), { rating: newRating });
+        grid().updateById?.(itemKey({ kind: d.kind, id: d.id }), { rating: newRating });
       } catch {
         d.rating = oldRating;
         deps.toasts.push({ kind: "error", message: "Could not save the rating. Try again." });
@@ -139,8 +140,8 @@ export function createItemView(deps: ItemDeps) {
         return;
       }
 
-      const page = deps.grid.page;
-      const entry = deps.grid.removeById(itemKey({ kind: d.kind, id: d.id }));
+      const page = grid().page;
+      const entry = grid().removeById(itemKey({ kind: d.kind, id: d.id }));
       const token = trashResult.token;
 
       deps.toasts.push({
@@ -150,7 +151,7 @@ export function createItemView(deps: ItemDeps) {
         onAction: async () => {
           try {
             await deps.api.restore(token);
-            if (entry !== null && deps.grid.page === page) deps.grid.restore(entry);
+            if (entry !== null && grid().page === page) grid().restore(entry);
             deps.toasts.push({ kind: "info", message: "Restored" });
           } catch (e) {
             if (e instanceof ApiError && e.status === 404) {
