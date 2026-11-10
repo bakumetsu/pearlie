@@ -115,11 +115,7 @@
 
   function onVideoError(): void {
     const url = player.onSourceError();
-    if (video && url !== null) {
-      video.src = url;
-      video.load();
-      if (player.playing) void video.play();
-    }
+    if (url !== null) player.playSource(url, false);
   }
 </script>
 

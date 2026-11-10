@@ -72,21 +72,17 @@ describe("PlayerBar controls: prev/next, skip, speed", () => {
     expect(next!.disabled).toBe(true);
   });
 
-  it("speed button shows 1x and click goes to 1.25x", () => {
-    player.setRate(1);
+  it("no 1x speed button; gear button present", () => {
     renderBar();
-    const rateBtn = btn("Playback speed");
-    expect(rateBtn).not.toBeNull();
-    expect(rateBtn!.textContent).toBe("1x");
-    rateBtn!.click();
-    flushSync();
-    expect(btn("Playback speed")!.textContent).toBe("1.25x");
+    expect(btn("Playback speed")).toBeNull();
+    expect(btn("Player settings")).not.toBeNull();
   });
 
-  it("compact: prev/next shown, no speed button", () => {
+  it("compact: prev/next shown, no speed button, no gear", () => {
     renderBar(true);
     expect(btn("Previous video")).not.toBeNull();
     expect(btn("Next video")).not.toBeNull();
     expect(btn("Playback speed")).toBeNull();
+    expect(btn("Player settings")).toBeNull();
   });
 });

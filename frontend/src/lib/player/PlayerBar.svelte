@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "../components/Icon.svelte";
-  import { player, RATES } from "./player.svelte";
+  import GearMenu from "./GearMenu.svelte";
+  import { player } from "./player.svelte";
   import { formatTime } from "./geometry";
   import { pipSupported, isPipActive, enterPip, exitPip, type PipVideo } from "./pip";
   import { onMount } from "svelte";
@@ -30,14 +31,6 @@
     v?.requestFullscreen?.();
   }
 
-  function onRateClick(): void {
-    const i = (RATES as readonly number[]).indexOf(player.rate);
-    if (i === RATES.length - 1) {
-      player.setRate(RATES[0]);
-    } else {
-      player.stepRate(1);
-    }
-  }
 </script>
 
 <div class="bar" role="group" aria-label="Player controls">
@@ -69,7 +62,7 @@
   <span class="time">{formatTime(player.time)} / {formatTime(player.duration)}</span>
 
   {#if !compact}
-    <button class="btn rate" aria-label="Playback speed" onclick={onRateClick}>{player.rate}x</button>
+    <GearMenu />
   {/if}
 
   <button
@@ -106,6 +99,7 @@
 
 <style>
   .bar {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--s-1);
@@ -158,8 +152,4 @@
     cursor: default;
   }
 
-  .rate {
-    font-size: var(--t-12);
-    font-variant-numeric: tabular-nums;
-  }
 </style>
