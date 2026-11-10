@@ -142,6 +142,7 @@ def build_images() -> list[dict[str, Any]]:
             "id": str(i),
             "kind": "image",
             "title": f"Image {i}",
+            "file_name": f"image-{i}.jpg",
             "thumb_url": f"/api/media/stash/images/{i}/thumb{FIXTURE_SRC}",
             "width": w,
             "height": h,
