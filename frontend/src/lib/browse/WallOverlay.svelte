@@ -9,7 +9,7 @@
   import { canStep, stepInList, nearestInList, pageEdge, type ListGrid } from "../item/listNav";
   import ImageStage from "../item/ImageStage.svelte";
   import Icon from "../components/Icon.svelte";
-  import { pageOptions, rangeText, clampInput } from "./pager";
+  import { rangeText } from "./pager";
   import { swipeDir } from "./swipe";
   import RatingStars from "../item/RatingStars.svelte";
   import { itemHref } from "../item/kinds";
@@ -28,7 +28,6 @@
     toasts,
     onstep,
     onclose,
-    onpage,
   }: {
     id: string;
     grid: OverlayGrid;
@@ -37,7 +36,6 @@
     toasts: ToastsLike;
     onstep: (id: string) => void;
     onclose: () => void;
-    onpage: (page: number) => void;
   } = $props();
 
   let layerEl: HTMLDivElement | undefined = $state();
@@ -45,7 +43,6 @@
   let zoomed = $state(false);
   let stepping = $state(false);
   let deleting = $state(false);
-  let fieldText = $state("");
   let imageFailed = $state(false);
   let retryN = $state(0);
 
@@ -67,10 +64,7 @@
     });
   });
 
-  $effect(() => {
-    const p = grid.page;
-    fieldText = String(p);
-  });
+
 
   const key = $derived("image:" + id);
   const current = $derived(
@@ -102,7 +96,7 @@
   const canPrev = $derived(canStep(grid, key, -1, { cross: true, kind: "image" }));
   const canNext = $derived(canStep(grid, key, 1, { cross: true, kind: "image" }));
 
-  const pageOpts = $derived(grid.pages !== null ? pageOptions(grid.pages) : null);
+
 
   const range = $derived(
     rangeText({
@@ -218,16 +212,7 @@
     }
   }
 
-  function commitPageField() {
-    if (grid.pages === null) return;
-    const next = clampInput(fieldText, grid.pages);
-    if (next !== null && next !== grid.page) {
-      fieldText = String(next);
-      onpage(next);
-    } else {
-      fieldText = String(grid.page);
-    }
-  }
+
 
   function onKey(e: KeyboardEvent) {
     if (e.key === "Tab") {
@@ -370,30 +355,7 @@
     </button>
     <div class="page-area">
       {#if grid.pages !== null}
-        {#if pageOpts !== null && pageOpts.kind === "select"}
-          <select
-            class="page-select"
-            aria-label="Page"
-            value={grid.page}
-            onchange={(e) => onpage(Number(e.currentTarget.value))}
-          >
-            {#each pageOpts.values as n (n)}
-              <option value={n}>{n} / {grid.pages}</option>
-            {/each}
-          </select>
-        {:else if pageOpts !== null && pageOpts.kind === "field"}
-          <input
-            class="page-field"
-            aria-label="Page"
-            inputmode="numeric"
-            bind:value={fieldText}
-            onkeydown={(e) => {
-              if (e.key === "Enter") commitPageField();
-            }}
-            onblur={commitPageField}
-          />
-          <span class="muted">/ {grid.pages}</span>
-        {/if}
+        <span class="page-text">{grid.page} / {grid.pages}</span>
       {:else}
         <span class="page-text">Page {grid.page}</span>
       {/if}
@@ -504,40 +466,13 @@
     gap: 8px;
   }
 
-  .page-select {
-    height: 44px;
-    background: transparent;
-    border: none;
-    color: #fff;
-    border-radius: var(--r-md);
-    font-size: 0.9rem;
-    cursor: pointer;
-  }
 
-  .page-select option {
-    color: #000;
-    background: #fff;
-  }
-
-  .page-field {
-    height: 44px;
-    width: 4em;
-    background: transparent;
-    border: none;
-    color: #fff;
-    border-radius: var(--r-md);
-    font-size: 0.9rem;
-    text-align: center;
-  }
 
   .page-text {
     font-size: 0.9rem;
   }
 
-  .muted {
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 0.9rem;
-  }
+
 
   .divider {
     width: 1px;
@@ -749,9 +684,7 @@
     .nav-next { right: 8px; }
   }
 
-  button:focus-visible,
-  select:focus-visible,
-  input:focus-visible {
+  button:focus-visible {
     outline: 2px solid #fff;
     outline-offset: 2px;
   }

@@ -353,7 +353,8 @@ describe("SeeAll + WallOverlay wiring", () => {
     });
 
     await waitFor(() => {
-      expect(document.querySelector('[role="dialog"] select[aria-label="Page"]')).not.toBeNull();
+      expect(document.querySelector('[role="dialog"] .page-text')).not.toBeNull();
+      expect(document.querySelector('[role="dialog"] select')).toBeNull();
       expect(document.querySelector('[role="dialog"] [aria-busy="false"]')).not.toBeNull();
     });
 
@@ -404,46 +405,5 @@ describe("SeeAll + WallOverlay wiring", () => {
     cleanup();
   });
 
-  it("page jump keeps the viewer open on the first image of the new page", async () => {
-    vi.resetModules();
-    const { render, cleanup, fireEvent, waitFor } =
-      await import("@testing-library/svelte");
-    const App = (await import("../App.svelte")).default;
 
-    history.replaceState(
-      {},
-      "",
-      "/see-all?source=stash_images&open=image:1a",
-    );
-    render(App);
-
-    await waitFor(() => {
-      expect(document.querySelector('[role="dialog"]')).not.toBeNull();
-    });
-
-    const select = await waitFor(() => {
-      const s =
-        document.querySelector(
-          '[role="dialog"] select[aria-label="Page"]',
-        );
-      expect(s).not.toBeNull();
-      return s as HTMLSelectElement;
-    });
-    select.value = "2";
-    fireEvent.change(select, { target: { value: "2" } });
-
-    await waitFor(() => {
-      const s = location.search;
-      const hasOpen =
-        s.includes("open=image%3A2a") || s.includes("open=image:2a");
-      const hasPage = s.includes("page=2");
-      expect(hasOpen).toBe(true);
-      expect(hasPage).toBe(true);
-    });
-
-    const dialog = document.querySelector('[role="dialog"]');
-    expect(dialog).not.toBeNull();
-
-    cleanup();
-  });
 });
