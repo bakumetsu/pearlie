@@ -299,6 +299,31 @@ describe("createPlayer controls", () => {
     expect(f.playbackRate).toBe(1.5);
   });
 
+  it("setQuality after all sources failed clears failed and plays the chosen source", () => {
+    const p = createPlayer();
+    const f = { ...fake(), playbackRate: 1, src: "", load: vi.fn() };
+    p.attach(f);
+    p.open({ ...item1, streamUrl: "/direct", fallbacks: [{ url: "/a", mime: "video/mp4" }] });
+    expect(p.onSourceError()).toBe("/a");
+    expect(p.onSourceError()).toBeNull();
+    expect(p.failed).toBe(true);
+    p.setQuality(-1);
+    expect(p.failed).toBe(false);
+    expect(f.src).toBe("/direct");
+    expect(f.load).toHaveBeenCalled();
+  });
+
+  it("quality switch keeps the rate", () => {
+    const p = createPlayer();
+    const f = { ...fake(), playbackRate: 1, src: "", load: vi.fn() };
+    p.attach(f);
+    p.open({ ...item1, streamUrl: "/direct", fallbacks: [{ url: "/a", mime: "video/mp4" }] });
+    p.setRate(1.5);
+    p.setQuality(0);
+    expect(f.playbackRate).toBe(1.5);
+    expect(f.defaultPlaybackRate).toBe(1.5);
+  });
+
   it("rate kept after open(other item)", () => {
     const p = createPlayer();
     const f = { ...fake(), playbackRate: 1 };

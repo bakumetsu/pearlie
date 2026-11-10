@@ -19,6 +19,7 @@ export interface VideoLike {
   volume: number;
   muted: boolean;
   playbackRate?: number;
+  defaultPlaybackRate?: number;
   loop?: boolean;
   src?: string;
   load?(): void;
@@ -51,7 +52,10 @@ export function createPlayer() {
   let navVersion = $state(0);
 
   function applyRate(): void {
-    if (el !== null) el.playbackRate = state.rate;
+    if (el !== null) {
+      el.playbackRate = state.rate;
+      el.defaultPlaybackRate = state.rate;
+    }
   }
 
   function applyLoop(): void {
@@ -205,6 +209,7 @@ export function createPlayer() {
       const wasPlaying = state.playing;
       v.src = url;
       v.load?.();
+      applyRate();
       if (keep) {
         v.addEventListener?.("loadedmetadata", () => {
           v.currentTime = t;
@@ -220,9 +225,10 @@ export function createPlayer() {
       if (item === null) return;
       const fb = item.fallbacks ?? [];
       if (i < -1 || i >= fb.length) return;
-      if (i === state.sourceIdx) return;
+      if (i === state.sourceIdx && !state.failed) return;
       const url = i === -1 ? item.streamUrl : fb[i].url;
       state.sourceIdx = i;
+      state.failed = false;
       fallbackIdx = i + 1;
       this.playSource(url, true);
     },

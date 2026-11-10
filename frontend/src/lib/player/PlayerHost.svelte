@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { player } from "./player.svelte";
   import { rectFor, toTransform } from "./geometry";
   import { setMediaSession, enterPip } from "./pip";
@@ -101,7 +102,7 @@
     const item = player.item;
     if (item !== null && video !== null) {
       video.load();
-      player.reapplyRate();
+      untrack(() => player.reapplyRate());
       if (player.consumeAutoplay()) {
         const p = video.play();
         if (p && typeof p.catch === "function") p.catch(() => {});
