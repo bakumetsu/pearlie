@@ -12,6 +12,8 @@
   import { HUBS, loadHub, saveHub, hubKinds } from "../lib/library/hub";
   import type { Hub } from "../lib/library/hub";
 
+  const ROW_PAGE_SIZE = 28;
+
   let { match }: { match: Match } = $props();
 
   const api = getApi();
@@ -56,7 +58,7 @@
     try {
       const result = await api.list(
         kind,
-        { page_size: 12, favorite: fav ? true : undefined },
+        { page_size: ROW_PAGE_SIZE, favorite: fav ? true : undefined },
         signal,
       );
       if (signal?.aborted) return;
@@ -160,12 +162,12 @@
         onretry={() => loadRow(row.kind)}
       >
         {#if rs.status === "loading"}
-          {#each Array.from({ length: 6 }, (_, i) => i) as i (i)}
+          {#each Array.from({ length: 7 }, (_, i) => i) as i (i)}
             <div class="skeleton"></div>
           {/each}
         {:else}
           {#each rs.items as item (item.id)}
-            <Tile item={item} href={itemHref(item)} onnavigate={onNav} />
+            <Tile item={item} href={itemHref(item)} onnavigate={onNav} landscape />
           {/each}
         {/if}
       </SectionRow>

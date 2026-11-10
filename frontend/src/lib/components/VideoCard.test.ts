@@ -3,6 +3,7 @@
 import { render, cleanup } from "@testing-library/svelte";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import VideoCard from "./VideoCard.svelte";
+import cardSrc from "./VideoCard.svelte?raw";
 import { videoPreview } from "../stores/videoPreview.svelte";
 import type { LibraryItem } from "../api/client";
 
@@ -258,5 +259,16 @@ describe("VideoCard", () => {
     const video = container.querySelector("video")!;
     expect(video).not.toBeNull();
     expect(video.classList.contains("blur-img")).toBe(true);
+  });
+
+  it("landscape adds the .landscape class on .media and the CSS letterboxes with object-fit: contain", () => {
+    const { container } = render(VideoCard, { ...baseProps, aspectRatio: "16 / 9", landscape: true });
+    expect(container.querySelector(".media")!.classList.contains("landscape")).toBe(true);
+    expect(cardSrc).toMatch(/\.media\.landscape img,\s*\.media\.landscape video\s*\{\s*object-fit: contain;/);
+  });
+
+  it("without landscape the .media has no .landscape class", () => {
+    const { container } = render(VideoCard, baseProps);
+    expect(container.querySelector(".media")!.classList.contains("landscape")).toBe(false);
   });
 });

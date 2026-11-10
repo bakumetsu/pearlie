@@ -2,8 +2,10 @@
   import Icon from "./Icon.svelte";
   import VideoCard from "./VideoCard.svelte";
   import type { LibraryItem, WebItem } from "../api/client";
+  import { formatDuration } from "../format";
+  import FavBadge from "./FavBadge.svelte";
 
-  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect }: {
+  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, landscape = false }: {
     item: LibraryItem | WebItem;
     href?: string;
     onnavigate?: (e: MouseEvent) => void;
@@ -14,6 +16,7 @@
     onopenitem?: (item: LibraryItem) => void;
     variant?: "grid" | "wall" | "masonry" | "list";
     aspect?: number;
+    landscape?: boolean;
   } = $props();
 
   const isWeb = $derived("post_id" in item);
@@ -57,14 +60,6 @@
     onnavigate?.(e);
   }
 
-  function formatDuration(s: number): string {
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = Math.floor(s % 60);
-    if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-    return `${m}:${String(sec).padStart(2, "0")}`;
-  }
-
   function getProgress(): number {
     if (isWeb) return 0;
     const lib = item as LibraryItem;
@@ -78,6 +73,7 @@
 
   const aspectRatio = $derived.by(() => {
     if (variant === "list") return "1 / 1";
+    if (landscape && !isWeb && (item as LibraryItem).kind === "video") return "16 / 9";
     if (variant === "wall" || variant === "masonry") {
       if (aspect != null && Number.isFinite(aspect) && aspect > 0) return `${aspect}`;
     }
@@ -131,12 +127,12 @@
   {@const l = item as LibraryItem}
   <a class="tile lib {variant}" href={href} data-key={`${l.kind}:${l.id}`} onclick={handleLibClick}>
     {#if l.kind === "video"}
-      <VideoCard item={l} {variant} {aspectRatio} {blurred} meta={metaLine()} onmediaclick={handleMediaClick} onmediakeydown={handleMediaKeydown} />
+      <VideoCard item={l} {variant} {aspectRatio} {blurred} {landscape} meta={metaLine()} onmediaclick={handleMediaClick} onmediakeydown={handleMediaKeydown} />
     {:else}
     <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick} role="button" tabindex="0" onkeydown={handleMediaKeydown}>
       <img src={l.thumb_url} alt="" loading="lazy" class:blur-img={blurred} />
       {#if variant !== "list" && l.favorite}
-        <span class="fav"><Icon name="heart-filled" size={14} /></span>
+        <FavBadge />
       {/if}
 
       {#if l.kind === "series" || l.kind === "book"}
@@ -200,13 +196,6 @@
     font-size: var(--t-13);
     font-weight: 600;
     border-radius: var(--r-md);
-  }
-  .fav {
-    position: absolute;
-    top: var(--s-1);
-    right: var(--s-1);
-    z-index: 1;
-    color: var(--danger-fg);
   }
   .duration {
     position: absolute;
