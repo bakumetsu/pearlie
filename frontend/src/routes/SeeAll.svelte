@@ -118,9 +118,8 @@
     return () => {
       document.documentElement.style.overflow = "";
       window.scrollTo(0, y);
-      const tile = document.querySelector<HTMLElement>(`[data-key="${openKey(lastOpenId)}"]`);
-      tile?.scrollIntoView({ block: "nearest" });
-      tile?.focus();
+      const id = lastOpenId;
+      tick().then(() => { const tile = document.querySelector<HTMLElement>(`[data-key="${openKey(id)}"]`); tile?.scrollIntoView?.({ block: "nearest" }); tile?.focus(); });
     };
   });
 

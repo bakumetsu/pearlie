@@ -34,6 +34,7 @@ describe("SeeAll + WallOverlay wiring", () => {
   let pages: number[];
   let detailIds: string[];
   let vsMode: string;
+  let failPage: number | null;
 
   beforeEach(() => {
     vi.stubGlobal("localStorage", {
@@ -59,10 +60,12 @@ describe("SeeAll + WallOverlay wiring", () => {
       },
     );
     window.scrollTo = vi.fn();
+    Element.prototype.scrollIntoView = vi.fn();
     history.replaceState({}, "", "/see-all?source=stash_images");
     pages = [];
     detailIds = [];
     vsMode = "wall";
+    failPage = null;
     globalThis.fetch = vi.fn().mockImplementation(
       (input: RequestInfo | URL) => {
         const url = new URL(
@@ -107,6 +110,13 @@ describe("SeeAll + WallOverlay wiring", () => {
         }
         if (url.pathname.startsWith("/api/library/")) {
           const requested = Number(url.searchParams.get("page") ?? "1");
+          if (failPage !== null && requested === failPage)
+            return Promise.resolve(
+              new Response(
+                JSON.stringify({ error: "boom" }),
+                { status: 500, headers: { "Content-Type": "application/json" } },
+              ),
+            );
           const p = requested;
           pages.push(requested);
           const items = [tile(`${p}a`), tile(`${p}b`)];
@@ -254,6 +264,105 @@ describe("SeeAll + WallOverlay wiring", () => {
     fireEvent.click(closeBtn!);
 
     expect(backSpy).toHaveBeenCalledTimes(1);
+
+    cleanup();
+  });
+
+  it("close after crossing a page replaces and stays on the new page, last tile focused", async () => {
+    vi.resetModules();
+    const { render, cleanup, fireEvent, waitFor } =
+      await import("@testing-library/svelte");
+    const App = (await import("../App.svelte")).default;
+
+    history.replaceState({}, "", "/see-all?source=stash_images");
+    const { container } = render(App);
+
+    const tileEl = await waitFor(() => {
+      const el = container.querySelector('[data-key="image:1b"]');
+      expect(el).not.toBeNull();
+      return el as Element;
+    });
+    fireEvent.click(tileEl);
+
+    await waitFor(() => {
+      const d = document.querySelector('[role="dialog"]');
+      expect(d).not.toBeNull();
+    });
+
+    const back = vi.spyOn(history, "back");
+
+    fireEvent.keyDown(document.querySelector('[role="dialog"]')!, {
+      key: "ArrowRight",
+    });
+
+    await waitFor(() => {
+      const s = location.search;
+      expect(s.includes("page=2")).toBe(true);
+      expect(s.includes("open=image%3A2a") || s.includes("open=image:2a")).toBe(
+        true,
+      );
+    });
+
+    const closeBtn = document.querySelector('button[aria-label="Close"]');
+    expect(closeBtn).not.toBeNull();
+    fireEvent.click(closeBtn!);
+
+    await waitFor(() => {
+      const d = document.querySelector('[role="dialog"]');
+      expect(d).toBeNull();
+      expect(location.search.includes("open")).toBe(false);
+      expect(location.search.includes("page=2")).toBe(true);
+    });
+
+    expect(back).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(document.activeElement?.getAttribute("data-key")).toBe("image:2a");
+    });
+
+    cleanup();
+  });
+
+  it("failed next page shows an error toast and the viewer stays on the current image", async () => {
+    vi.resetModules();
+    const { render, cleanup, fireEvent, waitFor } =
+      await import("@testing-library/svelte");
+    const App = (await import("../App.svelte")).default;
+
+    failPage = 2;
+    history.replaceState(
+      {},
+      "",
+      "/see-all?source=stash_images&open=image:1b",
+    );
+    render(App);
+
+    await waitFor(() => {
+      const d = document.querySelector('[role="dialog"]');
+      expect(d).not.toBeNull();
+    });
+
+    await waitFor(() => {
+      expect(document.querySelector('[role="dialog"] select[aria-label="Page"]')).not.toBeNull();
+      expect(document.querySelector('[role="dialog"] [aria-busy="false"]')).not.toBeNull();
+    });
+
+    fireEvent.keyDown(document.querySelector('[role="dialog"]')!, {
+      key: "ArrowRight",
+    });
+
+    await waitFor(() => {
+      expect(document.body.textContent).toContain("Could not load the next page");
+    });
+
+    expect(
+      location.search.includes("open=image%3A1b") ||
+        location.search.includes("open=image:1b"),
+    ).toBe(true);
+    expect(location.search).not.toContain("page=2");
+
+    const d = document.querySelector('[role="dialog"]');
+    expect(d).not.toBeNull();
 
     cleanup();
   });
