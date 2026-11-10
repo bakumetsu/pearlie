@@ -198,6 +198,13 @@ export function createGrid<T>(keyOf: (t: T) => string) {
     return item === undefined ? null : { item, index };
   }
 
+  function updateById(id: string, patch: Partial<T>): boolean {
+    const index = indexOf(id);
+    if (index === -1) return false;
+    state.items = state.items.map((item, i) => (i === index ? { ...item, ...patch } : item));
+    return true;
+  }
+
   function restore(entry: { item: T; index: number }) {
     insertAt(entry.item, entry.index);
   }
@@ -255,6 +262,7 @@ export function createGrid<T>(keyOf: (t: T) => string) {
     insertAt,
     removeById,
     restore,
+    updateById,
     snapshot,
     restoreSnapshot,
     reset,
