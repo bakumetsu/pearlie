@@ -187,6 +187,6 @@
   }
 
   .pager-wrap.spaced {
-    margin: 16px 0;
+    margin: 24px 0;
   }
 </style>

@@ -156,7 +156,8 @@
     const fav = favorite;
     const sd = seed;
     const pp = vs.per_page;
-    const adopt = untrack(() => grid.listKey === listKey && grid.status === "done" && grid.takeCrossed()); const pg = adopt ? untrack(() => grid.page) : page;
+    const adopt = untrack(() => grid.listKey === listKey && grid.status === "done" && grid.takeCrossed());
+    const pg = adopt ? untrack(() => grid.page) : page;
 
     if (k) {
       const loader = async (p: number, signal: AbortSignal) => {
@@ -256,10 +257,8 @@
     if (p === 1) qs.delete("page");
     else qs.set("page", String(p));
     const search = qs.toString();
-    router.navigate(match.path + (search ? `?${search}` : ""));
+    router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   }
-
-
 
   function onSortChange(value: string) {
     const qs = new SvelteURLSearchParams(match.query);
@@ -375,33 +374,33 @@
       </div>
     {/if}
     {#if viewSettings.ready}
-    <ViewBar modes={vs.modes as Mode[]} mode={vs.mode as Mode} perPage={vs.per_page} zoom={vs.zoom} options={vs.per_page_options} max={vs.per_page_max} onmode={onMode} onperpage={onPerPage} onzoom={onZoom} onzoompreview={onZoomPreview} />
+      <ViewBar modes={vs.modes as Mode[]} mode={vs.mode as Mode} perPage={vs.per_page} zoom={vs.zoom} options={vs.per_page_options} max={vs.per_page_max} onmode={onMode} onperpage={onPerPage} onzoom={onZoom} onzoompreview={onZoomPreview} />
     {/if}
   </header>
 
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
   {#if viewSettings.ready}
-  {#if grid.status !== "error" && grid.status !== "idle"}
-    <Pager page={grid.page} pages={grid.pages} hasNext={grid.hasNext} perPage={vs.per_page} shown={grid.items.length} total={grid.total} stats={grid.stats ? { megapixels: grid.stats.megapixels ?? null, size_bytes: grid.stats.size_bytes ?? null } : null} onpage={setPage} spaced bind:selectEl={pagerEl} />
-  {/if}
+    {#if grid.status !== "error" && grid.status !== "idle"}
+      <Pager page={grid.page} pages={grid.pages} hasNext={grid.hasNext} perPage={vs.per_page} shown={grid.items.length} total={grid.total} stats={grid.stats ? { megapixels: grid.stats.megapixels ?? null, size_bytes: grid.stats.size_bytes ?? null } : null} onpage={setPage} spaced bind:selectEl={pagerEl} />
+    {/if}
 
-  {#if grid.status === "loading" || grid.status === "idle"}
-    <ResultsGrid items={[]} mode={vs.mode as Mode} zoom={vs.zoom} loading={true} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} />
-  {:else if grid.status === "error"}
-    <div class="error-box">
-      <p>Could not load this list.</p>
-      <button class="retry-btn" onclick={() => grid.retry()}>Retry</button>
-    </div>
-  {:else if grid.items.length === 0}
-    <div class="empty">Nothing here.</div>
-  {:else}
-    <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} />
-  {/if}
+    {#if grid.status === "loading" || grid.status === "idle"}
+      <ResultsGrid items={[]} mode={vs.mode as Mode} zoom={vs.zoom} loading={true} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} />
+    {:else if grid.status === "error"}
+      <div class="error-box">
+        <p>Could not load this list.</p>
+        <button class="retry-btn" onclick={() => grid.retry()}>Retry</button>
+      </div>
+    {:else if grid.items.length === 0}
+      <div class="empty">Nothing here.</div>
+    {:else}
+      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} />
+    {/if}
 
-  {#if grid.status !== "error" && grid.status !== "idle"}
-    <Pager page={grid.page} pages={grid.pages} hasNext={grid.hasNext} perPage={vs.per_page} shown={grid.items.length} total={grid.total} stats={grid.stats ? { megapixels: grid.stats.megapixels ?? null, size_bytes: grid.stats.size_bytes ?? null } : null} onpage={setPage} showStats={false} />
-  {/if}
+    {#if grid.status !== "error" && grid.status !== "idle"}
+      <Pager page={grid.page} pages={grid.pages} hasNext={grid.hasNext} perPage={vs.per_page} shown={grid.items.length} total={grid.total} stats={grid.stats ? { megapixels: grid.stats.megapixels ?? null, size_bytes: grid.stats.size_bytes ?? null } : null} onpage={setPage} showStats={false} spaced />
+    {/if}
   {/if}
 </div>
 

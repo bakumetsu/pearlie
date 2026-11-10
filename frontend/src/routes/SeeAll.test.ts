@@ -229,4 +229,85 @@ describe("SeeAll paging", () => {
       freshCleanup();
     }
   });
+
+  it("paging 1 -> 3 adds no history entries", async () => {
+    history.replaceState({ depth: 0 }, "", "/");
+    history.pushState({ depth: 1 }, "", "/see-all?source=stash_images");
+    const { container } = render(App);
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll("a.tile").length).toBe(2);
+    });
+    const push = vi.spyOn(history, "pushState");
+    const rep = vi.spyOn(history, "replaceState");
+    const len = history.length;
+    await fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
+    await vi.waitFor(() => {
+      expect(location.search).toContain("page=2");
+    });
+    await fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
+    await vi.waitFor(() => {
+      expect(location.search).toContain("page=3");
+    });
+    expect(push).not.toHaveBeenCalled();
+    expect(rep).toHaveBeenCalled();
+    expect(history.length).toBe(len);
+    push.mockRestore();
+    rep.mockRestore();
+  });
+
+  it("one Back after paging 1 -> 3 leaves See-all for browse", async () => {
+    history.replaceState({ depth: 0 }, "", "/");
+    history.pushState({ depth: 1 }, "", "/see-all?source=stash_images");
+    const { container } = render(App);
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll("a.tile").length).toBe(2);
+    });
+    await fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
+    await vi.waitFor(() => {
+      expect(location.search).toContain("page=2");
+    });
+    await fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
+    await vi.waitFor(() => {
+      expect(location.search).toContain("page=3");
+    });
+    history.back();
+    await vi.waitFor(() => {
+      expect(location.pathname).toBe("/");
+    });
+  });
+
+  it("ArrowRight and ArrowLeft replace the entry", async () => {
+    history.replaceState({ depth: 0 }, "", "/");
+    history.pushState({ depth: 1 }, "", "/see-all?source=stash_images");
+    const { container } = render(App);
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll("a.tile").length).toBe(2);
+    });
+    const push = vi.spyOn(history, "pushState");
+    const rep = vi.spyOn(history, "replaceState");
+    const len = history.length;
+    await fireEvent.keyDown(window, { key: "ArrowRight" });
+    await vi.waitFor(() => {
+      expect(location.search).toContain("page=2");
+    });
+    await fireEvent.keyDown(window, { key: "ArrowLeft" });
+    await vi.waitFor(() => {
+      expect(location.search).not.toContain("page=");
+    });
+    expect(push).not.toHaveBeenCalled();
+    expect(rep).toHaveBeenCalled();
+    expect(history.length).toBe(len);
+    push.mockRestore();
+    rep.mockRestore();
+  });
+
+  it("top and bottom pager carry the spaced class", async () => {
+    history.replaceState({ depth: 0 }, "", "/");
+    history.pushState({ depth: 1 }, "", "/see-all?source=stash_images");
+    const { container } = render(App);
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll("a.tile").length).toBe(2);
+    });
+    expect(container.querySelectorAll(".pager-wrap.spaced").length).toBe(2);
+  });
 });
