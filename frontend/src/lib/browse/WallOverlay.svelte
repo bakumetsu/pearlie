@@ -1,6 +1,7 @@
 <!-- WallOverlay: dark image viewer layer over the Wall/Masonry grid (T-65 core) -->
 <script lang="ts">
   import { onMount, untrack } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import type { Api, LibraryItem } from "../api/client";
   import { keyOf } from "../stores/shared.svelte";
   import { createItemView } from "../item/itemView.svelte";
@@ -9,6 +10,7 @@
   import ImageStage from "../item/ImageStage.svelte";
   import Icon from "../components/Icon.svelte";
   import { pageOptions, rangeText, clampInput } from "./pager";
+  import { swipeDir } from "./swipe";
   import RatingStars from "../item/RatingStars.svelte";
   import { itemHref } from "../item/kinds";
 
@@ -44,6 +46,12 @@
   let stepping = $state(false);
   let deleting = $state(false);
   let fieldText = $state("");
+  let imageFailed = $state(false);
+  let retryN = $state(0);
+
+  let swipeStart: { id: number; x: number; y: number } | null = null;
+  let swipeHandled = false;
+  const activePointers = new SvelteSet<number>();
 
   // svelte-ignore state_referenced_locally
   // grid, api and toasts are fixed for the lifetime of the overlay
@@ -54,6 +62,8 @@
     untrack(() => {
       void view.load("images", i);
       zoomed = false;
+      imageFailed = false;
+      retryN = 0;
     });
   });
 
@@ -71,6 +81,12 @@
     view.status === "loading"
       ? (current?.thumb_url ?? "")
       : (view.detail?.full_url ?? view.detail?.thumb_url ?? current?.thumb_url ?? "")
+  );
+
+  const stageSrc = $derived(
+    retryN > 0 && imageSrc
+      ? imageSrc + (imageSrc.includes("?") ? "&" : "?") + "r=" + retryN
+      : imageSrc
   );
 
   const name = $derived(
@@ -133,36 +149,72 @@
     }
   }
 
+  function neighbourTarget() {
+    const idx = grid.items.findIndex((t) => keyOf(t) === key);
+    return nearestInList(grid.items, idx, 1, "image") ?? nearestInList(grid.items, idx, -1, "image");
+  }
+
+  async function stepAfterRemoval(target: ReturnType<typeof neighbourTarget>) {
+    if (target) {
+      onstep(target.id);
+      return;
+    }
+    const dir: 1 | -1 = pageEdge(grid, 1) ? 1 : -1;
+    if (pageEdge(grid, dir)) {
+      await grid.goTo(grid.page + dir);
+      if (grid.status !== "error") {
+        const items = grid.items;
+        const t = nearestInList(items, dir === 1 ? -1 : items.length, dir, "image");
+        if (t) {
+          grid.markCrossed();
+          onstep(t.id);
+          return;
+        }
+      }
+      toasts.push({ kind: "error", message: "Could not load the next page" });
+    }
+    onclose();
+  }
+
   async function onDelete() {
     if (!canRate || deleting || stepping) return;
-    const idx = grid.items.findIndex((t) => keyOf(t) === key);
-    const target =
-      nearestInList(grid.items, idx, 1, "image") ?? nearestInList(grid.items, idx, -1, "image");
+    const target = neighbourTarget();
     deleting = true;
     try {
       await view.remove();
       if (view.status !== "gone") return;
-      if (target) {
-        onstep(target.id);
-        return;
-      }
-      const dir: 1 | -1 = pageEdge(grid, 1) ? 1 : -1;
-      if (pageEdge(grid, dir)) {
-        await grid.goTo(grid.page + dir);
-        if (grid.status !== "error") {
-          const items = grid.items;
-          const t = nearestInList(items, dir === 1 ? -1 : items.length, dir, "image");
-          if (t) {
-            grid.markCrossed();
-            onstep(t.id);
-            return;
-          }
-        }
-        toasts.push({ kind: "error", message: "Could not load the next page" });
-      }
-      onclose();
+      await stepAfterRemoval(target);
     } finally {
       deleting = false;
+    }
+  }
+
+  async function handleGone() {
+    const target = neighbourTarget();
+    grid.removeById(key);
+    toasts.push({ kind: "info", message: "This image is gone" });
+    deleting = true;
+    try {
+      await stepAfterRemoval(target);
+    } finally {
+      deleting = false;
+    }
+  }
+
+  $effect(() => {
+    if (view.status === "gone" && !untrack(() => deleting)) {
+      untrack(() => {
+        void handleGone();
+      });
+    }
+  });
+
+  function retry() {
+    if (view.status === "error") {
+      void view.load("images", id);
+    } else {
+      imageFailed = false;
+      retryN += 1;
     }
   }
 
@@ -236,10 +288,56 @@
     }
   }
 
+  function onSwipePointerDown(e: PointerEvent) {
+    if (e.pointerType !== "touch") return;
+    activePointers.add(e.pointerId);
+    if (
+      activePointers.size > 1 ||
+      zoomed ||
+      stepping || deleting ||
+      (e.target as HTMLElement).closest("button, a, select, input") !== null
+    ) {
+      swipeStart = null;
+    } else {
+      swipeStart = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    }
+  }
+
+  function onSwipePointerUp(e: PointerEvent) {
+    activePointers.delete(e.pointerId);
+    if (swipeStart && swipeStart.id === e.pointerId) {
+      const dir = swipeDir(e.clientX - swipeStart.x, e.clientY - swipeStart.y);
+      swipeStart = null;
+      if (dir !== null) {
+        swipeHandled = true;
+        setTimeout(() => {
+          swipeHandled = false;
+        }, 0);
+        void step(dir);
+      }
+    }
+  }
+
+  function onSwipePointerCancel(e: PointerEvent) {
+    activePointers.delete(e.pointerId);
+    swipeStart = null;
+  }
+
+  function onSwipeClickGuard(e: MouseEvent) {
+    if (swipeHandled) {
+      swipeHandled = false;
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }
+
   function onLayerClick(e: MouseEvent) {
+    const target = e.target as HTMLElement;
     if (
       e.target === e.currentTarget ||
-      (e.target as HTMLElement).classList.contains("stage")
+      target.classList.contains("mid") ||
+      target.classList.contains("stage-wrap") ||
+      target.classList.contains("stage")
     ) {
       onclose();
     }
@@ -316,12 +414,23 @@
     >
       <Icon name="chevron-left" size={30} />
     </button>
-    <div class="stage-wrap" aria-busy={busy}>
-      {#if view.status === "gone" || view.status === "error"}
-        <p class="msg" role="status">Could not load this image.</p>
-      {:else if imageSrc}
-        <ImageStage src={imageSrc} alt={name} preload={null} bind:zoomed />
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="stage-wrap"
+      class:loading={view.status === "loading"}
+      aria-busy={busy}
+      onpointerdown={onSwipePointerDown}
+      onpointerup={onSwipePointerUp}
+      onpointercancel={onSwipePointerCancel}
+      onclickcapture={onSwipeClickGuard}
+      onerrorcapture={(e) => { if (e.target instanceof HTMLImageElement && view.status === "ready") imageFailed = true; }}
+    >
+      {#if view.status === "error" || imageFailed}
+        <div class="errbox" role="alert"><p>Could not load this image</p><div class="errbtns"><button type="button" class="retry" onclick={retry}>Retry</button><a class="retry" href={detailsHref}>Open details</a></div></div>
+      {:else if view.status !== "gone" && stageSrc}
+        <ImageStage src={stageSrc} alt={name} preload={null} bind:zoomed />
       {/if}
+      {#if view.status === "loading"}<span class="spinner" aria-hidden="true"></span>{/if}
     </div>
     <button
       type="button"
@@ -337,7 +446,7 @@
   <div class="bottom">
     <div class="bar-left"><RatingStars value={canRate ? (view.detail?.rating ?? null) : null} onrate={rate} /></div>
     <div class="bar-name">{name}</div>
-    <div class="bar-right"><button type="button" class="act" aria-label="Zoom" aria-pressed={zoomed} onclick={toggleZoom}><Icon name={zoomed ? "zoom-out" : "zoom-in"} size={22} /></button><a class="act" href={detailsHref} aria-label="Details"><Icon name="info" size={22} /></a><button type="button" class="act danger" aria-label="Delete" onclick={onDelete}><Icon name="trash" size={22} /></button></div>
+    <div class="bar-right"><button type="button" class="act" aria-label="Zoom" aria-pressed={zoomed} onclick={toggleZoom}><Icon name={zoomed ? "zoom-out" : "zoom-in"} size={22} /></button><a class="act" class:disabled={!canRate} href={detailsHref} aria-label="Details" aria-disabled={!canRate} tabindex={canRate ? undefined : -1} onclick={(e) => { if (!canRate) e.preventDefault(); }}><Icon name="info" size={22} /></a><button type="button" class="act danger" aria-label="Delete" disabled={!canRate || deleting} onclick={onDelete}><Icon name="trash" size={22} /></button></div>
     <!-- bar-right: action group (zoom, details, trash); room for a favourite heart between zoom and details -->
   </div>
 </div>
@@ -349,10 +458,16 @@
     z-index: 950;
     background: rgba(0, 0, 0, 0.82);
     backdrop-filter: blur(12px);
+    animation: overlay-fade 150ms ease-out;
     color: #fff;
     display: flex;
     flex-direction: column;
     outline: none;
+  }
+
+  @keyframes overlay-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   .layer:focus-visible {
@@ -485,6 +600,7 @@
   }
 
   .stage-wrap {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -497,10 +613,59 @@
     opacity: 0.6;
   }
 
-  .msg {
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 0.95rem;
+  .stage-wrap.loading :global(img) {
+    filter: blur(6px);
+  }
+
+  .spinner {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: overlay-spin 0.8s linear infinite;
+  }
+
+  @keyframes overlay-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .stage-wrap :global(.stage:not(.zoomed)) {
+    touch-action: pan-y pinch-zoom;
+  }
+
+  .errbox {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s-4);
+    text-align: center;
+    padding: var(--s-4);
+  }
+
+  .errbox p {
     margin: 0;
+    color: rgba(255,255,255,0.8);
+  }
+
+  .errbtns {
+    display: flex;
+    gap: var(--s-4);
+  }
+
+  .retry {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0 var(--s-4);
+    background: rgba(255,255,255,0.15);
+    border: 0;
+    border-radius: var(--r-md);
+    color: #fff;
+    cursor: pointer;
+    text-decoration: none;
   }
 
   .bottom {
@@ -550,6 +715,11 @@
     border-radius: var(--r-md);
   }
 
+  .act.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
   .act:hover,
   .act:focus-visible {
     color: #fff;
@@ -564,6 +734,18 @@
   .bar-left :global(button) {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  /* phone: matches PHONE_MAX = 720 in item/panelState.ts (innerWidth < 720) */
+  @media (max-width: 719.98px) {
+    .top, .bottom { padding-inline: var(--s-4); }
+    .bottom { grid-template-columns: 1fr auto; grid-template-areas: "name name" "left right"; row-gap: var(--s-2); }
+    .bar-name { grid-area: name; justify-self: center; max-width: 100%; }
+    .bar-left { grid-area: left; }
+    .bar-right { grid-area: right; }
+    .nav { width: 44px; height: 44px; background: rgba(0, 0, 0, 0.35); border-radius: 50%; opacity: 0.8; }
+    .nav-prev { left: 8px; }
+    .nav-next { right: 8px; }
   }
 
   button:focus-visible,
