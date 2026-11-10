@@ -134,6 +134,38 @@ describe("WallOverlay", () => {
     expect((getByRole("button", { name: "Previous image" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it("Previous image is enabled mid-page and steps back on click and ArrowLeft", async () => {
+    const onstep = vi.fn();
+    const { getByRole } = mount({ id: "b", onstep });
+    const prev = getByRole("button", { name: "Previous image" }) as HTMLButtonElement;
+    expect(prev.disabled).toBe(false);
+    await fireEvent.click(prev);
+    await waitFor(() => expect(onstep).toHaveBeenCalledWith("a"));
+    onstep.mockClear();
+    await fireEvent.keyDown(getByRole("dialog"), { key: "ArrowLeft" });
+    await waitFor(() => expect(onstep).toHaveBeenCalledWith("a"));
+  });
+
+  it("Previous image is enabled on the first item of page 2 and crosses back", async () => {
+    const onstep = vi.fn();
+    const { getByRole, grid } = mount({ id: "a", onstep, grid: { page: 2 } });
+    const prev = getByRole("button", { name: "Previous image" }) as HTMLButtonElement;
+    expect(prev.disabled).toBe(false);
+    await fireEvent.click(prev);
+    await waitFor(() => expect(grid.goTo).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(onstep).toHaveBeenCalled());
+  });
+
+  it("Previous image is present but disabled on the first item of page 1", () => {
+    const { getByRole } = mount({ id: "a" });
+    const prev = getByRole("button", { name: "Previous image" }) as HTMLButtonElement;
+    expect(prev.disabled).toBe(true);
+  });
+
+  it("the .nav rule has a z-index so Previous is not covered by the stage", () => {
+    expect(svelteSrc).toMatch(/\.nav \{[^}]*z-index: 1;/);
+  });
+
   it("clicking 'Next image' calls onstep('b')", async () => {
     const onstep = vi.fn();
     const { getByRole } = mount({ onstep });
