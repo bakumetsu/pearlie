@@ -94,15 +94,31 @@
   function onStep(id: string) {
     navQuery(withOpen(match.query, openKey(id)), true);
   }
+  // Close after a page crossing: pop the opening entry, then replace it with the current page without `open`.
+  let pendingCloseQuery: string | null = null;
   function closeOverlay() {
     if (openedByPush && grid.page === openedPage) {
       openedByPush = false;
+      history.back();
+    } else if (openedByPush) {
+      openedByPush = false;
+      pendingCloseQuery = withOpen(match.query, null);
       history.back();
     } else {
       openedByPush = false;
       navQuery(withOpen(match.query, null), true);
     }
   }
+
+  // Must stay before the grid effects: they skip while a close is pending.
+  $effect(() => {
+    const path = match.path;
+    void match.query;
+    if (pendingCloseQuery === null) return;
+    const qs = pendingCloseQuery;
+    pendingCloseQuery = null;
+    router.navigate(path + (qs ? `?${qs}` : ""), { replace: true });
+  });
 
   // Stale param: remove open key when not applicable
   $effect(() => {
@@ -129,6 +145,7 @@
 
   $effect(() => {
     if (!viewSettings.ready) return;
+    if (pendingCloseQuery !== null) return;
     const k = sourceToKind(source);
     const src = source;
     const qq = q;
@@ -178,6 +195,7 @@
   // Sync URL page param to served page
   $effect(() => {
     if (grid.status !== "done") return;
+    if (pendingCloseQuery !== null) return;
     const gp = grid.page;
     if (typeof gp !== "number" || gp < 1) return;
     if (gp === page) return;

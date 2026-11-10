@@ -268,7 +268,7 @@ describe("SeeAll + WallOverlay wiring", () => {
     cleanup();
   });
 
-  it("close after crossing a page replaces and stays on the new page, last tile focused", async () => {
+  it("close after crossing a page pops the opening entry, then replaces and stays on the new page, last tile focused", async () => {
     vi.resetModules();
     const { render, cleanup, fireEvent, waitFor } =
       await import("@testing-library/svelte");
@@ -314,7 +314,8 @@ describe("SeeAll + WallOverlay wiring", () => {
       expect(location.search.includes("page=2")).toBe(true);
     });
 
-    expect(back).not.toHaveBeenCalled();
+    expect(back).toHaveBeenCalledTimes(1);
+    expect(location.search.includes("open")).toBe(false);
 
     await waitFor(() => {
       expect(document.activeElement?.getAttribute("data-key")).toBe("image:2a");
