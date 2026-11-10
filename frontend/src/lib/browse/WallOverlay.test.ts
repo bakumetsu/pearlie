@@ -65,7 +65,7 @@ function makeToasts() {
 function mount(over: Record<string, unknown> = {}) {
   const onstep = (over.onstep as ReturnType<typeof vi.fn>) ?? vi.fn();
   const onclose = (over.onclose as ReturnType<typeof vi.fn>) ?? vi.fn();
-  const onpage = (over.onpage as ReturnType<typeof vi.fn>) ?? vi.fn();
+
   const grid = makeGrid((over.grid as Record<string, unknown>) ?? {});
   const result = render(WallOverlay, {
     id: (over.id as string) ?? "a",
@@ -75,9 +75,8 @@ function mount(over: Record<string, unknown> = {}) {
     toasts: (over.toasts as ReturnType<typeof makeToasts>) ?? makeToasts(),
     onstep,
     onclose,
-    onpage,
   });
-  return { ...result, onstep, onclose, onpage, grid };
+  return { ...result, onstep, onclose, grid };
 }
 
 describe("WallOverlay", () => {
@@ -89,14 +88,11 @@ describe("WallOverlay", () => {
     expect(document.activeElement).toBe(closeBtn);
   });
 
-  it("page label: select 'Page' with value '1', options text '1 / 3', '2 / 3', '3 / 3'; range text '1-3 of 7' visible; no First/Previous/Next/Last page buttons", () => {
-    const { getByRole, getByLabelText, queryByRole } = mount();
-    const select = getByLabelText("Page") as HTMLSelectElement;
-    expect(select.value).toBe("1");
-    const options = select.querySelectorAll("option");
-    expect(options[0]?.textContent).toBe("1 / 3");
-    expect(options[1]?.textContent).toBe("2 / 3");
-    expect(options[2]?.textContent).toBe("3 / 3");
+  it("page label: plain text '1 / 3', no select or textbox; range text '1-3 of 7' visible; no First/Previous/Next/Last page buttons", () => {
+    const { getByRole, getByText, queryByRole } = mount();
+    expect(getByText("1 / 3")).toBeTruthy();
+    expect(queryByRole("combobox")).toBeNull();
+    expect(queryByRole("textbox")).toBeNull();
     expect((getByRole("dialog") as HTMLElement).textContent).toContain("1-3 of 7");
     expect(queryByRole("button", { name: "First page" })).toBeNull();
     expect(queryByRole("button", { name: "Previous page" })).toBeNull();
@@ -104,13 +100,7 @@ describe("WallOverlay", () => {
     expect(queryByRole("button", { name: "Last page" })).toBeNull();
   });
 
-  it("choosing page 2 in the select calls onpage(2)", () => {
-    const onpage = vi.fn();
-    const { getByLabelText } = mount({ onpage });
-    const select = getByLabelText("Page") as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "2" } });
-    expect(onpage).toHaveBeenCalledWith(2);
-  });
+
 
   it("chevron states reflect position and page edges", () => {
     // id "a" on page 1: prev disabled, next enabled
@@ -207,7 +197,7 @@ describe("WallOverlay", () => {
     cleanup();
   });
 
-  it("Escape calls onclose; ctrl+ArrowRight does not step; keydown on page select does not step or close", async () => {
+  it("Escape calls onclose; ctrl+ArrowRight does not step", async () => {
     const onclose = vi.fn();
     const onstep = vi.fn();
     const { container } = mount({ onclose, onstep });
@@ -222,16 +212,6 @@ describe("WallOverlay", () => {
     fireEvent.keyDown(dialog, { key: "ArrowRight", ctrlKey: true });
     await waitFor(() => {});
     expect(onstep).not.toHaveBeenCalled();
-    cleanup();
-
-    // keydown on page select does not step or close
-    const { getByLabelText: getSel } = mount({ onclose, onstep });
-    const select = getSel("Page");
-    fireEvent.keyDown(select, { key: "Escape" });
-    fireEvent.keyDown(select, { key: "ArrowRight" });
-    await waitFor(() => {});
-    expect(onstep).not.toHaveBeenCalled();
-    expect(onclose).not.toHaveBeenCalled();
   });
 
   it("Escape while zoomed only un-zooms; second Escape closes", async () => {
@@ -401,22 +381,7 @@ describe("WallOverlay", () => {
     expect(patchItem).not.toHaveBeenCalled();
   });
 
-  it("keys 1-5 and z ignored while focus is in the page select", async () => {
-    const patchItem = vi.fn(async () => ({}));
-    const { getByLabelText, getByRole } = mount({ api: makeApi({ patchItem }) });
 
-    await waitFor(() => {
-      const radio = getByRole("radio", { name: "Rating 3 of 5" });
-      expect(radio.getAttribute("aria-checked")).toBe("true");
-    });
-
-    const select = getByLabelText("Page");
-    await fireEvent.keyDown(select, { key: "4" });
-    await fireEvent.keyDown(select, { key: "z" });
-
-    expect(getByRole("button", { name: "Zoom" }).getAttribute("aria-pressed")).toBe("false");
-    expect(patchItem).not.toHaveBeenCalled();
-  });
 
   it("Details link has href '/item/images/a'", async () => {
     const { getByRole } = mount();
@@ -707,7 +672,7 @@ describe("phone layout and motion (T-67)", () => {
   });
 
   it("bottom bar child order, no pager/Next page, close and page label present", async () => {
-    const { container, getByRole, getByLabelText, queryByRole } = mount();
+    const { container, getByRole, queryByRole } = mount();
 
     const bottom = container.querySelector(".bottom")!;
     const children = Array.from(bottom.children);
@@ -719,7 +684,7 @@ describe("phone layout and motion (T-67)", () => {
     expect(queryByRole("button", { name: "Next page" })).toBeNull();
 
     expect(getByRole("button", { name: "Close" })).toBeTruthy();
-    expect(getByLabelText("Page")).toBeTruthy();
+    expect(container.querySelector(".page-text")).not.toBeNull();
   });
 
   it("source declares min-width: 44px and min-height: 44px", () => {

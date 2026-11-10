@@ -259,28 +259,7 @@
     router.navigate(match.path + (search ? `?${search}` : ""));
   }
 
-  let pendingPage = $state<number | null>(null);
 
-  function onOverlayPage(p: number) {
-    pendingPage = p;
-    const qs = new SvelteURLSearchParams(match.query);
-    if (p === 1) qs.delete("page");
-    else qs.set("page", String(p));
-    navQuery(qs.toString(), true);
-  }
-
-  $effect(() => {
-    const pp = pendingPage;
-    if (pp === null) return;
-    if (grid.status === "error") { pendingPage = null; return; }
-    if (grid.status !== "done" || grid.page !== pp) return;
-    pendingPage = null;
-    untrack(() => {
-      const first = grid.items.find((it): it is LibraryItem => "kind" in it && it.kind === "image");
-      const qs = new SvelteURLSearchParams(match.query);
-      navQuery(withOpen(qs, first ? openKey(first.id) : null), true);
-    });
-  });
 
   function onSortChange(value: string) {
     const qs = new SvelteURLSearchParams(match.query);
@@ -427,7 +406,7 @@
 </div>
 
 {#if openId !== null}
-  <WallOverlay id={openId} grid={grid} perPage={vs.per_page} api={api} toasts={toasts} onstep={onStep} onclose={closeOverlay} onpage={onOverlayPage} />
+  <WallOverlay id={openId} grid={grid} perPage={vs.per_page} api={api} toasts={toasts} onstep={onStep} onclose={closeOverlay} />
 {/if}
 
 <style>
