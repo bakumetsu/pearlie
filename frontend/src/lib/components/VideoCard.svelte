@@ -10,6 +10,7 @@
     variant,
     aspectRatio,
     blurred,
+    landscape = false,
     meta,
     onmediaclick,
     onmediakeydown,
@@ -18,6 +19,7 @@
     variant: "grid" | "wall" | "masonry" | "list";
     aspectRatio: string;
     blurred: boolean;
+    landscape?: boolean;
     meta: string;
     onmediaclick: (e: MouseEvent) => void;
     onmediakeydown: (e: KeyboardEvent) => void;
@@ -187,6 +189,7 @@
 
 <div
   class="media"
+  class:landscape
 
   style:aspect-ratio={aspectRatio}
   onclick={onmediaclick}
@@ -273,6 +276,10 @@
     height: 100%;
     object-fit: cover;
     pointer-events: none;
+  }
+  .media.landscape img,
+  .media.landscape video {
+    object-fit: contain;
   }
   .media video.blur-img,
   .blur-img {

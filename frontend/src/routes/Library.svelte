@@ -167,7 +167,7 @@
           {/each}
         {:else}
           {#each rs.items as item (item.id)}
-            <Tile item={item} href={itemHref(item)} onnavigate={onNav} />
+            <Tile item={item} href={itemHref(item)} onnavigate={onNav} landscape />
           {/each}
         {/if}
       </SectionRow>

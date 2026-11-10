@@ -3,7 +3,7 @@
   import VideoCard from "./VideoCard.svelte";
   import type { LibraryItem, WebItem } from "../api/client";
 
-  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect }: {
+  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, landscape = false }: {
     item: LibraryItem | WebItem;
     href?: string;
     onnavigate?: (e: MouseEvent) => void;
@@ -14,6 +14,7 @@
     onopenitem?: (item: LibraryItem) => void;
     variant?: "grid" | "wall" | "masonry" | "list";
     aspect?: number;
+    landscape?: boolean;
   } = $props();
 
   const isWeb = $derived("post_id" in item);
@@ -78,6 +79,7 @@
 
   const aspectRatio = $derived.by(() => {
     if (variant === "list") return "1 / 1";
+    if (landscape && !isWeb && (item as LibraryItem).kind === "video") return "16 / 9";
     if (variant === "wall" || variant === "masonry") {
       if (aspect != null && Number.isFinite(aspect) && aspect > 0) return `${aspect}`;
     }
@@ -131,7 +133,7 @@
   {@const l = item as LibraryItem}
   <a class="tile lib {variant}" href={href} data-key={`${l.kind}:${l.id}`} onclick={handleLibClick}>
     {#if l.kind === "video"}
-      <VideoCard item={l} {variant} {aspectRatio} {blurred} meta={metaLine()} onmediaclick={handleMediaClick} onmediakeydown={handleMediaKeydown} />
+      <VideoCard item={l} {variant} {aspectRatio} {blurred} {landscape} meta={metaLine()} onmediaclick={handleMediaClick} onmediakeydown={handleMediaKeydown} />
     {:else}
     <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick} role="button" tabindex="0" onkeydown={handleMediaKeydown}>
       <img src={l.thumb_url} alt="" loading="lazy" class:blur-img={blurred} />

@@ -29,6 +29,23 @@ describe("Tile", () => {
   );
 });
 
+describe("Tile landscape", () => {
+  const video: LibraryItem = {
+    kind: "video", id: "v", title: "V", thumb_url: "/t.jpg",
+    added_at: "2025-01-01T00:00:00Z", favorite: false,
+  };
+
+  it("landscape video gets one fixed 16 / 9 box", () => {
+    const { container } = render(Tile, { item: video, href: "/x", landscape: true });
+    expect(container.querySelector<HTMLElement>(".media")!.style.aspectRatio).toBe("16 / 9");
+  });
+
+  it("landscape does not change non-video kinds", () => {
+    const { container } = render(Tile, { item: { ...video, kind: "image" }, href: "/x", landscape: true });
+    expect(container.querySelector<HTMLElement>(".media")!.style.aspectRatio).toBe("2 / 3");
+  });
+});
+
 describe("SectionRow scrollbar", () => {
   it("hides the horizontal scrollbar while keeping arrow buttons", () => {
     expect(src).toContain("scrollbar-width: none");
