@@ -6,6 +6,7 @@ import { tagToString, stringToTag, addTags, removeTag } from "./tags";
 export interface GridLike {
   removeById(id: string): { item: LibraryItem | WebItem; index: number } | null;
   restore(entry: { item: LibraryItem | WebItem; index: number }): void;
+  updateById?(id: string, patch: Partial<LibraryItem>): boolean;
 }
 export interface ToastsLike {
   push(t: { kind: "info" | "error" | "undo"; message: string; actionLabel?: string; onAction?: () => void }): number;
@@ -59,14 +60,18 @@ export function createItemView(deps: ItemDeps) {
 
     async setRating(n: number): Promise<void> {
       if (!state.detail || !state.kind || !currentId) return;
-      const oldRating = state.detail.rating;
+      const d = state.detail;
+      const oldRating = d.rating;
       const newRating: number | null = oldRating === n ? null : n;
-      state.detail.rating = newRating;
+      d.rating = newRating;
+      const kind = state.kind;
+      const id = currentId;
 
       try {
-        await deps.api.patchItem(state.kind, currentId, { rating: newRating });
+        await deps.api.patchItem(kind, id, { rating: newRating });
+        deps.grid.updateById?.(itemKey({ kind: d.kind, id: d.id }), { rating: newRating });
       } catch {
-        state.detail.rating = oldRating;
+        d.rating = oldRating;
         deps.toasts.push({ kind: "error", message: "Could not save the rating. Try again." });
       }
     },

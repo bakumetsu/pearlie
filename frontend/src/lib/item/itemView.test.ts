@@ -17,7 +17,7 @@ function makeApi() {
 }
 
 function makeGrid(): Mocked<GridLike> {
-  return { removeById: vi.fn(), restore: vi.fn() };
+  return { removeById: vi.fn(), restore: vi.fn(), updateById: vi.fn() };
 }
 
 function makeToasts(): Mocked<ToastsLike> {
@@ -118,6 +118,46 @@ describe("createItemView", () => {
         kind: "error",
         message: "Could not save the rating. Try again.",
       });
+    });
+
+    it("calls updateById on success", async () => {
+      const { grid, view, preLoad } = setup();
+      await preLoad();
+
+      await view.setRating(4);
+
+      expect(grid.updateById).toHaveBeenCalledWith(expect.any(String), { rating: 4 });
+    });
+
+    it("does not call updateById when patchItem rejects", async () => {
+      const { api, grid, view, preLoad } = setup();
+      await preLoad();
+      api.patchItem.mockRejectedValue(new Error("network"));
+
+      await view.setRating(4);
+
+      expect(grid.updateById).not.toHaveBeenCalled();
+    });
+
+    it("rejecting patch after loading another item does not corrupt the new detail", async () => {
+      const { api, view } = setup();
+      api.getItem.mockResolvedValue(detailFixture);
+      await view.load("images", "5"); // rating is 3
+
+      let rejectPatch!: (e: unknown) => void;
+      api.patchItem.mockReturnValue(new Promise((_, rej) => { rejectPatch = rej; }));
+
+      const ratingPromise = view.setRating(4); // suspends at await patchItem
+
+      const newDetail = { ...detailFixture, id: "6", rating: null } as LibraryItemDetail;
+      api.getItem.mockResolvedValue(newDetail);
+      await view.load("images", "6");
+
+      rejectPatch(new Error("network"));
+      await ratingPromise;
+
+      expect(view.detail?.id).toBe("6");
+      expect(view.detail?.rating).toBeNull();
     });
   });
 

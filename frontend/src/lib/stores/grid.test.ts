@@ -99,4 +99,26 @@ describe("createGrid", () => {
     expect(grid.neighbors("c")).toEqual({ prev: { id: "b" }, next: null });
     expect(grid.neighbors("z")).toEqual({ prev: null, next: null });
   });
+
+  it("updateById patches matching item, keeps order and others, returns true", async () => {
+    const grid = createGrid<{ id: string; rating?: number | null }>(keyOf);
+    await grid.open("k", () =>
+      Promise.resolve({ items: [{ id: "a" }, { id: "b" }, { id: "c" }], total: 3, next_page: null }));
+
+    const result = grid.updateById("b", { rating: 4 });
+
+    expect(result).toBe(true);
+    expect(grid.items).toEqual([{ id: "a" }, { id: "b", rating: 4 }, { id: "c" }]);
+  });
+
+  it("updateById returns false for unknown id, items unchanged", async () => {
+    const grid = createGrid<{ id: string; rating?: number | null }>(keyOf);
+    await grid.open("k", () =>
+      Promise.resolve({ items: [{ id: "a" }, { id: "b" }], total: 2, next_page: null }));
+
+    const result = grid.updateById("z", { rating: 5 });
+
+    expect(result).toBe(false);
+    expect(grid.items).toEqual([{ id: "a" }, { id: "b" }]);
+  });
 });
