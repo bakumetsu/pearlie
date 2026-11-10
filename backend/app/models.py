@@ -156,6 +156,7 @@ class ViewSettingItem(BaseModel):
     zoom: int
     per_page_options: list[int]
     per_page_max: int
+    modes: list[ViewMode]
 
 
 class ViewSettings(BaseModel):
