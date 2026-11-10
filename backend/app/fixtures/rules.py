@@ -1,3 +1,4 @@
+from app.filters.aliases import fold
 from app.fixtures import data
 from app.models import BaseList, RuleMapping, RulesBody, RulesPut, RulesTestResult, Tag
 
@@ -10,10 +11,6 @@ class RulesInvalid(Exception):
     def __init__(self, field: str, msg: str):
         super().__init__(msg)
         self.field = field
-
-
-def fold(s: str) -> str:
-    return s.lower().replace(" ", "_").replace("-", "_")
 
 
 def _hit(rule: str, tags: list[Tag]) -> bool:

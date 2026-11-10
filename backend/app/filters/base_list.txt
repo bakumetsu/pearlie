@@ -1,0 +1,5 @@
+# base list: one tag per line, optional ": alias1, alias2"
+underage
+child
+toddlercon: toddler
+scat
