@@ -367,6 +367,7 @@
     >
       <Icon name="chevron-left" size={30} />
     </button>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="stage-wrap"
       aria-busy={busy}
@@ -407,10 +408,16 @@
     z-index: 950;
     background: rgba(0, 0, 0, 0.82);
     backdrop-filter: blur(12px);
+    animation: overlay-fade 150ms ease-out;
     color: #fff;
     display: flex;
     flex-direction: column;
     outline: none;
+  }
+
+  @keyframes overlay-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   .layer:focus-visible {
@@ -626,6 +633,18 @@
   .bar-left :global(button) {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  /* phone: matches PHONE_MAX = 720 in item/panelState.ts (innerWidth < 720) */
+  @media (max-width: 719.98px) {
+    .top, .bottom { padding-inline: var(--s-4); }
+    .bottom { grid-template-columns: 1fr auto; grid-template-areas: "name name" "left right"; row-gap: var(--s-2); }
+    .bar-name { grid-area: name; justify-self: center; max-width: 100%; }
+    .bar-left { grid-area: left; }
+    .bar-right { grid-area: right; }
+    .nav { width: 44px; height: 44px; background: rgba(0, 0, 0, 0.35); border-radius: 50%; opacity: 0.8; }
+    .nav-prev { left: 8px; }
+    .nav-next { right: 8px; }
   }
 
   button:focus-visible,

@@ -1,6 +1,7 @@
 // WallOverlay tests
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { render, cleanup, fireEvent, waitFor } from "@testing-library/svelte";
 import WallOverlay from "./WallOverlay.svelte";
 import type { Api, LibraryItem } from "../api/client";
@@ -654,5 +655,50 @@ describe("WallOverlay swipe", () => {
 
     fireEvent.click(layer);
     expect(onclose).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("phone layout and motion (T-67)", () => {
+  const svelteSrc = readFileSync("src/lib/browse/WallOverlay.svelte", "utf-8");
+  const tokensSrc = readFileSync("src/lib/tokens.css", "utf-8");
+
+  it("phone media query uses 719.98px breakpoint with grid-template-areas and 8px nav offsets", () => {
+    expect(svelteSrc).toContain("max-width: 719.98px");
+    expect(svelteSrc).toContain("grid-template-areas");
+    expect(svelteSrc).toContain("left: 8px");
+    expect(svelteSrc).toContain("right: 8px");
+  });
+
+  it("overlay-fade at 150ms; no prefers-reduced-motion or !important in component source", () => {
+    expect(svelteSrc).toContain("overlay-fade");
+    expect(svelteSrc).toContain("150ms");
+    expect(svelteSrc).not.toContain("prefers-reduced-motion");
+    expect(svelteSrc).not.toContain("!important");
+  });
+
+  it("tokens.css has global prefers-reduced-motion rule with animation: none !important", () => {
+    expect(tokensSrc).toContain("prefers-reduced-motion: reduce");
+    expect(tokensSrc).toContain("animation: none !important");
+  });
+
+  it("bottom bar child order, no pager/Next page, close and page label present", async () => {
+    const { container, getByRole, getByLabelText, queryByRole } = mount();
+
+    const bottom = container.querySelector(".bottom")!;
+    const children = Array.from(bottom.children);
+    expect(children[0].className).toContain("bar-left");
+    expect(children[1].className).toContain("bar-name");
+    expect(children[2].className).toContain("bar-right");
+
+    expect(container.querySelector(".pager")).toBeNull();
+    expect(queryByRole("button", { name: "Next page" })).toBeNull();
+
+    expect(getByRole("button", { name: "Close" })).toBeTruthy();
+    expect(getByLabelText("Page")).toBeTruthy();
+  });
+
+  it("source declares min-width: 44px and min-height: 44px", () => {
+    expect(svelteSrc).toContain("min-width: 44px");
+    expect(svelteSrc).toContain("min-height: 44px");
   });
 });
