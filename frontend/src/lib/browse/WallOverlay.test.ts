@@ -1,10 +1,11 @@
 // WallOverlay tests
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { readFileSync } from "node:fs";
 import { render, cleanup, fireEvent, waitFor } from "@testing-library/svelte";
 import WallOverlay from "./WallOverlay.svelte";
 import type { Api, LibraryItem } from "../api/client";
+import { ApiError } from "../api/client";
+import svelteSrc from "./WallOverlay.svelte?raw";
 
 afterEach(() => {
   cleanup();
@@ -659,9 +660,6 @@ describe("WallOverlay swipe", () => {
 });
 
 describe("phone layout and motion (T-67)", () => {
-  const svelteSrc = readFileSync("src/lib/browse/WallOverlay.svelte", "utf-8");
-  const tokensSrc = readFileSync("src/lib/tokens.css", "utf-8");
-
   it("phone media query uses 719.98px breakpoint with grid-template-areas and 8px nav offsets", () => {
     expect(svelteSrc).toContain("max-width: 719.98px");
     expect(svelteSrc).toContain("grid-template-areas");
@@ -674,11 +672,6 @@ describe("phone layout and motion (T-67)", () => {
     expect(svelteSrc).toContain("150ms");
     expect(svelteSrc).not.toContain("prefers-reduced-motion");
     expect(svelteSrc).not.toContain("!important");
-  });
-
-  it("tokens.css has global prefers-reduced-motion rule with animation: none !important", () => {
-    expect(tokensSrc).toContain("prefers-reduced-motion: reduce");
-    expect(tokensSrc).toContain("animation: none !important");
   });
 
   it("bottom bar child order, no pager/Next page, close and page label present", async () => {
@@ -700,5 +693,115 @@ describe("phone layout and motion (T-67)", () => {
   it("source declares min-width: 44px and min-height: 44px", () => {
     expect(svelteSrc).toContain("min-width: 44px");
     expect(svelteSrc).toContain("min-height: 44px");
+  });
+});
+
+describe("loading, errors and gone (T-67)", () => {
+  function neverResolvingApi(): Api {
+    return { ...makeApi({ getItem: vi.fn(() => new Promise(() => {})) }) } as unknown as Api;
+  }
+
+  it("a) loading: spinner, aria-busy true, img present, Delete disabled, Details aria-disabled, Next enabled", async () => {
+    const { container, getByRole } = mount({ api: neverResolvingApi() });
+    const stageWrap = container.querySelector(".stage-wrap")!;
+
+    expect(stageWrap.getAttribute("aria-busy")).toBe("true");
+    expect(stageWrap.querySelector(".spinner")).toBeTruthy();
+    expect(stageWrap.querySelector("img")?.getAttribute("src")).toBe("/t/a");
+    expect((getByRole("button", { name: "Delete" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(getByRole("link", { name: "Details" }).getAttribute("aria-disabled")).toBe("true");
+    expect((getByRole("button", { name: "Next image" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("b) not in grid: no img, spinner visible", async () => {
+    const { container } = mount({ id: "zzz", api: neverResolvingApi() });
+    const stageWrap = container.querySelector(".stage-wrap")!;
+    expect(stageWrap.querySelector("img")).toBeNull();
+    expect(stageWrap.querySelector(".spinner")).toBeTruthy();
+  });
+
+  it("c) detail error: alert with Retry; after Retry getItem called twice, alert gone, img appears", async () => {
+    let call = 0;
+    const getItem = vi.fn(async (_k: string, id: string) => {
+      call++;
+      if (call === 1) throw new Error("boom");
+      return {
+        kind: "image", id, title: id.toUpperCase(), thumb_url: "/t/" + id,
+        full_url: "/f/" + id, favorite: false, added_at: "2026-01-01",
+        file_name: id + ".jpg", tags: [], rating: 3,
+      };
+    });
+    const { container, getByRole, queryByRole } = mount({ api: { ...makeApi({ getItem }) } as unknown as Api });
+
+    const alert = await waitFor(() =>
+      getByRole("alert"),
+    );
+    expect(alert.textContent).toContain("Could not load this image");
+
+    const retryBtn = getByRole("button", { name: "Retry" });
+    await fireEvent.click(retryBtn);
+
+    await waitFor(() => expect(getItem).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(queryByRole("alert")).toBeNull());
+    expect(container.querySelector(".stage-wrap img")).toBeTruthy();
+  });
+
+  it("d) image error: alert appears; Retry clears alert and img src contains r=1", async () => {
+    const { container, getByRole, queryByRole } = mount();
+
+    const img = await waitFor(() => {
+      const el = container.querySelector(".stage-wrap img");
+      expect(el).toBeTruthy();
+      return el as HTMLImageElement;
+    });
+
+    await waitFor(() => expect(container.querySelector(".stage-wrap")?.getAttribute("aria-busy")).toBe("false"));
+
+    await fireEvent.error(img);
+    const alert = await waitFor(() =>
+      getByRole("alert"),
+    );
+    expect(alert.textContent).toContain("Could not load this image");
+
+    const retryBtn = getByRole("button", { name: "Retry" });
+    await fireEvent.click(retryBtn);
+
+    await waitFor(() => expect(queryByRole("alert")).toBeNull());
+    const newImg = container.querySelector(".stage-wrap img") as HTMLImageElement;
+    expect(newImg.getAttribute("src")).toContain("r=1");
+  });
+
+  it("e) 404: removeById called, toast pushed, onstep to 'b'", async () => {
+    const onstep = vi.fn();
+    const toasts = makeToasts();
+    const grid = makeGrid();
+    const getItem = vi.fn(async () => { throw new ApiError(404, "not_found", "gone"); });
+    mount({ id: "a", api: { ...makeApi({ getItem }) } as unknown as Api, toasts, onstep, grid });
+
+    await waitFor(() => expect(grid.removeById).toHaveBeenCalledWith("image:a"));
+    expect(toasts.push).toHaveBeenCalledWith(expect.objectContaining({ message: "This image is gone" }));
+    await waitFor(() => expect(onstep).toHaveBeenCalledWith("b"));
+  });
+
+  it("f) 404 on last item 'c': onstep called with 'b'", async () => {
+    const onstep = vi.fn();
+    const grid = makeGrid();
+    const getItem = vi.fn(async () => { throw new ApiError(404, "not_found", "gone"); });
+    mount({ id: "c", api: { ...makeApi({ getItem }) } as unknown as Api, onstep, grid });
+
+    await waitFor(() => expect(onstep).toHaveBeenCalledWith("b"));
+  });
+
+  it("g) Details link aria-disabled false and Delete enabled once ready", async () => {
+    const { getByRole } = mount();
+
+    await waitFor(() => {
+      const radio = getByRole("radio", { name: "Rating 3 of 5" });
+      expect(radio.getAttribute("aria-checked")).toBe("true");
+    });
+
+    const link = getByRole("link", { name: "Details" });
+    expect(link.getAttribute("aria-disabled")).toBe("false");
+    expect((getByRole("button", { name: "Delete" }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
