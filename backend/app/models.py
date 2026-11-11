@@ -246,6 +246,10 @@ class TrashEmptied(BaseModel):
     removed: int
 
 
+class TrashPurgePreview(BaseModel):
+    count: int
+
+
 class RestoreResult(BaseModel):
     item: LibraryItem
 

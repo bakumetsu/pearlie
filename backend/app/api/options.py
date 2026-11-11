@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_
 
 from app.api.errors import ApiError
 from app.db import connect
+from app.fixtures.store import store
 from app.sources.throttle import DEFAULT_PACE, Throttle
 
 router = APIRouter(prefix="/api")
@@ -111,9 +112,7 @@ def _write_mem(request: Request, key: str, value: str) -> None:
 def _read_db(request: Request, key: str) -> str | None:
     conn = connect(request.app.state.settings.db_path)
     try:
-        row = conn.execute(
-            "SELECT value FROM settings WHERE key = ?", (key,)
-        ).fetchone()
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
     finally:
         conn.close()
     return row["value"] if row is not None else None
@@ -146,9 +145,7 @@ def _effective_pace(app: FastAPI, site: str) -> tuple[float, bool]:
     else:
         conn = connect(settings.db_path)
         try:
-            row = conn.execute(
-                "SELECT value FROM settings WHERE key = ?", (key,)
-            ).fetchone()
+            row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         finally:
             conn.close()
         raw = row["value"] if row is not None else None
@@ -269,6 +266,8 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
         write("options.global.allow_blurred_tags", "1" if body.allow_blurred_tags else "0")
     if body.trash_retention_days is not None:
         write("options.global.trash_retention_days", str(body.trash_retention_days))
+        if fixture:
+            store.set_retention(body.trash_retention_days)
 
     if body.source_pace is not None:
         settings = request.app.state.settings

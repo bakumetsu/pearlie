@@ -16,6 +16,7 @@ export type PatchBody = S["PatchBody"];
 export type TrashResult = S["TrashResult"];
 export type TrashList = S["TrashList"];
 export type TrashEmptied = S["TrashEmptied"];
+export type TrashPurgePreview = S["TrashPurgePreview"];
 export type RestoreResult = S["RestoreResult"];
 export type RulesBody = S["RulesBody"];
 export type RulesPut = S["RulesPut"];
@@ -91,6 +92,7 @@ export interface Api {
   restore(token: string, signal?: AbortSignal): Promise<RestoreResult>;
   listTrash(signal?: AbortSignal): Promise<TrashList>;
   emptyTrash(signal?: AbortSignal): Promise<TrashEmptied>;
+  purgePreview(days: number, signal?: AbortSignal): Promise<TrashPurgePreview>;
   getRules(signal?: AbortSignal): Promise<RulesBody>;
   putRules(body: RulesPut, signal?: AbortSignal): Promise<RulesBody>;
   jobs(p: { state?: string[] }, signal?: AbortSignal): Promise<JobList>;
@@ -255,6 +257,9 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     },
     emptyTrash(signal) {
       return request<TrashEmptied>(baseUrl + "/api/trash", { method: "DELETE" }, signal);
+    },
+    purgePreview(days, signal) {
+      return request<TrashPurgePreview>(baseUrl + "/api/trash/purge-preview?days=" + encodeURIComponent(String(days)), undefined, signal);
     },
     getRules(signal) {
       return request<RulesBody>(baseUrl + "/api/rules", undefined, signal);

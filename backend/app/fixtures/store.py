@@ -90,6 +90,7 @@ class Store:
             self.books: dict[str, dict] = {r["id"]: r for r in raw["books"]}
             self.web: dict[str, list[dict]] = raw["web"]
             self.trash: dict[str, dict] = {}
+            self.retention_days = 7
             self.jobs = JobBoard(self.web)
             self.scenario = "default"
             rules.reset()
@@ -268,16 +269,17 @@ class Store:
                 return None
             token = uuid.uuid4().hex
             now = datetime.now(UTC)
-            expires_dt = now + timedelta(days=7)
+            expires_dt = now + timedelta(days=self.retention_days)
             self.trash[token] = {
                 "item": raw,
                 "bucket": kinds,
+                "trashed_at": now.timestamp(),
                 "expires": expires_dt.timestamp(),
             }
         return TrashResult(
             token=token,
             expires_at=expires_dt.isoformat(),
-            retention_days=7,
+            retention_days=self.retention_days,
             item=TrashItem(kind=raw["kind"], id=id, title=raw["title"]),
         )
 
@@ -301,7 +303,7 @@ class Store:
                 TrashResult(
                     token=token,
                     expires_at=datetime.fromtimestamp(entry["expires"], UTC).isoformat(),
-                    retention_days=7,
+                    retention_days=self.retention_days,
                     item=TrashItem(
                         kind=entry["item"]["kind"],
                         id=entry["item"]["id"],
@@ -312,7 +314,7 @@ class Store:
                 if entry["expires"] >= now
             ]
             items.sort(key=lambda r: r.expires_at, reverse=True)
-        return TrashList(items=items, retention_days=7)
+        return TrashList(items=items, retention_days=self.retention_days)
 
     def empty_trash(self) -> TrashEmptied:
         """Remove all trash, counting only non-expired entries."""
@@ -321,6 +323,35 @@ class Store:
             count = sum(1 for e in self.trash.values() if e["expires"] >= now)
             self.trash.clear()
         return TrashEmptied(removed=count)
+
+    def set_retention(self, days: int) -> int:
+        """Set retention, recompute every entry's expires = trashed_at + days*86400,
+        drop entries whose expires < time.time(), return the count dropped.
+        Idempotent."""
+        with self._lock:
+            now = time.time()
+            self.retention_days = days
+            dropped = 0
+            for token in list(self.trash):
+                entry = self.trash[token]
+                trashed_at = entry.get("trashed_at", entry["expires"] - 7 * 86400)
+                entry["expires"] = trashed_at + days * 86400
+                if entry["expires"] < now:
+                    del self.trash[token]
+                    dropped += 1
+            return dropped
+
+    def purge_preview(self, days: int) -> int:
+        """Count entries that would be purged: trashed_at + days*86400 < time.time().
+        No mutation."""
+        with self._lock:
+            now = time.time()
+            count = 0
+            for entry in self.trash.values():
+                trashed_at = entry.get("trashed_at", entry["expires"] - 7 * 86400)
+                if trashed_at + days * 86400 < now:
+                    count += 1
+            return count
 
     def set_progress(self, book_id: str, page: int) -> ProgressResult | None:
         raw = self.books.get(book_id)

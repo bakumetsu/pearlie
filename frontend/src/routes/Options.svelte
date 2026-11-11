@@ -14,6 +14,7 @@
   import Rules from "./Rules.svelte";
   import ImageViewerCard from "../lib/options/ImageViewerCard.svelte";
   import DownloadsCard from "../lib/options/DownloadsCard.svelte";
+  import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
   import ConnectionRows from "../lib/options/ConnectionRows.svelte";
   import ContentFilterCard from "../lib/options/ContentFilterCard.svelte";
 
@@ -267,6 +268,8 @@
             <ContentFilterCard />
           {:else if activeSectionId === "sources" && card.title === "Downloads"}
             <DownloadsCard />
+          {:else if activeSectionId === "trash" && card.title === "Retention"}
+            <TrashRetentionCard />
           {:else if activeSectionId === "sources" && card.title === "Site access"}
             <ConnectionRows title="Site access" names={SITE_NAMES} />
           {:else if activeSectionId === "library" && card.title === "Stash"}
@@ -414,6 +417,8 @@
               <ContentFilterCard />
             {:else if activeSectionId === "sources" && card.title === "Downloads"}
               <DownloadsCard />
+            {:else if activeSectionId === "trash" && card.title === "Retention"}
+              <TrashRetentionCard />
             {:else if activeSectionId === "sources" && card.title === "Site access"}
               <ConnectionRows title="Site access" names={SITE_NAMES} />
             {:else if activeSectionId === "library" && card.title === "Stash"}
