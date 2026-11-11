@@ -96,7 +96,7 @@ describe("ConnectionRows", () => {
 
     // Open stash (address_fixed: false → showAddress: true)
     fireEvent.click(screen.getByRole("button", { name: "Edit Stash" }));
-    let dialog = await screen.findByRole("dialog");
+    await screen.findByRole("dialog");
     expect(screen.getByText("Address")).toBeDefined();
     expect(screen.getByLabelText("Cancel")).toBeDefined();
 
