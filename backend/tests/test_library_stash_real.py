@@ -6,10 +6,9 @@ import json
 from typing import Any
 
 import httpx
-import pytest
 from fastapi.testclient import TestClient
 
-from app.config import ConfigError, Settings
+from app.config import Settings
 from app.main import create_app
 from app.targets.stash_client import StashClient
 
@@ -448,19 +447,21 @@ def test_stash_error_upstream(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_config_error_empty_stash_url(tmp_path):
-    """Settings with empty stash_url raises ConfigError at create_app."""
-    with pytest.raises(ConfigError):
-        create_app(
-            Settings(
-                mode="real",
-                real="library_stash",
-                stash_url="",
-                db_path=tmp_path / "p.db",
-                static_dir=tmp_path / "nostatic",
-                _env_file=None,  # pyright: ignore[reportCallIssue]
-            )
+def test_empty_stash_url_answers_503(tmp_path):
+    """Empty stash_url: app starts, stash routes answer 503 not_configured."""
+    app = create_app(
+        Settings(
+            mode="real",
+            real="library_stash",
+            stash_url="",
+            db_path=tmp_path / "p.db",
+            static_dir=tmp_path / "nostatic",
+            _env_file=None,  # pyright: ignore[reportCallIssue]
         )
+    )
+    r = TestClient(app).get("/api/library/stash/images")
+    assert r.status_code == 503
+    assert r.json()["code"] == "not_configured"
 
 
 # ---------------------------------------------------------------------------

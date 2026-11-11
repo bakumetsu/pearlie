@@ -129,7 +129,7 @@ def test_base_list_immutable_via_api(tmp_path: Path) -> None:
     base_copy = dict(BASE_LIST)
     client, _, _ = make_client(tmp_path)
     resp = client.put("/api/rules", json={"version": 1, "reject": [], "base_list": {"tags": []}})
-    assert resp.status_code in (404, 405)
+    assert resp.status_code == 200
     assert BASE_LIST == base_copy
 
 

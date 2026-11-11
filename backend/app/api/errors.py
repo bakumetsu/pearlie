@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NoReturn
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute, APIRouter
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
@@ -43,3 +44,23 @@ def install(app: FastAPI) -> None:
         field = str(err["loc"][-1])
         content = {"code": "invalid", "message": f"{loc}: {err['msg']}", "field": field}
         return JSONResponse(status_code=422, content=content)
+
+
+def stub_router(source: APIRouter, status: int, code: str, message: str) -> APIRouter:
+    """Build a router mirroring *source* paths/methods whose handlers always raise ApiError."""
+    router = APIRouter()
+
+    async def handler() -> NoReturn:
+        raise ApiError(status, code, message)
+
+    for route in source.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        router.add_api_route(
+            path=route.path,
+            endpoint=handler,
+            methods=list(route.methods or []),
+            response_model=None,
+            include_in_schema=False,
+        )
+    return router

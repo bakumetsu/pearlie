@@ -6,10 +6,9 @@ import inspect
 import json
 
 import httpx
-import pytest
 from fastapi.testclient import TestClient
 
-from app.config import ConfigError, Settings
+from app.config import Settings
 from app.komga import Komga, series_detail, series_item
 from app.main import create_app
 
@@ -466,19 +465,21 @@ def test_upstream_errors(tmp_path):
     assert KEY not in r.text
 
 
-def test_missing_komga_url_is_config_error(tmp_path):
-    """Empty komga_url raises ConfigError at app creation."""
-    with pytest.raises(ConfigError):
-        create_app(
-            Settings(
-                mode="real",
-                real="library_komga",
-                komga_url="",
-                db_path=tmp_path / "p.db",
-                static_dir=tmp_path / "nostatic",
-                _env_file=None,  # pyright: ignore[reportCallIssue]
-            )
+def test_missing_komga_url_answers_503(tmp_path):
+    """Empty komga_url: app starts, komga routes answer 503 not_configured."""
+    app = create_app(
+        Settings(
+            mode="real",
+            real="library_komga",
+            komga_url="",
+            db_path=tmp_path / "p.db",
+            static_dir=tmp_path / "nostatic",
+            _env_file=None,  # pyright: ignore[reportCallIssue]
         )
+    )
+    r = TestClient(app).get("/api/library/komga/books")
+    assert r.status_code == 503
+    assert r.json()["code"] == "not_configured"
 
 
 def test_komga_routes_are_sync():
