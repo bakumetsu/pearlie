@@ -744,6 +744,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Options */
+        get: operations["get_options_api_options_get"];
+        /** Put Options */
+        put: operations["put_options_api_options_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -1018,6 +1036,84 @@ export interface components {
              * @enum {string}
              */
             state: "ok" | "down" | "not_configured";
+        };
+        /** Options */
+        Options: {
+            /**
+             * Sfw
+             * @default false
+             */
+            sfw: boolean;
+            /**
+             * Sfw Set
+             * @default false
+             */
+            sfw_set: boolean;
+            /**
+             * Player Rate
+             * @default 1
+             */
+            player_rate: number;
+            /**
+             * Player Rate Set
+             * @default false
+             */
+            player_rate_set: boolean;
+            /**
+             * Profile
+             * @default desktop
+             * @enum {string}
+             */
+            profile: "desktop" | "touch";
+            /**
+             * Backdrop Strength
+             * @default 60
+             */
+            backdrop_strength: number;
+            /**
+             * Backdrop Wall
+             * @default true
+             */
+            backdrop_wall: boolean;
+            /**
+             * Backdrop Item
+             * @default true
+             */
+            backdrop_item: boolean;
+            /**
+             * Backdrop Lightbox
+             * @default true
+             */
+            backdrop_lightbox: boolean;
+            /**
+             * Allow Blurred Tags
+             * @default false
+             */
+            allow_blurred_tags: boolean;
+            /**
+             * Trash Retention Days
+             * @default 7
+             */
+            trash_retention_days: number;
+        };
+        /** OptionsUpdate */
+        OptionsUpdate: {
+            /** Sfw */
+            sfw?: boolean | null;
+            /** Player Rate */
+            player_rate?: number | null;
+            /** Backdrop Strength */
+            backdrop_strength?: number | null;
+            /** Backdrop Wall */
+            backdrop_wall?: boolean | null;
+            /** Backdrop Item */
+            backdrop_item?: boolean | null;
+            /** Backdrop Lightbox */
+            backdrop_lightbox?: boolean | null;
+            /** Allow Blurred Tags */
+            allow_blurred_tags?: boolean | null;
+            /** Trash Retention Days */
+            trash_retention_days?: number | null;
         };
         /** PageStats */
         PageStats: {
@@ -2801,6 +2897,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlayerSettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_options_api_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Options"];
+                };
+            };
+        };
+    };
+    put_options_api_options_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OptionsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Options"];
                 };
             };
             /** @description Validation Error */

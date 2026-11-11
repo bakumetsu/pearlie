@@ -1,0 +1,195 @@
+"""Options router: per-profile and global display settings."""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from fastapi import APIRouter, Request
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator
+
+from app.db import connect
+
+router = APIRouter(prefix="/api")
+
+ALLOWED_RATES = (0.5, 0.75, 1.0, 1.25, 1.5, 2.0)
+
+
+class Options(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sfw: StrictBool = False
+    sfw_set: StrictBool = False
+    player_rate: float = 1.0
+    player_rate_set: StrictBool = False
+    profile: Literal["desktop", "touch"] = "desktop"
+
+    backdrop_strength: StrictInt = Field(default=60, ge=0, le=100)
+    backdrop_wall: StrictBool = True
+    backdrop_item: StrictBool = True
+    backdrop_lightbox: StrictBool = True
+    allow_blurred_tags: StrictBool = False
+    trash_retention_days: StrictInt = Field(default=7, ge=1, le=365)
+
+    @field_validator("player_rate")
+    @classmethod
+    def _check_rate(cls, v: float) -> float:
+        if v not in ALLOWED_RATES:
+            raise ValueError(f"player_rate must be one of {ALLOWED_RATES}")
+        return v
+
+
+class OptionsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sfw: StrictBool | None = None
+    player_rate: float | None = None
+    backdrop_strength: StrictInt | None = Field(default=None, ge=0, le=100)
+    backdrop_wall: StrictBool | None = None
+    backdrop_item: StrictBool | None = None
+    backdrop_lightbox: StrictBool | None = None
+    allow_blurred_tags: StrictBool | None = None
+    trash_retention_days: StrictInt | None = Field(default=None, ge=1, le=365)
+
+    @field_validator("player_rate")
+    @classmethod
+    def _check_rate(cls, v: float | None) -> float | None:
+        if v is not None and v not in ALLOWED_RATES:
+            raise ValueError(f"player_rate must be one of {ALLOWED_RATES}")
+        return v
+
+
+def _detect_profile(request: Request) -> Literal["desktop", "touch"]:
+    header = request.headers.get("X-Pearlie-Device", "")
+    if header.lower() == "touch":
+        return "touch"
+    if header.lower() == "desktop":
+        return "desktop"
+    ua = request.headers.get("User-Agent", "")
+    if any(kw in ua for kw in ("iPhone", "iPad", "Android", "Mobile")):
+        return "touch"
+    return "desktop"
+
+
+def _read_mem(request: Request, key: str) -> str | None:
+    mem: dict[str, str] | None = getattr(request.app.state, "options_mem", None)
+    if mem is None:
+        return None
+    return mem.get(key)
+
+
+def _write_mem(request: Request, key: str, value: str) -> None:
+    mem: dict[str, str] | None = getattr(request.app.state, "options_mem", None)
+    if mem is None:
+        mem = {}
+        request.app.state.options_mem = mem
+    mem[key] = value
+
+
+def _read_db(request: Request, key: str) -> str | None:
+    conn = connect(request.app.state.settings.db_path)
+    try:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", (key,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return row["value"] if row is not None else None
+
+
+def _write_db(request: Request, key: str, value: str) -> None:
+    conn = connect(request.app.state.settings.db_path)
+    try:
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+@router.get("/options", response_model=Options)
+def get_options(request: Request) -> Options:
+    profile = _detect_profile(request)
+    fixture = request.app.state.settings.mode == "fixture"
+
+    def read(key: str) -> str | None:
+        if fixture:
+            return _read_mem(request, key)
+        return _read_db(request, key)
+
+    # Profile values
+    sfw_raw = read(f"options.{profile}.sfw")
+    sfw_val: bool = sfw_raw == "1" if sfw_raw is not None else False
+    sfw_set: bool = sfw_raw is not None
+
+    pr_raw = read(f"options.{profile}.player_rate")
+    rate: float = float(pr_raw) if pr_raw is not None else 1.0
+    rate_set: bool = pr_raw is not None
+
+    # Global values
+    bs_raw = read("options.global.backdrop_strength")
+    backdrop_strength: int = int(bs_raw) if bs_raw is not None else 60
+
+    bw_raw = read("options.global.backdrop_wall")
+    backdrop_wall: bool = bw_raw == "1" if bw_raw is not None else True
+
+    bi_raw = read("options.global.backdrop_item")
+    backdrop_item: bool = bi_raw == "1" if bi_raw is not None else True
+
+    bl_raw = read("options.global.backdrop_lightbox")
+    backdrop_lightbox: bool = bl_raw == "1" if bl_raw is not None else True
+
+    abt_raw = read("options.global.allow_blurred_tags")
+    allow_blurred_tags: bool = abt_raw == "1" if abt_raw is not None else False
+
+    trd_raw = read("options.global.trash_retention_days")
+    trash_retention_days: int = int(trd_raw) if trd_raw is not None else 7
+
+    return Options(
+        sfw=sfw_val,
+        sfw_set=sfw_set,
+        player_rate=rate,
+        player_rate_set=rate_set,
+        profile=profile,
+        backdrop_strength=backdrop_strength,
+        backdrop_wall=backdrop_wall,
+        backdrop_item=backdrop_item,
+        backdrop_lightbox=backdrop_lightbox,
+        allow_blurred_tags=allow_blurred_tags,
+        trash_retention_days=trash_retention_days,
+    )
+
+
+@router.put("/options", response_model=Options)
+def put_options(request: Request, body: OptionsUpdate) -> Options:
+    profile = _detect_profile(request)
+    fixture = request.app.state.settings.mode == "fixture"
+
+    def write(key: str, value: str) -> None:
+        if fixture:
+            _write_mem(request, key, value)
+        else:
+            _write_db(request, key, value)
+
+    if body.sfw is not None:
+        write(f"options.{profile}.sfw", "1" if body.sfw else "0")
+
+    if body.player_rate is not None:
+        write(f"options.{profile}.player_rate", str(body.player_rate))
+
+    if body.backdrop_strength is not None:
+        write("options.global.backdrop_strength", str(body.backdrop_strength))
+    if body.backdrop_wall is not None:
+        write("options.global.backdrop_wall", "1" if body.backdrop_wall else "0")
+    if body.backdrop_item is not None:
+        write("options.global.backdrop_item", "1" if body.backdrop_item else "0")
+    if body.backdrop_lightbox is not None:
+        write("options.global.backdrop_lightbox", "1" if body.backdrop_lightbox else "0")
+    if body.allow_blurred_tags is not None:
+        write("options.global.allow_blurred_tags", "1" if body.allow_blurred_tags else "0")
+    if body.trash_retention_days is not None:
+        write("options.global.trash_retention_days", str(body.trash_retention_days))
+
+    return get_options(request)
