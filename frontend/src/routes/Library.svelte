@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { visibleInSafeMode } from "../lib/stores/safeFilter";
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
   import { itemHref } from "../lib/item/kinds";
@@ -166,7 +167,7 @@
             <div class="skeleton"></div>
           {/each}
         {:else}
-          {#each rs.items as item (item.id)}
+          {#each visibleInSafeMode(rs.items) as item (item.id)}
             <Tile item={item} href={itemHref(item)} onnavigate={onNav} landscape />
           {/each}
         {/if}

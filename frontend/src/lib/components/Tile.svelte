@@ -4,8 +4,6 @@
   import type { LibraryItem, WebItem } from "../api/client";
   import { formatDuration } from "../format";
   import FavBadge from "./FavBadge.svelte";
-  import { sfw } from "../stores/sfw.svelte";
-  import { options } from "../stores/options.svelte";
 
   let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, landscape = false }: {
     item: LibraryItem | WebItem;
@@ -24,10 +22,6 @@
   const isWeb = $derived("post_id" in item);
   let revealed = $state(false);
   const blurred = $derived(!revealed && item.blur != null);
-  // Safe mode drops warn-list posts unless "Allow blurred tags" is on; then they stay blurred.
-  const hiddenInSafeMode = $derived(
-    item.blur != null && !!sfw?.on && !(options.values?.allow_blurred_tags ?? false),
-  );
 
   function handleMediaClick(e: MouseEvent) {
     if (blurred) {
@@ -98,9 +92,7 @@
   }
 </script>
 
-{#if hiddenInSafeMode}
-  <!-- warn-list post, safe mode on, blurred tags not allowed -->
-{:else if isWeb}
+{#if isWeb}
   {@const w = item as WebItem}
   <div class="tile web {variant}">
     <div class="media" style:aspect-ratio={aspectRatio}>

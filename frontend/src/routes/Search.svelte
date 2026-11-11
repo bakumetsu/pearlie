@@ -5,6 +5,7 @@
   import { itemHref, toPlural } from "../lib/item/kinds";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { createSearch } from "../lib/stores/search.svelte";
+  import { visibleInSafeMode } from "../lib/stores/safeFilter";
   import { parseSearchParams, buildSearchParams, serialiseQuery, sectionsFor, webNeedsQuery } from "../lib/query";
   import type { SearchState, SectionId, SiteId } from "../lib/query";
   import { hrefOf, linkClick } from "../lib/router";
@@ -173,7 +174,7 @@
           onretry={() => search.retrySection(id)}
           onnavigate={(e) => linkClick(e, router)}
         >
-          {#each (entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (lightbox = item)} />{:else}<Tile item={item} href={itemHref(item)} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
+          {#each visibleInSafeMode(entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (lightbox = item)} />{:else}<Tile item={item} href={itemHref(item)} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
         </SectionRow>
       {/if}
     {/each}
