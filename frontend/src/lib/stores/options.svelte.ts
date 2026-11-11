@@ -18,6 +18,7 @@ export function createOptions(deps: {
   let pendingPatch: OptionsUpdate = {};
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let lastConfirmed: Options | null = null;
+  let early: OptionsUpdate = {};
   const debounceMs = deps.debounceMs ?? 300;
   const storage = deps.storage ?? (typeof localStorage !== "undefined" ? localStorage : undefined);
 
@@ -85,12 +86,21 @@ export function createOptions(deps: {
       deps.sfw.set(res.sfw);
       deps.player.loadRate(res.player_rate);
       ready = true;
+      if (Object.keys(early).length > 0) {
+        const queued = early;
+        early = {};
+        set(queued);
+      }
     })();
     return loading;
   }
 
   function set(patch: OptionsUpdate): void {
-    if (!_api || !values) return;
+    if (!_api || !values) {
+      // Changed before the first GET came back: keep it and send it once loaded
+      early = { ...early, ...patch };
+      return;
+    }
 
     // Optimistic update
     const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== null && v !== undefined));
@@ -139,6 +149,6 @@ export const options = createOptions({
 });
 
 if (sfw) sfw.onChange = (on: boolean) => options.set({ sfw: on });
-player.onRateChange = (r: number) => options.set({ player_rate: r });
+if (player) player.onRateChange = (r: number) => options.set({ player_rate: r });
 
 export type OptionsStore = ReturnType<typeof createOptions>;

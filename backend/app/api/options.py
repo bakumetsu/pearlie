@@ -70,6 +70,15 @@ def _detect_profile(request: Request) -> Literal["desktop", "touch"]:
     return "desktop"
 
 
+def _num(raw: str | None, default: float) -> float:
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
 def _read_mem(request: Request, key: str) -> str | None:
     mem: dict[str, str] | None = getattr(request.app.state, "options_mem", None)
     if mem is None:
@@ -125,12 +134,14 @@ def get_options(request: Request) -> Options:
     sfw_set: bool = sfw_raw is not None
 
     pr_raw = read(f"options.{profile}.player_rate")
-    rate: float = float(pr_raw) if pr_raw is not None else 1.0
+    rate: float = _num(pr_raw, 1.0)
+    if rate not in ALLOWED_RATES:
+        rate = 1.0
     rate_set: bool = pr_raw is not None
 
     # Global values
     bs_raw = read("options.global.backdrop_strength")
-    backdrop_strength: int = int(bs_raw) if bs_raw is not None else 60
+    backdrop_strength: int = min(100, max(0, int(_num(bs_raw, 60))))
 
     bw_raw = read("options.global.backdrop_wall")
     backdrop_wall: bool = bw_raw == "1" if bw_raw is not None else True
@@ -145,7 +156,7 @@ def get_options(request: Request) -> Options:
     allow_blurred_tags: bool = abt_raw == "1" if abt_raw is not None else False
 
     trd_raw = read("options.global.trash_retention_days")
-    trash_retention_days: int = int(trd_raw) if trd_raw is not None else 7
+    trash_retention_days: int = min(365, max(1, int(_num(trd_raw, 7))))
 
     return Options(
         sfw=sfw_val,

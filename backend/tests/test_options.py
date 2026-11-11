@@ -241,3 +241,25 @@ def test_invalid_retention(any_client: TestClient) -> None:
 def test_unknown_field(any_client: TestClient) -> None:
     r = any_client.put("/api/options", json={"nonexistent": True})
     assert r.status_code == 422
+
+
+def test_corrupt_stored_values_fall_back_to_defaults(tmp_path: Path) -> None:
+    import sqlite3
+
+    c = real_client(tmp_path)
+    assert c.get("/api/options").status_code == 200
+    conn = sqlite3.connect(str(tmp_path / "p.db"))
+    conn.executemany(
+        "INSERT INTO settings (key, value) VALUES (?, ?)",
+        [
+            ("options.desktop.player_rate", "fast"),
+            ("options.global.backdrop_strength", "x"),
+            ("options.global.trash_retention_days", "9999"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+    body = c.get("/api/options", headers={"X-Pearlie-Device": "desktop"}).json()
+    assert body["player_rate"] == 1.0
+    assert body["backdrop_strength"] == 60
+    assert body["trash_retention_days"] == 365
