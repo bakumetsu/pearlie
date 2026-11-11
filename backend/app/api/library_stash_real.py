@@ -5,6 +5,7 @@ import secrets
 from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
+from app.api.patch_rules import check_patch
 from app.models import LibraryItem, Page, PageStats, PatchBody
 from app.paging import clamp_page, clamp_page_size, pages_for
 from app.targets.stash_client import StashClient, StashError
@@ -163,8 +164,53 @@ def get_stash_video(request: Request, id: str):
         raise ApiError(502, "upstream_error", "Stash returned an unreadable item") from None
 
 
-def _patch_handler(id: str, body: PatchBody) -> None:
-    raise ApiError(501, "not_supported", "Editing and deleting Stash items is not available yet")
+def _patch(request: Request, kind: str, id: str, body: PatchBody):
+    if not valid_id(id):
+        raise ApiError(404, "not_found", "Item not found")
+    check_patch("Stash", body)
+    if body.tags is not None:
+        for tag in body.tags:
+            if not tag or len(tag) > 64:
+                raise ApiError(422, "invalid_tag", "Bad tag", field="tags")
+    client: StashClient = request.app.state.stash
+    try:
+        if kind == "images":
+            dto = client.get_image(id)
+        else:
+            dto = client.get_scene(id)
+        if dto is None:
+            raise ApiError(404, "not_found", "Item not found")
+        fields: dict = {}
+        if "rating" in body.model_fields_set:
+            fields["rating100"] = None if body.rating is None else body.rating * 20
+        if body.tags is not None:
+            fields["tag_ids"] = client.resolve_tag_ids(body.tags)
+        if fields:
+            client.update_item(kind, id, fields)
+        if kind == "images":
+            dto = client.get_image(id)
+        else:
+            dto = client.get_scene(id)
+        if dto is None:
+            raise ApiError(404, "not_found", "Item not found")
+        try:
+            if kind == "images":
+                return image_detail(dto, link_base=_link_base(request))
+            return video_detail(dto, link_base=_link_base(request))
+        except (KeyError, TypeError, ValueError):
+            raise ApiError(502, "upstream_error", "Stash returned an unreadable item") from None
+    except StashError as e:
+        raise _up(e) from None
+
+
+@router.patch("/library/images/{id}")
+def patch_stash_image(request: Request, id: str, body: PatchBody):
+    return _patch(request, "images", id, body)
+
+
+@router.patch("/library/videos/{id}")
+def patch_stash_video(request: Request, id: str, body: PatchBody):
+    return _patch(request, "videos", id, body)
 
 
 def _delete_handler(id: str) -> None:
@@ -172,5 +218,4 @@ def _delete_handler(id: str) -> None:
 
 
 for _p in ("/library/images/{id}", "/library/videos/{id}"):
-    router.patch(_p)(_patch_handler)
     router.delete(_p)(_delete_handler)
