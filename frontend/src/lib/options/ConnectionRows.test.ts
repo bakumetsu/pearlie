@@ -53,6 +53,7 @@ async function renderRows(
   }
   render(ConnectionRows, { title: "Connections", names, store, api });
   await vi.waitFor(() => expect(screen.getByText("Stash")).toBeDefined());
+  await vi.waitFor(() => expect(store.data).not.toBeNull());
   return { store, api, getConnections, putConnection, testConnection };
 }
 
