@@ -465,3 +465,25 @@ def test_unknown_name_404(tmp_path: Path) -> None:
 
     r2 = c.post("/api/connections/nonexist/test", headers=HDR)
     assert r2.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 12. Stored key but master key removed later: no crash
+# ---------------------------------------------------------------------------
+
+
+def test_stored_key_without_master_key_no_500(tmp_path: Path) -> None:
+    c = make_client(
+        tmp_path, mode="real", secret_key=master_key(), env={"real": "search"}
+    )
+    r = c.put(
+        "/api/connections/stash",
+        json={"address": "http://stash.local:9999", "secret": "hunter2"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+
+    c2 = make_client(tmp_path, mode="real", env={"real": "search"})
+    r2 = c2.post("/api/connections/stash/test", headers=HDR)
+    assert r2.status_code < 500
+    assert "hunter2" not in r2.text

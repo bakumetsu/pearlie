@@ -157,7 +157,7 @@ class ConnectionStore:
                 return val.get_secret_value()
             return str(val) if val else ""
         stored: str | None = self._read(f"connections.{name}.secret")
-        if stored is None:
+        if stored is None or not self.can_store():
             return ""
         try:
             return self._fernet().decrypt(stored.encode()).decode()
