@@ -6,12 +6,23 @@ import httpx
 
 from app.paging import clamp_page_size
 from app.sources.base import Post, Rating, SearchPage, SourceError
-from app.sources.throttle import Throttle
+from app.sources.throttle import DEFAULT_PACE, Throttle
 
 RATING_MAP: dict[str, Rating] = {
     "g": "general", "s": "sensitive", "q": "questionable", "e": "explicit"
 }
 TAG_TYPES = ("general", "artist", "copyright", "character", "meta")
+
+
+def _retry_after(resp: httpx.Response) -> float | None:
+    """Retry-After in seconds, or None when absent or not a number."""
+    raw = resp.headers.get("Retry-After")
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
 
 
 def rating_filter(tag: str) -> tuple[bool, set[str]] | None:
@@ -50,7 +61,7 @@ class Danbooru:
         self._client = client or httpx.Client(
             timeout=15.0, headers={"User-Agent": "Pearlie/0.1"}
         )
-        self._throttle = throttle or Throttle(1.0)
+        self._throttle = throttle or Throttle(DEFAULT_PACE["danbooru"])
         self._base_url = base_url
         self.file_hosts = (urlparse(base_url).hostname or "", "cdn.donmai.us")
         self._tag_limit = tag_limit
@@ -63,6 +74,7 @@ class Danbooru:
             resp = self._client.get(self._base_url + path, params=params)
         except httpx.HTTPError:
             raise SourceError("upstream_error", "Danbooru is unreachable") from None
+        self._throttle.report(resp.status_code, _retry_after(resp))
         status = resp.status_code
         if status == 404:
             raise SourceError("not_found", "Post not found", 404)

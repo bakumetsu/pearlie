@@ -13,6 +13,7 @@
   import { SvelteMap } from "svelte/reactivity";
   import Rules from "./Rules.svelte";
   import ImageViewerCard from "../lib/options/ImageViewerCard.svelte";
+  import DownloadsCard from "../lib/options/DownloadsCard.svelte";
   import ContentFilterCard from "../lib/options/ContentFilterCard.svelte";
 
   let { match }: { match: Match } = $props();
@@ -251,6 +252,8 @@
             <ImageViewerCard />
           {:else if activeSectionId === "content-filter" && card.title === "Content filter"}
             <ContentFilterCard />
+          {:else if activeSectionId === "sources" && card.title === "Downloads"}
+            <DownloadsCard />
           {:else}
             <section class="card">
               <h2 class="card-title">{card.title}</h2>
@@ -390,6 +393,8 @@
               <ImageViewerCard />
             {:else if activeSectionId === "content-filter" && card.title === "Content filter"}
               <ContentFilterCard />
+            {:else if activeSectionId === "sources" && card.title === "Downloads"}
+              <DownloadsCard />
             {:else}
               <section class="card">
                 <h2 class="card-title">{card.title}</h2>

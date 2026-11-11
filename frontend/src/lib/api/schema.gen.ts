@@ -1095,6 +1095,13 @@ export interface components {
              * @default 7
              */
             trash_retention_days: number;
+            /**
+             * Source Pace
+             * @default {}
+             */
+            source_pace: {
+                [key: string]: components["schemas"]["SitePace"];
+            };
         };
         /** OptionsUpdate */
         OptionsUpdate: {
@@ -1114,6 +1121,10 @@ export interface components {
             allow_blurred_tags?: boolean | null;
             /** Trash Retention Days */
             trash_retention_days?: number | null;
+            /** Source Pace */
+            source_pace?: {
+                [key: string]: number;
+            } | null;
         };
         /** PageStats */
         PageStats: {
@@ -1309,6 +1320,17 @@ export interface components {
              * @enum {string}
              */
             state: "ok" | "down" | "not_configured";
+        };
+        /** SitePace */
+        SitePace: {
+            /** Value */
+            value: number;
+            /** Default */
+            default: number;
+            /** Locked */
+            locked: boolean;
+            /** Backing Off */
+            backing_off: boolean;
         };
         /** StashHealth */
         StashHealth: {

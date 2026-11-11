@@ -40,6 +40,7 @@ from app.jobs.worker import JobWorker
 from app.komga import Komga
 from app.sources.base import Source
 from app.sources.danbooru import Danbooru
+from app.sources.throttle import DEFAULT_PACE, Throttle
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
 
@@ -89,8 +90,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     install_errors(app)
     app.state.settings = settings
-    sources: dict[str, Source] = {"danbooru": Danbooru()}
+    throttles: dict[str, Throttle] = {site: Throttle(DEFAULT_PACE[site]) for site in DEFAULT_PACE}
+    app.state.throttles = throttles
+    sources: dict[str, Source] = {"danbooru": Danbooru(throttle=throttles["danbooru"])}
     app.state.sources = sources
+    options.apply_pace(app)
 
     if settings.mode == "fixture":
         real = {n.strip() for n in settings.real.split(",") if n.strip()}
@@ -120,7 +124,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if "jobs" in real and stash_ok and app.state.stash is not None:
         http = httpx.Client()
         app.state.http = http
-        stash_target = StashTarget(settings, app.state.stash, http, app.state.sources)
+        stash_target = StashTarget(
+            settings, app.state.stash, http, app.state.sources, throttles=throttles
+        )
         app.state.worker = JobWorker(
             settings.db_path,
             app.state.sources,

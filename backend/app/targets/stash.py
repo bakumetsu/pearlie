@@ -20,6 +20,7 @@ from app.config import Settings
 from app.db import connect
 from app.models import Problem
 from app.sources.base import Post, Source
+from app.sources.throttle import Throttle
 from app.targets import destinations
 from app.targets.stash_client import StashClient, StashError
 
@@ -65,6 +66,17 @@ def _md5_of(path: Path) -> str:
     return h.hexdigest()
 
 
+def _retry_after(resp: httpx.Response) -> float | None:
+    """Parse the Retry-After header as a float, or None if absent or non-numeric."""
+    val = resp.headers.get("retry-after")
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except ValueError:
+        return None
+
+
 class StashTarget:
     """Stash save target."""
 
@@ -74,6 +86,7 @@ class StashTarget:
         client: StashClient,
         http: httpx.Client,
         sources: dict[str, Source],
+        throttles: dict[str, Throttle] | None = None,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -81,6 +94,7 @@ class StashTarget:
         self._client = client
         self._http = http
         self._sources = sources
+        self._throttles = throttles or {}
         self._sleep = sleep
         self._clock = clock
 
@@ -121,8 +135,14 @@ class StashTarget:
         bytes_written = 0
         content_length: str | None = None
 
+        throttle = self._throttles.get(post.source)
+        if throttle:
+            throttle.wait()
+
         try:
             with self._http.stream("GET", url, follow_redirects=False) as response:
+                if throttle:
+                    throttle.report(response.status_code, _retry_after(response))
                 if response.status_code != 200:
                     raise SaveError(
                         "download_failed",

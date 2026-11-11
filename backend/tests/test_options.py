@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.config import Settings
@@ -38,8 +40,14 @@ def any_client(request, client, tmp_path: Path) -> TestClient:
 
 
 def test_defaults(any_client: TestClient) -> None:
+    from app.sources.throttle import DEFAULT_PACE
+
     r = any_client.get("/api/options")
     assert r.status_code == 200
+    expected_pace = {
+        site: {"value": d, "default": d, "locked": False, "backing_off": False}
+        for site, d in DEFAULT_PACE.items()
+    }
     assert r.json() == {
         "sfw": False,
         "sfw_set": False,
@@ -52,6 +60,7 @@ def test_defaults(any_client: TestClient) -> None:
         "backdrop_lightbox": True,
         "allow_blurred_tags": False,
         "trash_retention_days": 7,
+        "source_pace": expected_pace,
     }
 
 
@@ -263,3 +272,73 @@ def test_corrupt_stored_values_fall_back_to_defaults(tmp_path: Path) -> None:
     assert body["player_rate"] == 1.0
     assert body["backdrop_strength"] == 60
     assert body["trash_retention_days"] == 365
+
+
+# ---------------------------------------------------------------------------
+# Source pace
+# ---------------------------------------------------------------------------
+
+
+def test_source_pace_put_valid(any_client: TestClient) -> None:
+    r = any_client.put("/api/options", json={"source_pace": {"danbooru": 2.5}})
+    assert r.status_code == 200
+    assert r.json()["source_pace"]["danbooru"]["value"] == 2.5
+
+    r2 = any_client.get("/api/options")
+    assert r2.json()["source_pace"]["danbooru"]["value"] == 2.5
+
+
+def test_source_pace_put_below_default(any_client: TestClient) -> None:
+    r = any_client.put("/api/options", json={"source_pace": {"danbooru": 0.5}})
+    assert r.status_code == 422
+
+
+def test_source_pace_put_unknown_site(any_client: TestClient) -> None:
+    r = any_client.put("/api/options", json={"source_pace": {"nonexistent": 2.0}})
+    assert r.status_code == 422
+
+
+def test_source_pace_locked(tmp_path: Path) -> None:
+    app = create_app(
+        Settings(
+            mode="real",
+            real="search",
+            db_path=tmp_path / "p.db",
+            static_dir=tmp_path / "nostatic",
+            download_interval_s=5.0,
+            _env_file=None,  # pyright: ignore[reportCallIssue]
+        )
+    )
+    c = TestClient(app)
+    r = c.get("/api/options")
+    assert r.status_code == 200
+    pace = r.json()["source_pace"]
+    assert pace["danbooru"]["locked"] is True
+    assert pace["danbooru"]["value"] == 5.0
+
+    r2 = c.put("/api/options", json={"source_pace": {"danbooru": 2.0}})
+    assert r2.status_code == 422
+    assert "set in .env" in r2.json()["message"]
+
+
+def test_source_pace_locked_value_floored_at_default(tmp_path: Path) -> None:
+    app = create_app(
+        Settings(
+            mode="real",
+            real="search",
+            db_path=tmp_path / "p.db",
+            static_dir=tmp_path / "nostatic",
+            download_interval_s=0.5,
+            _env_file=None,  # pyright: ignore[reportCallIssue]
+        )
+    )
+    pace = TestClient(app).get("/api/options").json()["source_pace"]
+    assert pace["danbooru"] == {**pace["danbooru"], "value": 1.0, "locked": True}
+    assert pace["nhentai"]["value"] == 2.0
+
+
+def test_source_pace_backing_off(any_client: TestClient) -> None:
+    throttles = cast(FastAPI, any_client.app).state.throttles
+    throttles["danbooru"].report(429)
+    r = any_client.get("/api/options")
+    assert r.json()["source_pace"]["danbooru"]["backing_off"] is True

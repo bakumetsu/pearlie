@@ -22,6 +22,7 @@ function makeOptions(overrides: Partial<Options> = {}): Options {
     backdrop_lightbox: true,
     allow_blurred_tags: false,
     trash_retention_days: 7,
+    source_pace: { danbooru: { value: 1, default: 1, locked: false, backing_off: false } },
     ...overrides,
   };
 }
@@ -47,6 +48,23 @@ describe("options store", () => {
     sfwDeps = { set: vi.fn() };
     playerDeps = { loadRate: vi.fn() };
     store = createOptions({ sfw: sfwDeps, player: playerDeps, storage, debounceMs: 300 });
+  });
+
+  it("set source_pace merges optimistically and debounces PUT", async () => {
+    const opts = makeOptions();
+    vi.mocked(api.getOptions).mockResolvedValue(opts);
+    vi.mocked(api.putOptions).mockResolvedValue(makeOptions());
+    await store.load(api);
+
+    store.set({ source_pace: { danbooru: 4 } } as OptionsUpdate);
+    store.set({ source_pace: { danbooru: 5 } } as OptionsUpdate);
+
+    expect(store.values?.source_pace.danbooru).toEqual({ value: 5, default: 1, locked: false, backing_off: false });
+
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(api.putOptions).toHaveBeenCalledTimes(1);
+    expect(api.putOptions).toHaveBeenCalledWith({ source_pace: { danbooru: 5 } });
   });
 
   it("load applies values to deps and sets ready", async () => {

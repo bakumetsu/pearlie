@@ -2,16 +2,28 @@
 
 from __future__ import annotations
 
+import math
 from typing import Literal
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, FastAPI, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator
 
+from app.api.errors import ApiError
 from app.db import connect
+from app.sources.throttle import DEFAULT_PACE, Throttle
 
 router = APIRouter(prefix="/api")
 
 ALLOWED_RATES = (0.5, 0.75, 1.0, 1.25, 1.5, 2.0)
+
+
+class SitePace(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    value: float
+    default: float
+    locked: bool
+    backing_off: bool
 
 
 class Options(BaseModel):
@@ -29,6 +41,7 @@ class Options(BaseModel):
     backdrop_lightbox: StrictBool = True
     allow_blurred_tags: StrictBool = False
     trash_retention_days: StrictInt = Field(default=7, ge=1, le=365)
+    source_pace: dict[str, SitePace] = {}
 
     @field_validator("player_rate")
     @classmethod
@@ -49,6 +62,7 @@ class OptionsUpdate(BaseModel):
     backdrop_lightbox: StrictBool | None = None
     allow_blurred_tags: StrictBool | None = None
     trash_retention_days: StrictInt | None = Field(default=None, ge=1, le=365)
+    source_pace: dict[str, float] | None = None
 
     @field_validator("player_rate")
     @classmethod
@@ -118,6 +132,44 @@ def _write_db(request: Request, key: str, value: str) -> None:
         conn.close()
 
 
+def _effective_pace(app: FastAPI, site: str) -> tuple[float, bool]:
+    """Return (value, locked) for the given site's pace."""
+    settings = app.state.settings
+    locked = "download_interval_s" in settings.model_fields_set
+    if locked:
+        return max(float(settings.download_interval_s), DEFAULT_PACE[site]), True
+    fixture = settings.mode == "fixture"
+    key = f"options.global.pace.{site}"
+    if fixture:
+        mem: dict[str, str] | None = getattr(app.state, "options_mem", None)
+        raw = mem.get(key) if mem else None
+    else:
+        conn = connect(settings.db_path)
+        try:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)
+            ).fetchone()
+        finally:
+            conn.close()
+        raw = row["value"] if row is not None else None
+    if raw is not None:
+        try:
+            v = float(raw)
+            if math.isfinite(v) and v >= DEFAULT_PACE[site]:
+                return v, False
+        except (ValueError, TypeError):
+            pass
+    return DEFAULT_PACE[site], False
+
+
+def apply_pace(app: FastAPI) -> None:
+    """Read stored/locked pace values and apply set_interval on every throttle."""
+    throttles: dict[str, Throttle] = getattr(app.state, "throttles", {})
+    for site in list(throttles):
+        value, _ = _effective_pace(app, site)
+        throttles[site].set_interval(value)
+
+
 @router.get("/options", response_model=Options)
 def get_options(request: Request) -> Options:
     profile = _detect_profile(request)
@@ -158,6 +210,20 @@ def get_options(request: Request) -> Options:
     trd_raw = read("options.global.trash_retention_days")
     trash_retention_days: int = min(365, max(1, int(_num(trd_raw, 7))))
 
+    # Source pace
+    source_pace: dict[str, SitePace] = {}
+    throttles: dict[str, Throttle] = getattr(request.app.state, "throttles", {})
+    for site in DEFAULT_PACE:
+        val, locked = _effective_pace(request.app, site)
+        throttle = throttles.get(site)
+        backing = throttle.backing_off if throttle is not None else False
+        source_pace[site] = SitePace(
+            value=val,
+            default=DEFAULT_PACE[site],
+            locked=locked,
+            backing_off=backing,
+        )
+
     return Options(
         sfw=sfw_val,
         sfw_set=sfw_set,
@@ -170,6 +236,7 @@ def get_options(request: Request) -> Options:
         backdrop_lightbox=backdrop_lightbox,
         allow_blurred_tags=allow_blurred_tags,
         trash_retention_days=trash_retention_days,
+        source_pace=source_pace,
     )
 
 
@@ -202,5 +269,24 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
         write("options.global.allow_blurred_tags", "1" if body.allow_blurred_tags else "0")
     if body.trash_retention_days is not None:
         write("options.global.trash_retention_days", str(body.trash_retention_days))
+
+    if body.source_pace is not None:
+        settings = request.app.state.settings
+        locked = "download_interval_s" in settings.model_fields_set
+        if locked:
+            raise ApiError(422, "invalid", "source_pace is set in .env", field="source_pace")
+        for site, value in body.source_pace.items():
+            if site not in DEFAULT_PACE:
+                raise ApiError(422, "invalid", f"unknown site: {site}", field="source_pace")
+            if not math.isfinite(value) or value > 3600:
+                raise ApiError(422, "invalid", f"invalid value for {site}", field="source_pace")
+            if value < DEFAULT_PACE[site]:
+                raise ApiError(422, "invalid", f"invalid value for {site}", field="source_pace")
+        # All valid – write and apply
+        throttles: dict[str, Throttle] = getattr(request.app.state, "throttles", {})
+        for site, value in body.source_pace.items():
+            write(f"options.global.pace.{site}", str(value))
+            if site in throttles:
+                throttles[site].set_interval(value)
 
     return get_options(request)
