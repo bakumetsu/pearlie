@@ -12,6 +12,7 @@
   import Icon from "../lib/components/Icon.svelte";
   import { SvelteMap } from "svelte/reactivity";
   import Rules from "./Rules.svelte";
+  import ImageViewerCard from "../lib/options/ImageViewerCard.svelte";
 
   let { match }: { match: Match } = $props();
 
@@ -245,17 +246,21 @@
         <p class="coming-later">Coming later.</p>
       {:else}
         {#each activeSection.cards as card (card.title)}
-          <section class="card">
-            <h2 class="card-title">{card.title}</h2>
-            <dl>
-              {#each card.rows as row (row.label)}
-                <div class="row">
-                  <dt>{row.label}</dt>
-                  <dd>{row.hint}</dd>
-                </div>
-              {/each}
-            </dl>
-          </section>
+          {#if activeSectionId === "viewing" && card.title === "Image viewer"}
+            <ImageViewerCard />
+          {:else}
+            <section class="card">
+              <h2 class="card-title">{card.title}</h2>
+              <dl>
+                {#each card.rows as row (row.label)}
+                  <div class="row">
+                    <dt>{row.label}</dt>
+                    <dd>{row.hint}</dd>
+                  </div>
+                {/each}
+              </dl>
+            </section>
+          {/if}
         {/each}
       {/if}
     </div>
@@ -378,17 +383,21 @@
           <p class="coming-later">Coming later.</p>
         {:else}
           {#each activeSection.cards as card (card.title)}
-            <section class="card">
-              <h2 class="card-title">{card.title}</h2>
-              <dl>
-                {#each card.rows as row (row.label)}
-                  <div class="row">
-                    <dt>{row.label}</dt>
-                    <dd>{row.hint}</dd>
-                  </div>
-                {/each}
-              </dl>
-            </section>
+            {#if activeSectionId === "viewing" && card.title === "Image viewer"}
+              <ImageViewerCard />
+            {:else}
+              <section class="card">
+                <h2 class="card-title">{card.title}</h2>
+                <dl>
+                  {#each card.rows as row (row.label)}
+                    <div class="row">
+                      <dt>{row.label}</dt>
+                      <dd>{row.hint}</dd>
+                    </div>
+                  {/each}
+                </dl>
+              </section>
+            {/if}
           {/each}
         {/if}
       {/if}

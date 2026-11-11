@@ -3,6 +3,9 @@
   import type { WebItem } from "../api/client";
   import Icon from "./Icon.svelte";
   import SfwToggle from "./SfwToggle.svelte";
+  import Backdrop from "./Backdrop.svelte";
+  import { options } from "../stores/options.svelte";
+  import { backdropStrength } from "../options/backdrop";
 
   let {
     item,
@@ -33,6 +36,7 @@
   });
 
   const title = $derived(item.title ?? `${item.source} #${item.post_id}`);
+  const backdrop = $derived(backdropStrength(options.values, "lightbox"));
 </script>
 
 <dialog
@@ -42,6 +46,7 @@
     if (e.target === dialogEl) dialogEl.close();
   }}
 >
+  <Backdrop src={item.preview_url} strength={backdrop} />
   <SfwToggle />
   <div class="stage">
     <img src={item.preview_url} alt={item.title ?? ""} />
@@ -117,6 +122,12 @@
 </dialog>
 
 <style>
+  .stage,
+  .panel {
+    position: relative;
+    z-index: 1;
+  }
+
   dialog {
     margin: auto;
     width: calc(100vw - 32px);

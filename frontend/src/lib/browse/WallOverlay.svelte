@@ -14,6 +14,9 @@
   import { swipeDir } from "./swipe";
   import RatingStars from "../item/RatingStars.svelte";
   import { itemHref } from "../item/kinds";
+  import Backdrop from "../components/Backdrop.svelte";
+  import { options } from "../stores/options.svelte";
+  import { backdropStrength } from "../options/backdrop";
 
   type OverlayGrid = ListGrid &
     GridLike & {
@@ -52,6 +55,7 @@
     document.fullscreenEnabled === true &&
     typeof HTMLElement.prototype.requestFullscreen === "function";
 
+  const backdrop = $derived(backdropStrength(options.values, "wall"));
   let swipeStart: { id: number; x: number; y: number } | null = null;
   let swipeHandled = false;
   const activePointers = new SvelteSet<number>();
@@ -383,6 +387,7 @@
   onclick={onLayerClick}
   bind:this={layerEl}
 >
+  <Backdrop src={stageSrc} strength={backdrop} />
   <div class="top">
     <button
       type="button"
@@ -478,6 +483,8 @@
   }
 
   .top {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -538,6 +545,7 @@
     align-items: center;
     justify-content: center;
     position: relative;
+    z-index: 1;
     overflow: hidden;
     min-height: 0;
   }
@@ -641,6 +649,8 @@
   }
 
   .bottom {
+    position: relative;
+    z-index: 1;
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
