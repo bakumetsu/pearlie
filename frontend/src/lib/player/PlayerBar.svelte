@@ -54,9 +54,19 @@
 
 </script>
 
+<div class="bar-wrap">
 <div class="bar" role="group" aria-label="Player controls">
   <button class="btn" aria-label="Previous video" disabled={!player.canPrev} onclick={() => player.prev()}>
     <Icon name="rewind" size={20} />
+  </button>
+  <button
+    class="btn"
+    aria-label="Back 10 seconds"
+    title="Back 10 seconds"
+    disabled={!player.duration || player.failed}
+    onclick={() => player.skip(-10)}
+  >
+    <Icon name="replay-10" size={20} />
   </button>
   <button
     class="btn"
@@ -64,6 +74,15 @@
     onclick={() => player.toggle()}
   >
     <Icon name={player.playing ? "pause" : "play"} size={20} />
+  </button>
+  <button
+    class="btn"
+    aria-label="Forward 10 seconds"
+    title="Forward 10 seconds"
+    disabled={!player.duration || player.failed}
+    onclick={() => player.skip(10)}
+  >
+    <Icon name="forward-10" size={20} />
   </button>
   <button class="btn" aria-label="Next video" disabled={!player.canNext} onclick={() => player.next()}>
     <Icon name="fast-forward" size={20} />
@@ -117,8 +136,13 @@
     <Icon name={fullscreen ? "minimize" : "maximize"} size={20} />
   </button>
 </div>
+</div>
 
 <style>
+  .bar-wrap {
+    container-type: inline-size;
+    width: 100%;
+  }
   .bar {
     position: relative;
     display: flex;
@@ -159,6 +183,12 @@
   .vol {
     width: 64px;
     accent-color: var(--accent);
+  }
+
+  @container (max-width: 679px) {
+    .vol {
+      display: none;
+    }
   }
 
   .time {

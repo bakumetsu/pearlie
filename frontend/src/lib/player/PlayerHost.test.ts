@@ -49,6 +49,15 @@ describe("PlayerHost mini dock", () => {
     expect(video()?.hasAttribute("data-sfw-shown")).toBe(false);
   });
 
+  it("stage bar anchors by bottom, not top", () => {
+    render(PlayerHost);
+    flushSync();
+    const style = document.querySelector<HTMLElement>(".stage-bar")?.getAttribute("style") ?? "";
+    // slot y=20, h=200: bottom edge is 220, not the viewport bottom
+    expect(style).toContain(`bottom: ${window.innerHeight - 20 - 200}px`);
+    expect(style).not.toMatch(/(^|;)\s*top:/);
+  });
+
   it("stage: video keeps z-index 20", () => {
     const seen = captureStyles();
     render(PlayerHost);
