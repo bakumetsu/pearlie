@@ -17,9 +17,9 @@ function makeConnections(can_store = true): ConnectionsOut {
   return {
     can_store,
     connections: [
-      { name: "stash", address: "http://stash.local:9999", key: "", address_fixed: false, address_locked: false, key_locked: false },
-      { name: "komga", address: "http://komga.local:8888", key: "komga-secret", address_fixed: false, address_locked: false, key_locked: false },
-      { name: "danbooru", address: "https://danbooru.donmai.us", key: "danbooru-secret", address_fixed: true, address_locked: true, key_locked: false },
+      { name: "stash", address: "http://stash.local:9999", key: "missing", address_fixed: false, address_locked: false, key_locked: false },
+      { name: "komga", address: "http://komga.local:8888", key: "set", address_fixed: false, address_locked: false, key_locked: false },
+      { name: "danbooru", address: "https://danbooru.donmai.us", key: "set", address_fixed: true, address_locked: true, key_locked: false },
     ],
   };
 }
@@ -30,9 +30,9 @@ function makeApi(data: ConnectionsOut) {
     const conn = data.connections.find((c) => c.name === name);
     if (!conn) return Promise.reject(new Error("not found"));
     const updated: ConnectionOut = { ...conn };
-    if (body.address) updated.address = body.address;
-    if (body.secret) updated.key = "key-set-indicator";
-    if (body.clear_secret) updated.key = "";
+    if (typeof body.address === "string") updated.address = body.address;
+    if (body.secret) updated.key = "set";
+    if (body.clear_secret) updated.key = "missing";
     return Promise.resolve(updated);
   });
   const testConnection = vi.fn().mockResolvedValue({ ok: true, message: "Connection OK" } as ConnectionTest);
@@ -80,10 +80,6 @@ describe("ConnectionRows", () => {
     expect(stashChip.textContent).toBe("missing");
     expect(komgaChip.textContent).toBe("set");
     expect(danbooruChip.textContent).toBe("set");
-
-    // No secret values in DOM
-    expect(document.body.innerHTML).not.toContain("komga-secret");
-    expect(document.body.innerHTML).not.toContain("danbooru-secret");
   });
 
   it("Test button calls api.testConnection with the name and shows the result message", async () => {
@@ -144,7 +140,7 @@ describe("ConnectionRows", () => {
     const data: ConnectionsOut = {
       can_store: true,
       connections: [
-        { name: "stash", address: "http://stash.local:9999", key: "", address_fixed: false, address_locked: false, key_locked: true },
+        { name: "stash", address: "http://stash.local:9999", key: "missing", address_fixed: false, address_locked: false, key_locked: true },
       ],
     };
     await renderRows(data);
