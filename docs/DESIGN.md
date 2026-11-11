@@ -16,7 +16,7 @@ The web app comes first (self-hosted, then PWA). A native iOS client (SwiftUI) f
 ## 2. Product rules (every change is checked against these)
 
 1. **Stash and Komga are the library.** Pearlie stores only its own data: jobs, rules, the index of saved items (source, post id, MD5), trash records. It never keeps a second copy of the media. 
-2. **Never exposed directly.** Access only through Tailscale/WireGuard or a reverse proxy with login. Outbound calls go only to the configured sites, Stash and Komga.
+2. **Never exposed directly.** Access only through Tailscale/WireGuard or a reverse proxy with login. Outbound calls go only to the configured sites, Stash and Komga, and to GitHub (`api.github.com` for the update check, `codeload.github.com` for the update download; no tokens; can be turned off).
 3. **Secrets stay local.** API keys and site cookies live in `.env` or the local config, are never logged and never reach the browser. Clients never get Stash or Komga keys. Secrets may be typed into the Options page (write-only, stored encrypted); they are never shown, logged or sent to the browser.
 4. **No delete without undo.** Library deletes go to a Pearlie trash folder with an Undo toast; real deletion happens after a retention period the user sets.
 5. **Polite to sites.** Every source has a throttle; one download at a time per site by default.
@@ -30,7 +30,7 @@ The web app comes first (self-hosted, then PWA). A native iOS client (SwiftUI) f
 | Backend | Python 3.12+, FastAPI, httpx, SQLite | gallery-dl is a Python library we can call in-process |
 | Downloads | gallery-dl (moved to Codeberg) plus httpx | gallery-dl covers nhentai; boorus use their JSON APIs directly |
 | Frontend | Svelte + Vite single-page app, built to static files and served by FastAPI | small and fast on a phone; an SPA keeps the video player alive between screens |
-| Deploy | One Docker container on Proxmox (LXC or VM), OMV share mounted over NFS | same UID/GID as Stash and Komga |
+| Deploy | Debian LXC on Proxmox (community-scripts installer), Pearlie in a venv under systemd, OMV share bind-mounted from the host | files owned by the Stash/Komga UID/GID (OMV all_squash) |
 | iOS (later) | SwiftUI, AVKit for video and PiP | same JSON API, token login |
 
 ## 4. Architecture
@@ -61,7 +61,8 @@ Pearlie/
     api/       search.py  library.py  save.py  jobs.py  rules.py  media.py  health.py
   backend/tests/          mocked sites, Stash and Komga
   frontend/               Svelte + Vite
-  deploy/                 Dockerfile, docker-compose.yml (.env.example is in the repo root)
+  ct/ install/ json/       Proxmox installer (community-scripts format)
+  deploy/                 update script, systemd unit, requirements lock (.env.example is in the repo root)
   docs/DESIGN.md          this file
 ```
 
@@ -190,7 +191,7 @@ Reordered 2026-11-08: the UI comes first, as the groundwork for the backend.
 
 1. **UI prototype:** the real Svelte frontend for every screen (search, library and item view, mini player, PiP and reader, queue and rules) on a FastAPI stub that serves fixture JSON and generated placeholder media on the section 9 paths.
 2. **Backend behind the UI:** Danbooru → Stash save, save queue, base list; library browsing (Stash, Komga); filters and library editing. Each step replaces fixtures with real logic.
-3. **Login**, then a **Proxmox installer** in the community-scripts style (one command on the host creates the LXC and installs Pearlie).
+3. **Proxmox installer and updates** in the community-scripts style (one command on the host creates the LXC and installs Pearlie; main/dev update channels), then **Login**. Design: design-proxmox-installer (D-02, local).
 4. **nhentai → Komga** (route A, then B if worth it), Gelbooru and Rule34.
 5. **Parked until the user opens it:** PWA polish, then the native iOS client.
 
