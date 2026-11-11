@@ -1,34 +1,15 @@
 import { resetReveals } from "./sfw-reveal";
 
-export const SFW_KEY = "pearlie.sfw";
-
-export function loadSfw(storage: Pick<Storage, "getItem"> = localStorage): boolean {
-  try {
-    return storage.getItem(SFW_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function saveSfw(on: boolean, storage: Pick<Storage, "setItem"> = localStorage): void {
-  try {
-    storage.setItem(SFW_KEY, on ? "1" : "0");
-  } catch {
-    // ignore
-  }
-}
-
 interface SfwStore {
   readonly on: boolean;
+  /** Called after toggle() so the options store can save the change; set() is silent. */
+  onChange: ((on: boolean) => void) | null;
   toggle(): void;
   set(on: boolean): void;
 }
 
-export function createSfw(
-  storage: Pick<Storage, "getItem" | "setItem"> = localStorage,
-  root: HTMLElement = document.documentElement,
-): SfwStore {
-  let state = $state(loadSfw(storage));
+export function createSfw(root: HTMLElement = document.documentElement): SfwStore {
+  let state = $state(false);
 
   const apply = (): void => {
     if (state) {
@@ -36,25 +17,27 @@ export function createSfw(
     } else {
       delete root.dataset.sfw;
     }
-    saveSfw(state, storage);
     resetReveals(root);
   };
 
   apply();
 
-  return {
+  const store: SfwStore = {
     get on(): boolean {
       return state;
     },
+    onChange: null,
     toggle(): void {
       state = !state;
       apply();
+      store.onChange?.(state);
     },
     set(on: boolean): void {
       state = on;
       apply();
     },
   };
+  return store;
 }
 
 export const sfw = typeof document !== "undefined" ? createSfw() : null;
