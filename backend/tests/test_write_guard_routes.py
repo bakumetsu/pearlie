@@ -65,7 +65,7 @@ def test_every_mutating_route_refuses_foreign_origin_real(
         stash_api_key=SecretStr("k"),
         komga_url="http://komga.invalid",
         komga_api_key=SecretStr("k"),
-        _env_file=None,
+        _env_file=None,  # pyright: ignore[reportCallIssue]
     )
     real_app = create_app(real)
     tc = TestClient(real_app)  # no with-block: skips lifespan, no background tasks
