@@ -117,6 +117,7 @@ Notes:
 - `ComicInfo.xml` fields: `Series` (parody), `Title`, `Tags`, `Genre` (category), `Writer`/`Penciller` (artist), `LanguageISO`, `Web` (source URL). Komga imports them only if the library's metadata import settings allow ComicInfo.
 - Browsing and reader: `/api/v1/series`, `/api/v1/books`, `/thumbnail`, `/api/v1/books/{id}/pages/{n}`; progress `PATCH /api/v1/books/{id}/read-progress`.
 - Reader page thumbnails: `GET /api/media/komga/books/{id}/pages/{n}/thumb`, proxied from Komga's page thumbnail; the book detail carries `page_thumb_url` as a template.
+- Reader chrome (toolbar, title pill, page progress) shows on open and on a real mouse move (not on touch, zero-delta or post-click synthetic moves), on keys that open UI on purpose (books, settings, help, thumbs) and when keyboard focus enters it; page turns by click, key or wheel leave it hidden; touch tap toggles it.
 - Komga 1.30.0 (Nov 2026) replaced deprecated endpoints: check each one in `/swagger-ui.html` first.
 
 ## 8. Filters

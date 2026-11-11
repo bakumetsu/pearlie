@@ -1,3 +1,25 @@
+import type { KeyAction } from "./pages";
+
+/** Keys that open UI on purpose show the chrome; page turns and view tweaks leave it alone. */
+export function keyShowsChrome(a: KeyAction | null): boolean {
+  return a === "books" || a === "settings" || a === "help" || a === "thumbs";
+}
+
+/** True only for a real mouse/pen move: touch, zero delta and the first sample never count. */
+export function createMoveGuard() {
+  let lastX: number | null = null;
+  let lastY: number | null = null;
+  return (e: { clientX: number; clientY: number; pointerType?: string }): boolean => {
+    const px = lastX;
+    const py = lastY;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    if (e.pointerType === "touch") return false;
+    if (px === null || py === null) return false;
+    return e.clientX !== px || e.clientY !== py;
+  };
+}
+
 export function createAutoHide(opts: {
   delayMs?: number;
   blocked: () => boolean;
@@ -44,7 +66,11 @@ export function createAutoHide(opts: {
       set(true);
     },
     setHover(v: boolean) { hover = v; if (!v) start(); },
-    setFocus(v: boolean) { focus = v; if (!v) start(); },
+    setFocus(v: boolean) {
+      focus = v;
+      if (v) set(false);
+      else start();
+    },
     destroy() { clear(); },
   };
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createAutoHide } from "./autohide";
+import { createAutoHide, createMoveGuard, keyShowsChrome } from "./autohide";
+import { keyAction } from "./pages";
 
 describe("createAutoHide", () => {
   let onchange: ReturnType<typeof vi.fn>;
@@ -110,5 +111,55 @@ describe("createAutoHide", () => {
     vi.advanceTimersByTime(1);
     expect(onchange).toHaveBeenCalledTimes(1);
     expect(onchange).toHaveBeenCalledWith(true);
+  });
+
+  it("setFocus(true) shows hidden chrome", () => {
+    const api = createAutoHide({ blocked, onchange });
+    vi.advanceTimersByTime(4000);
+    expect(onchange).toHaveBeenLastCalledWith(true);
+    api.setFocus(true);
+    expect(onchange).toHaveBeenLastCalledWith(false);
+  });
+});
+
+describe("keyShowsChrome", () => {
+  const act = (key: string, shiftKey = false) => keyAction({ key, shiftKey }, "ltr");
+
+  it("page turns and view tweaks do not show the chrome", () => {
+    for (const k of ["ArrowLeft", "ArrowRight", " ", "PageDown", "PageUp", "Home", "End", "[", "]", "f", "m", "1", "2", "3", "-", "+", "0", "ArrowUp", "ArrowDown"]) {
+      expect(keyShowsChrome(act(k)), k).toBe(false);
+    }
+  });
+
+  it("keys that open UI show the chrome", () => {
+    for (const k of ["b", "s", "?", "t"]) {
+      expect(keyShowsChrome(act(k)), k).toBe(true);
+    }
+  });
+
+  it("unmapped key does not show the chrome", () => {
+    expect(keyShowsChrome(act("x"))).toBe(false);
+  });
+});
+
+describe("createMoveGuard", () => {
+  it("first sample is ignored, a real delta counts", () => {
+    const g = createMoveGuard();
+    expect(g({ clientX: 10, clientY: 10, pointerType: "mouse" })).toBe(false);
+    expect(g({ clientX: 12, clientY: 10, pointerType: "mouse" })).toBe(true);
+  });
+
+  it("zero-delta move (synthetic after a click) is ignored", () => {
+    const g = createMoveGuard();
+    g({ clientX: 10, clientY: 10, pointerType: "mouse" });
+    expect(g({ clientX: 10, clientY: 10, pointerType: "mouse" })).toBe(false);
+  });
+
+  it("pen needs a real delta, touch never counts", () => {
+    const g = createMoveGuard();
+    g({ clientX: 0, clientY: 0, pointerType: "pen" });
+    expect(g({ clientX: 0, clientY: 0, pointerType: "pen" })).toBe(false);
+    expect(g({ clientX: 5, clientY: 5, pointerType: "pen" })).toBe(true);
+    expect(g({ clientX: 50, clientY: 50, pointerType: "touch" })).toBe(false);
   });
 });
