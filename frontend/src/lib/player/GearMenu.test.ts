@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/svelte";
+import { render, cleanup, fireEvent } from "@testing-library/svelte";
 import { flushSync } from "svelte";
 import GearMenu from "./GearMenu.svelte";
 import { player } from "./player.svelte";
+import { playerSettings } from "./playerSettings.svelte";
 
 describe("GearMenu popover, sections, speed, loop, quality", () => {
   const item = {
@@ -291,5 +292,29 @@ describe("GearMenu popover, sections, speed, loop, quality", () => {
     const fallbackUrl = player.onSourceError();
     expect(fallbackUrl).toBe("/t480");
     expect(player.sourceIdx).toBe(1);
+  });
+
+  it("autoplay: On sets the store and closes the menu", async () => {
+    gear()!.click();
+    flushSync();
+
+    await fireEvent.click(header("Autoplay")!);
+    flushSync();
+    await fireEvent.click(opt("On")!);
+
+    expect(playerSettings.autoplay).toBe(true);
+    expect(pop()).toBeNull();
+
+    await playerSettings.setAutoplay(false);
+  });
+
+  it("autoplay row shows Off as current by default", async () => {
+    gear()!.click();
+    flushSync();
+
+    await fireEvent.click(header("Autoplay")!);
+    flushSync();
+
+    expect(opt("Off")!.getAttribute("aria-pressed")).toBe("true");
   });
 });

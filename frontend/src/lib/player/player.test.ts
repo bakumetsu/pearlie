@@ -378,12 +378,12 @@ describe("createPlayer swap", () => {
     expect(f.pause).toHaveBeenCalled();
   });
 
-  it("consumeAutoplay returns true once then false", () => {
+  it("consumePlayOnLoad returns true once then false", () => {
     const p = createPlayer();
     toMini(p);
     p.swap(item2);
-    expect(p.consumeAutoplay()).toBe(true);
-    expect(p.consumeAutoplay()).toBe(false);
+    expect(p.consumePlayOnLoad()).toBe(true);
+    expect(p.consumePlayOnLoad()).toBe(false);
   });
 
   it("swap with same id is a no-op", () => {
@@ -391,15 +391,122 @@ describe("createPlayer swap", () => {
     toMini(p);
     p.swap(item1);
     expect(p.item?.id).toBe("1");
-    expect(p.consumeAutoplay()).toBe(false);
+    expect(p.consumePlayOnLoad()).toBe(false);
   });
 
-  it("open after swap resets autoplay", () => {
+  it("open after swap resets playOnLoad", () => {
     const p = createPlayer();
     toMini(p);
     p.swap(item2);
-    expect(p.consumeAutoplay()).toBe(true);
+    expect(p.consumePlayOnLoad()).toBe(true);
     p.open(item1);
-    expect(p.consumeAutoplay()).toBe(false);
+    expect(p.consumePlayOnLoad()).toBe(false);
+  });
+});
+
+describe("autoplay setting", () => {
+  const nav = (canNext: boolean) => ({ next: vi.fn(), prev: vi.fn(), canNext: () => canNext, canPrev: () => false });
+
+  function toMini(p: ReturnType<typeof createPlayer>): void {
+    p.open(item1);
+    p.onPlaying();
+    p.setSlot(item1.id, rect);
+    p.releaseSlot(item1.id);
+    expect(p.mode).toBe("mini");
+  }
+
+  it("ended with autoplay on and canNext true calls next() once in stage mode", () => {
+    const on = true;
+    const p = createPlayer(() => on);
+    const n = nav(true);
+    p.open(item1);
+    p.setNav(n);
+    p.onEnded();
+    expect(n.next).toHaveBeenCalledTimes(1);
+  });
+
+  it("ended fired twice calls next() only once", () => {
+    const on = true;
+    const p = createPlayer(() => on);
+    const n = nav(true);
+    p.open(item1);
+    p.setNav(n);
+    p.onEnded();
+    p.onEnded();
+    expect(n.next).toHaveBeenCalledTimes(1);
+  });
+
+  it("loop on does not call next()", () => {
+    const on = true;
+    const p = createPlayer(() => on);
+    const n = nav(true);
+    p.open(item1);
+    p.setLoop(true);
+    p.setNav(n);
+    p.onEnded();
+    expect(n.next).not.toHaveBeenCalled();
+  });
+
+  it("canNext false in mini mode does not call next() and closes the player", () => {
+    const on = true;
+    const p = createPlayer(() => on);
+    const n = nav(false);
+    toMini(p);
+    p.setNav(n);
+    p.onEnded();
+    expect(n.next).not.toHaveBeenCalled();
+    expect(p.mode).toBe("hidden");
+    expect(p.item).toBeNull();
+  });
+
+  it("autoplay off does not call next()", () => {
+    const on = false;
+    const p = createPlayer(() => on);
+    const n = nav(true);
+    p.open(item1);
+    p.setNav(n);
+    p.onEnded();
+    expect(n.next).not.toHaveBeenCalled();
+  });
+
+  it("mini with autoplay on and canNext true: next() called and player not closed", () => {
+    const on = true;
+    const p = createPlayer(() => on);
+    const n = nav(true);
+    toMini(p);
+    p.setNav(n);
+    p.onEnded();
+    expect(n.next).toHaveBeenCalledTimes(1);
+    expect(p.item?.id).toBe("1");
+    expect(p.mode).toBe("mini");
+  });
+
+  it("open with autoplay on gives consumePlayOnLoad true; off gives false", () => {
+    const on = true;
+    const p = createPlayer(() => on);
+    p.open(item1);
+    expect(p.consumePlayOnLoad()).toBe(true);
+    const on2 = false;
+    const p2 = createPlayer(() => on2);
+    p2.open(item1);
+    expect(p2.consumePlayOnLoad()).toBe(false);
+  });
+
+  it("swap in mini plays regardless of autoplay setting", () => {
+    const on = false;
+    const p = createPlayer(() => on);
+    toMini(p);
+    p.swap(item2);
+    expect(p.consumePlayOnLoad()).toBe(true);
+  });
+
+  it("createPlayer reads the autoplay callback at call time, not creation time", () => {
+    let on = true;
+    const p = createPlayer(() => on);
+    p.open(item1);
+    expect(p.consumePlayOnLoad()).toBe(true);
+    on = false;
+    p.open(item2);
+    expect(p.consumePlayOnLoad()).toBe(false);
   });
 });

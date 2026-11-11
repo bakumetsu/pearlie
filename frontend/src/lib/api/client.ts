@@ -27,6 +27,7 @@ export type ProgressResult = S["ProgressResult"];
 export type ViewSettings = S["ViewSettings"];
 export type ViewSettingItem = S["ViewSettingItem"];
 export type ViewSettingBody = S["ViewSettingBody"];
+export type PlayerSettings = S["PlayerSettings"];
 
 export type Kind = "images" | "videos" | "series" | "books";
 
@@ -90,6 +91,8 @@ export interface Api {
   retryJob(id: string, signal?: AbortSignal): Promise<Job>;
   getViewSettings(signal?: AbortSignal): Promise<ViewSettings>;
   putViewSetting(source: string, body: ViewSettingBody, signal?: AbortSignal): Promise<ViewSettingItem>;
+  getPlayerSettings(signal?: AbortSignal): Promise<PlayerSettings>;
+  putPlayerSettings(body: PlayerSettings, signal?: AbortSignal): Promise<PlayerSettings>;
   removeJob(id: string, signal?: AbortSignal): Promise<void>;
   testRules(tags: string[], signal?: AbortSignal): Promise<RulesTestResult>;
   saveProgress(bookId: string, page: number, signal?: AbortSignal, opts?: { keepalive?: boolean }): Promise<ProgressResult>;
@@ -267,6 +270,20 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     putViewSetting(source, body, signal) {
       return request<ViewSettingItem>(
         baseUrl + "/api/view-settings/" + encodeURIComponent(source),
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        signal,
+      );
+    },
+    getPlayerSettings(signal) {
+      return request<PlayerSettings>(baseUrl + "/api/player-settings", undefined, signal);
+    },
+    putPlayerSettings(body, signal) {
+      return request<PlayerSettings>(
+        baseUrl + "/api/player-settings",
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },

@@ -21,6 +21,7 @@ from app.api import (
     media_komga_real,
     media_stash,
     media_stash_real,
+    player_settings,
     rules,
     rules_real,
     search,
@@ -162,6 +163,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(destinations.router)
     app.include_router(view_settings.router)
+    app.include_router(player_settings.router)
     app.include_router(health_router)
 
     static_dir: Path = settings.static_dir
