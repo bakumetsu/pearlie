@@ -4,6 +4,7 @@ from app.config import Settings
 from app.db import db_reachable
 from app.fixtures.scenarios import active
 from app.models import Health, KomgaHealth, Site, StashHealth, State
+from app.update.version import current_version
 
 router = APIRouter(prefix="/api")
 
@@ -16,6 +17,7 @@ def health(request: Request) -> Health:
     stash_state: State = "down" if active("offline") else "not_configured"
     return Health(
         status=status,
+        version=current_version().version,
         db=db,
         stash=StashHealth(state=stash_state, version=None),
         komga=KomgaHealth(state="not_configured"),

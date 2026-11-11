@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import logging
 from typing import Literal
-from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, SecretStr, StrictBool
 
 from app.api.errors import ApiError
+from app.api.guard import write_guard
 from app.connections_store import FIXED_HOSTS, NAMES, ConnectionStore, StoreError
 
 logger = logging.getLogger("pearlie")
@@ -52,31 +52,6 @@ class TestOut(BaseModel):
     message: str
 
 
-def write_guard(request: Request) -> None:
-    ct = request.headers.get("content-type", "")
-    media_type = ct.split(";", 1)[0].strip().lower()
-    if media_type != "application/json":
-        raise ApiError(
-            415, "unsupported_media_type", "Content-Type must be application/json"
-        )
-    origin = request.headers.get("origin")
-    if origin is None:
-        origin = request.headers.get("referer")
-    if origin is None:
-        raise ApiError(403, "forbidden", "cross-site request refused")
-    netloc = urlparse(origin).netloc
-    # Behind a proxy that rewrites Host (nginx default, Vite changeOrigin) the
-    # browser-facing host arrives in X-Forwarded-Host; a cross-site page cannot
-    # set that header without a CORS preflight, which is never allowed.
-    forwarded = request.headers.get("x-forwarded-host")
-    if forwarded:
-        host = forwarded.split(",", 1)[0].strip()
-    else:
-        host = request.headers.get("host", "")
-    if netloc != host:
-        raise ApiError(403, "forbidden", "cross-site request refused")
-
-
 def _build_out(name: str, store: ConnectionStore) -> ConnectionOut:
     locked = store.env_locked(name)
     return ConnectionOut(
@@ -101,9 +76,7 @@ def put_connection(request: Request, name: str, body: ConnectionIn) -> Connectio
     store: ConnectionStore = request.app.state.connection_store
     if name not in NAMES:
         raise ApiError(404, "not_found", "unknown connection")
-    secret_value: str | None = (
-        body.secret.get_secret_value() if body.secret else None
-    )
+    secret_value: str | None = body.secret.get_secret_value() if body.secret else None
     try:
         store.save(name, body.address, secret_value, body.clear_secret)
     except StoreError as exc:
@@ -125,9 +98,7 @@ def put_connection(request: Request, name: str, body: ConnectionIn) -> Connectio
     return out
 
 
-@router.post(
-    "/{name}/test", response_model=TestOut, dependencies=[Depends(write_guard)]
-)
+@router.post("/{name}/test", response_model=TestOut, dependencies=[Depends(write_guard)])
 def test_connection(request: Request, name: str) -> TestOut:
     store: ConnectionStore = request.app.state.connection_store
     if name not in NAMES:
@@ -138,9 +109,7 @@ def test_connection(request: Request, name: str) -> TestOut:
         return TestOut(ok=False, message="not configured")
 
     settings = request.app.state.settings
-    transport: httpx.BaseTransport | None = getattr(
-        request.app.state, "connection_transport", None
-    )
+    transport: httpx.BaseTransport | None = getattr(request.app.state, "connection_transport", None)
     if settings.mode == "fixture" and transport is None:
         return TestOut(ok=False, message="fixture mode: no real connection")
 
