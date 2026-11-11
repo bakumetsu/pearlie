@@ -24,7 +24,7 @@
 	const showAddress = $derived(!conn?.address_fixed);
 	const addressLocked = $derived(!!conn?.address_locked);
 	const keyLocked = $derived(!!conn?.key_locked);
-	const keySet = $derived(!!conn?.key);
+	const keySet = $derived(conn?.key === "set");
 
 	let address = $state(untrack(() => store.byName(name)?.address ?? ""));
 	let key = $state("");

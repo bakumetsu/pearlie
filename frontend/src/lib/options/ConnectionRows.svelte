@@ -33,7 +33,7 @@
 		<div class="row">
 			<span class="row-label">{label}</span>
 			<span class="chip"
-				>{store.loading ? "missing" : store.byName(key)?.key ? "set" : "missing"}</span
+				>{store.loading ? "missing" : store.byName(key)?.key === "set" ? "set" : "missing"}</span
 			>
 			{#if store.byName(key)?.address}
 				<span class="muted">{store.byName(key)?.address}</span>

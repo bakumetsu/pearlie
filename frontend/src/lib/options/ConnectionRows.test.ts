@@ -88,7 +88,7 @@ describe("ConnectionRows", () => {
     fireEvent.click(screen.getByRole("button", { name: "Test Stash" }));
 
     await vi.waitFor(() => expect(testConnection).toHaveBeenCalledWith("stash"));
-    expect((await screen.findByRole("status")).textContent).toBe("Connection OK");
+    expect(await screen.findByText("Connection OK")).toBeDefined();
   });
 
   it("pencil opens a dialog with Address for stash and without Address for danbooru", async () => {
@@ -98,7 +98,7 @@ describe("ConnectionRows", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit Stash" }));
     await screen.findByRole("dialog");
     expect(screen.getByText("Address")).toBeDefined();
-    expect(screen.getByLabelText("Cancel")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDefined();
 
     // Close and open danbooru (address_fixed: true → showAddress: false)
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -169,7 +169,7 @@ describe("ConnectionRows", () => {
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     // Sub-test b: changing the address shows hint and sends {address}
-    await renderRows();
+    cleanup();
     const { putConnection: put2 } = await renderRows();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Komga" }));
