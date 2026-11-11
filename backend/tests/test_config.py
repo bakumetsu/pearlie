@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -71,3 +72,20 @@ def test_non_loopback_host_refused() -> None:
 def test_loopback_hosts_allowed() -> None:
     for host in ("127.0.0.1", "localhost", "::1"):
         assert load_settings(mode="fixture", host=host, _env_file=None).host == host
+
+
+def test_env_example_covers_every_setting_and_loads(monkeypatch: pytest.MonkeyPatch) -> None:
+    example = Path(__file__).resolve().parents[2] / ".env.example"
+    for name in list(os.environ):
+        if name.startswith("PEARLIE_"):
+            monkeypatch.delenv(name)
+    keys = {
+        line.split("=", 1)[0]
+        for line in example.read_text(encoding="utf-8").splitlines()
+        if line.startswith("PEARLIE_")
+    }
+    expected = {f"PEARLIE_{name.upper()}" for name in Settings.model_fields} - {"PEARLIE_REAL"}
+    assert keys == expected
+    s = load_settings(_env_file=example)
+    assert s.mode == "fixture"
+    assert s.secret_key.get_secret_value() == ""
