@@ -179,7 +179,9 @@ describe("ConnectionRows", () => {
     const addrInput = document.getElementById("conn-addr") as HTMLInputElement;
     fireEvent.input(addrInput, { target: { value: "http://new-address:1234" } });
 
-    expect(screen.getByText("Changing the address clears the stored key unless you also enter a key.")).toBeDefined();
+    expect(
+      await screen.findByText("Changing the address clears the stored key unless you also enter a key."),
+    ).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: "Save and test" }));
 
@@ -200,7 +202,7 @@ describe("ConnectionRows", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear key" }));
     // Confirm screen appears, putConnection NOT called yet
     expect(putConnection).not.toHaveBeenCalled();
-    expect(screen.getByText("Clear the stored key?")).toBeDefined();
+    expect(await screen.findByText("Clear the stored key?")).toBeDefined();
 
     // Click "Clear" to confirm
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
