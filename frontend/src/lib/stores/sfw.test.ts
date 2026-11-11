@@ -75,3 +75,50 @@ describe("createSfw", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 });
+
+describe("createSfw hint", () => {
+  const mem = (init: Record<string, string> = {}) => {
+    const data = { ...init };
+    return {
+      data,
+      getItem: (k: string) => data[k] ?? null,
+      setItem: (k: string, v: string) => { data[k] = v; },
+    };
+  };
+
+  it("starts on from the stored hint, synchronously", () => {
+    document.body.innerHTML = "";
+    const root = document.createElement("div");
+    const sfw = createSfw(root, mem({ "pearlie.sfw.hint": "1" }));
+    expect(sfw.on).toBe(true);
+    expect(root.dataset.sfw).toBe("on");
+  });
+
+  it("set and toggle update the hint", () => {
+    const storage = mem({ "pearlie.sfw.hint": "1" });
+    const sfw = createSfw(document.createElement("div"), storage);
+    sfw.set(false);
+    expect(storage.data["pearlie.sfw.hint"]).toBe("0");
+    sfw.toggle();
+    expect(storage.data["pearlie.sfw.hint"]).toBe("1");
+  });
+
+  it("a stale hint is overridden by set()", () => {
+    const sfw = createSfw(document.createElement("div"), mem({ "pearlie.sfw.hint": "1" }));
+    sfw.set(false);
+    expect(sfw.on).toBe(false);
+  });
+
+  it("throwing storage does not break the store", () => {
+    const bad = {
+      getItem: () => { throw new Error("blocked"); },
+      setItem: () => { throw new Error("blocked"); },
+    };
+    const sfw = createSfw(document.createElement("div"), bad);
+    expect(sfw.on).toBe(false);
+    sfw.toggle();
+    expect(sfw.on).toBe(true);
+    sfw.set(false);
+    expect(sfw.on).toBe(false);
+  });
+});

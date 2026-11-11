@@ -27,12 +27,13 @@ export function createOptions(deps: {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let lastConfirmed: Options | null = null;
   let early: OptionsUpdate = {};
+  let failed = false;
   const debounceMs = deps.debounceMs ?? 300;
   const storage = deps.storage ?? (typeof localStorage !== "undefined" ? localStorage : undefined);
 
   function load(api: Api): Promise<void> {
     if (loading) return loading;
-    if (ready) return Promise.resolve();
+    if (ready && !failed) return Promise.resolve();
     _api = api;
     loading = (async () => {
       let res: Options;
@@ -40,8 +41,16 @@ export function createOptions(deps: {
         res = await api.getOptions();
       } catch {
         ready = true;
+        failed = true;
+        loading = null;
+        if (Object.keys(early).length > 0) {
+          // A change made meanwhile must not vanish without feedback
+          early = {};
+          toasts.push({ kind: "error", message: "Could not save options" });
+        }
         return;
       }
+      failed = false;
 
       // Migration: only for fields the server reports as unset
       const patch: OptionsUpdate = {};
@@ -107,6 +116,8 @@ export function createOptions(deps: {
     if (!_api || !values) {
       // Changed before the first GET came back: keep it and send it once loaded
       early = mergePatch(early, patch);
+      // The first load failed: retry it; a second failure toasts and drops the queue
+      if (failed && _api) void load(_api);
       return;
     }
 
