@@ -7,7 +7,9 @@ import typing
 from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
+from app.filters.rules import evaluate, load_rules
 from app.models import (
+    Blur,
     LibraryItem,
     Problem,
     SearchResponse,
@@ -46,6 +48,7 @@ def search(
     """Search across configured sources and library sections."""
     raw = sources.split(",") if sources else _DEFAULT
     ids = [s.strip() for s in raw if s.strip()]
+    rules = load_rules(request.app.state.settings.db_path)
     for sid in ids:
         if sid not in _VALID:
             raise ApiError(422, "invalid", f"Unknown source {sid}", field="sources")
@@ -74,24 +77,31 @@ def search(
                     )
                 )
             else:
-                items: list[LibraryItem | WebItem] = [
-                    WebItem(
-                        source=typing.cast(WebSource, post.source),
-                        post_id=post.post_id,
-                        thumb_url=post.preview_url or "",
-                        preview_url=post.file_url or post.preview_url or "",
-                        title=None,
-                        tags=[
-                            Tag(name=n, scope=kind)
-                            for kind, names in post.tags.items()
-                            for n in names
-                        ],
-                        width=post.width,
-                        height=post.height,
-                        target="stash",
+                items: list[LibraryItem | WebItem] = []
+                hidden = 0
+                for post in page_result.posts:
+                    verdict = evaluate(post.tags, rules)
+                    if verdict is not None and verdict.decision != "warn":
+                        hidden += 1
+                        continue
+                    items.append(
+                        WebItem(
+                            source=typing.cast(WebSource, post.source),
+                            post_id=post.post_id,
+                            thumb_url=post.preview_url or "",
+                            preview_url=post.file_url or post.preview_url or "",
+                            title=None,
+                            tags=[
+                                Tag(name=n, scope=kind)
+                                for kind, names in post.tags.items()
+                                for n in names
+                            ],
+                            width=post.width,
+                            height=post.height,
+                            target="stash",
+                            blur=Blur(tag=verdict.tag) if verdict else None,
+                        )
                     )
-                    for post in page_result.posts
-                ]
                 if multi:
                     items = items[:18]
                 sections.append(
@@ -105,7 +115,7 @@ def search(
                         page_size=clamp_page_size(sid, page_size)
                         if not multi and sid in PAGE_SIZE_CAPS
                         else None,
-                        hidden=0,
+                        hidden=hidden,
                         error=(
                             Problem(
                                 code="filter_dropped",
