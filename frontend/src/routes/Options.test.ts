@@ -201,4 +201,37 @@ describe("Options", () => {
       activeRow?.querySelector(".section-row-label")?.textContent?.trim(),
     ).toBe("Viewing");
   });
+
+  it("marks LATER sections with a LATER tag", () => {
+    render(Options, { props: { match: makeMatch() } });
+    const tags = document.querySelectorAll("button[data-section] .later-tag");
+    expect(tags.length).toBe(3);
+  });
+
+  it("'/' focuses the search box", () => {
+    render(Options, { props: { match: makeMatch() } });
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Search options"]')!;
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "/", bubbles: true }));
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("Escape clears the search", async () => {
+    render(Options, { props: { match: makeMatch() } });
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Search options"]')!;
+    input.value = "view";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await tick();
+    expect(input.value).toBe("");
+    expect(document.querySelectorAll("button[data-section]").length).toBe(10);
+  });
+
+  it("ArrowDown moves focus to the next section row", () => {
+    render(Options, { props: { match: makeMatch() } });
+    const rows = document.querySelectorAll<HTMLButtonElement>("button[data-section]");
+    rows[0].focus();
+    rows[0].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(document.activeElement).toBe(rows[1]);
+  });
 });

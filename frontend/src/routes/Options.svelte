@@ -176,7 +176,8 @@
     </div>
 
     <nav class="section-list" aria-label="Options sections">
-      <div onkeydown={onListKeydown}>
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <div role="group" onkeydown={onListKeydown}>
       {#if isSearching && searchResults.length === 0}
         <p class="no-results" role="status">Nothing found</p>
       {:else}
@@ -189,7 +190,7 @@
               {#if showInSearch}
                 <li>
                   <button
-                    class:list={[
+                    class={[
                       "section-row",
                       { later: s.later, active: s.id === activeSectionId },
                     ]}
@@ -231,7 +232,7 @@
       <h1
         bind:this={h1El}
         class="phone-title"
-        tabindex={-1}
+        tabindex="-1"
       >
         {activeSection.title}
       </h1>
@@ -289,7 +290,8 @@
       </div>
 
       <nav class="section-list" aria-label="Options sections">
-        <div onkeydown={onListKeydown}>
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+        <div role="group" onkeydown={onListKeydown}>
         {#if isSearching && searchResults.length === 0}
           <p class="no-results" role="status">Nothing found</p>
         {:else}
@@ -302,7 +304,7 @@
                 {#if show}
                   <li>
                     <button
-                      class:list={[
+                      class={[
                         "section-row",
                         { later: s.later, active: s.id === activeSectionId },
                       ]}
@@ -335,7 +337,7 @@
         <h1
           bind:this={h1El}
           class="pane-title"
-          tabindex={-1}
+          tabindex="-1"
         >
           Search results
         </h1>
@@ -365,7 +367,7 @@
         <h1
           bind:this={h1El}
           class="pane-title"
-          tabindex={-1}
+          tabindex="-1"
         >
           {activeSection.title}
         </h1>
