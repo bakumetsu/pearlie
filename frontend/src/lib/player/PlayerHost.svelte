@@ -6,6 +6,8 @@
   import PlayerBar from "./PlayerBar.svelte";
 
   let video: HTMLVideoElement | null = null;
+  let root: HTMLDivElement | null = null;
+  let fs = $state(false);
 
   let vp = $state({ w: window.innerWidth, h: window.innerHeight });
 
@@ -110,6 +112,44 @@
     }
   });
 
+  function fsElement(): Element | null {
+    return (
+      document.fullscreenElement ??
+      (document as { webkitFullscreenElement?: Element }).webkitFullscreenElement ??
+      null
+    );
+  }
+
+  $effect(() => {
+    const sync = () => {
+      fs = root !== null && fsElement() === root;
+    };
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync);
+      if (fsElement() === root) {
+        const p = (
+          document.exitFullscreen ??
+          (document as { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen
+        )?.call(document);
+        if (p) void p.catch(() => {});
+      }
+    };
+  });
+
+  $effect(() => {
+    const item = player.item;
+    if (item === null && untrack(() => fs)) {
+      const p = (
+        document.exitFullscreen ??
+        (document as { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen
+      )?.call(document);
+      if (p) void p.catch(() => {});
+    }
+  });
+
   function onVideoClick(): void {
     if (player.mode === "stage") player.toggle();
   }
@@ -120,7 +160,7 @@
   }
 </script>
 
-<div data-sfw-group style="display:contents">
+<div data-sfw-group data-player-root class="root" bind:this={root}>
   <!-- svelte-ignore a11y_media_has_caption -->
   <video
     data-player
@@ -143,17 +183,73 @@
     onerror={onVideoError}
   ></video>
 
-  {#if player.mode === "stage" && player.slot !== null && player.item !== null && rect !== null}
+  {#if player.item !== null && (fs || (player.mode === "stage" && player.slot !== null && rect !== null))}
     <div
       class="stage-bar"
-      style="position:fixed;left:{rect.x}px;width:{rect.w}px;top:{rect.y + rect.h - 52}px;z-index:21;"
+      style={rect !== null ? `position:fixed;left:${rect.x}px;width:${rect.w}px;top:${rect.y + rect.h - 52}px;z-index:21;` : ""}
     >
-      <PlayerBar />
+      <PlayerBar fullscreen={fs} />
     </div>
   {/if}
 </div>
 
 <style>
+  .root {
+    display: contents;
+  }
+
+  .root:fullscreen {
+    display: flex;
+    flex-direction: column;
+    background: #000;
+    width: 100%;
+    height: 100%;
+  }
+
+  .root:-webkit-full-screen {
+    display: flex;
+    flex-direction: column;
+    background: #000;
+    width: 100%;
+    height: 100%;
+  }
+
+  .root:fullscreen > :global(video) {
+    position: static !important;
+    transform: none !important;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100% !important;
+    height: auto !important;
+    object-fit: contain;
+    display: block !important;
+  }
+
+  .root:-webkit-full-screen > :global(video) {
+    position: static !important;
+    transform: none !important;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100% !important;
+    height: auto !important;
+    object-fit: contain;
+    display: block !important;
+  }
+
+  .root:fullscreen .stage-bar {
+    position: static !important;
+    width: 100% !important;
+    flex: 0 0 auto;
+    z-index: auto !important;
+  }
+
+  .root:-webkit-full-screen .stage-bar {
+    position: static !important;
+    width: 100% !important;
+    flex: 0 0 auto;
+    z-index: auto !important;
+  }
+
   .stage-bar {
     box-sizing: border-box;
   }
