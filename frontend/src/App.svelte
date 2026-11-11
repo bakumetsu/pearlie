@@ -8,9 +8,8 @@
   import { createJobs } from "./lib/stores/jobs.svelte";
   import Queue from "./routes/Queue.svelte";
   import Home from "./routes/Home.svelte";
-  import Rules from "./routes/Rules.svelte";
   import Trash from "./routes/Trash.svelte";
-  import Option from "./routes/Option.svelte";
+  import Options from "./routes/Options.svelte";
   import Reader from "./routes/Reader.svelte";
   import { setApi, createApi } from "./lib/api/client";
   import Nav from "./lib/components/Nav.svelte";
@@ -47,8 +46,24 @@
 
   onMount(() => {
     const off = router.subscribe((m) => {
+      if (m.name === "option_redirect") {
+        router.navigate("/options", { replace: true });
+        return;
+      }
+      if (m.name === "rules_redirect") {
+        router.navigate("/options/rules", { replace: true });
+        return;
+      }
       match = m;
     });
+
+    const initial = router.current();
+    if (initial.name === "option_redirect") {
+      router.navigate("/options", { replace: true });
+    } else if (initial.name === "rules_redirect") {
+      router.navigate("/options/rules", { replace: true });
+    }
+
     const offReveal = installReveal();
     jobs.start();
     void playerSettings.load(api);
@@ -79,12 +94,12 @@
       <Reader {match} />
     {:else if match.name === "queue"}
       <Queue />
-    {:else if match.name === "rules"}
-      <Rules />
+    {:else if match.name === "options"}
+      <Options {match} />
     {:else if match.name === "trash"}
       <Trash />
-    {:else if match.name === "option"}
-      <Option />
+    {:else if match.name === "option_redirect" || match.name === "rules_redirect"}
+      <!-- redirect in progress -->
     {:else}
       <section class="placeholder">
         <h1 tabindex="-1">Page not found</h1>
