@@ -18,6 +18,10 @@
   import { rejectTag } from "../lib/item/reject";
   import { PHONE_MAX, initialOpen, savePanel } from "../lib/item/panelState";
   import Icon from "../lib/components/Icon.svelte";
+  import Backdrop from "../lib/components/Backdrop.svelte";
+  import { options } from "../lib/stores/options.svelte";
+  import { sfw } from "../lib/stores/sfw.svelte";
+  import { backdropStrength } from "../lib/options/backdrop";
 
   let { match }: { match: Match } = $props();
 
@@ -64,6 +68,7 @@
   );
   const hasList = $derived(idx >= 0);
   const hasPanel = $derived(kind !== null && (view.status === "loading" || (view.status === "ready" && !!view.detail)));
+  const backdrop = $derived(backdropStrength(options.values, "item", sfw?.on ?? false));
 
   const key = $derived(kind !== null ? toSingular(kind) + ":" + id : "");
 
@@ -246,6 +251,12 @@
     {:else if view.detail}
       <div class="stage">
         {#if view.detail.kind === "image"}
+          <Backdrop
+            src={view.detail.full_url ?? view.detail.thumb_url}
+            strength={backdrop}
+          />
+        {/if}
+        {#if view.detail.kind === "image"}
           <ImageStage
             src={view.detail.full_url ?? view.detail.thumb_url}
             alt={view.detail.title}
@@ -360,6 +371,7 @@
   }
 
   .stage {
+    position: relative;
     background: #000;
     min-height: 320px;
     display: grid;
@@ -367,6 +379,15 @@
     place-items: center;
     min-width: 0;
     overflow: hidden;
+  }
+
+  .stage > :global(.stage) {
+    background: transparent;
+  }
+
+  .stage > :global(:not(.backdrop)) {
+    position: relative;
+    z-index: 1;
   }
 
   .notice { margin: 0 0 var(--s-2); font-size: 0.875rem; color: var(--muted); }
