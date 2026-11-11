@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.config import Settings
@@ -320,7 +322,7 @@ def test_source_pace_locked(tmp_path: Path) -> None:
 
 
 def test_source_pace_backing_off(any_client: TestClient) -> None:
-    throttles = any_client.app.state.throttles
+    throttles = cast(FastAPI, any_client.app).state.throttles
     throttles["danbooru"].report(429)
     r = any_client.get("/api/options")
     assert r.json()["source_pace"]["danbooru"]["backing_off"] is True
