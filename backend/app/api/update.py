@@ -197,7 +197,7 @@ def put_settings(request: Request, body: SettingsIn) -> StatusOut:
     return _status(request, refresh=False, manual=False)
 
 
-@router.post("/apply", status_code=202, dependencies=[Depends(write_guard)])
+@router.post("/apply", status_code=202)
 def apply_update(request: Request) -> ApplyOut:
     app_state = request.app.state
     db_path: Path = app_state.settings.db_path

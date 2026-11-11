@@ -833,6 +833,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/update/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Status */
+        get: operations["get_status_api_update_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/update/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Settings */
+        put: operations["put_settings_api_update_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/update/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Update */
+        post: operations["apply_update_api_update_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -854,6 +905,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ApplyOut */
+        ApplyOut: {
+            /**
+             * State
+             * @constant
+             */
+            state: "running";
+        };
         /** BaseList */
         BaseList: {
             /**
@@ -943,6 +1002,11 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "degraded";
+            /**
+             * Version
+             * @default
+             */
+            version: string;
             stash: components["schemas"]["StashHealth"];
             komga: components["schemas"]["KomgaHealth"];
             /**
@@ -955,6 +1019,15 @@ export interface components {
             mounts?: components["schemas"]["Mount"][];
             /** Sites */
             sites?: components["schemas"]["Site"][];
+        };
+        /** InstalledOut */
+        InstalledOut: {
+            /** Version */
+            version: string;
+            /** Channel */
+            channel: string;
+            /** Commit */
+            commit: string | null;
         };
         /** Job */
         Job: {
@@ -1012,6 +1085,15 @@ export interface components {
             state: "ok" | "down" | "not_configured";
             /** Version */
             version?: string | null;
+        };
+        /** LatestOut */
+        LatestOut: {
+            /** Version */
+            version: string;
+            /** Commit */
+            commit: string | null;
+            /** Url */
+            url: string;
         };
         /** LibraryItem */
         LibraryItem: {
@@ -1424,6 +1506,13 @@ export interface components {
             next_page?: number | null;
             error?: components["schemas"]["Problem"] | null;
         };
+        /** SettingsIn */
+        SettingsIn: {
+            /** Channel */
+            channel?: ("main" | "dev") | null;
+            /** Check Enabled */
+            check_enabled?: boolean | null;
+        };
         /** Site */
         Site: {
             /** Id */
@@ -1454,6 +1543,32 @@ export interface components {
             state: "ok" | "down" | "not_configured";
             /** Version */
             version?: string | null;
+        };
+        /** StatusOut */
+        StatusOut: {
+            installed: components["schemas"]["InstalledOut"];
+            latest: components["schemas"]["LatestOut"] | null;
+            /** Available */
+            available: boolean;
+            /** Checked At */
+            checked_at: string | null;
+            /** Check Enabled */
+            check_enabled: boolean;
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "main" | "dev";
+            /** State */
+            state: string;
+            /** Step */
+            step: string | null;
+            /** Error */
+            error: string | null;
+            /** Retry After */
+            retry_after: number | null;
+            /** Can Apply */
+            can_apply: boolean;
         };
         /** StreamOption */
         StreamOption: {
@@ -3223,6 +3338,91 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_status_api_update_status_get: {
+        parameters: {
+            query?: {
+                refresh?: boolean;
+                manual?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_settings_api_update_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_update_api_update_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyOut"];
                 };
             };
         };

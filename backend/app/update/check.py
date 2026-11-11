@@ -218,7 +218,7 @@ class UpdateChecker:
             if not isinstance(name, str):
                 continue
             if TAG_RE.match(name):
-                ver = parse_semver(name)
+                ver = parse_semver(name[1:])
                 if ver is not None and (best_ver is None or ver > best_ver):
                     best_ver = ver
                     best_name = name
