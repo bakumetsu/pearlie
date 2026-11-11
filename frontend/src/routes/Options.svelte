@@ -14,9 +14,11 @@
   import Rules from "./Rules.svelte";
   import ImageViewerCard from "../lib/options/ImageViewerCard.svelte";
   import DownloadsCard from "../lib/options/DownloadsCard.svelte";
+  import StatusCard from "../lib/options/StatusCard.svelte";
   import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
   import ConnectionRows from "../lib/options/ConnectionRows.svelte";
   import ContentFilterCard from "../lib/options/ContentFilterCard.svelte";
+  import { guardedNavigate } from "../lib/stores/rules.svelte";
 
   let { match }: { match: Match } = $props();
 
@@ -123,11 +125,11 @@
 
   // ── Navigation helpers ──────────────────────────────────────
   function goTo(id: SectionId) {
-    router.navigate(`/options/${id}`);
+    guardedNavigate(router, `/options/${id}`);
   }
 
   function backToOptions() {
-    router.navigate("/options");
+    guardedNavigate(router, "/options");
   }
 
   // ── Grouped sections for list ───────────────────────────────
@@ -276,6 +278,8 @@
             <ConnectionRows title="Stash and Komga" names={LIBRARY_NAMES} />
           {:else if activeSectionId === "library" && card.title === "Komga"}
             <!-- shown with Stash -->
+          {:else if activeSectionId === "library" && card.title === "Status"}
+            <StatusCard />
           {:else}
             <section class="card">
               <h2 class="card-title">{card.title}</h2>
@@ -425,6 +429,8 @@
               <ConnectionRows title="Stash and Komga" names={LIBRARY_NAMES} />
             {:else if activeSectionId === "library" && card.title === "Komga"}
               <!-- shown with Stash -->
+            {:else if activeSectionId === "library" && card.title === "Status"}
+              <StatusCard />
             {:else}
               <section class="card">
                 <h2 class="card-title">{card.title}</h2>

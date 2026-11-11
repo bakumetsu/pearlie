@@ -19,6 +19,23 @@ import type { Draft, ListKey } from "../rules/draft";
 
 type MappingTarget = Draft["mapping"][number]["to"];
 
+// ── Shared leave guard ───────────────────────────────────────────
+type LeaveGuard = (to: string) => boolean; // true = intercepted (prompt shown)
+let leaveGuard: LeaveGuard | null = null;
+
+export function setLeaveGuard(g: LeaveGuard | null) {
+  leaveGuard = g;
+}
+
+export function guardedNavigate(
+  router: { navigate(href: string): void },
+  to: string
+) {
+  if (leaveGuard && leaveGuard(to)) return;
+  router.navigate(to);
+}
+
+// ── Rules store ──────────────────────────────────────────────────
 export function createRules(api: Api, opts?: { debounceMs?: number }) {
   const debounceMs = opts?.debounceMs ?? 300;
 
