@@ -5,6 +5,14 @@ import { player } from "../player/player.svelte";
 
 const VALID_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
+function mergePatch(a: OptionsUpdate, b: OptionsUpdate): OptionsUpdate {
+  const merged = { ...a, ...b };
+  if (a.source_pace || b.source_pace) {
+    merged.source_pace = { ...a.source_pace, ...b.source_pace };
+  }
+  return merged;
+}
+
 export function createOptions(deps: {
   sfw: { set(on: boolean): void };
   player: { loadRate(r: number): void };
@@ -98,19 +106,29 @@ export function createOptions(deps: {
   function set(patch: OptionsUpdate): void {
     if (!_api || !values) {
       // Changed before the first GET came back: keep it and send it once loaded
-      early = { ...early, ...patch };
+      early = mergePatch(early, patch);
       return;
     }
 
     // Optimistic update
-    const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== null && v !== undefined));
+    const defined = Object.fromEntries(Object.entries(patch).filter(([k, v]) => v !== null && v !== undefined && k !== "source_pace"));
     values = { ...values, ...defined };
+    if (patch.source_pace && values.source_pace) {
+      const oldPace = values.source_pace;
+      const newPace: typeof oldPace = { ...oldPace };
+      for (const [site, n] of Object.entries(patch.source_pace)) {
+        if (site in oldPace) {
+          newPace[site] = { ...oldPace[site], value: n };
+        }
+      }
+      values = { ...values, source_pace: newPace };
+    }
 
     if (patch.sfw !== undefined && patch.sfw !== null) deps.sfw.set(patch.sfw);
     if (patch.player_rate !== undefined && patch.player_rate !== null) deps.player.loadRate(patch.player_rate);
 
     // Accumulate into pending
-    pendingPatch = { ...pendingPatch, ...patch };
+    pendingPatch = mergePatch(pendingPatch, patch);
 
     // Debounce
     if (debounceTimer !== null) clearTimeout(debounceTimer);
