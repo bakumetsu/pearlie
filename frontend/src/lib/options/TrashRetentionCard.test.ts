@@ -40,21 +40,21 @@ async function makeStore(
     debounceMs: 0,
   });
   await store.load(api);
-  return { store, api, putOptions };
+  return { store, putOptions };
 }
 
 afterEach(() => cleanup());
 
 describe("TrashRetentionCard", () => {
   it("shows the stored retention days", async () => {
-    const { store, api } = await makeStore(7);
+    const { store } = await makeStore(7);
     render(TrashRetentionCard, { store, api: makeCardApi(0).api });
     const input = screen.getByTestId("trash-retention") as HTMLInputElement;
     expect(input.value).toBe("7");
   });
 
   it("raising 7 → 14: no dialog, purgePreview not called, putOptions called", async () => {
-    const { store, api, putOptions } = await makeStore(7);
+    const { store, putOptions } = await makeStore(7);
     const { api: cardApi, purgePreview } = makeCardApi(0);
     render(TrashRetentionCard, { store, api: cardApi });
     const input = screen.getByTestId("trash-retention") as HTMLInputElement;
@@ -66,7 +66,7 @@ describe("TrashRetentionCard", () => {
   });
 
   it("lowering 7 → 3 (count 3): dialog shown, Delete confirms and saves", async () => {
-    const { store, api, putOptions } = await makeStore(7);
+    const { store, putOptions } = await makeStore(7);
     const { api: cardApi } = makeCardApi(3);
     render(TrashRetentionCard, { store, api: cardApi });
     const input = screen.getByTestId("trash-retention") as HTMLInputElement;
@@ -81,7 +81,7 @@ describe("TrashRetentionCard", () => {
   });
 
   it("count 1: singular wording", async () => {
-    const { store, api } = await makeStore(7);
+    const { store } = await makeStore(7);
     const { api: cardApi } = makeCardApi(1);
     render(TrashRetentionCard, { store, api: cardApi });
     const input = screen.getByTestId("trash-retention") as HTMLInputElement;
@@ -92,7 +92,7 @@ describe("TrashRetentionCard", () => {
   });
 
   it("lowering with count 0: no dialog, saves directly", async () => {
-    const { store, api, putOptions } = await makeStore(7);
+    const { store, putOptions } = await makeStore(7);
     const { api: cardApi } = makeCardApi(0);
     render(TrashRetentionCard, { store, api: cardApi });
     const input = screen.getByTestId("trash-retention") as HTMLInputElement;
@@ -103,7 +103,7 @@ describe("TrashRetentionCard", () => {
   });
 
   it("Cancel: dialog closed, input restored, putOptions not called", async () => {
-    const { store, api, putOptions } = await makeStore(7);
+    const { store, putOptions } = await makeStore(7);
     const { api: cardApi } = makeCardApi(3);
     render(TrashRetentionCard, { store, api: cardApi });
     const input = screen.getByTestId("trash-retention") as HTMLInputElement;
@@ -117,7 +117,7 @@ describe("TrashRetentionCard", () => {
   });
 
   it("Escape key: dialog closed, input restored, putOptions not called", async () => {
-    const { store, api, putOptions } = await makeStore(7);
+    const { store, putOptions } = await makeStore(7);
     const { api: cardApi } = makeCardApi(3);
     render(TrashRetentionCard, { store, api: cardApi });
     const input = screen.getByTestId("trash-retention") as HTMLInputElement;
@@ -131,7 +131,7 @@ describe("TrashRetentionCard", () => {
   });
 
   it("putOptions rejects: input reverts to original", async () => {
-    const { store, api, putOptions } = await makeStore(7, () => Promise.reject(new Error("network")));
+    const { store, putOptions } = await makeStore(7, () => Promise.reject(new Error("network")));
     const { api: cardApi } = makeCardApi(0);
     render(TrashRetentionCard, { store, api: cardApi });
     const input = screen.getByTestId("trash-retention") as HTMLInputElement;
@@ -144,7 +144,7 @@ describe("TrashRetentionCard", () => {
   it.each(["0", "400", "2.5"])(
     "invalid input %s: alert shown, input reverts, no save",
     async (val) => {
-      const { store, api, putOptions } = await makeStore(7);
+      const { store, putOptions } = await makeStore(7);
       const { api: cardApi } = makeCardApi(0);
       render(TrashRetentionCard, { store, api: cardApi });
       const input = screen.getByTestId("trash-retention") as HTMLInputElement;
@@ -158,7 +158,7 @@ describe("TrashRetentionCard", () => {
   );
 
   it("purgePreview rejects: error alert, no dialog, input reverts", async () => {
-    const { store, api } = await makeStore(7);
+    const { store } = await makeStore(7);
     const purgePreview = vi.fn().mockRejectedValue(new Error("oops"));
     const cardApi = { purgePreview } as unknown as Api;
     render(TrashRetentionCard, { store, api: cardApi });
@@ -172,7 +172,7 @@ describe("TrashRetentionCard", () => {
   });
 
   it("dialog buttons: Cancel and Delete present", async () => {
-    const { store, api } = await makeStore(7);
+    const { store } = await makeStore(7);
     const { api: cardApi } = makeCardApi(3);
     render(TrashRetentionCard, { store, api: cardApi });
     const input = screen.getByTestId("trash-retention") as HTMLInputElement;
