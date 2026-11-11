@@ -73,6 +73,40 @@ describe("jobs store", () => {
     expect(store.offline).toBe(false);
   });
 
+  it("network failure sets offline true, error null", async () => {
+    const api = makeApi();
+    const store = createJobs(api);
+    api.jobs.mockRejectedValueOnce(new ApiError(0, "network", "Cannot reach the server"));
+    await store.refresh();
+    expect(store.offline).toBe(true);
+    expect(store.error).toBeNull();
+    expect(store.loaded).toBe(true);
+  });
+
+  it.each([
+    [404, "not_found", "Not Found"],
+    [500, "server_error", "Internal Server Error"],
+    [501, "not_implemented", "jobs is not available in real mode yet"],
+  ] as const)("HTTP %i error shows body message, not offline", async (status, code, message) => {
+    const api = makeApi();
+    const store = createJobs(api);
+    api.jobs.mockRejectedValueOnce(new ApiError(status, code, message));
+    await store.refresh();
+    expect(store.offline).toBe(false);
+    expect(store.error).toBe(message);
+    expect(store.loaded).toBe(true);
+  });
+
+  it("HTTP 500 with default message shows Error 500", async () => {
+    const api = makeApi();
+    const store = createJobs(api);
+    api.jobs.mockRejectedValueOnce(new ApiError(500, "server_error", "Something went wrong"));
+    await store.refresh();
+    expect(store.offline).toBe(false);
+    expect(store.error).toBe("Error 500");
+    expect(store.loaded).toBe(true);
+  });
+
   it("start polls every 2000ms while a job is running", async () => {
     const api = makeApi();
     api.jobs.mockResolvedValue({ items: [mk({ state: "running" })] });

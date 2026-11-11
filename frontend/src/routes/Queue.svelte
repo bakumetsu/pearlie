@@ -33,6 +33,8 @@
 
   {#if jobs.offline}
     <div class="offline" role="status"><Icon name="alert" size={16} /> Offline, retrying</div>
+  {:else if jobs.error}
+    <div class="offline" role="status"><Icon name="alert" size={16} /> {jobs.error}</div>
   {/if}
 
   {#if !jobs.loaded}

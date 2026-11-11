@@ -1,4 +1,4 @@
-import { ApiError } from "../api/client";
+import { ApiError, isOffline, errorText } from "../api/client";
 import type { Api, TrashResult } from "../api/client";
 import { toasts } from "./toasts.svelte";
 
@@ -8,6 +8,7 @@ export function createTrash(api: Api, opts?: { onRestored?: () => void }) {
   let items: TrashResult[] = $state([]);
   let loaded = $state(false);
   let offline = $state(false);
+  let error: string | null = $state(null);
   let confirming = $state(false);
   let retentionDays: number | null = $state(null);
 
@@ -17,9 +18,10 @@ export function createTrash(api: Api, opts?: { onRestored?: () => void }) {
       items = res.items;
       retentionDays = res.retention_days;
       offline = false;
+      error = null;
       loaded = true;
-    } catch {
-      offline = true;
+    } catch (e) {
+      if (isOffline(e)) { offline = true; error = null; } else { offline = false; error = errorText(e); }
       loaded = true;
     }
   }
@@ -68,6 +70,7 @@ export function createTrash(api: Api, opts?: { onRestored?: () => void }) {
     get items() { return items; },
     get loaded() { return loaded; },
     get offline() { return offline; },
+    get error() { return error; },
     get confirming() { return confirming; },
     get retentionDays() { return retentionDays; },
     refresh,
