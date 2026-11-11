@@ -8,9 +8,9 @@ import stageSrc from "./ImageStage.svelte?raw";
 
 afterEach(cleanup);
 
-function mountStage(natW = 2000, natH = 1000) {
+function mountStage(natW = 2000, natH = 1000, disabled = false) {
   const zoom = createZoom();
-  const { container } = render(ImageStage, { props: { src: '/f/1', alt: 'x', zoom } });
+  const { container } = render(ImageStage, { props: { src: '/f/1', alt: 'x', zoom, disabled } });
 
   const stage = container.querySelector('.stage')!;
   const btn = container.querySelector('.imgbtn')!;
@@ -38,7 +38,7 @@ function mountStage(natW = 2000, natH = 1000) {
 function firePointer(
   el: Element,
   type: string,
-  opts: { pointerType?: string; clientX?: number; clientY?: number; buttons?: number } = {},
+  opts: { pointerType?: string; clientX?: number; clientY?: number; buttons?: number; pointerId?: number } = {},
 ) {
   const ev = new MouseEvent(type, {
     bubbles: true,
@@ -49,7 +49,7 @@ function firePointer(
     button: 0,
   });
   Object.defineProperty(ev, 'pointerType', { value: opts.pointerType ?? 'mouse' });
-  Object.defineProperty(ev, 'pointerId', { value: 1 });
+  Object.defineProperty(ev, 'pointerId', { value: opts.pointerId ?? 1 });
   el.dispatchEvent(ev);
 }
 
@@ -235,5 +235,143 @@ describe('ImageStage', () => {
     expect(stageSrc).toContain('.stage:not(.zoomed) img');
     expect(stageSrc).toContain('prefers-reduced-motion: reduce');
     expect(stageSrc).toContain('passive: false');
+  });
+
+  it('two-finger pinch at fit starts zoom anchored at the midpoint', async () => {
+    const { zoom, stage } = mountStage(2000, 1000);
+
+    firePointer(stage, 'pointerdown', { pointerType: 'touch', clientX: 400, clientY: 250, pointerId: 1, buttons: 1 });
+    firePointer(stage, 'pointerdown', { pointerType: 'touch', clientX: 600, clientY: 250, pointerId: 2, buttons: 1 });
+    firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 300, clientY: 250, pointerId: 1, buttons: 1 });
+    firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 700, clientY: 250, pointerId: 2, buttons: 1 });
+    await raf();
+
+    expect(zoom.active).toBe(true);
+    expect(zoom.scale).toBeCloseTo(1);
+    expect(zoom.tx).toBeCloseTo(0);
+    expect(zoom.ty).toBeCloseTo(0);
+  });
+
+  it('pinch keeps the point under the midpoint fixed', async () => {
+    const { zoom, stage, btn } = mountStage(2000, 1000);
+
+    await fireEvent.click(btn, { clientX: 500, clientY: 250, detail: 1 });
+    expect(zoom.active).toBe(true);
+    expect(zoom.scale).toBe(1);
+
+    firePointer(stage, 'pointerdown', { pointerType: 'touch', clientX: 800, clientY: 250, pointerId: 1, buttons: 1 });
+    firePointer(stage, 'pointerdown', { pointerType: 'touch', clientX: 900, clientY: 250, pointerId: 2, buttons: 1 });
+    firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 775, clientY: 250, pointerId: 1, buttons: 1 });
+    firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 925, clientY: 250, pointerId: 2, buttons: 1 });
+    await raf();
+
+    expect(zoom.scale).toBeCloseTo(1.5);
+    expect(zoom.tx).toBeLessThan(0);
+  });
+
+  it('midpoint movement pans while pinching', async () => {
+    const { zoom, stage, btn } = mountStage(2000, 1000);
+
+    await fireEvent.click(btn, { clientX: 500, clientY: 250, detail: 1 });
+    expect(zoom.active).toBe(true);
+
+    firePointer(stage, 'pointerdown', { pointerType: 'touch', clientX: 450, clientY: 250, pointerId: 1, buttons: 1 });
+    firePointer(stage, 'pointerdown', { pointerType: 'touch', clientX: 550, clientY: 250, pointerId: 2, buttons: 1 });
+    firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 470, clientY: 250, pointerId: 1, buttons: 1 });
+    firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 570, clientY: 250, pointerId: 2, buttons: 1 });
+    await raf();
+
+    expect(zoom.tx).toBeCloseTo(20);
+  });
+
+  it('snap on release', async () => {
+    const { zoom, stage } = mountStage(2000, 1000);
+
+    vi.useFakeTimers();
+    try {
+      firePointer(stage, 'pointerdown', { pointerType: 'touch', clientX: 400, clientY: 250, pointerId: 1, buttons: 1 });
+      firePointer(stage, 'pointerdown', { pointerType: 'touch', clientX: 600, clientY: 250, pointerId: 2, buttons: 1 });
+      firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 298, clientY: 250, pointerId: 1, buttons: 1 });
+      firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 702, clientY: 250, pointerId: 2, buttons: 1 });
+      firePointer(stage, 'pointerup', { pointerType: 'touch', clientX: 298, clientY: 250, pointerId: 1, buttons: 0 });
+      firePointer(stage, 'pointerup', { pointerType: 'touch', clientX: 702, clientY: 250, pointerId: 2, buttons: 0 });
+      vi.advanceTimersByTime(200);
+
+      expect(zoom.scale).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('lifting one finger rebases the one-finger drag', async () => {
+    const { zoom, stage, btn } = mountStage(2000, 1000);
+
+    await fireEvent.click(btn, { clientX: 500, clientY: 250, detail: 1 });
+    expect(zoom.active).toBe(true);
+
+    firePointer(stage, 'pointerdown', { pointerType: 'touch', clientX: 450, clientY: 250, pointerId: 1, buttons: 1 });
+    firePointer(stage, 'pointerdown', { pointerType: 'touch', clientX: 550, clientY: 250, pointerId: 2, buttons: 1 });
+    firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 450, clientY: 250, pointerId: 1, buttons: 1 });
+    firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 550, clientY: 250, pointerId: 2, buttons: 1 });
+    firePointer(stage, 'pointerup', { pointerType: 'touch', clientX: 550, clientY: 250, pointerId: 2, buttons: 0 });
+    firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 460, clientY: 250, pointerId: 1, buttons: 1 });
+    await raf();
+
+    expect(zoom.tx).toBeCloseTo(10);
+  });
+
+  it('pinch is ignored while disabled', async () => {
+    const { zoom, stage, btn } = mountStage(2000, 1000, true);
+
+    firePointer(stage, 'pointerdown', { pointerType: 'touch', clientX: 400, clientY: 250, pointerId: 1, buttons: 1 });
+    firePointer(stage, 'pointerdown', { pointerType: 'touch', clientX: 600, clientY: 250, pointerId: 2, buttons: 1 });
+    firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 300, clientY: 250, pointerId: 1, buttons: 1 });
+    firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 700, clientY: 250, pointerId: 2, buttons: 1 });
+    await raf();
+
+    expect(zoom.active).toBe(false);
+
+    await fireEvent.click(btn, { clientX: 500, clientY: 250, detail: 1 });
+    expect(zoom.active).toBe(false);
+
+    const ev = new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true });
+    stage.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(false);
+    expect(zoom.active).toBe(false);
+  });
+
+  it('pointerdown on the zoom bar does not start a drag', async () => {
+    const { zoom, stage, btn, container } = mountStage(2000, 1000);
+
+    await fireEvent.click(btn, { clientX: 500, clientY: 250, detail: 1 });
+    expect(zoom.active).toBe(true);
+
+    const zoomIn = container.querySelector('[aria-label="Zoom in"]') as HTMLElement;
+    firePointer(zoomIn, 'pointerdown', { pointerType: 'touch', clientX: 500, clientY: 250, pointerId: 1, buttons: 1 });
+    firePointer(stage, 'pointermove', { pointerType: 'touch', clientX: 550, clientY: 250, pointerId: 1, buttons: 1 });
+    firePointer(stage, 'pointerup', { pointerType: 'touch', clientX: 550, clientY: 250, pointerId: 1, buttons: 0 });
+    await raf();
+
+    expect(zoom.tx).toBeCloseTo(0);
+
+    await fireEvent.click(zoomIn);
+    expect(zoom.active).toBe(true);
+    expect(zoom.scale).toBe(1.5);
+  });
+
+  it('full image load while zoomed keeps the displayed size', async () => {
+    const { zoom, btn, img } = mountStage(2000, 1000);
+
+    await fireEvent.load(img);
+    await fireEvent.click(btn, { clientX: 500, clientY: 250, detail: 1 });
+    expect(zoom.active).toBe(true);
+    expect(zoom.scale).toBe(1);
+
+    Object.defineProperty(img, 'naturalWidth', { value: 4000, configurable: true });
+    Object.defineProperty(img, 'naturalHeight', { value: 2000, configurable: true });
+    await fireEvent.load(img);
+    await raf();
+
+    expect(zoom.scale).toBeCloseTo(0.5);
   });
 });
