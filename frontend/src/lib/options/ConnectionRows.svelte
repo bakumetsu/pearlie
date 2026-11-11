@@ -38,6 +38,9 @@
 			{#if store.byName(key)?.address}
 				<span class="muted">{store.byName(key)?.address}</span>
 			{/if}
+			{#if store.restartNeeded[key]}
+				<span class="muted">Restart Pearlie to apply</span>
+			{/if}
 			<button
 				class="btn"
 				aria-label={`Test ${label}`}

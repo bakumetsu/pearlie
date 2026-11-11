@@ -19,7 +19,7 @@ NAMES: tuple[str, ...] = ("stash", "komga", "danbooru", "gelbooru", "rule34", "n
 FIXED_HOSTS: dict[str, str] = {
     "danbooru": "https://danbooru.donmai.us",
     "gelbooru": "https://gelbooru.com",
-    "rule34": "https://api.rule34.xyz",
+    "rule34": "https://api.rule34.xxx",
     "nhentai": "https://nhentai.net",
 }
 

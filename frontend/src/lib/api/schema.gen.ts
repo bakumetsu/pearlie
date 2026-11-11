@@ -879,6 +879,11 @@ export interface components {
             address_locked: boolean;
             /** Key Locked */
             key_locked: boolean;
+            /**
+             * Restart Needed
+             * @default false
+             */
+            restart_needed?: boolean;
         };
         /** ConnectionsOut */
         ConnectionsOut: {

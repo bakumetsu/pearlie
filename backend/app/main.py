@@ -93,6 +93,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings is None:
         settings = load_settings()
     init_db(settings.db_path)
+    # httpx logs full request URLs at INFO, and some Test calls carry api_key in the query.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     logger.info(settings.safe_summary())
     worker_enabled = settings.worker_enabled
 
@@ -114,6 +117,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_errors(app)
     app.state.settings = settings
     app.state.connections_mem = {}
+    # Built on the original settings on purpose: the store needs the .env view,
+    # while app.state.settings below may be replaced by a stored-values copy.
     app.state.connection_store = ConnectionStore(settings, app.state.connections_mem)
     app.state.connection_transport = None
     throttles: dict[str, Throttle] = {site: Throttle(DEFAULT_PACE[site]) for site in DEFAULT_PACE}

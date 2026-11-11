@@ -27,6 +27,7 @@ class ConnectionOut(BaseModel):
     address_fixed: bool
     address_locked: bool
     key_locked: bool
+    restart_needed: bool = False
 
 
 class ConnectionsOut(BaseModel):
@@ -64,7 +65,14 @@ def write_guard(request: Request) -> None:
     if origin is None:
         raise ApiError(403, "forbidden", "cross-site request refused")
     netloc = urlparse(origin).netloc
-    host = request.headers.get("host", "")
+    # Behind a proxy that rewrites Host (nginx default, Vite changeOrigin) the
+    # browser-facing host arrives in X-Forwarded-Host; a cross-site page cannot
+    # set that header without a CORS preflight, which is never allowed.
+    forwarded = request.headers.get("x-forwarded-host")
+    if forwarded:
+        host = forwarded.split(",", 1)[0].strip()
+    else:
+        host = request.headers.get("host", "")
     if netloc != host:
         raise ApiError(403, "forbidden", "cross-site request refused")
 
@@ -111,7 +119,10 @@ def put_connection(request: Request, name: str, body: ConnectionIn) -> Connectio
         if code == "unknown":
             raise ApiError(404, "not_found", "unknown connection") from exc
         raise ApiError(500, "error", "unexpected store error") from exc
-    return _build_out(name, store)
+    out = _build_out(name, store)
+    # Stash and Komga clients are built at app start from these values.
+    out.restart_needed = name in ("stash", "komga")
+    return out
 
 
 @router.post(

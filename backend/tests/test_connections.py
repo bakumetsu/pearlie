@@ -487,3 +487,120 @@ def test_stored_key_without_master_key_no_500(tmp_path: Path) -> None:
     r2 = c2.post("/api/connections/stash/test", headers=HDR)
     assert r2.status_code < 500
     assert "hunter2" not in r2.text
+
+
+# ---------------------------------------------------------------------------
+# 13. Proxy: Origin compared to X-Forwarded-Host when present
+# ---------------------------------------------------------------------------
+
+
+def test_write_guard_forwarded_host(tmp_path: Path) -> None:
+    c = make_client(tmp_path, secret_key=master_key())
+    body: dict[str, Any] = {"secret": "x"}
+    ok = {"Origin": "http://pearlie.example", "Content-Type": "application/json"}
+
+    # Proxy rewrote Host, browser-facing host in X-Forwarded-Host
+    r = c.put(
+        "/api/connections/stash",
+        json=body,
+        headers={**ok, "X-Forwarded-Host": "pearlie.example"},
+    )
+    assert r.status_code == 200
+
+    # First value of a list wins
+    r2 = c.put(
+        "/api/connections/stash",
+        json=body,
+        headers={**ok, "X-Forwarded-Host": "pearlie.example, inner.local"},
+    )
+    assert r2.status_code == 200
+
+    # Mismatch still refused, also when Origin equals the raw Host
+    r3 = c.put(
+        "/api/connections/stash",
+        json=body,
+        headers={**HDR, "X-Forwarded-Host": "pearlie.example"},
+    )
+    assert r3.status_code == 403
+    r4 = c.put("/api/connections/stash", json=body, headers=ok)
+    assert r4.status_code == 403
+
+    # No Origin and no Referer still refused with the forwarded header
+    r5 = c.put(
+        "/api/connections/stash",
+        json=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Forwarded-Host": "pearlie.example",
+        },
+    )
+    assert r5.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# 14. restart_needed after saving stash or komga
+# ---------------------------------------------------------------------------
+
+
+def test_restart_needed_flag(tmp_path: Path) -> None:
+    c = make_client(tmp_path, secret_key=master_key())
+    r = c.put("/api/connections/stash", json={"secret": "k"}, headers=HDR)
+    assert r.json()["restart_needed"] is True
+    r2 = c.put("/api/connections/komga", json={"secret": "k"}, headers=HDR)
+    assert r2.json()["restart_needed"] is True
+    r3 = c.put("/api/connections/gelbooru", json={"secret": "k"}, headers=HDR)
+    assert r3.json()["restart_needed"] is False
+    listed = c.get("/api/connections").json()["connections"]
+    assert all(x["restart_needed"] is False for x in listed)
+
+
+# ---------------------------------------------------------------------------
+# 15. rule34 host, httpx logging, tampered token
+# ---------------------------------------------------------------------------
+
+
+def test_rule34_fixed_host(tmp_path: Path) -> None:
+    c = make_client(tmp_path, secret_key=master_key())
+    conns = c.get("/api/connections").json()["connections"]
+    r34 = next(x for x in conns if x["name"] == "rule34")
+    assert r34["address"] == "https://api.rule34.xxx"
+
+
+def test_test_call_logs_no_secret_at_info(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    secret = "qUeRyKeY9876"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200)
+
+    c = make_client(
+        tmp_path, secret_key=master_key(), transport=httpx.MockTransport(handler)
+    )
+    c.put("/api/connections/gelbooru", json={"secret": secret}, headers=HDR)
+    caplog.set_level(logging.INFO)
+    r = c.post("/api/connections/gelbooru/test", headers=HDR)
+    assert r.status_code == 200
+    assert secret not in caplog.text
+    assert all(secret not in rec.getMessage() for rec in caplog.records)
+
+
+def test_tampered_token_gives_empty_and_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    c = make_client(
+        tmp_path, mode="real", secret_key=master_key(), env={"real": "search"}
+    )
+    c.put("/api/connections/stash", json={"secret": "plainval"}, headers=HDR)
+    row = sqlite3.connect(str(tmp_path / "p.db"))
+    stored = row.execute(
+        "SELECT value FROM settings WHERE key='connections.stash.secret'"
+    ).fetchone()
+    row.close()
+    assert stored is not None
+    assert "plainval" not in stored[0]
+    store = c.app.state.connection_store  # pyright: ignore[reportAttributeAccessIssue]
+    store._write("connections.stash.secret", stored[0][:-4] + "AAAA")
+    caplog.set_level(logging.WARNING, logger="pearlie")
+    assert store.effective_secret("stash") == ""
+    assert "cannot be decrypted" in caplog.text
