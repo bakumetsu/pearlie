@@ -43,7 +43,7 @@ describe("options store: change before load", () => {
 });
 
 describe("options store: load failure", () => {
-  const mk = (_api: Api) =>
+  const mk = () =>
     createOptions({
       sfw: { set: vi.fn() },
       player: { loadRate: vi.fn() },
@@ -56,7 +56,7 @@ describe("options store: load failure", () => {
       getOptions: vi.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue(base),
       putOptions: vi.fn().mockResolvedValue({ ...base, sfw: true, sfw_set: true }),
     } as unknown as Api;
-    const store = mk(api);
+    const store = mk();
     await store.load(api);
     expect(store.values).toBeNull();
     store.set({ sfw: true });
@@ -73,7 +73,7 @@ describe("options store: load failure", () => {
       getOptions: vi.fn().mockRejectedValue(new Error("down")),
       putOptions: vi.fn(),
     } as unknown as Api;
-    const store = mk(api);
+    const store = mk();
     await store.load(api);
     store.set({ sfw: true });
     await vi.advanceTimersByTimeAsync(400);
@@ -89,7 +89,7 @@ describe("options store: load failure", () => {
       getOptions: vi.fn().mockRejectedValue(new Error("down")),
       putOptions: vi.fn(),
     } as unknown as Api;
-    const store = mk(api);
+    const store = mk();
     const loading = store.load(api);
     store.set({ sfw: true });
     await loading;
