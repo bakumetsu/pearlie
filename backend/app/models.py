@@ -307,6 +307,8 @@ class RulesTestResult(BaseModel):
     decision: Decision
     layer: Layer | None = None
     rule: str | None = None
+    tag: str | None = None
+    alias: str | None = None
 
 
 class StashHealth(BaseModel):

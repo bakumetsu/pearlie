@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from app.db import connect
 from app.filters.aliases import alias_table, fold
@@ -13,7 +14,7 @@ from app.filters.baselist import BASE_LIST
 class Decision:
     """Outcome of a base-list or reject-layer check."""
 
-    layer: str
+    layer: Literal["base", "reject"]
     rule: str
     tag: str
     alias: str | None
@@ -89,8 +90,8 @@ class RuleSet:
 class Verdict:
     """The result of evaluating a post against a RuleSet."""
 
-    decision: str
-    layer: str
+    decision: Literal["reject", "require_missing", "warn"]
+    layer: Literal["base", "reject", "require", "warn"]
     rule: str
     tag: str
     alias: str | None
