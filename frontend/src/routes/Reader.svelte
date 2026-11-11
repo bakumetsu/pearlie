@@ -8,7 +8,7 @@
 	import ScrollStage from "../lib/reader/ScrollStage.svelte";
 	import EndCard from "../lib/reader/EndCard.svelte";
 	import Controls from "../lib/reader/Controls.svelte";
-	import { createAutoHide } from "../lib/reader/autohide";
+	import { createAutoHide, createMoveGuard, keyShowsChrome } from "../lib/reader/autohide";
 	import { createProgress } from "../lib/reader/progress";
 	import { loadSettings, saveSettings, type Settings } from "../lib/reader/settings";
 	import {
@@ -231,7 +231,7 @@
 		if (tag === "input" || tag === "textarea" || tag === "select") return;
 
 		const a: KeyAction | null = keyAction(e, settings.dir);
-		hide.poke();
+		if (keyShowsChrome(a)) hide.poke();
 
 		const stage = document.querySelector(".stage");
 
@@ -270,8 +270,10 @@
 		e.preventDefault();
 	}
 
-	function onPointer() {
-		hide.poke();
+	const realMove = createMoveGuard();
+
+	function onPointer(e: PointerEvent) {
+		if (realMove(e)) hide.poke();
 	}
 
 	function onFsChange() {
@@ -284,7 +286,6 @@
 		hide.poke();
 		window.addEventListener("keydown", onKey);
 		window.addEventListener("pointermove", onPointer);
-		window.addEventListener("pointerdown", onPointer);
 		window.addEventListener("pagehide", () => progress.flush(true));
 		document.addEventListener("fullscreenchange", onFsChange);
 	});
@@ -294,7 +295,6 @@
 		hide.destroy();
 		window.removeEventListener("keydown", onKey);
 		window.removeEventListener("pointermove", onPointer);
-		window.removeEventListener("pointerdown", onPointer);
 		document.removeEventListener("fullscreenchange", onFsChange);
 	});
 </script>
@@ -329,7 +329,7 @@
 				onsize={onsize}
 				oncurrent={(n) => go(n)}
 				ontoggle={() => hide.toggle()}
-				onscrolldir={(d) => d === "down" ? hide.hide() : hide.poke()}
+				onscrolldir={(d) => { if (d === "down") hide.hide(); }}
 				endCard={endCard}
 			/>
 		{:else if atEnd}
