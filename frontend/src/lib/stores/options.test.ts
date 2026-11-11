@@ -15,6 +15,13 @@ function makeOptions(overrides: Partial<Options> = {}): Options {
     sfw_set: false,
     player_rate: 1,
     player_rate_set: false,
+    profile: "desktop",
+    backdrop_strength: 60,
+    backdrop_wall: true,
+    backdrop_item: true,
+    backdrop_lightbox: true,
+    allow_blurred_tags: false,
+    trash_retention_days: 7,
     ...overrides,
   };
 }
@@ -44,7 +51,7 @@ describe("options store", () => {
 
   it("load applies values to deps and sets ready", async () => {
     const opts = makeOptions({ sfw: true, sfw_set: true, player_rate: 1.5, player_rate_set: true });
-    (api.getOptions as any).mockResolvedValue(opts);
+    vi.mocked(api.getOptions).mockResolvedValue(opts);
 
     await store.load(api);
 
@@ -64,9 +71,9 @@ describe("options store", () => {
     storageData["pearlie.sfw"] = "1";
     storageData["pearlie.player.rate"] = "1.5";
 
-    (api.getOptions as any).mockResolvedValue(opts);
+    vi.mocked(api.getOptions).mockResolvedValue(opts);
     const patched = makeOptions({ sfw: true, sfw_set: true, player_rate: 1.5, player_rate_set: true });
-    (api.putOptions as any).mockResolvedValue(patched);
+    vi.mocked(api.putOptions).mockResolvedValue(patched);
 
     await store.load(api);
 
@@ -82,7 +89,7 @@ describe("options store", () => {
     storageData["pearlie.sfw"] = "0";
     storageData["pearlie.player.rate"] = "2";
 
-    (api.getOptions as any).mockResolvedValue(opts);
+    vi.mocked(api.getOptions).mockResolvedValue(opts);
 
     await store.load(api);
 
@@ -97,8 +104,8 @@ describe("options store", () => {
     storageData["pearlie.sfw"] = "1";
     storageData["pearlie.player.rate"] = "1.25";
 
-    (api.getOptions as any).mockResolvedValue(opts);
-    (api.putOptions as any).mockRejectedValue(new Error("server error"));
+    vi.mocked(api.getOptions).mockResolvedValue(opts);
+    vi.mocked(api.putOptions).mockRejectedValue(new Error("server error"));
 
     await store.load(api);
 
@@ -112,7 +119,7 @@ describe("options store", () => {
 
   it("set is debounced into one PUT with merged patch", async () => {
     const opts = makeOptions({ sfw: false, sfw_set: true, player_rate: 1, player_rate_set: true });
-    (api.getOptions as any).mockResolvedValue(opts);
+    vi.mocked(api.getOptions).mockResolvedValue(opts);
     await store.load(api);
 
     store.set({ sfw: true } as OptionsUpdate);
@@ -122,7 +129,7 @@ describe("options store", () => {
     expect(api.putOptions).not.toHaveBeenCalled();
 
     const patched = makeOptions({ sfw: true, sfw_set: true, player_rate: 2, player_rate_set: true });
-    (api.putOptions as any).mockResolvedValue(patched);
+    vi.mocked(api.putOptions).mockResolvedValue(patched);
 
     await vi.advanceTimersByTimeAsync(300);
 
@@ -133,10 +140,10 @@ describe("options store", () => {
 
   it("failure reverts values and toasts and re-applies to deps", async () => {
     const opts = makeOptions({ sfw: false, sfw_set: true, player_rate: 1, player_rate_set: true });
-    (api.getOptions as any).mockResolvedValue(opts);
+    vi.mocked(api.getOptions).mockResolvedValue(opts);
     await store.load(api);
 
-    (api.putOptions as any).mockRejectedValue(new Error("fail"));
+    vi.mocked(api.putOptions).mockRejectedValue(new Error("fail"));
 
     store.set({ sfw: true } as OptionsUpdate);
 
@@ -158,9 +165,9 @@ describe("options store", () => {
     storageData["pearlie.sfw"] = "1";
     storageData["pearlie.player.rate"] = "99";
 
-    (api.getOptions as any).mockResolvedValue(opts);
+    vi.mocked(api.getOptions).mockResolvedValue(opts);
     const patched = makeOptions({ sfw: true, sfw_set: true, player_rate: 1, player_rate_set: false });
-    (api.putOptions as any).mockResolvedValue(patched);
+    vi.mocked(api.putOptions).mockResolvedValue(patched);
 
     await store.load(api);
 

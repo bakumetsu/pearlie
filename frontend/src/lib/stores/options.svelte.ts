@@ -93,7 +93,8 @@ export function createOptions(deps: {
     if (!_api || !values) return;
 
     // Optimistic update
-    values = { ...values, ...patch };
+    const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== null && v !== undefined));
+    values = { ...values, ...defined };
 
     if (patch.sfw !== undefined && patch.sfw !== null) deps.sfw.set(patch.sfw);
     if (patch.player_rate !== undefined && patch.player_rate !== null) deps.player.loadRate(patch.player_rate);
