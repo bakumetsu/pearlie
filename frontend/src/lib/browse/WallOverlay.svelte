@@ -45,6 +45,11 @@
   let deleting = $state(false);
   let imageFailed = $state(false);
   let retryN = $state(0);
+  let fullscreen = $state(false);
+  const canFullscreen =
+    typeof document !== "undefined" &&
+    document.fullscreenEnabled === true &&
+    typeof HTMLElement.prototype.requestFullscreen === "function";
 
   let swipeStart: { id: number; x: number; y: number } | null = null;
   let swipeHandled = false;
@@ -136,6 +141,7 @@
       if (t) {
         onstep(t.id);
       } else {
+        exitFs();
         toasts.push({ kind: "error", message: "Could not load the next page" });
       }
     } finally {
@@ -167,12 +173,13 @@
       }
       toasts.push({ kind: "error", message: "Could not load the next page" });
     }
-    onclose();
+    close();
   }
 
   async function onDelete() {
     if (!canRate || deleting || stepping) return;
     const target = neighbourTarget();
+    exitFs();
     deleting = true;
     try {
       await view.remove();
@@ -186,6 +193,7 @@
   async function handleGone() {
     const target = neighbourTarget();
     grid.removeById(key);
+    exitFs();
     toasts.push({ kind: "info", message: "This image is gone" });
     deleting = true;
     try {
@@ -257,7 +265,7 @@
       e.preventDefault();
       e.stopPropagation();
       if (zoomed) zoomed = false;
-      else onclose();
+      else close();
     } else if (e.key === "z") {
       e.preventDefault();
       e.stopPropagation();
@@ -324,12 +332,41 @@
       target.classList.contains("stage-wrap") ||
       target.classList.contains("stage")
     ) {
-      onclose();
+      close();
     }
+  }
+
+  function exitFs() {
+    if (layerEl && document.fullscreenElement === layerEl) {
+      void document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  function close() {
+    exitFs();
+    onclose();
+  }
+
+  function toggleFullscreen() {
+    if (!layerEl) return;
+    if (document.fullscreenElement === layerEl) {
+      void document.exitFullscreen().catch(() => {});
+    } else {
+      void layerEl.requestFullscreen().catch(() => {});
+    }
+  }
+
+  function onFsChange() {
+    fullscreen = layerEl != null && document.fullscreenElement === layerEl;
   }
 
   onMount(() => {
     closeEl?.focus();
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFsChange);
+      exitFs();
+    };
   });
 </script>
 
@@ -348,7 +385,7 @@
       type="button"
       class="close"
       aria-label="Close"
-      onclick={onclose}
+      onclick={close}
       bind:this={closeEl}
     >
       <Icon name="x" size={24} />
@@ -408,8 +445,8 @@
   <div class="bottom">
     <div class="bar-left"><RatingStars value={canRate ? (view.detail?.rating ?? null) : null} onrate={rate} /></div>
     <div class="bar-name">{name}</div>
-    <div class="bar-right"><button type="button" class="act" aria-label="Zoom" aria-pressed={zoomed} onclick={toggleZoom}><Icon name={zoomed ? "zoom-out" : "zoom-in"} size={22} /></button><a class="act" class:disabled={!canRate} href={detailsHref} aria-label="Details" aria-disabled={!canRate} tabindex={canRate ? undefined : -1} onclick={(e) => { if (!canRate) e.preventDefault(); }}><Icon name="info" size={22} /></a><button type="button" class="act danger" aria-label="Delete" disabled={!canRate || deleting} onclick={onDelete}><Icon name="trash" size={22} /></button></div>
-    <!-- bar-right: action group (zoom, details, trash); room for a favourite heart between zoom and details -->
+    <div class="bar-right"><button type="button" class="act" aria-label="Zoom" aria-pressed={zoomed} onclick={toggleZoom}><Icon name={zoomed ? "zoom-out" : "zoom-in"} size={22} /></button>{#if canFullscreen}<button type="button" class="act" aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"} title={fullscreen ? "Exit fullscreen" : "Fullscreen"} aria-pressed={fullscreen} onclick={toggleFullscreen}><Icon name={fullscreen ? "minimize" : "maximize"} size={22} /></button>{/if}<a class="act" class:disabled={!canRate} href={detailsHref} aria-label="Details" aria-disabled={!canRate} tabindex={canRate ? undefined : -1} onclick={(e) => { if (!canRate) e.preventDefault(); }}><Icon name="info" size={22} /></a><button type="button" class="act danger" aria-label="Delete" disabled={!canRate || deleting} onclick={onDelete}><Icon name="trash" size={22} /></button></div>
+    <!-- bar-right: action group (zoom, fullscreen, details, trash); room for a favourite heart between zoom and details -->
   </div>
 </div>
 
