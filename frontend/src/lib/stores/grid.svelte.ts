@@ -22,7 +22,7 @@ export type GridSnapshot<T> = {
 
 type Status = "idle" | "loading" | "done" | "error";
 
-export function createGrid<T>(keyOf: (t: T) => string) {
+export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boolean) {
   const state = $state({
     items: [] as T[],
     total: null as number | null,
@@ -153,16 +153,22 @@ export function createGrid<T>(keyOf: (t: T) => string) {
     return c;
   }
 
+  // Items hidden by the caller's predicate stay in state (index ops use them) but are not served.
+  function shown(): T[] {
+    return visible ? state.items.filter(visible) : state.items;
+  }
+
   function indexOf(id: string) {
     return state.items.findIndex((item) => keyOf(item) === id);
   }
 
   function neighbors(id: string) {
-    const idx = indexOf(id);
+    const list = shown();
+    const idx = list.findIndex((item) => keyOf(item) === id);
     if (idx === -1) return { prev: null, next: null };
     return {
-      prev: idx > 0 ? state.items[idx - 1] : null,
-      next: idx < state.items.length - 1 ? state.items[idx + 1] : null,
+      prev: idx > 0 ? list[idx - 1] : null,
+      next: idx < list.length - 1 ? list[idx + 1] : null,
     };
   }
 
@@ -236,7 +242,7 @@ export function createGrid<T>(keyOf: (t: T) => string) {
   }
 
   return {
-    get items() { return state.items; },
+    get items() { return shown(); },
     get total() { return state.total; },
     get page() { return state.page; },
     get requested() { return state.requested; },
@@ -249,7 +255,7 @@ export function createGrid<T>(keyOf: (t: T) => string) {
     get error() { return state.error; },
     get listKey() { return state.listKey; },
     get scrollY() { return state.scrollY; },
-    get ids() { return state.items.map(keyOf); },
+    get ids() { return shown().map(keyOf); },
     open,
     goTo,
     retry,

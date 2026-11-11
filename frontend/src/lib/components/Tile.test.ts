@@ -119,3 +119,14 @@ describe("Tile onopenitem", () => {
     expect(anchor.getAttribute("data-key")).toBe("image:1");
   });
 });
+
+describe("Tile warn-list", () => {
+  it("a warn-list post renders blurred (hiding happens at list level)", () => {
+    const warn = {
+      source: "danbooru", post_id: "1", thumb_url: "/t.jpg", preview_url: "/p.jpg",
+      title: null, tags: [], width: 1, height: 1, target: "stash", blur: { tag: "gore" },
+    } as never;
+    const { container } = render(Tile, { item: warn });
+    expect(container.querySelector("img.blur-img")).not.toBeNull();
+  });
+});
