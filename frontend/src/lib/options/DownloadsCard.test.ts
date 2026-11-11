@@ -56,7 +56,7 @@ describe("DownloadsCard", () => {
     expect(store.set).toHaveBeenCalledWith({ source_pace: { danbooru: 3 } });
   });
 
-  it("below default does not call set and shows minimum alert", () => {
+  it("below default does not call set and shows minimum alert", async () => {
     const store = makeStore({ source_pace: pace() });
     render(DownloadsCard, { store });
 
@@ -64,7 +64,7 @@ describe("DownloadsCard", () => {
     fireEvent.change(input, { target: { value: "1" } });
 
     expect(store.set).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert").textContent).toBe("Minimum is 2s");
+    expect((await screen.findByRole("alert")).textContent).toBe("Minimum is 2s");
   });
 
   it("backing_off true shows exactly one status element", () => {
