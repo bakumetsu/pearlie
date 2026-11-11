@@ -124,7 +124,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if "jobs" in real and stash_ok and app.state.stash is not None:
         http = httpx.Client()
         app.state.http = http
-        stash_target = StashTarget(settings, app.state.stash, http, app.state.sources, throttles=throttles)
+        stash_target = StashTarget(
+            settings, app.state.stash, http, app.state.sources, throttles=throttles
+        )
         app.state.worker = JobWorker(
             settings.db_path,
             app.state.sources,

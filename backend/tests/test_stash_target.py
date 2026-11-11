@@ -11,10 +11,10 @@ import pytest
 from app.config import Settings
 from app.db import connect, init_db
 from app.sources.base import Post, SearchPage, Source
+from app.sources.throttle import Throttle
 from app.targets import stash
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
-from app.sources.throttle import Throttle
 
 MD5 = hashlib.md5(b"pngbytes").hexdigest()
 URL = "http://img.example/a/file.png"
