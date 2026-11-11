@@ -240,3 +240,169 @@ def test_search_rating_filter_has_no_error(tmp_path):
     assert len(section["items"]) == 1
     item = section["items"][0]
     assert item["post_id"] == "102"
+
+
+STASH_URL = "http://stash.test"
+STASH_KEY = "s-secret-456"
+KOMGA_URL = "http://komga.test"
+KOMGA_KEY = "k-secret-123"
+
+
+def make_library_client(tmp_path, stash_handler=None, komga_handler=None):
+    """Build a real-mode client with mock-backed Stash and/or Komga (None = not configured)."""
+    from app.komga import Komga
+    from app.targets.stash_client import StashClient
+
+    app = create_app(
+        Settings(
+            mode="real",
+            real="search",
+            db_path=tmp_path / "p.db",
+            static_dir=tmp_path / "nostatic",
+            _env_file=None,  # pyright: ignore[reportCallIssue]
+        )
+    )
+    app.state.stash = (
+        StashClient(
+            STASH_URL,
+            STASH_KEY,
+            client=httpx.Client(
+                base_url=STASH_URL, transport=httpx.MockTransport(stash_handler)
+            ),
+        )
+        if stash_handler
+        else None
+    )
+    app.state.komga = (
+        Komga(
+            KOMGA_URL,
+            KOMGA_KEY,
+            client=httpx.Client(
+                base_url=KOMGA_URL, transport=httpx.MockTransport(komga_handler)
+            ),
+        )
+        if komga_handler
+        else None
+    )
+    return TestClient(app)
+
+
+def _stash_ok(request: httpx.Request) -> httpx.Response:
+    body = json.loads(request.content)
+    if "findScenes" in body["query"]:
+        scene = {
+            "id": "2",
+            "title": "Scene",
+            "rating100": 60,
+            "created_at": "2024-02-01T00:00:00Z",
+            "urls": [],
+            "tags": [{"name": "t"}],
+            "files": [{"basename": "c.mp4", "width": 10, "height": 10, "duration": 5.0, "size": 9}],
+        }
+        return httpx.Response(
+            200, json={"data": {"findScenes": {"count": 1, "filesize": 9, "scenes": [scene]}}}
+        )
+    image = {
+        "id": "1",
+        "title": "Image",
+        "rating100": 80,
+        "created_at": "2024-01-01T00:00:00Z",
+        "urls": [],
+        "tags": [{"name": "t"}],
+        "visual_files": [{"basename": "p.jpg", "width": 10, "height": 10, "size": 9}],
+    }
+    return httpx.Response(
+        200,
+        json={
+            "data": {
+                "findImages": {"count": 1, "megapixels": 1.0, "filesize": 9, "images": [image]}
+            }
+        },
+    )
+
+
+def _komga_ok(request: httpx.Request) -> httpx.Response:
+    book = {
+        "id": "b1",
+        "name": "Book",
+        "created": "2026-01-01T00:00:00Z",
+        "media": {"pagesCount": 5},
+        "metadata": {"title": "Book One", "tags": ["x"]},
+        "readProgress": None,
+    }
+    return httpx.Response(200, json={"content": [book], "last": True, "totalElements": 1})
+
+
+def test_search_stash_images_and_videos(tmp_path):
+    """Configured Stash answers image and video sections through Pearlie's media proxy."""
+    client = make_library_client(tmp_path, stash_handler=_stash_ok)
+    r = client.get("/api/search", params={"q": "t", "sources": "stash_images,stash_videos"})
+    assert r.status_code == 200
+    sections = {s["id"]: s for s in r.json()["sections"]}
+    assert sections["stash_images"]["error"] is None
+    assert sections["stash_images"]["items"][0]["id"] == "1"
+    assert sections["stash_images"]["items"][0]["thumb_url"].startswith("/api/media/")
+    assert sections["stash_videos"]["error"] is None
+    assert sections["stash_videos"]["items"][0]["id"] == "2"
+    assert sections["stash_videos"]["total"] == 1
+
+
+def test_search_komga_books(tmp_path):
+    """Configured Komga answers the books section with a single page."""
+    client = make_library_client(tmp_path, komga_handler=_komga_ok)
+    r = client.get("/api/search", params={"q": "x", "sources": "komga_books"})
+    assert r.status_code == 200
+    section = r.json()["sections"][0]
+    assert section["id"] == "komga_books"
+    assert section["error"] is None
+    assert section["total"] == 1
+    assert section["next_page"] is None
+    assert section["page_size"] == 60
+    assert section["items"][0]["id"] == "b1"
+    assert section["items"][0]["thumb_url"] == "/api/media/komga/books/b1/thumb"
+
+
+def test_search_library_not_configured(tmp_path):
+    """Without Stash or Komga the old not_configured answer stays."""
+    client = make_library_client(tmp_path)
+    r = client.get(
+        "/api/search", params={"q": "x", "sources": "stash_images,stash_videos,komga_books"}
+    )
+    assert r.status_code == 200
+    for section in r.json()["sections"]:
+        assert section["items"] == []
+        assert section["error"]["code"] == "not_configured"
+        assert section["error"]["message"].endswith("is not connected yet")
+
+
+def test_search_library_unreachable_keeps_other_sections(tmp_path):
+    """Unreachable Stash and Komga give a safe error section; no URL or key leaks."""
+
+    def stash_down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError(f"cannot connect to {STASH_URL} key {STASH_KEY}")
+
+    def komga_down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError(f"cannot connect to {KOMGA_URL} key {KOMGA_KEY}")
+
+    client = make_library_client(tmp_path, stash_handler=stash_down, komga_handler=komga_down)
+    r = client.get("/api/search", params={"sources": "stash_images,komga_books"})
+    assert r.status_code == 200
+    sections = {s["id"]: s for s in r.json()["sections"]}
+    assert sections["stash_images"]["items"] == []
+    assert sections["stash_images"]["error"] == {
+        "code": "upstream_error",
+        "message": "Stash is not reachable",
+    }
+    assert sections["komga_books"]["error"]["code"] == "upstream_error"
+    assert sections["komga_books"]["error"]["message"] == "Komga is not reachable"
+    for secret in (STASH_URL, STASH_KEY, KOMGA_URL, KOMGA_KEY):
+        assert secret not in r.text
+
+
+def test_search_library_body_has_no_service_url_or_key(tmp_path):
+    """Successful library sections never carry a Stash or Komga URL or key."""
+    client = make_library_client(tmp_path, stash_handler=_stash_ok, komga_handler=_komga_ok)
+    r = client.get("/api/search", params={"q": "t"})
+    assert r.status_code == 200
+    for secret in (STASH_URL, STASH_KEY, KOMGA_URL, KOMGA_KEY):
+        assert secret not in r.text
