@@ -199,6 +199,13 @@ describe("GearMenu popover, sections, speed, loop, quality", () => {
     expect(after).toContain("animation: none");
   });
 
+  it("popover max-height does not use 100% (containing block is the bar)", () => {
+    const pop = src.slice(src.indexOf(".pop {"));
+    const rule = pop.slice(0, pop.indexOf("}"));
+    expect(rule).toMatch(/max-height:\s*60vh/);
+    expect(rule).not.toMatch(/max-height:[^;]*100%/);
+  });
+
   it("listeners removed on close", () => {
     const spy = vi.spyOn(window, "removeEventListener");
 

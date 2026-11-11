@@ -357,7 +357,7 @@
     right: 0;
     width: 260px;
     max-width: calc(100% - 16px);
-    max-height: min(60vh, 100%);
+    max-height: 60vh;
     overflow-y: auto;
     background: var(--surface);
     border: 1px solid var(--line);
