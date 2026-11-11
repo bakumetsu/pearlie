@@ -112,7 +112,7 @@ def _ignored_notice(sort: str, favorite: bool | None) -> Problem | None:
     )
 
 
-def _fetch_page(
+def fetch_komga_page(
     fetch: Callable[[int, int], dict], page: int, page_size: int
 ) -> tuple[dict, int, int]:
     reply = fetch(page - 1, page_size)
@@ -143,7 +143,7 @@ def list_komga_series(
         )
     try:
         # Pearlie pages are 1-based; Komga expects 0-based (sole conversion point).
-        reply, pages, served = _fetch_page(
+        reply, pages, served = fetch_komga_page(
             lambda p0, size: komga.list_series(page=p0, size=size, sort="createdDate,desc", q=q),
             page,
             page_size,
@@ -179,7 +179,7 @@ def list_komga_books(
         )
     try:
         # Pearlie pages are 1-based; Komga expects 0-based (sole conversion point).
-        reply, pages, served = _fetch_page(
+        reply, pages, served = fetch_komga_page(
             lambda p0, size: komga.list_books(page=p0, size=size, sort="createdDate,desc", q=q),
             page,
             page_size,

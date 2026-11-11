@@ -27,7 +27,7 @@ def _up(err: StashError) -> ApiError:
     return ApiError(err.status, err.code, err.message)
 
 
-def _fetch_page(fetch, page: int, page_size: int) -> tuple[list[dict], int, dict, int]:
+def fetch_stash_page(fetch, page: int, page_size: int) -> tuple[list[dict], int, dict, int]:
     """Fetch a page; clamp *page* if out of range and re-fetch.
 
     *fetch* is called as ``fetch(p, page_size)``.
@@ -61,7 +61,7 @@ def list_stash_images(
         seed = None
     field, direction = stash_sort(sort, seed)
     try:
-        dtos, count, agg, served = _fetch_page(
+        dtos, count, agg, served = fetch_stash_page(
             lambda p, ps: client.list_images(p, ps, q, field, direction),
             page,
             page_size,
@@ -102,7 +102,7 @@ def list_stash_videos(
         seed = None
     field, direction = stash_sort(sort, seed)
     try:
-        dtos, count, agg, served = _fetch_page(
+        dtos, count, agg, served = fetch_stash_page(
             lambda p, ps: client.list_scenes(p, ps, q, field, direction),
             page,
             page_size,
