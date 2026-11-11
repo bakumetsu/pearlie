@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("App shell", () => {
-  it("renders the main navigation with links named Discover, Library, Queue, Rules", () => {
+  it("renders the main navigation with links named Discover, Library, Queue, Options", () => {
     render(App);
 
     const nav = screen.getByRole("navigation", { name: "Main" });
@@ -31,9 +31,9 @@ describe("App shell", () => {
     expect(names).toContain("Home");
     expect(names).toContain("Library");
     expect(names).toContain("Queue");
-    expect(names).toContain("Rules");
-    expect(names).toContain("Option");
-    expect(names[names.length - 1]).toBe("Option");
+    expect(names).not.toContain("Rules");
+    expect(names).toContain("Options");
+    expect(names[names.length - 1]).toBe("Options");
     expect(names[names.length - 2]).toBe("Trash");
   });
 
@@ -59,10 +59,24 @@ describe("App shell", () => {
     expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy();
   });
 
-  it('shows the "Option" heading at /option', () => {
+  it('shows the default section heading at /options', () => {
+    history.replaceState({}, "", "/options");
+    render(App);
+
+    expect(screen.getByRole("heading", { name: "General" })).toBeTruthy();
+  });
+
+  it("redirects /option to /options", () => {
     history.replaceState({}, "", "/option");
     render(App);
 
-    expect(screen.getByRole("heading", { name: "Option" })).toBeTruthy();
+    expect(window.location.pathname).toBe("/options");
+  });
+
+  it("redirects /rules to /options/rules", () => {
+    history.replaceState({}, "", "/rules");
+    render(App);
+
+    expect(window.location.pathname).toBe("/options/rules");
   });
 });

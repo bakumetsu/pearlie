@@ -23,11 +23,16 @@ describe("matchRoute", () => {
     expect(m.path).toBe("/home");
   });
 
-  it("matches /option", () => {
-    const m = matchRoute("/option", "");
-    expect(m.name).toBe("option");
-    expect(m.params).toEqual({});
-    expect(m.path).toBe("/option");
+  it("matches /options and /options/:section", () => {
+    expect(matchRoute("/options", "").name).toBe("options");
+    const m = matchRoute("/options/rules", "");
+    expect(m.name).toBe("options");
+    expect(m.params).toEqual({ section: "rules" });
+  });
+
+  it("matches the /option and /rules redirect routes", () => {
+    expect(matchRoute("/option", "").name).toBe("option_redirect");
+    expect(matchRoute("/rules", "").name).toBe("rules_redirect");
   });
 
   it("matches trailing-slash path", () => {
