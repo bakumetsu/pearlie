@@ -36,10 +36,10 @@ class Throttle:
         """Block until the next slot, then advance."""
         with self._lock:
             now = self._clock()
-            delta = self._next_at - now
-            if delta > 0:
-                self._sleep(delta)
-            self._next_at = self._clock() + self._current
+            start = max(now, self._next_at)
+            self._next_at = start + self._current
+        if start > now:
+            self._sleep(start - now)
 
     def report(self, status: int, retry_after: float | None = None) -> None:
         """Record a response; raise pace on 429/503, ease on success."""
