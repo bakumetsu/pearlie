@@ -576,6 +576,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/trash/purge-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Purge Preview
+         * @description Count demo trash items a lower retention would purge now.
+         */
+        get: operations["purge_preview_api_trash_purge_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trash": {
         parameters: {
             query?: never;
@@ -1481,6 +1501,11 @@ export interface components {
             items: components["schemas"]["TrashResult"][];
             /** Retention Days */
             retention_days: number;
+        };
+        /** TrashPurgePreview */
+        TrashPurgePreview: {
+            /** Count */
+            count: number;
         };
         /** TrashResult */
         TrashResult: {
@@ -2695,6 +2720,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RulesTestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    purge_preview_api_trash_purge_preview_get: {
+        parameters: {
+            query: {
+                days: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashPurgePreview"];
                 };
             };
             /** @description Validation Error */
