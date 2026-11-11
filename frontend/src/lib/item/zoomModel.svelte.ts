@@ -232,10 +232,10 @@ export function zoomKey(
     case "ArrowUp":
     case "ArrowDown": {
       if (!e.shiftKey || !zoom.active) return false;
-      if (e.key === "ArrowLeft") zoom.panBy(-PAN_STEP, 0);
-      else if (e.key === "ArrowRight") zoom.panBy(PAN_STEP, 0);
-      else if (e.key === "ArrowUp") zoom.panBy(0, -PAN_STEP);
-      else zoom.panBy(0, PAN_STEP);
+      if (e.key === "ArrowLeft") zoom.panBy(PAN_STEP, 0);
+      else if (e.key === "ArrowRight") zoom.panBy(-PAN_STEP, 0);
+      else if (e.key === "ArrowUp") zoom.panBy(0, PAN_STEP);
+      else zoom.panBy(0, -PAN_STEP);
       e.preventDefault();
       return true;
     }

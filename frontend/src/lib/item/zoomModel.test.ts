@@ -261,7 +261,13 @@ describe("zoomModel pan, resize, keys", () => {
     z9.zoomAt(2, 0, 0);
     const e9 = key("ArrowRight", { shiftKey: true });
     expect(zoomKey(e9, z9)).toBe(true);
-    expect(z9.tx).toBe(80);
+    expect(z9.tx).toBe(-80);
+    zoomKey(key("ArrowLeft", { shiftKey: true }), z9);
+    expect(z9.tx).toBe(0);
+    zoomKey(key("ArrowUp", { shiftKey: true }), z9);
+    expect(z9.ty).toBe(80);
+    zoomKey(key("ArrowDown", { shiftKey: true }), z9);
+    expect(z9.ty).toBe(0);
 
     const z10 = make(1000, 600, 2000, 1200);
     const e10 = key("ArrowRight", { shiftKey: true });
