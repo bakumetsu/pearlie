@@ -84,4 +84,39 @@ describe("DownloadsCard", () => {
     expect(input.disabled).toBe(true);
     expect(screen.getByText("set in .env")).toBeDefined();
   });
+
+  it("above 3600 does not call set and shows maximum alert", async () => {
+    const store = makeStore({ source_pace: pace() });
+    render(DownloadsCard, { store });
+
+    fireEvent.change(screen.getByTestId("pace-danbooru"), { target: { value: "3601" } });
+
+    expect(store.set).not.toHaveBeenCalled();
+    expect((await screen.findByRole("alert")).textContent).toBe("Maximum is 3600s");
+  });
+
+  it("a rejected PUT restores the server value in the input", async () => {
+    const actual = await vi.importActual<typeof import("../stores/options.svelte")>(
+      "../stores/options.svelte",
+    );
+    const server = { sfw: false, player_rate: 1, source_pace: pace() };
+    const api = {
+      getOptions: vi.fn().mockResolvedValue(server),
+      putOptions: vi.fn().mockRejectedValue(new Error("422")),
+    };
+    const real = actual.createOptions({
+      sfw: { set: () => {} },
+      player: { loadRate: () => {} },
+      debounceMs: 0,
+    });
+    await real.load(api as never);
+    render(DownloadsCard, { store: real });
+
+    const input = screen.getByTestId("pace-danbooru") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "5" } });
+
+    await vi.waitFor(() => expect(api.putOptions).toHaveBeenCalled());
+    await vi.waitFor(() => expect(input.value).toBe("1"));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });

@@ -321,6 +321,22 @@ def test_source_pace_locked(tmp_path: Path) -> None:
     assert "set in .env" in r2.json()["message"]
 
 
+def test_source_pace_locked_value_floored_at_default(tmp_path: Path) -> None:
+    app = create_app(
+        Settings(
+            mode="real",
+            real="search",
+            db_path=tmp_path / "p.db",
+            static_dir=tmp_path / "nostatic",
+            download_interval_s=0.5,
+            _env_file=None,  # pyright: ignore[reportCallIssue]
+        )
+    )
+    pace = TestClient(app).get("/api/options").json()["source_pace"]
+    assert pace["danbooru"] == {**pace["danbooru"], "value": 1.0, "locked": True}
+    assert pace["nhentai"]["value"] == 2.0
+
+
 def test_source_pace_backing_off(any_client: TestClient) -> None:
     throttles = cast(FastAPI, any_client.app).state.throttles
     throttles["danbooru"].report(429)

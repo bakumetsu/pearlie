@@ -137,7 +137,7 @@ def _effective_pace(app: FastAPI, site: str) -> tuple[float, bool]:
     settings = app.state.settings
     locked = "download_interval_s" in settings.model_fields_set
     if locked:
-        return float(settings.download_interval_s), True
+        return max(float(settings.download_interval_s), DEFAULT_PACE[site]), True
     fixture = settings.mode == "fixture"
     key = f"options.global.pace.{site}"
     if fixture:

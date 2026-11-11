@@ -12,6 +12,9 @@
 		{ key: "nhentai", label: "nhentai" }
 	];
 
+	const MAX_PACE = 3600;
+
+	// Shown only until the first GET lands; mirrors throttle.DEFAULT_PACE in the backend.
 	const FALLBACK: Record<SiteKey, number> = {
 		danbooru: 1,
 		gelbooru: 1,
@@ -89,6 +92,11 @@
 			fields[site].value = raw;
 			return;
 		}
+		if (n > MAX_PACE) {
+			fields[site].error = `Maximum is ${MAX_PACE}s`;
+			fields[site].value = raw;
+			return;
+		}
 
 		fields[site].error = null;
 		fields[site].value = n;
@@ -109,6 +117,7 @@
 				type="number"
 				inputmode="decimal"
 				min={meta[key].default}
+				max={MAX_PACE}
 				step="0.5"
 				aria-label={`${label} seconds between requests`}
 				data-testid={`pace-${key}`}
@@ -123,7 +132,7 @@
 				<span class="chip">set in .env</span>
 			{/if}
 			{#if fields[key].error}
-				<span class="err" role="alert">Minimum is {meta[key].default}s</span>
+				<span class="err" role="alert">{fields[key].error}</span>
 			{/if}
 		</div>
 	{/each}

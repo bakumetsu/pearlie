@@ -14,6 +14,7 @@ from app.sources.base import Post, SearchPage, Source
 from app.targets import stash
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
+from app.sources.throttle import Throttle
 
 MD5 = hashlib.md5(b"pngbytes").hexdigest()
 URL = "http://img.example/a/file.png"
@@ -737,3 +738,105 @@ def test_api_key_not_logged(
     assert "tags_not_applied" in [n.code for n in result.notices]
 
     assert sentinel not in caplog.text
+
+
+def test_download_waits_on_site_throttle(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_folder(monkeypatch)
+    now = [0.0]
+    sleeps: list[float] = []
+
+    def sleep(s: float) -> None:
+        sleeps.append(s)
+        now[0] += s
+
+    throttle = Throttle(2.0, clock=lambda: now[0], sleep=sleep)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"pngbytes")
+
+    def _no_graphql(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("graphql should not be called in _download")
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    client = StashClient(
+        base_url="http://stash",
+        api_key=SECRET,
+        client=httpx.Client(
+            base_url="http://stash",
+            transport=httpx.MockTransport(_no_graphql),
+        ),
+    )
+    sources: dict[str, Source] = {"fake": FakeSource()}
+    target = StashTarget(
+        settings,
+        client,
+        http,
+        sources,
+        sleep=sleep,
+        clock=lambda: now[0],
+        throttles={"fake": throttle},
+    )
+
+    target._download(URL, make_post(), ".png")
+    target._download(URL, make_post(), ".png")
+
+    assert sleeps == [2.0]
+
+
+def test_download_429_slows_next_request(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_folder(monkeypatch)
+    now = [0.0]
+    sleeps: list[float] = []
+
+    def sleep(s: float) -> None:
+        sleeps.append(s)
+        now[0] += s
+
+    throttle = Throttle(2.0, clock=lambda: now[0], sleep=sleep)
+    state = {"status": 429}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if state["status"] == 429:
+            return httpx.Response(429, headers={"Retry-After": "30"})
+        return httpx.Response(200, content=b"pngbytes")
+
+    def _no_graphql(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("graphql should not be called in _download")
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    client = StashClient(
+        base_url="http://stash",
+        api_key=SECRET,
+        client=httpx.Client(
+            base_url="http://stash",
+            transport=httpx.MockTransport(_no_graphql),
+        ),
+    )
+    sources: dict[str, Source] = {"fake": FakeSource()}
+    target = StashTarget(
+        settings,
+        client,
+        http,
+        sources,
+        sleep=sleep,
+        clock=lambda: now[0],
+        throttles={"fake": throttle},
+    )
+
+    with pytest.raises(stash.SaveError) as exc:
+        target._download(URL, make_post(), ".png")
+    assert exc.value.code == "download_failed"
+    assert throttle.backing_off is True
+
+    state["status"] = 200
+    target._download(URL, make_post(), ".png")
+
+    assert sleeps[-1] == pytest.approx(30.0)
