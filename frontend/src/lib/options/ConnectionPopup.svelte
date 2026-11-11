@@ -55,6 +55,8 @@
 			addrInput?.focus();
 		} else if (!keyLocked && store.canStore) {
 			keyInput?.focus();
+		} else {
+			dialogEl?.querySelector<HTMLElement>("button:not([disabled])")?.focus();
 		}
 	});
 
