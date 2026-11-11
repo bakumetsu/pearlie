@@ -6,7 +6,7 @@
   import { pipSupported, isPipActive, enterPip, exitPip, type PipVideo } from "./pip";
   import { onMount } from "svelte";
 
-  let { compact = false }: { compact?: boolean } = $props();
+  let { compact = false, fullscreen = false }: { compact?: boolean; fullscreen?: boolean } = $props();
 
   let video: HTMLVideoElement | null = $state(null);
 
@@ -27,8 +27,29 @@
   }
 
   function onFullscreenClick(): void {
+    if (fullscreen) {
+      const exit =
+        document.exitFullscreen ??
+        (document as { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen;
+      const p = exit?.call(document);
+      if (p) void p.catch(() => {});
+      return;
+    }
+    const root = document.querySelector<HTMLElement>("[data-player-root]");
+    if (root) {
+      const webkit = (root as { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen;
+      if (typeof root.requestFullscreen === "function" || typeof webkit === "function") {
+        const p = typeof root.requestFullscreen === "function" ? root.requestFullscreen() : webkit?.call(root);
+        if (p) void p.catch(() => {});
+        return;
+      }
+    }
     const v = document.querySelector<HTMLVideoElement>("video[data-player]");
-    v?.requestFullscreen?.();
+    if (!v) return;
+    const pv =
+      v.requestFullscreen?.() ??
+      (v as { webkitEnterFullscreen?: () => Promise<void> }).webkitEnterFullscreen?.();
+    if (pv) void pv.catch(() => {});
   }
 
 </script>
@@ -92,8 +113,8 @@
     </button>
   {/if}
 
-  <button class="btn" aria-label="Fullscreen" onclick={onFullscreenClick}>
-    <Icon name="maximize" size={20} />
+  <button class="btn" aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"} onclick={onFullscreenClick}>
+    <Icon name={fullscreen ? "minimize" : "maximize"} size={20} />
   </button>
 </div>
 
