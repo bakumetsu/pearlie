@@ -1,5 +1,6 @@
 """Real Komga library router – delegates to the Komga REST API."""
 
+import re
 import secrets
 from collections.abc import Callable
 
@@ -27,6 +28,13 @@ from app.models import (
 from app.paging import clamp_page, clamp_page_size, pages_for
 
 router = APIRouter(prefix="/api")
+
+_ID_RE = re.compile(r"[A-Za-z0-9]{1,64}")
+
+
+def _check_id(id: str) -> None:
+    if not _ID_RE.fullmatch(id):
+        raise ApiError(404, "not_found", "Item not found")
 
 
 def _up(err: KomgaError) -> ApiError:
@@ -191,6 +199,7 @@ def list_komga_books(
 
 @router.get("/library/series/{id}")
 def get_series(request: Request, id: str):
+    _check_id(id)
     komga: Komga = request.app.state.komga
     try:
         series = komga.get_series(id)
@@ -202,6 +211,7 @@ def get_series(request: Request, id: str):
 
 @router.get("/library/books/{id}")
 def get_book(request: Request, id: str):
+    _check_id(id)
     komga: Komga = request.app.state.komga
     try:
         book = komga.get_book(id)
@@ -221,6 +231,7 @@ def patch_book(request: Request, id: str, body: PatchBody):
 
 
 def _patch(request: Request, kind: str, id: str, body: PatchBody):
+    _check_id(id)
     check_patch("Komga", body)
     if body.tags is not None:
         for t in body.tags:

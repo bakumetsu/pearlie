@@ -201,3 +201,20 @@ def test_metadata_patch_upstream_500(tmp_path):
     assert r.json()["code"] == "upstream_error"
     assert len(_patch_calls(calls)) == 1
     assert KEY not in r.text
+
+
+def test_bad_komga_id_not_found(tmp_path):
+    """A Komga id that is not alphanumeric answers 404 before any upstream call."""
+    calls: list = []
+    state = _state()
+    client = _client(tmp_path, calls, state)
+
+    for bad in ("a.b", "a_b", "x" * 65):
+        for path in ("books", "series"):
+            r = client.patch(f"/api/library/{path}/{bad}", json={"tags": ["a"]})
+            assert r.status_code == 404
+            assert r.json()["code"] == "not_found"
+            r = client.get(f"/api/library/{path}/{bad}")
+            assert r.status_code == 404
+            assert r.json()["code"] == "not_found"
+    assert calls == []
