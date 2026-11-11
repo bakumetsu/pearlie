@@ -1,42 +1,159 @@
 <script lang="ts">
-  let { src, alt, preload = null, zoomed = $bindable(false) }: {
+  import { SvelteSet } from "svelte/reactivity";
+  import { wheelFactor, type Zoom } from "./zoomModel.svelte";
+
+  let { src, alt, preload = null, zoom }: {
     src: string;
     alt: string;
     preload?: string | null;
-    zoomed?: boolean;
+    zoom: Zoom;
   } = $props();
 
   let stageEl: HTMLDivElement | undefined = $state();
-  let dragged = $state(false);
-  let panStart: { x: number; y: number; sl: number; st: number } | null = null;
+  let imgEl: HTMLImageElement | undefined = $state();
+  let gesture = $state(false);
+  let animate = $state(false);
+  let swallowClick = false;
 
-  function onPointerDown(e: PointerEvent): void {
-    if (e.pointerType !== "mouse" || !zoomed) return;
+  let drag: { id: number; x: number; y: number; moved: boolean } | null = null;
+  const activePointers = new SvelteSet<number>();
+  let pendingDx = 0;
+  let pendingDy = 0;
+  let last: { x: number; y: number } | null = null;
+  let rafId = 0;
+  let snapTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function measure(): void {
+    if (stageEl && imgEl) {
+      zoom.setSizes(stageEl.clientWidth, stageEl.clientHeight, imgEl.naturalWidth, imgEl.naturalHeight);
+    }
+  }
+
+  function centreOf(clientX: number, clientY: number): { x: number; y: number } {
+    const rect = stageEl!.getBoundingClientRect();
+    return { x: clientX - rect.left - rect.width / 2, y: clientY - rect.top - rect.height / 2 };
+  }
+
+  function scheduleSnap(): void {
+    if (snapTimer !== null) clearTimeout(snapTimer);
+    snapTimer = setTimeout(() => {
+      snapTimer = null;
+      zoom.snap();
+    }, 150);
+  }
+
+  $effect(() => {
     const el = stageEl;
     if (!el) return;
-    panStart = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
-    dragged = false;
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
+  $effect(() => {
+    const el = stageEl;
+    if (!el) return;
+    function onWheel(e: WheelEvent): void {
+      if (!imgEl || imgEl.naturalWidth <= 0) return;
+      if (!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      const factor = wheelFactor(e.deltaY, e.deltaMode, e.ctrlKey);
+      const p = centreOf(e.clientX, e.clientY);
+      measure();
+      zoom.zoomAt(zoom.scale * factor, p.x, p.y);
+      animate = false;
+      scheduleSnap();
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  });
+
+  $effect(() => {
+    return () => {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+      if (snapTimer !== null) { clearTimeout(snapTimer); snapTimer = null; }
+    };
+  });
+
+  function onClick(e: MouseEvent): void {
+    if (swallowClick) { swallowClick = false; return; }
+    if (!imgEl || imgEl.naturalWidth <= 0) return;
+    const pt = e.detail === 0 ? { x: 0, y: 0 } : centreOf(e.clientX, e.clientY);
+    measure();
+    zoom.toggleAt(pt.x, pt.y);
+    animate = true;
+    setTimeout(() => (animate = false), 150);
+  }
+
+  function onClickCapture(e: MouseEvent): void {
+    if (swallowClick) {
+      e.stopPropagation();
+      e.preventDefault();
+      swallowClick = false;
+    }
+  }
+
+  function onPointerDown(e: PointerEvent): void {
+    if (!zoom.active) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    activePointers.add(e.pointerId);
+    if (activePointers.size > 1) { drag = null; return; }
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+    pendingDx = 0;
+    pendingDy = 0;
+    last = { x: e.clientX, y: e.clientY };
+    try { stageEl?.setPointerCapture?.(e.pointerId); } catch { /* noop */ }
+    gesture = true;
   }
 
   function onPointerMove(e: PointerEvent): void {
-    if (e.pointerType !== "mouse" || !zoomed || !panStart) return;
-    if (!(e.buttons & 1)) return;
-    const el = stageEl;
-    if (!el) return;
-    const dx = e.clientX - panStart.x;
-    const dy = e.clientY - panStart.y;
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragged = true;
-    el.scrollLeft = panStart.sl - dx;
-    el.scrollTop = panStart.st - dy;
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) > 4) drag.moved = true;
+    if (drag.moved && last) {
+      pendingDx += e.clientX - last.x;
+      pendingDy += e.clientY - last.y;
+      last = { x: e.clientX, y: e.clientY };
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          rafId = 0;
+          if (pendingDx !== 0 || pendingDy !== 0) {
+            zoom.panBy(pendingDx, pendingDy);
+            pendingDx = 0;
+            pendingDy = 0;
+          }
+        });
+      }
+    }
   }
 
-  function onPointerUp(): void {
-    panStart = null;
-    setTimeout(() => (dragged = false), 0);
+  function onPointerUp(e: PointerEvent): void {
+    activePointers.delete(e.pointerId);
+    if (drag?.moved) {
+      swallowClick = true;
+      setTimeout(() => (swallowClick = false), 0);
+    }
+    flushPan();
+    drag = null;
+    gesture = false;
   }
 
-  function onPointerCancel(): void {
-    panStart = null;
+  function onPointerCancel(e: PointerEvent): void {
+    activePointers.delete(e.pointerId);
+    flushPan();
+    drag = null;
+    gesture = false;
+  }
+
+  function flushPan(): void {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    if (pendingDx !== 0 || pendingDy !== 0) {
+      zoom.panBy(pendingDx, pendingDy);
+      pendingDx = 0;
+      pendingDy = 0;
+    }
   }
 </script>
 
@@ -49,26 +166,30 @@
 <div
   class="stage"
   role="presentation"
-  class:zoomed={zoomed}
+  class:zoomed={zoom.active}
+  class:panning={gesture}
   bind:this={stageEl}
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
   onpointercancel={onPointerCancel}
+  onclickcapture={onClickCapture}
 >
   <button
     type="button"
     class="imgbtn"
-    aria-label={zoomed ? "Fit to screen" : "Actual size"}
-    onclick={() => {
-      if (dragged) {
-        dragged = false;
-        return;
-      }
-      zoomed = !zoomed;
-    }}
+    aria-label={zoom.active ? "Fit to screen" : "Actual size"}
+    onclick={onClick}
   >
-    <img {src} {alt} class:zoomed={zoomed} />
+    <img
+      bind:this={imgEl}
+      {src}
+      {alt}
+      class:zoomed={zoom.active}
+      class:animate={animate}
+      style={zoom.active ? `transform: translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.scale});` : undefined}
+      onload={measure}
+    />
   </button>
 </div>
 
@@ -82,11 +203,15 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    touch-action: none;
+    user-select: none;
   }
   .stage.zoomed {
-    overflow: auto;
-    touch-action: pan-x pan-y;
+    overflow: hidden;
     cursor: grab;
+  }
+  .stage.zoomed.panning {
+    cursor: grabbing;
   }
   .imgbtn {
     min-width: 0;
@@ -104,7 +229,6 @@
   }
   .stage.zoomed .imgbtn {
     cursor: zoom-out;
-    margin: auto;
     width: auto;
     height: auto;
     flex: none;
@@ -124,5 +248,18 @@
     max-height: none;
     width: auto;
     height: auto;
+    transform-origin: center center;
+    flex: none;
+  }
+  .stage.panning img.zoomed {
+    will-change: transform;
+  }
+  img.zoomed.animate {
+    transition: transform 120ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    img.zoomed.animate {
+      transition: none;
+    }
   }
 </style>

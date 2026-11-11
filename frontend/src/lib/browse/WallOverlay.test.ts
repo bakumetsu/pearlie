@@ -1,14 +1,22 @@
 // WallOverlay tests
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, cleanup, fireEvent, waitFor } from "@testing-library/svelte";
 import WallOverlay from "./WallOverlay.svelte";
 import type { Api, LibraryItem } from "../api/client";
 import { ApiError } from "../api/client";
 import svelteSrc from "./WallOverlay.svelte?raw";
 
+beforeEach(() => {
+  vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(2000);
+  vi.spyOn(HTMLImageElement.prototype, "naturalHeight", "get").mockReturnValue(1000);
+  vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(1000);
+  vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(500);
+});
+
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
 });
 
 function makeItems(): LibraryItem[] {
@@ -631,6 +639,89 @@ describe("WallOverlay swipe", () => {
     await firePointer(stageWrap, "pointerup", { pointerType: "touch", pointerId: 1, clientX: 0, clientY: 60 });
     await waitFor(() => {});
     expect(onstep).not.toHaveBeenCalled();
+  });
+
+  it("mouse drag over 4px while zoomed does not close the overlay", async () => {
+    const onclose = vi.fn();
+    const { container, getByRole } = mount({ onclose });
+    const btn = await waitFor(() => getByRole("button", { name: "Actual size" }));
+    await fireEvent.click(btn);
+    const stage = container.querySelector(".stage")!;
+
+    const pd = new MouseEvent("pointerdown", { clientX: 10, clientY: 10, buttons: 1, button: 0, bubbles: true });
+    Object.defineProperty(pd, "pointerType", { value: "mouse" });
+    Object.defineProperty(pd, "pointerId", { value: 1 });
+    stage.dispatchEvent(pd);
+
+    const pm = new MouseEvent("pointermove", { clientX: 40, clientY: 40, buttons: 1, button: 0, bubbles: true });
+    Object.defineProperty(pm, "pointerType", { value: "mouse" });
+    Object.defineProperty(pm, "pointerId", { value: 1 });
+    stage.dispatchEvent(pm);
+
+    const pu = new MouseEvent("pointerup", { clientX: 40, clientY: 40, buttons: 0, button: 0, bubbles: true });
+    Object.defineProperty(pu, "pointerType", { value: "mouse" });
+    Object.defineProperty(pu, "pointerId", { value: 1 });
+    stage.dispatchEvent(pu);
+
+    await fireEvent.click(stage);
+    expect(onclose).not.toHaveBeenCalled();
+
+    await fireEvent.click(stage);
+    expect(onclose).toHaveBeenCalledTimes(1);
+  });
+
+  it("plain arrows navigate while zoomed", async () => {
+    const onstep = vi.fn();
+    const { container } = mount({ onstep });
+    const layer = container.querySelector(".layer")!;
+
+    await waitFor(() => {
+      expect(container.querySelector(".stage")).toBeTruthy();
+    });
+
+    fireEvent.keyDown(layer, { key: "z" });
+    await waitFor(() => {
+      expect(container.querySelector(".stage")?.classList.contains("zoomed")).toBe(true);
+    });
+
+    fireEvent.keyDown(layer, { key: "ArrowRight" });
+    await waitFor(() => expect(onstep).toHaveBeenCalledWith("b"));
+  });
+
+  it("Shift+ArrowRight while zoomed pans and does not step", async () => {
+    const onstep = vi.fn();
+    const { container } = mount({ onstep });
+    const layer = container.querySelector(".layer")!;
+
+    await waitFor(() => {
+      expect(container.querySelector(".stage img")).toBeTruthy();
+    });
+
+    await fireEvent.click(container.querySelector(".imgbtn")!);
+    await waitFor(() => {
+      expect(container.querySelector(".stage")?.classList.contains("zoomed")).toBe(true);
+    });
+
+    const img = container.querySelector(".stage img")!;
+    const before = img.getAttribute("style");
+    fireEvent.keyDown(layer, { key: "ArrowRight", shiftKey: true });
+    await waitFor(() => {
+      expect(img.getAttribute("style")).not.toBe(before);
+    });
+    expect(onstep).not.toHaveBeenCalled();
+  });
+
+  it("ctrl+wheel over the stage is prevented", async () => {
+    const { container, getByRole } = mount();
+    await waitFor(() => getByRole("button", { name: "Actual size" }));
+    const stage = container.querySelector(".stage")!;
+    const ev = new WheelEvent("wheel", { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true, clientX: 500, clientY: 250 });
+    stage.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+  });
+
+  it("source: no pinch-zoom touch-action rule left", () => {
+    expect(svelteSrc).not.toContain("pan-y pinch-zoom");
   });
 
   it("backdrop clicks on layer/mid close, but image click does not", async () => {

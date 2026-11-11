@@ -67,6 +67,10 @@ describe("Item Escape key (T-47)", () => {
       },
     );
     window.scrollTo = vi.fn();
+    vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(2000);
+    vi.spyOn(HTMLImageElement.prototype, "naturalHeight", "get").mockReturnValue(1000);
+    vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(1000);
+    vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(500);
     history.replaceState({}, "", "/see-all?source=stash_images");
     pages = [];
     globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
@@ -123,6 +127,7 @@ describe("Item Escape key (T-47)", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("zoomed image: Escape resets zoom, stays on same item", async () => {
@@ -169,6 +174,85 @@ describe("Item Escape key (T-47)", () => {
     await vi.waitFor(() => {
       expect(location.pathname).toBe("/item/images/2a");
     });
+    await vi.waitFor(() => {
+      expect(screen.getByRole("button", { name: "Actual size" })).toBeTruthy();
+    });
+  });
+
+  it("zoomed: Shift+ArrowRight pans the picture and does not navigate", async () => {
+    const { container } = render(App);
+    await navigateToItem1b(container);
+
+    const btn = await screen.findByRole("button", { name: "Actual size" });
+    await fireEvent.click(btn);
+    await vi.waitFor(() => {
+      expect(screen.getByRole("button", { name: "Fit to screen" })).toBeTruthy();
+    });
+
+    const img = screen.getByRole("button", { name: "Fit to screen" }).querySelector("img")!;
+    const beforeStyle = img.getAttribute("style");
+
+    fireEvent.keyDown(window, { key: "ArrowRight", shiftKey: true });
+
+    await vi.waitFor(() => {
+      expect(img.getAttribute("style")).not.toBe(beforeStyle);
+    });
+    expect(location.pathname).toBe("/item/images/1b");
+  });
+
+  it("horizontal wheel on the stage still navigates to the next item", async () => {
+    const { container } = render(App);
+    await navigateToItem1b(container);
+
+    await screen.findByRole("button", { name: "Actual size" });
+
+    const stageImg = (await screen.findByRole("button", { name: "Actual size" })).querySelector("img")!;
+
+    fireEvent(
+      stageImg,
+      new WheelEvent("wheel", { deltaX: 100, deltaY: 5, bubbles: true, cancelable: true }),
+    );
+
+    await vi.waitFor(() => {
+      expect(location.pathname).toBe("/item/images/2a");
+    });
+  });
+
+  it("vertical wheel on the stage zooms and does not navigate", async () => {
+    const { container } = render(App);
+    await navigateToItem1b(container);
+
+    const stageImg = (await screen.findByRole("button", { name: "Actual size" })).querySelector("img")!;
+
+    fireEvent(
+      stageImg,
+      new WheelEvent("wheel", {
+        deltaY: -100,
+        bubbles: true,
+        cancelable: true,
+        clientX: 500,
+        clientY: 250,
+      }),
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByRole("button", { name: "Fit to screen" })).toBeTruthy();
+    });
+    expect(location.pathname).toBe("/item/images/1b");
+  });
+
+  it("key z toggles zoom, key 0 fits", async () => {
+    const { container } = render(App);
+    await navigateToItem1b(container);
+
+    fireEvent.keyDown(window, { key: "z" });
+
+    await vi.waitFor(() => {
+      expect(screen.getByRole("button", { name: "Fit to screen" })).toBeTruthy();
+    });
+
+    fireEvent.keyDown(window, { key: "0" });
+
     await vi.waitFor(() => {
       expect(screen.getByRole("button", { name: "Actual size" })).toBeTruthy();
     });

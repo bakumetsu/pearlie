@@ -12,6 +12,7 @@
   import { toPlayerItem } from "../lib/player/playerNav.svelte";
   import StageSlot from "../lib/player/StageSlot.svelte";
   import ImageStage from "../lib/item/ImageStage.svelte";
+  import { createZoom, zoomKey } from "../lib/item/zoomModel.svelte";
   import ItemPanel from "../lib/item/ItemPanel.svelte";
   import SeriesGrid from "../lib/item/SeriesGrid.svelte";
   import { rejectTag } from "../lib/item/reject";
@@ -24,7 +25,7 @@
   const router = getRouter();
   const view = createItemView({ api, grid: () => grid, toasts });
 
-  let zoomed = $state(false);
+  const zoom = createZoom();
   let lastNav = 0;
 
   let vw = $state(window.innerWidth);
@@ -40,7 +41,7 @@
 
   $effect(() => {
     if (kind !== null) {
-      zoomed = false;
+      untrack(() => zoom.reset());
       void view.load(kind, id);
     }
   });
@@ -134,15 +135,11 @@
     ) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (view.status !== "ready") return;
+    if (view.detail?.kind === "image" && zoomKey(e, zoom)) return;
 
     switch (e.key) {
       case "Escape":
-        if (zoomed) {
-          zoomed = false;
-          e.preventDefault();
-        } else {
-          back();
-        }
+        back();
         break;
       case "f":
       case "F":
@@ -163,10 +160,6 @@
       case "4":
       case "5":
         void view.setRating(Number(e.key));
-        break;
-      case "z":
-      case "Z":
-        if (view.detail?.kind === "image") zoomed = !zoomed;
         break;
       case "ArrowLeft":
         goPrev();
@@ -257,7 +250,7 @@
             src={view.detail.full_url ?? view.detail.thumb_url}
             alt={view.detail.title}
             preload={preload}
-            bind:zoomed
+            {zoom}
           />
         {:else if view.detail.kind === "video"}
           <StageSlot id={view.detail.id} />
