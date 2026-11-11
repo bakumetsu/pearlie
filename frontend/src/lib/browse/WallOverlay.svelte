@@ -16,6 +16,7 @@
   import { itemHref } from "../item/kinds";
   import Backdrop from "../components/Backdrop.svelte";
   import { options } from "../stores/options.svelte";
+  import { sfw } from "../stores/sfw.svelte";
   import { backdropStrength } from "../options/backdrop";
 
   type OverlayGrid = ListGrid &
@@ -55,7 +56,7 @@
     document.fullscreenEnabled === true &&
     typeof HTMLElement.prototype.requestFullscreen === "function";
 
-  const backdrop = $derived(backdropStrength(options.values, "wall"));
+  const backdrop = $derived(backdropStrength(options.values, "wall", sfw?.on ?? false));
   let swipeStart: { id: number; x: number; y: number } | null = null;
   let swipeHandled = false;
   const activePointers = new SvelteSet<number>();
@@ -581,6 +582,10 @@
 
   .nav-next {
     right: 0;
+  }
+
+  .stage-wrap :global(.stage) {
+    background: transparent;
   }
 
   .stage-wrap {

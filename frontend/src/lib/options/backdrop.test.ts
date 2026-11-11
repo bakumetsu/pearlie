@@ -57,3 +57,16 @@ describe("Backdrop.svelte", () => {
     expect(fill.style.opacity).toBe("0.4");
   });
 });
+
+describe("backdropStrength in safe mode", () => {
+  const on = { backdrop_strength: 60, backdrop_wall: true, backdrop_item: true, backdrop_lightbox: true };
+
+  it("returns 0 while safe mode hides the backdrop", () => {
+    expect(backdropStrength(on, "wall", true)).toBe(0);
+    expect(backdropStrength(null, "item", true)).toBe(0);
+  });
+
+  it("keeps the strength when safe mode is off", () => {
+    expect(backdropStrength(on, "lightbox", false)).toBe(60);
+  });
+});

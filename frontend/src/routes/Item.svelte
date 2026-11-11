@@ -20,6 +20,7 @@
   import Icon from "../lib/components/Icon.svelte";
   import Backdrop from "../lib/components/Backdrop.svelte";
   import { options } from "../lib/stores/options.svelte";
+  import { sfw } from "../lib/stores/sfw.svelte";
   import { backdropStrength } from "../lib/options/backdrop";
 
   let { match }: { match: Match } = $props();
@@ -67,7 +68,7 @@
   );
   const hasList = $derived(idx >= 0);
   const hasPanel = $derived(kind !== null && (view.status === "loading" || (view.status === "ready" && !!view.detail)));
-  const backdrop = $derived(backdropStrength(options.values, "item"));
+  const backdrop = $derived(backdropStrength(options.values, "item", sfw?.on ?? false));
 
   const key = $derived(kind !== null ? toSingular(kind) + ":" + id : "");
 
@@ -378,6 +379,10 @@
     place-items: center;
     min-width: 0;
     overflow: hidden;
+  }
+
+  .stage > :global(.stage) {
+    background: transparent;
   }
 
   .stage > :global(:not(.backdrop)) {

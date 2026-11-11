@@ -17,7 +17,10 @@ type BackdropValues = {
 export function backdropStrength(
   values: BackdropValues | null | undefined,
   where: BackdropWhere,
+  hidden = false,
 ): number {
+  // Safe mode: the backdrop is a CSS background, so the SFW blur would not cover it
+  if (hidden) return 0;
   const switchKey = `backdrop_${where}` as const;
   const on = values ? values[switchKey] : true;
   if (!on) return 0;

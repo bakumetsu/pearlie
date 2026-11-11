@@ -5,6 +5,7 @@
   import SfwToggle from "./SfwToggle.svelte";
   import Backdrop from "./Backdrop.svelte";
   import { options } from "../stores/options.svelte";
+  import { sfw } from "../stores/sfw.svelte";
   import { backdropStrength } from "../options/backdrop";
 
   let {
@@ -36,7 +37,7 @@
   });
 
   const title = $derived(item.title ?? `${item.source} #${item.post_id}`);
-  const backdrop = $derived(backdropStrength(options.values, "lightbox"));
+  const backdrop = $derived(backdropStrength(options.values, "lightbox", sfw?.on ?? false));
 </script>
 
 <dialog
