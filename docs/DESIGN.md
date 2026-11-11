@@ -144,7 +144,7 @@ Notes:
 | GET | `/api/library/stash/images` · `/videos` · `/api/library/komga/series` · `/books` | the "See all" views |
 | GET / PUT | `/api/view-settings`, `/api/view-settings/{source}` | per-source grid view (`mode` grid, wall, masonry or list; `per_page`; `zoom` 1-5), stored as `view.<source>` in the settings table (in memory in fixture mode). GET fills defaults (grid, 60, 3; nhentai 25) and returns `per_page_options` and `per_page_max`; PUT answers 422 `invalid` for an unknown source, mode, zoom, or a `per_page` outside 1 to the source cap |
 | GET | `/api/library/{kind}/{id}` | item details |
-| PATCH | `/api/library/{kind}/{id}` | rating, favorite, tags |
+| PATCH | `/api/library/{kind}/{id}` | rating (1-5, null clears), favorite, tags (full list replaces); answers the updated item |
 | DELETE | `/api/library/{kind}/{id}` | move to trash; returns an undo token |
 | POST | `/api/trash/{token}/restore` | undo |
 | GET | `/api/trash` | list trashed items with token, expires_at, retention_days; expired entries are left out but not dropped by the GET (they are dropped on restore, on empty, or when retention purges them) |
@@ -155,6 +155,8 @@ Notes:
 | GET / PUT | `/api/rules`; POST `/api/rules/test` | filters (base list returned read-only) |
 | POST | `/api/library/komga/books/{id}/progress` | reading progress |
 | GET | `/api/health` | Stash, Komga, mounts, sites |
+
+PATCH per side (real mode): Stash images and videos take `rating` (stored as rating100 = rating x 20) and `tags` (names are matched case-insensitively against Stash tags, missing ones are created, then rating and tags go in ONE sceneUpdate or imageUpdate mutation, so an edit is never half applied; a tag created before a failed update stays in Stash). Komga series and books take `tags` only, written to the metadata endpoint with `tagsLock: true` so a library scan does not undo the edit; a series shows the union of its own and its books' tags, so removing a tag that a book also carries leaves it in the list. A field the side cannot store answers 422 `unsupported_field` with `field` set, checked before any upstream call (Stash: any non-null `favorite`; Komga: any non-null `favorite` or `rating`); `null` or omitted is ignored. An empty tag or one over 64 characters answers 422 `invalid_tag`; an unknown or non-numeric id 404 `not_found`; Stash or Komga failing 502 `upstream_error`. Fixture mode still accepts favorite and rating on every kind until the UI hides those controls on the sides that cannot store them. DELETE stays 501 in real mode (trash design pending).
 
 Paging fields: list and search answers carry `page` (the page actually served), `page_size`, `total`, `pages` (null where the source gives no count, such as Danbooru) and, for Stash, `stats {megapixels, size_bytes}`. `page_size` is clamped to the source cap (200 Stash, Komga, Danbooru; 100 Gelbooru, Rule34; 25 nhentai; search `page_size` above 200 is a 422). A `page` past the last one is served as the last page, never an error. With several sources in one search `page_size` is ignored (each section keeps its short preview) and the section `page_size` is null.
 
