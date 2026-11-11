@@ -82,10 +82,6 @@
 
   <span class="time">{formatTime(player.time)} / {formatTime(player.duration)}</span>
 
-  {#if !compact}
-    <GearMenu />
-  {/if}
-
   <button
     class="btn"
     aria-label={player.muted ? "Unmute" : "Mute"}
@@ -111,6 +107,10 @@
     <button class="btn" aria-label="Picture in picture" onclick={onPipClick}>
       <Icon name="pip" size={20} />
     </button>
+  {/if}
+
+  {#if !compact}
+    <GearMenu />
   {/if}
 
   <button class="btn" aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"} onclick={onFullscreenClick}>
