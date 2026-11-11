@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     static_dir: Path = Path("../frontend/dist")
     host: str = "127.0.0.1"
     port: int = 8000
+    secret_key: SecretStr = SecretStr("")
     stash_url: str = ""
     stash_api_key: SecretStr = SecretStr("")
     stash_public_url: str = ""

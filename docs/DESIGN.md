@@ -17,7 +17,7 @@ The web app comes first (self-hosted, then PWA). A native iOS client (SwiftUI) f
 
 1. **Stash and Komga are the library.** Pearlie stores only its own data: jobs, rules, the index of saved items (source, post id, MD5), trash records. It never keeps a second copy of the media. 
 2. **Never exposed directly.** Access only through Tailscale/WireGuard or a reverse proxy with login. Outbound calls go only to the configured sites, Stash and Komga.
-3. **Secrets stay local.** API keys and site cookies live in `.env` or the local config, are never logged and never reach the browser. Clients never get Stash or Komga keys.
+3. **Secrets stay local.** API keys and site cookies live in `.env` or the local config, are never logged and never reach the browser. Clients never get Stash or Komga keys. Secrets may be typed into the Options page (write-only, stored encrypted); they are never shown, logged or sent to the browser.
 4. **No delete without undo.** Library deletes go to a Pearlie trash folder with an Undo toast; real deletion happens after a retention period the user sets.
 5. **Polite to sites.** Every source has a throttle; one download at a time per site by default.
 6. **Thin clients.** All logic lives in the backend. The web UI and the iOS app only call the JSON API.

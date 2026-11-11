@@ -39,6 +39,16 @@ def install(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:
+        if request.url.path.startswith("/api/connections"):
+            err = exc.errors()[0]
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "code": "invalid",
+                    "message": "invalid request",
+                    "field": str(err["loc"][-1]),
+                },
+            )
         err = exc.errors()[0]
         loc = ".".join(str(p) for p in err["loc"])
         field = str(err["loc"][-1])
