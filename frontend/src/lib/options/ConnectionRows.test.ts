@@ -17,9 +17,9 @@ function makeConnections(can_store = true): ConnectionsOut {
   return {
     can_store,
     connections: [
-      { name: "stash", address: "http://stash.local:9999", key: "missing", address_fixed: false, address_locked: false, key_locked: false },
-      { name: "komga", address: "http://komga.local:8888", key: "set", address_fixed: false, address_locked: false, key_locked: false },
-      { name: "danbooru", address: "https://danbooru.donmai.us", key: "set", address_fixed: true, address_locked: true, key_locked: false },
+      { name: "stash", address: "http://stash.local:9999", key: "missing", address_fixed: false, address_locked: false, key_locked: false, restart_needed: false },
+      { name: "komga", address: "http://komga.local:8888", key: "set", address_fixed: false, address_locked: false, key_locked: false, restart_needed: false },
+      { name: "danbooru", address: "https://danbooru.donmai.us", key: "set", address_fixed: true, address_locked: true, key_locked: false, restart_needed: false },
     ],
   };
 }
@@ -141,7 +141,7 @@ describe("ConnectionRows", () => {
     const data: ConnectionsOut = {
       can_store: true,
       connections: [
-        { name: "stash", address: "http://stash.local:9999", key: "missing", address_fixed: false, address_locked: false, key_locked: true },
+        { name: "stash", address: "http://stash.local:9999", key: "missing", address_fixed: false, address_locked: false, key_locked: true, restart_needed: false },
       ],
     };
     await renderRows(data);

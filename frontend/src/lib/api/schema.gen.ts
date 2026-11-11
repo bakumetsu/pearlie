@@ -883,7 +883,7 @@ export interface components {
              * Restart Needed
              * @default false
              */
-            restart_needed?: boolean;
+            restart_needed: boolean;
         };
         /** ConnectionsOut */
         ConnectionsOut: {
