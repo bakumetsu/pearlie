@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
-import { render, cleanup } from "@testing-library/svelte";
+import { render, cleanup, fireEvent } from "@testing-library/svelte";
 import { flushSync } from "svelte";
 import PlayerHost from "./PlayerHost.svelte";
 import { player } from "./player.svelte";
@@ -107,5 +107,107 @@ describe("PlayerHost rate", () => {
     expect(loadSpy.mock.calls.length).toBe(loadCount + 1);
     expect(video()!.playbackRate).toBe(1.5);
     expect(video()!.defaultPlaybackRate).toBe(1.5);
+  });
+});
+
+describe("PlayerHost fullscreen", () => {
+  type FsDoc = { exitFullscreen?: unknown };
+  type FsEl = { requestFullscreen?: unknown; webkitRequestFullscreen?: unknown };
+
+  beforeEach(() => {
+    vi.stubGlobal("ResizeObserver", FakeRO);
+    player.open(item);
+    player.onPlaying();
+    player.setSlot("v1", { x: 10, y: 20, w: 300, h: 200 });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    player.close();
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, value: null });
+    delete (document as unknown as FsDoc).exitFullscreen;
+  });
+
+  function setFs(el: Element | null) {
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, value: el });
+    document.dispatchEvent(new Event("fullscreenchange"));
+    flushSync();
+  }
+
+  function setupFsMocks() {
+    const root = document.querySelector("[data-player-root]")!;
+    const video = document.querySelector("video[data-player]")!;
+    root.requestFullscreen = vi.fn(() => { setFs(root); return Promise.resolve(); });
+    video.requestFullscreen = vi.fn(() => Promise.resolve());
+    (document as unknown as FsDoc).exitFullscreen = vi.fn(() => { setFs(null); return Promise.resolve(); });
+    return { root, video };
+  }
+
+  it("click Fullscreen enters root fullscreen, not video", async () => {
+    render(PlayerHost);
+    flushSync();
+    const { root, video } = setupFsMocks();
+    const btn = document.querySelector('[aria-label="Fullscreen"]')!;
+    await fireEvent.click(btn);
+    expect(root.requestFullscreen).toHaveBeenCalledTimes(1);
+    expect(video.requestFullscreen).not.toHaveBeenCalled();
+  });
+
+  it("bar stays mounted and button label changes in fullscreen", async () => {
+    render(PlayerHost);
+    flushSync();
+    setupFsMocks();
+    const btn = document.querySelector('[aria-label="Fullscreen"]')!;
+    await fireEvent.click(btn);
+    expect(document.querySelector('[aria-label="Player controls"]')).not.toBeNull();
+    expect(document.querySelector('[aria-label="Exit fullscreen"]')).not.toBeNull();
+  });
+
+  it("Esc exits fullscreen, label reverts, bar still mounted", async () => {
+    render(PlayerHost);
+    flushSync();
+    setupFsMocks();
+    const btn = document.querySelector('[aria-label="Fullscreen"]')!;
+    await fireEvent.click(btn);
+    // simulate Esc key
+    setFs(null);
+    expect(document.querySelector('[aria-label="Fullscreen"]')).not.toBeNull();
+    expect(document.querySelector('[aria-label="Player controls"]')).not.toBeNull();
+  });
+
+  it("click Exit fullscreen calls document.exitFullscreen", async () => {
+    render(PlayerHost);
+    flushSync();
+    setupFsMocks();
+    const btn = document.querySelector('[aria-label="Fullscreen"]')!;
+    await fireEvent.click(btn);
+    const exitBtn = document.querySelector('[aria-label="Exit fullscreen"]')!;
+    await fireEvent.click(exitBtn);
+    expect(document.exitFullscreen).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to video.requestFullscreen when root does not support it", async () => {
+    render(PlayerHost);
+    flushSync();
+    const root = document.querySelector("[data-player-root]")!;
+    const video = document.querySelector("video[data-player]")!;
+    (root as unknown as FsEl).requestFullscreen = undefined;
+    (root as unknown as FsEl).webkitRequestFullscreen = undefined;
+    video.requestFullscreen = vi.fn(() => Promise.resolve());
+    (document as unknown as FsDoc).exitFullscreen = vi.fn(() => { setFs(null); return Promise.resolve(); });
+    const btn = document.querySelector('[aria-label="Fullscreen"]')!;
+    await fireEvent.click(btn);
+    expect(video.requestFullscreen).toHaveBeenCalledTimes(1);
+  });
+
+  it("unmount while fullscreen calls document.exitFullscreen", async () => {
+    render(PlayerHost);
+    flushSync();
+    setupFsMocks();
+    const btn = document.querySelector('[aria-label="Fullscreen"]')!;
+    await fireEvent.click(btn);
+    cleanup();
+    expect(document.exitFullscreen).toHaveBeenCalledTimes(1);
   });
 });
