@@ -290,3 +290,37 @@ describe("zoomModel pan, resize, keys", () => {
     expect(zoomKey(key("q"), z13)).toBe(false);
   });
 });
+
+describe("rescale", () => {
+  it("at fit: no-op, active stays false", () => {
+    const z = make(1000, 500, 2000, 1000);
+    z.rescale(2);
+    expect(z.active).toBe(false);
+  });
+
+  it("zoomed: rescale(1.5) from scale 1 gives scale 1.5", () => {
+    const z = make(1000, 500, 2000, 1000);
+    z.zoomAt(1, 0, 0);
+    z.rescale(1.5);
+    expect(z.scale).toBeCloseTo(1.5);
+  });
+
+  it("rescale(10) clamps to max 2", () => {
+    const z = make(1000, 500, 2000, 1000);
+    z.zoomAt(1, 0, 0);
+    z.rescale(10);
+    expect(z.scale).toBeCloseTo(2);
+  });
+
+  it("rescale(0), rescale(NaN), rescale(-1) leave scale unchanged", () => {
+    const z = make(1000, 500, 2000, 1000);
+    z.zoomAt(1, 0, 0);
+    const before = z.scale;
+    z.rescale(0);
+    expect(z.scale).toBeCloseTo(before);
+    z.rescale(NaN);
+    expect(z.scale).toBeCloseTo(before);
+    z.rescale(-1);
+    expect(z.scale).toBeCloseTo(before);
+  });
+});

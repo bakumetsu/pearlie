@@ -155,6 +155,13 @@ export function createZoom() {
     }
   }
 
+  function rescale(factor: number): void {
+    if (state.mode !== "zoom" || !Number.isFinite(factor) || factor <= 0) return;
+    state.scale *= factor;
+    clampScale();
+    clampPan();
+  }
+
   return {
     get mode() { return state.mode; },
     get scale() { return state.mode === "fit" ? fitScale() : state.scale; },
@@ -169,6 +176,7 @@ export function createZoom() {
     get min() { return minScale(); },
     get max() { return maxScale(); },
     setSizes,
+    rescale,
     zoomAt,
     toggleAt,
     stepIn,

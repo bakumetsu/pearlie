@@ -1,13 +1,14 @@
 <script lang="ts">
-  import { SvelteSet } from "svelte/reactivity";
+  import { SvelteMap } from "svelte/reactivity";
   import { wheelFactor, type Zoom } from "./zoomModel.svelte";
   import ZoomControls from "./ZoomControls.svelte";
 
-  let { src, alt, preload = null, zoom }: {
+  let { src, alt, preload = null, zoom, disabled = false }: {
     src: string;
     alt: string;
     preload?: string | null;
     zoom: Zoom;
+    disabled?: boolean;
   } = $props();
 
   let stageEl: HTMLDivElement | undefined = $state();
@@ -18,7 +19,9 @@
   let swallowClick = false;
 
   let drag: { id: number; x: number; y: number; moved: boolean } | null = null;
-  const activePointers = new SvelteSet<number>();
+  const pointers = new SvelteMap<number, { x: number; y: number }>();
+  let pinch: { dist: number; mx: number; my: number } | null = null;
+  let lastNatW = 0;
   let pendingDx = 0;
   let pendingDy = 0;
   let last: { x: number; y: number } | null = null;
@@ -31,9 +34,27 @@
     }
   }
 
+  function onLoad(): void {
+    const n = imgEl?.naturalWidth ?? 0;
+    if (zoom.active && lastNatW > 0 && n > 0 && lastNatW !== n) zoom.rescale(lastNatW / n);
+    if (n > 0) lastNatW = n;
+    measure();
+  }
+
   function centreOf(clientX: number, clientY: number): { x: number; y: number } {
     const rect = stageEl!.getBoundingClientRect();
     return { x: clientX - rect.left - rect.width / 2, y: clientY - rect.top - rect.height / 2 };
+  }
+
+  function pinchGeometry(): { dist: number; mx: number; my: number } | null {
+    const entries = [...pointers.entries()].slice(0, 2);
+    if (entries.length < 2) return null;
+    const [a, b] = [entries[0][1], entries[1][1]];
+    return {
+      dist: Math.hypot(b.x - a.x, b.y - a.y),
+      mx: (a.x + b.x) / 2,
+      my: (a.y + b.y) / 2,
+    };
   }
 
   function scheduleSnap(): void {
@@ -57,6 +78,7 @@
     const el = stageEl;
     if (!el) return;
     function onWheel(e: WheelEvent): void {
+      if (disabled) return;
       if (!imgEl || imgEl.naturalWidth <= 0) return;
       if (!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       e.preventDefault();
@@ -79,6 +101,7 @@
   });
 
   function onClick(e: MouseEvent): void {
+    if (disabled) return;
     if (swallowClick) { swallowClick = false; return; }
     if (!imgEl || imgEl.naturalWidth <= 0) return;
     const pt = e.detail === 0 ? { x: 0, y: 0 } : centreOf(e.clientX, e.clientY);
@@ -97,10 +120,19 @@
   }
 
   function onPointerDown(e: PointerEvent): void {
-    if (!zoom.active) return;
+    if (disabled) return;
+    if (e.target instanceof Element && e.target.closest("[data-zoombar]")) return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
-    activePointers.add(e.pointerId);
-    if (activePointers.size > 1) { drag = null; return; }
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      flushPan();
+      drag = null;
+      pinch = pinchGeometry();
+      gesture = true;
+      return;
+    }
+    if (pointers.size > 2) return;
+    if (!zoom.active) return;
     drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
     pendingDx = 0;
     pendingDy = 0;
@@ -110,6 +142,21 @@
   }
 
   function onPointerMove(e: PointerEvent): void {
+    if (pointers.has(e.pointerId)) {
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+    if (pinch && pointers.size >= 2) {
+      const g = pinchGeometry();
+      if (g && pinch.dist > 0) {
+        measure();
+        const p = centreOf(pinch.mx, pinch.my);
+        zoom.zoomAt(zoom.scale * (g.dist / pinch.dist), p.x, p.y);
+        zoom.panBy(g.mx - pinch.mx, g.my - pinch.my);
+      }
+      pinch = g;
+      animate = false;
+      return;
+    }
     if (!drag || e.pointerId !== drag.id) return;
     const dx = e.clientX - drag.x;
     const dy = e.clientY - drag.y;
@@ -132,7 +179,28 @@
   }
 
   function onPointerUp(e: PointerEvent): void {
-    activePointers.delete(e.pointerId);
+    pointers.delete(e.pointerId);
+    if (pinch !== null) {
+      if (pointers.size < 2) {
+        pinch = null;
+        swallowClick = true;
+        setTimeout(() => (swallowClick = false), 0);
+        scheduleSnap();
+      }
+      if (pointers.size === 1 && zoom.active) {
+        const [id, pos] = [...pointers.entries()][0];
+        drag = { id, x: pos.x, y: pos.y, moved: true };
+        last = { x: pos.x, y: pos.y };
+        pendingDx = 0;
+        pendingDy = 0;
+        gesture = true;
+        return;
+      }
+      flushPan();
+      drag = null;
+      gesture = false;
+      return;
+    }
     if (drag?.moved) {
       swallowClick = true;
       setTimeout(() => (swallowClick = false), 0);
@@ -143,7 +211,28 @@
   }
 
   function onPointerCancel(e: PointerEvent): void {
-    activePointers.delete(e.pointerId);
+    pointers.delete(e.pointerId);
+    if (pinch !== null) {
+      if (pointers.size < 2) {
+        pinch = null;
+        swallowClick = true;
+        setTimeout(() => (swallowClick = false), 0);
+        scheduleSnap();
+      }
+      if (pointers.size === 1 && zoom.active) {
+        const [id, pos] = [...pointers.entries()][0];
+        drag = { id, x: pos.x, y: pos.y, moved: true };
+        last = { x: pos.x, y: pos.y };
+        pendingDx = 0;
+        pendingDy = 0;
+        gesture = true;
+        return;
+      }
+      flushPan();
+      drag = null;
+      gesture = false;
+      return;
+    }
     flushPan();
     drag = null;
     gesture = false;
@@ -191,10 +280,12 @@
       class:zoomed={zoom.active}
       class:animate={animate}
       style={zoom.active ? `transform: translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.scale});` : undefined}
-      onload={measure}
+      onload={onLoad}
     />
   </button>
-  <ZoomControls {zoom} onhide={() => imgBtn?.focus()} />
+  {#if !disabled}
+    <ZoomControls {zoom} onhide={() => imgBtn?.focus()} />
+  {/if}
 </div>
 
 <style>

@@ -87,6 +87,10 @@ function mount(over: Record<string, unknown> = {}) {
   return { ...result, onstep, onclose, grid };
 }
 
+async function loaded(container: HTMLElement): Promise<void> {
+  await waitFor(() => expect(container.querySelector(".stage-wrap")?.getAttribute("aria-busy")).toBe("false"));
+}
+
 describe("WallOverlay", () => {
   it("renders role dialog named 'Image viewer' with a Close button that has focus", () => {
     const { getByRole } = mount();
@@ -224,12 +228,13 @@ describe("WallOverlay", () => {
 
   it("Escape while zoomed only un-zooms; second Escape closes", async () => {
     const onclose = vi.fn();
-    const { getByRole } = mount({ onclose });
+    const { getByRole, container } = mount({ onclose });
 
     // wait for ImageStage to render its "Zoom in here" button
     const actualSize = await waitFor(() =>
       getByRole("button", { name: "Zoom in here" }),
     );
+    await loaded(container);
     fireEvent.click(actualSize);
 
     // first Escape un-zooms, does not close
@@ -645,6 +650,7 @@ describe("WallOverlay swipe", () => {
     const onclose = vi.fn();
     const { container, getByRole } = mount({ onclose });
     const btn = await waitFor(() => getByRole("button", { name: "Zoom in here" }));
+    await loaded(container);
     await fireEvent.click(btn);
     const stage = container.querySelector(".stage")!;
 
@@ -679,6 +685,7 @@ describe("WallOverlay swipe", () => {
       expect(container.querySelector(".stage")).toBeTruthy();
     });
 
+    await loaded(container);
     fireEvent.keyDown(layer, { key: "z" });
     await waitFor(() => {
       expect(container.querySelector(".stage")?.classList.contains("zoomed")).toBe(true);
@@ -697,6 +704,7 @@ describe("WallOverlay swipe", () => {
       expect(container.querySelector(".stage img")).toBeTruthy();
     });
 
+    await loaded(container);
     await fireEvent.click(container.querySelector(".imgbtn")!);
     await waitFor(() => {
       expect(container.querySelector(".stage")?.classList.contains("zoomed")).toBe(true);
@@ -715,6 +723,7 @@ describe("WallOverlay swipe", () => {
     const { container, getByRole } = mount();
     await waitFor(() => getByRole("button", { name: "Zoom in here" }));
     const stage = container.querySelector(".stage")!;
+    await loaded(container);
     const ev = new WheelEvent("wheel", { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true, clientX: 500, clientY: 250 });
     stage.dispatchEvent(ev);
     expect(ev.defaultPrevented).toBe(true);
@@ -891,6 +900,42 @@ describe("loading, errors and gone (T-67)", () => {
     const link = getByRole("link", { name: "Details" });
     expect(link.getAttribute("aria-disabled")).toBe("false");
     expect((getByRole("button", { name: "Delete" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("zoom button is disabled while loading and z does not zoom", async () => {
+    const { getByRole, container } = mount({ api: neverResolvingApi() });
+    const zoomBtn = getByRole("button", { name: "Zoom" });
+    expect((zoomBtn as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(container.querySelector(".layer")!, { key: "z" });
+    expect(zoomBtn.getAttribute("aria-pressed")).toBe("false");
+    expect(container.querySelector(".stage")?.classList.contains("zoomed")).toBe(false);
+  });
+
+  it("click and ctrl+wheel on the stage do nothing while loading", async () => {
+    const { container } = mount({ api: neverResolvingApi() });
+    const stage = container.querySelector(".stage")!;
+    const img = stage.querySelector("img")!;
+    Object.defineProperty(img, "naturalWidth", { value: 2000, configurable: true });
+    Object.defineProperty(img, "naturalHeight", { value: 1000, configurable: true });
+
+    await fireEvent.click(container.querySelector(".imgbtn")!, { clientX: 10, clientY: 10, detail: 1 });
+    expect(stage.classList.contains("zoomed")).toBe(false);
+
+    const ev = new WheelEvent("wheel", { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true });
+    stage.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(false);
+    expect(stage.classList.contains("zoomed")).toBe(false);
+  });
+
+  it("zoom bar appears once zoomed, - and + work, overlay stays open", async () => {
+    const { container, getByRole, onclose } = mount();
+    await loaded(container);
+    await fireEvent.click(getByRole("button", { name: "Zoom" }));
+    await waitFor(() => getByRole("button", { name: "Zoom in" }));
+    await fireEvent.click(getByRole("button", { name: "Zoom in" }));
+    expect(container.querySelector(".stage")!.classList.contains("zoomed")).toBe(true);
+    expect(onclose).not.toHaveBeenCalled();
+    expect(container.querySelector('[aria-label^="Fit to screen, now"]')).toBeTruthy();
   });
 });
 
