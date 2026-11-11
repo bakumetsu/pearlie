@@ -234,7 +234,7 @@ def test_no_cors(tmp_path: Path) -> None:
     assert "access-control-allow-origin" not in r.headers
     assert r.status_code >= 400
 
-    mw_names = [mw.cls.__name__ for mw in app.user_middleware]
+    mw_names = [getattr(mw.cls, "__name__", "") for mw in app.user_middleware]
     assert "CORSMiddleware" not in mw_names
 
 

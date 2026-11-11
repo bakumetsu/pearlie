@@ -94,16 +94,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings = load_settings()
     init_db(settings.db_path)
     logger.info(settings.safe_summary())
+    worker_enabled = settings.worker_enabled
 
     @asynccontextmanager
     async def lifespan(app_: FastAPI) -> AsyncIterator[None]:
         worker: JobWorker | None = getattr(app_.state, "worker", None)
-        if worker is not None and settings.worker_enabled:
+        if worker is not None and worker_enabled:
             worker.start()
         try:
             yield
         finally:
-            if worker is not None and settings.worker_enabled:
+            if worker is not None and worker_enabled:
                 worker.stop()
             client: httpx.Client | None = getattr(app_.state, "http", None)
             if client is not None:
