@@ -105,7 +105,7 @@ describe("ConnectionRows", () => {
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Danbooru" }));
-    dialog = await screen.findByRole("dialog");
+    await screen.findByRole("dialog");
     expect(screen.queryByText("Address")).toBeNull();
   });
 
