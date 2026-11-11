@@ -337,6 +337,7 @@ class Site(BaseModel):
 
 class Health(BaseModel):
     status: Literal["ok", "degraded"]
+    version: str = ""
     stash: StashHealth
     komga: KomgaHealth
     db: Literal["ok", "error"] = "ok"

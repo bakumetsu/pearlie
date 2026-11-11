@@ -38,3 +38,4 @@ venv = ".venv"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["no_default_origin: test builds requests without the default Origin header"]

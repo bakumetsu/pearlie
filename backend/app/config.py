@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     static_dir: Path = Path("../frontend/dist")
     host: str = "127.0.0.1"
     port: int = 8000
+    trusted_network: bool = False
     secret_key: SecretStr = SecretStr("")
     stash_url: str = ""
     stash_api_key: SecretStr = SecretStr("")
@@ -56,8 +57,11 @@ LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 def load_settings(**overrides: Any) -> Settings:
     try:
         settings = Settings(**overrides)
-        if settings.host not in LOOPBACK_HOSTS:
-            raise ConfigError("no login yet: Pearlie binds to loopback only until T-06")
+        if settings.host not in LOOPBACK_HOSTS and not settings.trusted_network:
+            raise ConfigError(
+                "no login yet: a non-loopback PEARLIE_HOST needs "
+                "PEARLIE_TRUSTED_NETWORK=1 (access limited to your tailnet or reverse proxy)"
+            )
         return settings
     except ValidationError as exc:
         errors = exc.errors()

@@ -15,6 +15,8 @@ from fastapi.testclient import TestClient
 from app.config import Settings
 from app.main import create_app
 
+pytestmark = pytest.mark.no_default_origin
+
 HDR: dict[str, str] = {
     "Origin": "http://testserver",
     "Content-Type": "application/json",
