@@ -91,9 +91,9 @@
 		}
 		if (e.key === "Tab") {
 			e.preventDefault();
-			const focusable = [cancelBtn, deleteBtn].filter(
-				(b): b is HTMLElement => b != null,
-			);
+			const focusable: HTMLElement[] = [];
+			if (cancelBtn) focusable.push(cancelBtn);
+			if (deleteBtn) focusable.push(deleteBtn);
 			if (focusable.length === 0) return;
 			const idx = focusable.indexOf(document.activeElement as HTMLElement);
 			let next: number;
@@ -133,14 +133,16 @@
 	<div class="overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) closeDialog(); }}>
 		<div
 			role="dialog"
+			tabindex="-1"
 			aria-modal="true"
 			aria-labelledby="trash-dialog-title"
+			aria-describedby="trash-dialog-desc"
 			onkeydown={onDialogKeydown}
 		>
 			<h2 class="card-title" id="trash-dialog-title">
 				Delete {dialogCount} item{dialogCount === 1 ? "" : "s"} now?
 			</h2>
-			<p>
+			<p id="trash-dialog-desc">
 				Retention drops to {dialogDays} days. Demo trash items older than that
 				are deleted immediately.
 			</p>
