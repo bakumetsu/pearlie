@@ -10,7 +10,7 @@
     | "help" | "chevron-up" | "list" | "fit-width" | "fit-height" | "fit-both" | "fit-actual" | "mode-single" | "mode-spread" | "mode-scroll"
     | "home" | "wrench" | "eye" | "eye-off"
     | "grid" | "wall" | "masonry" | "sliders" | "chevrons-left" | "chevrons-right"
-    | "skip-back" | "skip-forward" | "rewind" | "fast-forward"
+    | "skip-back" | "skip-forward" | "rewind" | "fast-forward" | "replay-10" | "forward-10"
     | "zoom-in" | "zoom-out" | "info";
 
   const paths: Record<IconName, string[]> = {
@@ -325,6 +325,18 @@
     "fast-forward": [
       "M13 19l9-7-9-7v14z",
       "M2 19l9-7-9-7v14z",
+    ],
+    "replay-10": [
+      "M3 12a9 9 0 1 0 3-6.7",
+      "M3 4v5h5",
+      "M10 9.5v5",
+      "M13 9.5h2.5v5H13z",
+    ],
+    "forward-10": [
+      "M21 12a9 9 0 1 1-3-6.7",
+      "M21 4v5h-5",
+      "M10 9.5v5",
+      "M13 9.5h2.5v5H13z",
     ],
     "zoom-in": [
       "M11 3a8 8 0 1 1 0 16 8 8 0 0 1 0-16z",

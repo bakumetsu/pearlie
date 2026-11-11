@@ -186,7 +186,7 @@
   {#if player.item !== null && (fs || (player.mode === "stage" && player.slot !== null && rect !== null))}
     <div
       class="stage-bar"
-      style={rect !== null ? `position:fixed;left:${rect.x}px;width:${rect.w}px;top:${rect.y + rect.h - 52}px;z-index:21;` : ""}
+      style={rect !== null ? `position:fixed;left:${rect.x}px;width:${rect.w}px;bottom:${vp.h - rect.y - rect.h}px;z-index:21;` : ""}
     >
       <PlayerBar fullscreen={fs} />
     </div>
