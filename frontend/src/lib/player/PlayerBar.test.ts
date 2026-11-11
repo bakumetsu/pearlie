@@ -78,6 +78,18 @@ describe("PlayerBar controls: prev/next, skip, speed", () => {
     expect(btn("Player settings")).not.toBeNull();
   });
 
+  it("gear sits after mute and before fullscreen", () => {
+    renderBar();
+    const gear = btn("Player settings");
+    const mute = btn("Mute");
+    const fs = btn("Fullscreen");
+    expect(gear).not.toBeNull();
+    expect(mute).not.toBeNull();
+    expect(fs).not.toBeNull();
+    expect(mute!.compareDocumentPosition(gear!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(gear!.compareDocumentPosition(fs!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("compact: prev/next shown, no speed button, no gear", () => {
     renderBar(true);
     expect(btn("Previous video")).not.toBeNull();
