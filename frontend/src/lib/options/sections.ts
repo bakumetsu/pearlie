@@ -130,6 +130,12 @@ export const SECTIONS: Section[] = [
           { label: 'Test', hint: 'test connection' },
         ],
       },
+      {
+        title: 'Status',
+        rows: [
+          { label: 'Health', hint: 'Stash, Komga, database, mounts, sites' },
+        ],
+      },
     ],
   },
   {

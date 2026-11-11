@@ -1,5 +1,5 @@
 import { ApiError } from "../api/client";
-import type { Api, Health, RulesBody, RulesTestResult } from "../api/client";
+import type { Api, RulesBody, RulesTestResult } from "../api/client";
 import {
   draftFrom,
   addTag,
@@ -19,6 +19,23 @@ import type { Draft, ListKey } from "../rules/draft";
 
 type MappingTarget = Draft["mapping"][number]["to"];
 
+// ── Shared leave guard ───────────────────────────────────────────
+type LeaveGuard = (to: string) => boolean; // true = intercepted (prompt shown)
+let leaveGuard: LeaveGuard | null = null;
+
+export function setLeaveGuard(g: LeaveGuard | null) {
+  leaveGuard = g;
+}
+
+export function guardedNavigate(
+  router: { navigate(href: string): void },
+  to: string
+) {
+  if (leaveGuard && leaveGuard(to)) return;
+  router.navigate(to);
+}
+
+// ── Rules store ──────────────────────────────────────────────────
 export function createRules(api: Api, opts?: { debounceMs?: number }) {
   const debounceMs = opts?.debounceMs ?? 300;
 
@@ -28,8 +45,6 @@ export function createRules(api: Api, opts?: { debounceMs?: number }) {
   let error: string | null = $state(null);
   let saving: boolean = $state(false);
   let conflict: boolean = $state(false);
-  let health: Health | null = $state(null);
-  let healthError: boolean = $state(false);
   let tester: { tags: string[]; result: RulesTestResult | null; loading: boolean } = $state({
     tags: [],
     result: null,
@@ -59,16 +74,6 @@ export function createRules(api: Api, opts?: { debounceMs?: number }) {
     } catch (e: unknown) {
       status = "error";
       error = e instanceof Error ? e.message : String(e);
-    }
-    void loadHealth();
-  }
-
-  async function loadHealth() {
-    try {
-      health = await api.health();
-      healthError = false;
-    } catch {
-      healthError = true;
     }
   }
 
@@ -203,8 +208,6 @@ export function createRules(api: Api, opts?: { debounceMs?: number }) {
     get error() { return error; },
     get saving() { return saving; },
     get conflict() { return conflict; },
-    get health() { return health; },
-    get healthError() { return healthError; },
     get tester() { return tester; },
     get dirty() { return draft !== null && body !== null && isDirty(draftFrom(body), draft); },
     get summary() {
@@ -212,7 +215,6 @@ export function createRules(api: Api, opts?: { debounceMs?: number }) {
       return diffSummary(diffDraft(draftFrom(body), draft));
     },
     load,
-    loadHealth,
     addTo,
     removeFrom,
     addMap,

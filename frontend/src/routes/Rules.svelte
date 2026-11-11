@@ -3,7 +3,7 @@
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
 
-  import { createRules } from "../lib/stores/rules.svelte";
+  import { createRules, setLeaveGuard } from "../lib/stores/rules.svelte";
   import Icon from "../lib/components/Icon.svelte";
   import type { ListKey } from "../lib/rules/draft";
 
@@ -34,7 +34,6 @@
   onMount(() => {
     h1?.focus();
     rules.load();
-    rules.loadHealth();
   });
 
   onDestroy(() => {
@@ -109,6 +108,31 @@
     return () => window.removeEventListener("beforeunload", handler);
   });
 
+  // Register shared leave guard while dirty
+  $effect(() => {
+    if (!rules.dirty) return;
+    const g = (to: string) => {
+      leaveTo = to;
+      return true;
+    };
+    setLeaveGuard(g);
+    return () => setLeaveGuard(null);
+  });
+
+  // Intercept popstate while dirty (capture phase, before router bubble)
+  $effect(() => {
+    if (!rules.dirty) return;
+    const rulesUrl = location.pathname + location.search;
+    const h = (e: PopStateEvent) => {
+      e.stopImmediatePropagation();
+      const target = location.pathname + location.search;
+      history.pushState(history.state, "", rulesUrl);
+      leaveTo = target;
+    };
+    window.addEventListener("popstate", h, true);
+    return () => window.removeEventListener("popstate", h, true);
+  });
+
   // Focus stay button when leave prompt appears
   $effect(() => {
     if (leaveTo !== null) {
@@ -121,19 +145,6 @@
     leaveTo = null;
     rules.discard();
     if (to) router.navigate(to);
-  }
-
-  function chipClass(state: string): string {
-    if (state === "ok") return "ok";
-    if (state === "down") return "down";
-    return "neutral";
-  }
-
-  function statusLabel(state: string): string {
-    if (state === "ok") return "OK";
-    if (state === "down") return "Down";
-    if (state === "not_configured") return "Not configured";
-    return state;
   }
 
   function decisionLabel(d: string): string {
@@ -271,26 +282,6 @@
       <input type="file" accept="application/json,.json" bind:this={fileInput} onchange={onFile} style="display:none" />
     </section>
 
-    <!-- Status -->
-    <section class="card">
-      <h2>Status</h2>
-      {#if rules.health}
-        <ul class="statusrows">
-          <li><span>Stash</span><span class="chip {chipClass(rules.health.stash.state)}">{statusLabel(rules.health.stash.state)}</span></li>
-          <li><span>Komga</span><span class="chip {chipClass(rules.health.komga.state)}">{statusLabel(rules.health.komga.state)}</span></li>
-          <li><span>Database</span><span class="chip {chipClass(rules.health.db === "ok" ? "ok" : "down")}">{statusLabel(rules.health.db === "ok" ? "ok" : "down")}</span></li>
-          {#each rules.health.mounts as mount, i (i)}
-            <li><span>Mount {mount.name}</span><span class="chip {chipClass(mount.state)}">{statusLabel(mount.state)}</span></li>
-          {/each}
-          {#each rules.health.sites as site, i (i)}
-            <li><span>{site.id}</span><span class="chip {chipClass(site.state)}">{statusLabel(site.state)}</span></li>
-          {/each}
-        </ul>
-      {:else if rules.healthError}
-        <p class="hint">Status unavailable.</p>
-      {/if}
-    </section>
-
     {#if leaveTo !== null}
       <div class="leave" role="alertdialog" aria-label="Leave this page?">
         <span>Discard your unsaved changes and leave?</span>
@@ -426,20 +417,6 @@
     align-items: center;
     gap: var(--s-2);
     width: 100%;
-  }
-
-  .statusrows {
-    list-style: none;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--s-2);
-  }
-
-  .statusrows li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
   }
 
   h1:focus-visible {

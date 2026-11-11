@@ -18,7 +18,6 @@ function makeApi() {
   return {
     getRules: vi.fn(),
     putRules: vi.fn(),
-    health: vi.fn(),
     testRules: vi.fn(),
   } as unknown as Api;
 }
@@ -30,7 +29,6 @@ describe("rules store", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     api = makeApi();
-    (api.health as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
   });
 
   afterEach(() => {
@@ -182,18 +180,5 @@ describe("rules store", () => {
     expect(s.tester.loading).toBe(false);
   });
 
-  it("health failure sets healthError", async () => {
-    (api.getRules as ReturnType<typeof vi.fn>).mockResolvedValue(bodyFixture);
-    (api.health as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error("down"),
-    );
-
-    const s = createRules(api, { debounceMs: DEBOUNCE });
-    await s.load();
-    await vi.advanceTimersByTimeAsync(0);
-
-    expect(s.healthError).toBe(true);
-    expect(s.health).toBeNull();
-  });
 });
 
