@@ -61,7 +61,7 @@ Pearlie/
     api/       search.py  library.py  save.py  jobs.py  rules.py  media.py  health.py
   backend/tests/          mocked sites, Stash and Komga
   frontend/               Svelte + Vite
-  deploy/                 Dockerfile, docker-compose.yml, .env.example
+  deploy/                 Dockerfile, docker-compose.yml (.env.example is in the repo root)
   docs/DESIGN.md          this file
 ```
 
