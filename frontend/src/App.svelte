@@ -24,6 +24,7 @@
   import SfwToggle from "./lib/components/SfwToggle.svelte";
   import { installReveal } from "./lib/stores/sfw-reveal";
   import { player } from "./lib/player/player.svelte";
+  import { playerSettings } from "./lib/player/playerSettings.svelte";
   import { gridFor } from "./lib/stores/shared.svelte";
   import { toasts } from "./lib/stores/toasts.svelte";
   import { createPlayerNav } from "./lib/player/playerNav.svelte";
@@ -50,6 +51,7 @@
     });
     const offReveal = installReveal();
     jobs.start();
+    void playerSettings.load(api);
     return () => {
       offReveal();
       jobs.stop();

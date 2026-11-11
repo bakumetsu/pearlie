@@ -1,12 +1,13 @@
 <script lang="ts">
   import Icon from "../components/Icon.svelte";
   import { player, RATES } from "./player.svelte";
+  import { playerSettings } from "./playerSettings.svelte";
 
   let open = $state(false);
   let root: HTMLDivElement | null = $state(null);
   let trigger: HTMLButtonElement | null = $state(null);
 
-  let expanded = $state({ speed: true, quality: false, loop: false });
+  let expanded = $state({ speed: true, quality: false, loop: false, autoplay: false });
 
   function close(): void {
     open = false;
@@ -22,7 +23,7 @@
     setTimeout(() => window.removeEventListener("click", g, true), 400);
   }
 
-  function toggleSection(key: "speed" | "quality" | "loop"): void {
+  function toggleSection(key: "speed" | "quality" | "loop" | "autoplay"): void {
     expanded[key] = !expanded[key];
   }
 
@@ -144,6 +145,34 @@
             onclick={() => { player.setLoop(true); close(); }}
           >
             <span class="mark">{#if player.loop === true}<Icon name="check" size={16} />{:else}<span class="spacer"></span>{/if}</span>
+            On
+          </button>
+        </div>
+      {/if}
+
+      <!-- Autoplay -->
+      <button class="head" aria-expanded={expanded.autoplay} onclick={() => toggleSection("autoplay")}>
+        <span>Autoplay</span>
+        <Icon name={expanded.autoplay ? "chevron-up" : "chevron-down"} size={16} />
+      </button>
+      {#if expanded.autoplay}
+        <div class="body">
+          <button
+            class="opt"
+            class:current={playerSettings.autoplay === false}
+            aria-pressed={playerSettings.autoplay === false}
+            onclick={() => { void playerSettings.setAutoplay(false); close(); }}
+          >
+            <span class="mark">{#if playerSettings.autoplay === false}<Icon name="check" size={16} />{:else}<span class="spacer"></span>{/if}</span>
+            Off
+          </button>
+          <button
+            class="opt"
+            class:current={playerSettings.autoplay === true}
+            aria-pressed={playerSettings.autoplay === true}
+            onclick={() => { void playerSettings.setAutoplay(true); close(); }}
+          >
+            <span class="mark">{#if playerSettings.autoplay === true}<Icon name="check" size={16} />{:else}<span class="spacer"></span>{/if}</span>
             On
           </button>
         </div>

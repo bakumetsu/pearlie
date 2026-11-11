@@ -726,6 +726,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/player-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Player Settings */
+        get: operations["get_player_settings_api_player_settings_get"];
+        /** Put Player Settings */
+        put: operations["put_player_settings_api_player_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -1035,6 +1053,11 @@ export interface components {
             favorite?: boolean | null;
             /** Tags */
             tags?: string[] | null;
+        };
+        /** PlayerSettings */
+        PlayerSettings: {
+            /** Autoplay */
+            autoplay: boolean;
         };
         /** Problem */
         Problem: {
@@ -2725,6 +2748,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ViewSettingItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_player_settings_api_player_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerSettings"];
+                };
+            };
+        };
+    };
+    put_player_settings_api_player_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlayerSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerSettings"];
                 };
             };
             /** @description Validation Error */

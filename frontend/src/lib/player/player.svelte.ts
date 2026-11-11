@@ -1,4 +1,5 @@
 import { modeOnLeave, type Rect, type PlayerMode } from "./geometry";
+import { playerSettings } from "./playerSettings.svelte";
 
 export const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 const RATE_KEY = "pearlie.player.rate";
@@ -28,7 +29,7 @@ export interface VideoLike {
 
 export type PlayerNav = { next(): void; prev(): void; canNext(): boolean; canPrev(): boolean };
 
-export function createPlayer() {
+export function createPlayer(isAutoplay: () => boolean = () => playerSettings.autoplay) {
   const state = $state({
     mode: "hidden" as PlayerMode,
     item: null as PlayerItem | null,
@@ -48,7 +49,7 @@ export function createPlayer() {
   let el: VideoLike | null = null;
   let fallbackIdx = 0;
   let nav: PlayerNav | null = null;
-  let autoplay = false;
+  let playOnLoad = false;
   let navVersion = $state(0);
 
   function applyRate(): void {
@@ -103,7 +104,7 @@ export function createPlayer() {
       state.mode = "stage";
       state.loop = false;
       state.sourceIdx = -1;
-      autoplay = false;
+      playOnLoad = isAutoplay();
       applyRate();
       applyLoop();
     },
@@ -120,14 +121,14 @@ export function createPlayer() {
       state.ended = false;
       state.loop = false;
       state.sourceIdx = -1;
-      autoplay = true;
+      playOnLoad = true;
       applyRate();
       applyLoop();
     },
 
-    consumeAutoplay(): boolean {
-      const a = autoplay;
-      autoplay = false;
+    consumePlayOnLoad(): boolean {
+      const a = playOnLoad;
+      playOnLoad = false;
       return a;
     },
 
@@ -311,8 +312,14 @@ export function createPlayer() {
     },
 
     onEnded(): void {
+      const already = state.ended;
       state.playing = false;
       state.ended = true;
+      if (already) return;
+      if (isAutoplay() && !state.loop && nav?.canNext()) {
+        nav.next();
+        return;
+      }
       if (state.mode === "mini") this.close();
     },
   };
