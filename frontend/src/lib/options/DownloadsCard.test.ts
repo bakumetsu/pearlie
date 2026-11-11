@@ -43,7 +43,7 @@ describe("DownloadsCard", () => {
     const nhentai = screen.getByTestId("pace-nhentai") as HTMLInputElement;
     expect(nhentai.value).toBe("2");
 
-    expect(screen.getByText("default 1s")).toBeDefined();
+    expect(screen.getAllByText("default 1s")).toHaveLength(3);
   });
 
   it("valid change calls store.set with the new pace", () => {
@@ -64,14 +64,16 @@ describe("DownloadsCard", () => {
     fireEvent.change(input, { target: { value: "1" } });
 
     expect(store.set).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert", { name: "Minimum is 2s" })).toBeDefined();
+    expect(screen.getByRole("alert").textContent).toBe("Minimum is 2s");
   });
 
   it("backing_off true shows exactly one status element", () => {
     const store = makeStore({ source_pace: pace({ gelbooru: { backing_off: true } }) });
     render(DownloadsCard, { store });
 
-    expect(screen.getAllByRole("status", { name: "Backing off" })).toHaveLength(1);
+    const status = screen.getAllByRole("status");
+    expect(status).toHaveLength(1);
+    expect(status[0].textContent).toBe("Backing off");
   });
 
   it("locked true disables input and shows env text", () => {
