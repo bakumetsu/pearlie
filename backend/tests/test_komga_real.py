@@ -321,8 +321,8 @@ def test_progress_out_of_range(tmp_path):
     assert len(recorded) == 0
 
 
-def test_patch_delete_not_supported(tmp_path):
-    """PATCH/DELETE on library endpoints return 501 not_supported."""
+def test_delete_not_supported(tmp_path):
+    """DELETE on library endpoints returns 501 not_supported."""
     called: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -330,9 +330,6 @@ def test_patch_delete_not_supported(tmp_path):
         return httpx.Response(500)
 
     client = make_client(tmp_path, handler)
-    r = client.patch("/api/library/books/b1", json={})
-    assert r.status_code == 501
-    assert r.json()["code"] == "not_supported"
     r = client.delete("/api/library/books/b1")
     assert r.status_code == 501
     assert r.json()["code"] == "not_supported"

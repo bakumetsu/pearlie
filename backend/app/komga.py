@@ -139,6 +139,17 @@ class Komga:
             raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
         self._check(resp)
 
+    def set_tags(self, kind: str, id: str, tags: list[str]) -> None:
+        """Set the tags on a series or book via its metadata endpoint."""
+        try:
+            resp = self._client.patch(
+                f"/api/v1/{kind}/{id}/metadata",
+                json={"tags": tags, "tagsLock": True},
+            )
+        except httpx.HTTPError:
+            raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+        self._check(resp)
+
     def open_image(self, path: str, params: dict | None = None) -> httpx.Response:
         """Open a streaming GET for an image.  The caller must close the response."""
         request = self._client.build_request("GET", path, params=params)

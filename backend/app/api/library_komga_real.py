@@ -6,6 +6,7 @@ from collections.abc import Callable
 from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
+from app.api.patch_rules import check_patch
 from app.komga import (
     Komga,
     KomgaError,
@@ -209,8 +210,35 @@ def get_book(request: Request, id: str):
     return book_detail(book)
 
 
-def _patch_handler(id: str, body: PatchBody) -> None:
-    raise ApiError(501, "not_supported", "Editing and deleting Komga items is not available yet")
+@router.patch("/library/series/{id}")
+def patch_series(request: Request, id: str, body: PatchBody):
+    return _patch(request, "series", id, body)
+
+
+@router.patch("/library/books/{id}")
+def patch_book(request: Request, id: str, body: PatchBody):
+    return _patch(request, "books", id, body)
+
+
+def _patch(request: Request, kind: str, id: str, body: PatchBody):
+    check_patch("Komga", body)
+    if body.tags is not None:
+        for t in body.tags:
+            if not t or len(t) > 64:
+                raise ApiError(422, "invalid_tag", "Bad tag", field="tags")
+    komga: Komga = request.app.state.komga
+    try:
+        if kind == "series":
+            komga.get_series(id)
+        else:
+            komga.get_book(id)
+        if body.tags is not None:
+            komga.set_tags(kind, id, body.tags)
+    except KomgaError as e:
+        raise _up(e) from None
+    if kind == "series":
+        return get_series(request, id)
+    return get_book(request, id)
 
 
 def _delete_handler(id: str) -> None:
@@ -218,7 +246,6 @@ def _delete_handler(id: str) -> None:
 
 
 for _p in ("/library/series/{id}", "/library/books/{id}"):
-    router.patch(_p)(_patch_handler)
     router.delete(_p)(_delete_handler)
 
 
