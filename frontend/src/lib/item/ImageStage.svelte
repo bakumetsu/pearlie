@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SvelteSet } from "svelte/reactivity";
   import { wheelFactor, type Zoom } from "./zoomModel.svelte";
+  import ZoomControls from "./ZoomControls.svelte";
 
   let { src, alt, preload = null, zoom }: {
     src: string;
@@ -11,6 +12,7 @@
 
   let stageEl: HTMLDivElement | undefined = $state();
   let imgEl: HTMLImageElement | undefined = $state();
+  let imgBtn: HTMLButtonElement | undefined = $state();
   let gesture = $state(false);
   let animate = $state(false);
   let swallowClick = false;
@@ -178,7 +180,8 @@
   <button
     type="button"
     class="imgbtn"
-    aria-label={zoom.active ? "Fit to screen" : "Actual size"}
+    aria-label={zoom.active ? "Fit to screen" : "Zoom in here"}
+    bind:this={imgBtn}
     onclick={onClick}
   >
     <img
@@ -191,6 +194,7 @@
       onload={measure}
     />
   </button>
+  <ZoomControls {zoom} onhide={() => imgBtn?.focus()} />
 </div>
 
 <style>

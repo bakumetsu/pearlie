@@ -134,7 +134,7 @@ describe("Item Escape key (T-47)", () => {
     const { container } = render(App);
     await navigateToItem1b(container);
 
-    const btn = await screen.findByRole("button", { name: "Actual size" });
+    const btn = await screen.findByRole("button", { name: "Zoom in here" });
     await fireEvent.click(btn);
     await vi.waitFor(() => {
       expect(screen.getByRole("button", { name: "Fit to screen" })).toBeTruthy();
@@ -143,7 +143,7 @@ describe("Item Escape key (T-47)", () => {
     fireEvent.keyDown(window, { key: "Escape" });
 
     await vi.waitFor(() => {
-      expect(screen.getByRole("button", { name: "Actual size" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Zoom in here" })).toBeTruthy();
     });
     expect(location.pathname).toBe("/item/images/1b");
   });
@@ -163,7 +163,7 @@ describe("Item Escape key (T-47)", () => {
     const { container } = render(App);
     await navigateToItem1b(container);
 
-    const btn = await screen.findByRole("button", { name: "Actual size" });
+    const btn = await screen.findByRole("button", { name: "Zoom in here" });
     await fireEvent.click(btn);
     await vi.waitFor(() => {
       expect(screen.getByRole("button", { name: "Fit to screen" })).toBeTruthy();
@@ -175,7 +175,7 @@ describe("Item Escape key (T-47)", () => {
       expect(location.pathname).toBe("/item/images/2a");
     });
     await vi.waitFor(() => {
-      expect(screen.getByRole("button", { name: "Actual size" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Zoom in here" })).toBeTruthy();
     });
   });
 
@@ -183,7 +183,7 @@ describe("Item Escape key (T-47)", () => {
     const { container } = render(App);
     await navigateToItem1b(container);
 
-    const btn = await screen.findByRole("button", { name: "Actual size" });
+    const btn = await screen.findByRole("button", { name: "Zoom in here" });
     await fireEvent.click(btn);
     await vi.waitFor(() => {
       expect(screen.getByRole("button", { name: "Fit to screen" })).toBeTruthy();
@@ -204,9 +204,9 @@ describe("Item Escape key (T-47)", () => {
     const { container } = render(App);
     await navigateToItem1b(container);
 
-    await screen.findByRole("button", { name: "Actual size" });
+    await screen.findByRole("button", { name: "Zoom in here" });
 
-    const stageImg = (await screen.findByRole("button", { name: "Actual size" })).querySelector("img")!;
+    const stageImg = (await screen.findByRole("button", { name: "Zoom in here" })).querySelector("img")!;
 
     fireEvent(
       stageImg,
@@ -222,7 +222,7 @@ describe("Item Escape key (T-47)", () => {
     const { container } = render(App);
     await navigateToItem1b(container);
 
-    const stageImg = (await screen.findByRole("button", { name: "Actual size" })).querySelector("img")!;
+    const stageImg = (await screen.findByRole("button", { name: "Zoom in here" })).querySelector("img")!;
 
     fireEvent(
       stageImg,
@@ -254,7 +254,7 @@ describe("Item Escape key (T-47)", () => {
     fireEvent.keyDown(window, { key: "0" });
 
     await vi.waitFor(() => {
-      expect(screen.getByRole("button", { name: "Actual size" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Zoom in here" })).toBeTruthy();
     });
   });
 });

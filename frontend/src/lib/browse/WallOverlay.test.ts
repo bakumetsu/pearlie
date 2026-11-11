@@ -226,9 +226,9 @@ describe("WallOverlay", () => {
     const onclose = vi.fn();
     const { getByRole } = mount({ onclose });
 
-    // wait for ImageStage to render its "Actual size" button
+    // wait for ImageStage to render its "Zoom in here" button
     const actualSize = await waitFor(() =>
-      getByRole("button", { name: "Actual size" }),
+      getByRole("button", { name: "Zoom in here" }),
     );
     fireEvent.click(actualSize);
 
@@ -254,7 +254,7 @@ describe("WallOverlay", () => {
 
     // wait for ImageStage button so the last focusable is deterministic
     await waitFor(() => {
-      expect(dialog.querySelector('button[aria-label="Actual size"]')).toBeTruthy();
+      expect(dialog.querySelector('button[aria-label="Zoom in here"]')).toBeTruthy();
     });
 
     // compute last focusable the same way the component does
@@ -644,7 +644,7 @@ describe("WallOverlay swipe", () => {
   it("mouse drag over 4px while zoomed does not close the overlay", async () => {
     const onclose = vi.fn();
     const { container, getByRole } = mount({ onclose });
-    const btn = await waitFor(() => getByRole("button", { name: "Actual size" }));
+    const btn = await waitFor(() => getByRole("button", { name: "Zoom in here" }));
     await fireEvent.click(btn);
     const stage = container.querySelector(".stage")!;
 
@@ -713,7 +713,7 @@ describe("WallOverlay swipe", () => {
 
   it("ctrl+wheel over the stage is prevented", async () => {
     const { container, getByRole } = mount();
-    await waitFor(() => getByRole("button", { name: "Actual size" }));
+    await waitFor(() => getByRole("button", { name: "Zoom in here" }));
     const stage = container.querySelector(".stage")!;
     const ev = new WheelEvent("wheel", { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true, clientX: 500, clientY: 250 });
     stage.dispatchEvent(ev);
