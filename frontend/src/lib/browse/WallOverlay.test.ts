@@ -891,6 +891,24 @@ describe("WallOverlay fullscreen", () => {
     expect(document.exitFullscreen).toHaveBeenCalled();
   });
 
+  it("delete while fullscreen exits fullscreen before the delete request", async () => {
+    const order: string[] = [];
+    document.exitFullscreen = vi.fn(async () => { order.push("exit"); }) as never;
+    setFs(true, vi.fn(async () => {}));
+    const api = makeApi({
+      deleteItem: vi.fn(async () => { order.push("delete"); return { token: "t" }; }),
+      restore: vi.fn(async () => ({})),
+    });
+    const { container, getByRole } = mount({ id: "b", api });
+    const dialog = container.querySelector(".layer")!;
+    await waitFor(() => expect(getByRole("radio", { name: "Rating 3 of 5" }).getAttribute("aria-checked")).toBe("true"));
+    setFsEl(dialog);
+    await fireEvent.keyDown(dialog, { key: "Delete" });
+    await waitFor(() => expect(api.deleteItem).toHaveBeenCalled());
+    expect(order[0]).toBe("exit");
+    expect(order).toContain("delete");
+  });
+
   it("button absent when fullscreenEnabled is false", () => {
     setFs(false, vi.fn(async () => {}));
     const { queryByRole } = mount();

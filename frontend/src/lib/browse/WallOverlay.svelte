@@ -141,6 +141,7 @@
       if (t) {
         onstep(t.id);
       } else {
+        exitFs();
         toasts.push({ kind: "error", message: "Could not load the next page" });
       }
     } finally {
@@ -178,6 +179,7 @@
   async function onDelete() {
     if (!canRate || deleting || stepping) return;
     const target = neighbourTarget();
+    exitFs();
     deleting = true;
     try {
       await view.remove();
@@ -191,6 +193,7 @@
   async function handleGone() {
     const target = neighbourTarget();
     grid.removeById(key);
+    exitFs();
     toasts.push({ kind: "info", message: "This image is gone" });
     deleting = true;
     try {
