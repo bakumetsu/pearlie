@@ -261,18 +261,28 @@ describe("createPlayer controls", () => {
     expect(p.rate).toBe(1);
   });
 
-  it("setRate persists to localStorage and a new createPlayer re-reads it", () => {
+  it("setRate calls onRateChange", () => {
     const p = createPlayer();
+    p.onRateChange = vi.fn();
     p.setRate(1.5);
-    expect(localStorage.getItem("pearlie.player.rate")).toBe("1.5");
-    const p2 = createPlayer();
-    expect(p2.rate).toBe(1.5);
+    expect(p.onRateChange).toHaveBeenCalledWith(1.5);
+    expect(p.rate).toBe(1.5);
   });
 
-  it("invalid stored value falls back to 1", () => {
-    localStorage.setItem("pearlie.player.rate", "99");
+  it("loadRate sets the rate silently", () => {
     const p = createPlayer();
+    p.onRateChange = vi.fn();
+    p.loadRate(0.75);
+    expect(p.rate).toBe(0.75);
+    expect(p.onRateChange).not.toHaveBeenCalled();
+  });
+
+  it("loadRate ignores an invalid value", () => {
+    const p = createPlayer();
+    p.onRateChange = vi.fn();
+    p.loadRate(99);
     expect(p.rate).toBe(1);
+    expect(p.onRateChange).not.toHaveBeenCalled();
   });
 
   it("setRate(3) ignored", () => {

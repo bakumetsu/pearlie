@@ -2,15 +2,6 @@ import { modeOnLeave, type Rect, type PlayerMode } from "./geometry";
 import { playerSettings } from "./playerSettings.svelte";
 
 export const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
-const RATE_KEY = "pearlie.player.rate";
-function loadRate(): number {
-  try {
-    const v = Number(localStorage.getItem(RATE_KEY));
-    if ((RATES as readonly number[]).includes(v)) return v;
-  } catch { // storage unavailable
-  }
-  return 1;
-}
 
 export type PlayerItem = { id: string; title: string; streamUrl: string; posterUrl: string; href: string; fallbacks?: { url: string; mime: string; label?: string }[] };
 export interface VideoLike {
@@ -41,7 +32,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
     muted: false,
     slot: null as Rect | null,
     failed: false,
-    rate: loadRate(),
+    rate: 1,
     loop: false,
     sourceIdx: -1,
   });
@@ -242,10 +233,17 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
       if (!(RATES as readonly number[]).includes(r)) return;
       state.rate = r;
       applyRate();
-      try {
-        localStorage.setItem(RATE_KEY, String(r));
-      } catch { // storage unavailable
-      }
+      this.onRateChange?.(r);
+    },
+
+    /** Called after setRate() so the options store can save the change. */
+    onRateChange: null as ((r: number) => void) | null,
+
+    /** Silent: applies a rate loaded from the server, without saving it back. */
+    loadRate(r: number): void {
+      if (!(RATES as readonly number[]).includes(r)) return;
+      state.rate = r;
+      applyRate();
     },
 
     stepRate(dir: 1 | -1): void {

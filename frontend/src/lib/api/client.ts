@@ -28,6 +28,8 @@ export type ViewSettings = S["ViewSettings"];
 export type ViewSettingItem = S["ViewSettingItem"];
 export type ViewSettingBody = S["ViewSettingBody"];
 export type PlayerSettings = S["PlayerSettings"];
+export type Options = S["Options"];
+export type OptionsUpdate = S["OptionsUpdate"];
 
 export type Kind = "images" | "videos" | "series" | "books";
 
@@ -93,6 +95,8 @@ export interface Api {
   putViewSetting(source: string, body: ViewSettingBody, signal?: AbortSignal): Promise<ViewSettingItem>;
   getPlayerSettings(signal?: AbortSignal): Promise<PlayerSettings>;
   putPlayerSettings(body: PlayerSettings, signal?: AbortSignal): Promise<PlayerSettings>;
+  getOptions(signal?: AbortSignal): Promise<Options>;
+  putOptions(body: OptionsUpdate, signal?: AbortSignal): Promise<Options>;
   removeJob(id: string, signal?: AbortSignal): Promise<void>;
   testRules(tags: string[], signal?: AbortSignal): Promise<RulesTestResult>;
   saveProgress(bookId: string, page: number, signal?: AbortSignal, opts?: { keepalive?: boolean }): Promise<ProgressResult>;
@@ -104,6 +108,17 @@ const KIND_PATHS: Record<Kind, string> = {
   series: "/api/library/komga/series",
   books: "/api/library/komga/books",
 };
+
+let _deviceClass: "touch" | "desktop" | null = null;
+
+export function deviceClass(): "touch" | "desktop" {
+  if (_deviceClass !== null) return _deviceClass;
+  _deviceClass =
+    typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches
+      ? "touch"
+      : "desktop";
+  return _deviceClass;
+}
 
 export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a)): Api {
   async function request<T>(url: string, init?: RequestInit, signal?: AbortSignal): Promise<T> {
@@ -287,6 +302,29 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        signal,
+      );
+    },
+    getOptions(signal) {
+      return request<Options>(
+        baseUrl + "/api/options",
+        {
+          headers: { "X-Pearlie-Device": deviceClass() },
+        },
+        signal,
+      );
+    },
+    putOptions(body, signal) {
+      return request<Options>(
+        baseUrl + "/api/options",
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Pearlie-Device": deviceClass(),
+          },
           body: JSON.stringify(body),
         },
         signal,
