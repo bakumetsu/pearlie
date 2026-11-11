@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -115,7 +116,7 @@ def write_conf(
         if key not in consumed:
             new_lines.append(f"{key}={value}\n")
 
-    tmp = root / "update.conf.tmp"
+    tmp = root / f"update.conf.{os.getpid()}.{threading.get_ident()}.tmp"
     tmp.write_text("".join(new_lines))
     os.replace(tmp, path)
 

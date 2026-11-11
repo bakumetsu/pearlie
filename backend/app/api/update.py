@@ -229,6 +229,8 @@ def apply_update(request: Request) -> ApplyOut:
         raise ApiError(409, "up_to_date", "no update available")
 
     if not runner.start_update(run=run):
+        if runner.is_running(run=run):
+            raise ApiError(409, "already_running", "update already in progress")
         raise ApiError(500, "start_failed", "could not start update process")
 
     return ApplyOut(state="running")
