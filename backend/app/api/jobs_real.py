@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, Query, Request, Response
 
 from app.api.errors import ApiError
-from app.filters.rules import check, load_reject
+from app.filters.rules import evaluate, load_rules
 from app.jobs.store import JobStore
 from app.jobs.worker import JobWorker
 from app.models import Job, JobList, SaveAccepted, SaveBody
@@ -50,19 +50,19 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
         if e.status == 404 or e.code == "not_found":
             raise ApiError(404, "not_found", "Post not found") from None
         raise ApiError(502, e.code, e.message) from None
-    decision = check(post.tags, load_reject(request.app.state.settings.db_path))
-    if decision is not None:
+    verdict = evaluate(post.tags, load_rules(request.app.state.settings.db_path))
+    if verdict is not None and verdict.decision != "warn":
         logger.info(
-            "save blocked: layer=%s rule=%s tag=%s", decision.layer, decision.rule, decision.tag
+            "save blocked: layer=%s rule=%s tag=%s", verdict.layer, verdict.rule, verdict.tag
         )
         raise ApiError(
             422,
             "rejected_by_rule",
-            f"Blocked by {decision.layer} list: {decision.rule}",
-            layer=decision.layer,
-            rule=decision.rule,
-            tag=decision.tag,
-            alias=decision.alias,
+            f"Blocked by {verdict.layer} list: {verdict.rule}",
+            layer=verdict.layer,
+            rule=verdict.rule,
+            tag=verdict.tag,
+            alias=verdict.alias,
         )
     job_id = store.enqueue(
         post,
@@ -114,7 +114,8 @@ def retry_job(id: str, request: Request) -> Job:
         raise ApiError(409, "bad_state", "Only failed or needs_click jobs can be retried")
     if res == "conflict":
         raise ApiError(
-            409, "bad_state",
+            409,
+            "bad_state",
             "Another job for this post is already queued or running",
         )
     worker = _worker(request)

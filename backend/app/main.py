@@ -22,6 +22,7 @@ from app.api import (
     media_stash,
     media_stash_real,
     rules,
+    rules_real,
     search,
     search_real,
     trash,
@@ -56,6 +57,7 @@ REAL_ROUTERS: dict[str, APIRouter] = {
     "library_stash": library_stash_real.router,
     "media_komga": media_komga_real.router,
     "jobs": jobs_real.router,
+    "rules": rules_real.router,
 }
 
 logger = logging.getLogger("pearlie")

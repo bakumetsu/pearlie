@@ -1112,6 +1112,10 @@ export interface components {
             layer?: ("base" | "reject" | "require" | "warn") | null;
             /** Rule */
             rule?: string | null;
+            /** Tag */
+            tag?: string | null;
+            /** Alias */
+            alias?: string | null;
         };
         /** SaveAccepted */
         SaveAccepted: {

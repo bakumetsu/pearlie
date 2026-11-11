@@ -86,6 +86,9 @@ def init_db(path: Path) -> None:
     for col_name, col_def in jobs_migrations.items():
         if col_name not in jobs_cols:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col_def}")
+    rules_cols = {row[1] for row in conn.execute("PRAGMA table_info(rules)")}
+    if "target" not in rules_cols:
+        conn.execute("ALTER TABLE rules ADD COLUMN target TEXT")
     conn.commit()
     conn.close()
 
