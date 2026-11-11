@@ -30,6 +30,10 @@ export type ViewSettingBody = S["ViewSettingBody"];
 export type PlayerSettings = S["PlayerSettings"];
 export type Options = S["Options"];
 export type OptionsUpdate = S["OptionsUpdate"];
+export type ConnectionOut = S["ConnectionOut"];
+export type ConnectionsOut = S["ConnectionsOut"];
+export type ConnectionIn = S["ConnectionIn"];
+export type ConnectionTest = S["TestOut"];
 
 export type Kind = "images" | "videos" | "series" | "books";
 
@@ -97,6 +101,9 @@ export interface Api {
   putPlayerSettings(body: PlayerSettings, signal?: AbortSignal): Promise<PlayerSettings>;
   getOptions(signal?: AbortSignal): Promise<Options>;
   putOptions(body: OptionsUpdate, signal?: AbortSignal): Promise<Options>;
+  getConnections(signal?: AbortSignal): Promise<ConnectionsOut>;
+  putConnection(name: string, body: Partial<ConnectionIn>, signal?: AbortSignal): Promise<ConnectionOut>;
+  testConnection(name: string, signal?: AbortSignal): Promise<ConnectionTest>;
   removeJob(id: string, signal?: AbortSignal): Promise<void>;
   testRules(tags: string[], signal?: AbortSignal): Promise<RulesTestResult>;
   saveProgress(bookId: string, page: number, signal?: AbortSignal, opts?: { keepalive?: boolean }): Promise<ProgressResult>;
@@ -326,6 +333,35 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
             "X-Pearlie-Device": deviceClass(),
           },
           body: JSON.stringify(body),
+        },
+        signal,
+      );
+    },
+    getConnections(signal) {
+      return request<ConnectionsOut>(
+        baseUrl + "/api/connections",
+        undefined,
+        signal,
+      );
+    },
+    putConnection(name, body, signal) {
+      return request<ConnectionOut>(
+        baseUrl + "/api/connections/" + encodeURIComponent(name),
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        signal,
+      );
+    },
+    testConnection(name, signal) {
+      return request<ConnectionTest>(
+        baseUrl + "/api/connections/" + encodeURIComponent(name) + "/test",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
         },
         signal,
       );

@@ -14,6 +14,7 @@
   import Rules from "./Rules.svelte";
   import ImageViewerCard from "../lib/options/ImageViewerCard.svelte";
   import DownloadsCard from "../lib/options/DownloadsCard.svelte";
+  import ConnectionRows from "../lib/options/ConnectionRows.svelte";
   import ContentFilterCard from "../lib/options/ContentFilterCard.svelte";
 
   let { match }: { match: Match } = $props();
@@ -146,6 +147,18 @@
 
   // ── Whether we are in "search mode" (non-empty query) ─────
   let isSearching = $derived(searchQuery.trim().length > 0);
+
+  const SITE_NAMES = [
+    { key: "danbooru", label: "Danbooru" },
+    { key: "gelbooru", label: "Gelbooru" },
+    { key: "rule34", label: "Rule34" },
+    { key: "nhentai", label: "nhentai" },
+  ];
+
+  const LIBRARY_NAMES = [
+    { key: "stash", label: "Stash" },
+    { key: "komga", label: "Komga" },
+  ];
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════ -->
@@ -254,6 +267,12 @@
             <ContentFilterCard />
           {:else if activeSectionId === "sources" && card.title === "Downloads"}
             <DownloadsCard />
+          {:else if activeSectionId === "sources" && card.title === "Site access"}
+            <ConnectionRows title="Site access" names={SITE_NAMES} />
+          {:else if activeSectionId === "library" && card.title === "Stash"}
+            <ConnectionRows title="Stash and Komga" names={LIBRARY_NAMES} />
+          {:else if activeSectionId === "library" && card.title === "Komga"}
+            <!-- shown with Stash -->
           {:else}
             <section class="card">
               <h2 class="card-title">{card.title}</h2>
@@ -395,6 +414,12 @@
               <ContentFilterCard />
             {:else if activeSectionId === "sources" && card.title === "Downloads"}
               <DownloadsCard />
+            {:else if activeSectionId === "sources" && card.title === "Site access"}
+              <ConnectionRows title="Site access" names={SITE_NAMES} />
+            {:else if activeSectionId === "library" && card.title === "Stash"}
+              <ConnectionRows title="Stash and Komga" names={LIBRARY_NAMES} />
+            {:else if activeSectionId === "library" && card.title === "Komga"}
+              <!-- shown with Stash -->
             {:else}
               <section class="card">
                 <h2 class="card-title">{card.title}</h2>

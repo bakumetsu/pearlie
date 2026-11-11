@@ -762,6 +762,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Connections */
+        get: operations["get_connections_api_connections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/connections/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Connection */
+        put: operations["put_connection_api_connections__name__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/connections/{name}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Connection */
+        post: operations["test_connection_api_connections__name__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -798,6 +849,48 @@ export interface components {
         Blur: {
             /** Tag */
             tag: string;
+        };
+        /** ConnectionIn */
+        ConnectionIn: {
+            /** Address */
+            address?: string | null;
+            /** Secret */
+            secret?: string | null;
+            /**
+             * Clear Secret
+             * @default false
+             */
+            clear_secret: boolean;
+        };
+        /** ConnectionOut */
+        ConnectionOut: {
+            /** Name */
+            name: string;
+            /** Address */
+            address: string;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "set" | "missing";
+            /** Address Fixed */
+            address_fixed: boolean;
+            /** Address Locked */
+            address_locked: boolean;
+            /** Key Locked */
+            key_locked: boolean;
+            /**
+             * Restart Needed
+             * @default false
+             */
+            restart_needed: boolean;
+        };
+        /** ConnectionsOut */
+        ConnectionsOut: {
+            /** Can Store */
+            can_store: boolean;
+            /** Connections */
+            connections: components["schemas"]["ConnectionOut"][];
         };
         /** DestinationItem */
         DestinationItem: {
@@ -1357,6 +1450,13 @@ export interface components {
             name: string;
             /** Scope */
             scope?: string | null;
+        };
+        /** TestOut */
+        TestOut: {
+            /** Ok */
+            ok: boolean;
+            /** Message */
+            message: string;
         };
         /** TrashEmptied */
         TrashEmptied: {
@@ -2972,6 +3072,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Options"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_connections_api_connections_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionsOut"];
+                };
+            };
+        };
+    };
+    put_connection_api_connections__name__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_connection_api_connections__name__test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestOut"];
                 };
             };
             /** @description Validation Error */

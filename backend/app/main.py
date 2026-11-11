@@ -8,8 +8,10 @@ import uvicorn
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import SecretStr
 
 from app.api import (
+    connections,
     destinations,
     jobs,
     jobs_real,
@@ -35,6 +37,7 @@ from app.api.errors import install as install_errors
 from app.api.errors import stub_router
 from app.api.health import router as health_router
 from app.config import ConfigError, Settings, load_settings
+from app.connections_store import ConnectionStore
 from app.db import init_db
 from app.jobs.worker import JobWorker
 from app.komga import Komga
@@ -67,21 +70,44 @@ REAL_ROUTERS: dict[str, APIRouter] = {
 logger = logging.getLogger("pearlie")
 
 
+def _with_stored_connections(settings: Settings, store: ConnectionStore) -> Settings:
+    stash_url = store.address("stash")
+    stash_key = store.effective_secret("stash")
+    komga_url = store.address("komga")
+    komga_key = store.effective_secret("komga")
+    updates: dict[str, object] = {}
+    if stash_url and stash_url != settings.stash_url:
+        updates["stash_url"] = stash_url
+    if stash_key and stash_key != settings.stash_api_key.get_secret_value():
+        updates["stash_api_key"] = SecretStr(stash_key)
+    if komga_url and komga_url != settings.komga_url:
+        updates["komga_url"] = komga_url
+    if komga_key and komga_key != settings.komga_api_key.get_secret_value():
+        updates["komga_api_key"] = SecretStr(komga_key)
+    if updates:
+        return settings.model_copy(update=updates)
+    return settings
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     if settings is None:
         settings = load_settings()
     init_db(settings.db_path)
+    # httpx logs full request URLs at INFO, and some Test calls carry api_key in the query.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     logger.info(settings.safe_summary())
+    worker_enabled = settings.worker_enabled
 
     @asynccontextmanager
     async def lifespan(app_: FastAPI) -> AsyncIterator[None]:
         worker: JobWorker | None = getattr(app_.state, "worker", None)
-        if worker is not None and settings.worker_enabled:
+        if worker is not None and worker_enabled:
             worker.start()
         try:
             yield
         finally:
-            if worker is not None and settings.worker_enabled:
+            if worker is not None and worker_enabled:
                 worker.stop()
             client: httpx.Client | None = getattr(app_.state, "http", None)
             if client is not None:
@@ -90,6 +116,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     install_errors(app)
     app.state.settings = settings
+    app.state.connections_mem = {}
+    # Built on the original settings on purpose: the store needs the .env view,
+    # while app.state.settings below may be replaced by a stored-values copy.
+    app.state.connection_store = ConnectionStore(settings, app.state.connections_mem)
+    app.state.connection_transport = None
     throttles: dict[str, Throttle] = {site: Throttle(DEFAULT_PACE[site]) for site in DEFAULT_PACE}
     app.state.throttles = throttles
     sources: dict[str, Source] = {"danbooru": Danbooru(throttle=throttles["danbooru"])}
@@ -105,6 +136,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         real = set(REAL_ROUTERS)
         if settings.real.strip():
             logger.warning("PEARLIE_REAL is ignored (all routes mount in real mode)")
+    if settings.mode == "real":
+        settings = _with_stored_connections(settings, app.state.connection_store)
+        app.state.settings = settings
     komga_ok = bool(settings.komga_url)
     stash_ok = bool(settings.stash_url)
     app.state.komga = (
@@ -172,6 +206,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(view_settings.router)
     app.include_router(player_settings.router)
     app.include_router(options.router)
+    app.include_router(connections.router)
     app.include_router(health_router)
 
     static_dir: Path = settings.static_dir
