@@ -30,6 +30,7 @@ from app.api import (
 )
 from app.api import fixture as fixture_api
 from app.api.errors import install as install_errors
+from app.api.errors import stub_router
 from app.api.health import router as health_router
 from app.config import ConfigError, Settings, load_settings
 from app.db import init_db
@@ -89,18 +90,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     sources: dict[str, Source] = {"danbooru": Danbooru()}
     app.state.sources = sources
 
-    real = {n.strip() for n in settings.real.split(",") if n.strip()}
-    if settings.mode == "fixture" and real:
-        logger.warning("fixture mode: PEARLIE_REAL ignored (%s)", ", ".join(sorted(real)))
-        real = set()
-    if real & {"library_komga", "media_komga"}:
-        if not settings.komga_url:
-            raise ConfigError(
-                "PEARLIE_KOMGA_URL must be set when library_komga or media_komga is real"
-            )
-        app.state.komga = Komga(settings.komga_url, settings.komga_api_key.get_secret_value())
+    if settings.mode == "fixture":
+        real = {n.strip() for n in settings.real.split(",") if n.strip()}
+        if real:
+            logger.warning("fixture mode: PEARLIE_REAL ignored (%s)", ", ".join(sorted(real)))
+            real = set()
     else:
-        app.state.komga = None
+        real = set(REAL_ROUTERS)
+        if settings.real.strip():
+            logger.warning("PEARLIE_REAL is ignored (all routes mount in real mode)")
+    komga_ok = bool(settings.komga_url)
+    stash_ok = bool(settings.stash_url)
+    app.state.komga = (
+        Komga(settings.komga_url, settings.komga_api_key.get_secret_value())
+        if komga_ok and settings.mode != "fixture"
+        else None
+    )
 
     app.state.stash = (
         StashClient(settings.stash_url, settings.stash_api_key.get_secret_value())
@@ -110,9 +115,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.state.worker = None
     app.state.http = None
-    if "jobs" in real:
-        if app.state.stash is None:
-            raise ConfigError("PEARLIE_STASH_URL must be set when jobs is real")
+    if "jobs" in real and stash_ok and app.state.stash is not None:
         http = httpx.Client()
         app.state.http = http
         stash_target = StashTarget(settings, app.state.stash, http, app.state.sources)
@@ -124,14 +127,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             startup_hooks=[stash_target.cleanup_temp],
         )
 
-    if real & {"library_stash", "media_stash"} and app.state.stash is None:
-        raise ConfigError("PEARLIE_STASH_URL must be set when library_stash or media_stash is real")
-
+    komga_names = {"library_komga", "media_komga"}
+    stash_names = {"library_stash", "media_stash", "jobs"}
+    stubbed: set[str] = set()
     for name in real:
-        if name not in REAL_ROUTERS:
-            raise ConfigError(f"PEARLIE_REAL names '{name}' but it has no real implementation yet")
-    for name in real:
-        app.include_router(REAL_ROUTERS[name])
+        if (name in komga_names and not komga_ok) or (name in stash_names and not stash_ok):
+            app.include_router(
+                stub_router(REAL_ROUTERS[name], 503, "not_configured", f"{name} is not configured")
+            )
+            stubbed.add(name)
+        else:
+            app.include_router(REAL_ROUTERS[name])
+    if stubbed:
+        logger.warning("not configured, answering 503: %s", ", ".join(sorted(stubbed)))
+    if settings.mode == "real":
+        for name, router in FIXTURE_ROUTERS.items():
+            if name not in REAL_ROUTERS:
+                app.include_router(
+                    stub_router(
+                        router, 501, "not_implemented", f"{name} is not available in real mode yet"
+                    )
+                )
 
     mounted_fixture: set[str] = set()
     if settings.mode == "fixture":

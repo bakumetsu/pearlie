@@ -174,8 +174,8 @@ def test_trash_empty(client):
     assert client.delete("/api/trash").json() == {"removed": 0}
 
 
-def test_trash_absent_when_real(tmp_path):
-    """In real mode the trash endpoints are not mounted."""
+def test_trash_not_implemented_when_real(tmp_path):
+    """In real mode trash answers 501 not_implemented, never fixture data."""
     from fastapi.testclient import TestClient
 
     from app.config import Settings
@@ -190,8 +190,82 @@ def test_trash_absent_when_real(tmp_path):
         )
     )
     c = TestClient(app)
-    assert c.get("/api/trash").status_code == 404
-    assert c.delete("/api/trash").status_code == 404
+    for r in (c.get("/api/trash"), c.delete("/api/trash")):
+        assert r.status_code == 501
+        assert r.json() == {
+            "code": "not_implemented",
+            "message": "trash is not available in real mode yet",
+        }
+
+
+def _real_app(tmp_path, **kw):
+    from app.config import Settings
+    from app.main import create_app
+
+    return create_app(
+        Settings(
+            mode="real",
+            db_path=tmp_path / "p.db",
+            static_dir=tmp_path / "nostatic",
+            _env_file=None,  # pyright: ignore[reportCallIssue]
+            **kw,
+        )
+    )
+
+
+@pytest.mark.parametrize("real", ["", "search"])
+def test_real_mode_every_page_route_answers(tmp_path, real):
+    from fastapi.testclient import TestClient
+
+    app = _real_app(
+        tmp_path, real=real, stash_url="http://stash.invalid", stash_api_key="SECRET-STASH-KEY"
+    )
+    c = TestClient(app)
+    for path in (
+        "/api/search",
+        "/api/jobs",
+        "/api/trash",
+        "/api/rules",
+        "/api/library/stash/images",
+        "/api/library/komga/books",
+    ):
+        r = c.get(path)
+        assert r.status_code != 404, f"{path} → {r.status_code}"
+    assert c.get("/api/trash").status_code == 501
+    r = c.get("/api/library/komga/books")
+    assert r.status_code == 503
+    assert r.json()["code"] == "not_configured"
+    assert c.get("/api/rules").status_code == 200
+    r2 = c.get("/api/media/komga/books/x/pages/1/thumb")
+    assert r2.status_code == 503
+    assert r2.json()["code"] == "not_configured"
+
+
+def test_real_mode_stash_only_starts_komga_503(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = _real_app(tmp_path, stash_url="http://stash.invalid", stash_api_key="SECRET-STASH-KEY")
+    assert app.state.komga is None
+    r = TestClient(app).get("/api/library/komga/books")
+    assert r.status_code == 503
+    assert r.json()["code"] == "not_configured"
+    assert r.json()["message"] == "library_komga is not configured"
+    assert "SECRET" not in r.text
+
+
+def test_real_mode_nothing_configured_starts(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = _real_app(tmp_path)
+    c = TestClient(app)
+    r = c.get("/api/library/stash/images")
+    assert r.status_code == 503
+    assert r.json()["code"] == "not_configured"
+    r2 = c.get("/api/jobs")
+    assert r2.status_code == 503
+    assert r2.json()["code"] == "not_configured"
+    assert c.get("/api/rules").status_code == 200
+    assert c.get("/api/trash").status_code == 501
 
 
 def test_progress(client):

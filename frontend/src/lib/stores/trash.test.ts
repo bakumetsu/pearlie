@@ -50,6 +50,43 @@ describe("createTrash", () => {
     expect(store.items).toEqual([]);
   });
 
+  it("network failure sets offline true, error null", async () => {
+    const api = makeApi({
+      listTrash: vi.fn().mockRejectedValue(new ApiError(0, "network", "Cannot reach the server")),
+    });
+    const store = createTrash(api);
+    await store.refresh();
+    expect(store.offline).toBe(true);
+    expect(store.error).toBeNull();
+    expect(store.loaded).toBe(true);
+  });
+
+  it.each([
+    [404, "not_found", "Not Found"],
+    [500, "server_error", "Internal Server Error"],
+    [501, "not_implemented", "jobs is not available in real mode yet"],
+  ] as const)("HTTP %i error shows body message, not offline", async (status, code, message) => {
+    const api = makeApi({
+      listTrash: vi.fn().mockRejectedValue(new ApiError(status, code, message)),
+    });
+    const store = createTrash(api);
+    await store.refresh();
+    expect(store.offline).toBe(false);
+    expect(store.error).toBe(message);
+    expect(store.loaded).toBe(true);
+  });
+
+  it("HTTP 500 with default message shows Error 500", async () => {
+    const api = makeApi({
+      listTrash: vi.fn().mockRejectedValue(new ApiError(500, "server_error", "Something went wrong")),
+    });
+    const store = createTrash(api);
+    await store.refresh();
+    expect(store.offline).toBe(false);
+    expect(store.error).toBe("Error 500");
+    expect(store.loaded).toBe(true);
+  });
+
   it("restore success removes row, toasts info, calls onRestored", async () => {
     const api = makeApi({
       listTrash: vi.fn().mockResolvedValue({ items: [sampleItem] }),

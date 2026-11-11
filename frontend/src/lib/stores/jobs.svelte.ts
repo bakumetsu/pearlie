@@ -1,4 +1,4 @@
-import { ApiError } from "../api/client";
+import { ApiError, isOffline, errorText } from "../api/client";
 import type { Api } from "../api/client";
 import { groupJobs, activeCount, pollDelayMs } from "../jobs/group";
 import type { Job } from "../jobs/group";
@@ -13,6 +13,7 @@ export function createJobs(api: Api, opts?: { visible?: () => boolean }) {
   let items = $state<Job[]>([]);
   let loaded = $state(false);
   let offline = $state(false);
+  let error: string | null = $state(null);
 
   let controller: AbortController | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -26,10 +27,11 @@ export function createJobs(api: Api, opts?: { visible?: () => boolean }) {
       const res = await api.jobs({}, signal);
       items = res.items ?? [];
       offline = false;
+      error = null;
       loaded = true;
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;
-      offline = true;
+      if (isOffline(e)) { offline = true; error = null; } else { offline = false; error = errorText(e); }
       loaded = true;
     }
   }
@@ -120,6 +122,9 @@ export function createJobs(api: Api, opts?: { visible?: () => boolean }) {
     },
     get offline(): boolean {
       return offline;
+    },
+    get error(): string | null {
+      return error;
     },
     get groups() {
       return groupJobs(items);

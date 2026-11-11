@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.config import ConfigError, Settings
+from app.config import Settings
 from app.db import connect, init_db
 from app.jobs.store import JobStore
 from app.jobs.worker import JobWorker
@@ -253,18 +253,19 @@ def test_no_secrets(tmp_path: Path) -> None:
     assert "SECRETKEY123" not in resp2.text
 
 
-def test_create_app_no_stash_url(tmp_path: Path) -> None:
-    with pytest.raises(ConfigError):
-        create_app(
-            Settings(
-                mode="real",
-                real="jobs",
-                db_path=tmp_path / "p.db",
-                static_dir=tmp_path / "nostatic",
-                stash_url="",
-                _env_file=None,  # pyright: ignore[reportCallIssue]
-            )
+def test_create_app_no_stash_url_answers_503(tmp_path: Path) -> None:
+    app = create_app(
+        Settings(
+            mode="real",
+            real="jobs",
+            db_path=tmp_path / "p.db",
+            static_dir=tmp_path / "nostatic",
+            stash_url="",
+            _env_file=None,  # pyright: ignore[reportCallIssue]
         )
+    )
+    assert TestClient(app).get("/api/jobs").status_code == 503
+    assert app.state.worker is None
 
 
 def test_worker_wake(tmp_path: Path) -> None:

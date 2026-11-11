@@ -44,6 +44,11 @@
 			<Icon name="alert" size={16} />
 			<span>Offline, retrying</span>
 		</div>
+	{:else if trash.error}
+		<div class="offline" role="status">
+			<Icon name="alert" size={16} />
+			<span>{trash.error}</span>
+		</div>
 	{/if}
 
 	{#if !trash.loaded}

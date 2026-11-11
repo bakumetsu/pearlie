@@ -49,6 +49,18 @@ export class ApiError extends Error {
   }
 }
 
+// True when the error represents a network failure (no HTTP response).
+export function isOffline(e: unknown): boolean {
+  return !(e instanceof ApiError) || e.status === 0;
+}
+
+// Human-readable message for an API error; falls back to "Error <status>".
+export function errorText(e: unknown): string {
+  return e instanceof ApiError && e.status > 0
+    ? e.message && e.message !== "Something went wrong" ? e.message : `Error ${e.status}`
+    : "Something went wrong";
+}
+
 export type ListParams = {
   page?: number;
   page_size?: number;
