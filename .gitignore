@@ -13,3 +13,7 @@ data/
 # generated placeholder media
 backend/fixtures/media/
 _stub.log
+
+# planner workflow, kept local
+/CLAUDE.md
+/skills.md
