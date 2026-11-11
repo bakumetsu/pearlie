@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Switch from "../components/Switch.svelte";
 	import Backdrop from "../components/Backdrop.svelte";
 	import { BACKDROP_DEFAULTS } from "./backdrop";
 	import { untrack } from "svelte";
@@ -74,35 +75,17 @@
 
 	<div class="row">
 		<span class="row-label">Wall overlay</span>
-		<button
-			role="switch"
-			aria-checked={wallOn ? "true" : "false"}
-			aria-label="Wall overlay"
-			class="switch"
-			onclick={toggleWall}
-		></button>
+		<Switch checked={wallOn} label="Wall overlay" onclick={toggleWall} />
 	</div>
 
 	<div class="row">
 		<span class="row-label">Item page</span>
-		<button
-			role="switch"
-			aria-checked={itemOn ? "true" : "false"}
-			aria-label="Item page"
-			class="switch"
-			onclick={toggleItem}
-		></button>
+		<Switch checked={itemOn} label="Item page" onclick={toggleItem} />
 	</div>
 
 	<div class="row">
 		<span class="row-label">Lightbox</span>
-		<button
-			role="switch"
-			aria-checked={lightboxOn ? "true" : "false"}
-			aria-label="Lightbox"
-			class="switch"
-			onclick={toggleLightbox}
-		></button>
+		<Switch checked={lightboxOn} label="Lightbox" onclick={toggleLightbox} />
 	</div>
 </section>
 
@@ -144,34 +127,5 @@
 		min-width: 2ch;
 		text-align: right;
 		font-variant-numeric: tabular-nums;
-	}
-	.switch {
-		position: relative;
-		border: 1px solid var(--border, #333);
-		border-radius: 999px;
-		background: var(--accent-bg, #22324f);
-		cursor: pointer;
-		padding: 0;
-		min-height: 44px;
-		min-width: 56px;
-	}
-	.switch::after {
-		content: "";
-		position: absolute;
-		top: 50%;
-		left: 6px;
-		width: 20px;
-		height: 20px;
-		margin-top: -10px;
-		border-radius: 50%;
-		background: var(--muted, #a3a3ad);
-		transition: transform 0.15s;
-	}
-	.switch[aria-checked="true"] {
-		background: var(--accent, #7fb0ff);
-	}
-	.switch[aria-checked="true"]::after {
-		transform: translateX(24px);
-		background: #fff;
 	}
 </style>

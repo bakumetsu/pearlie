@@ -2,7 +2,13 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/svelte";
 import Tile from "./Tile.svelte";
-import type { LibraryItem } from "../api/client";
+import type { LibraryItem, WebItem } from "../api/client";
+import { sfw } from "../stores/sfw.svelte";
+import { options } from "../stores/options.svelte";
+
+vi.mock("../stores/options.svelte", () => ({
+  options: { values: null as unknown },
+}));
 import src from "./SectionRow.svelte?raw";
 
 afterEach(() => {
@@ -117,5 +123,43 @@ describe("Tile onopenitem", () => {
     const { container } = render(Tile, { item, href: "/x" });
     const anchor = container.querySelector("a.tile")!;
     expect(anchor.getAttribute("data-key")).toBe("image:1");
+  });
+});
+
+describe("Tile warn-list in safe mode", () => {
+  const warn = {
+    source: "danbooru", post_id: "1", thumb_url: "/t.jpg", preview_url: "/p.jpg",
+    title: null, tags: [], width: 1, height: 1, target: "stash", blur: { tag: "gore" },
+  } as unknown as WebItem;
+
+  afterEach(() => {
+    delete document.documentElement.dataset.sfw;
+    (options as { values: unknown }).values = null;
+  });
+
+  it("safe mode off: warn post shown blurred", () => {
+    const { container } = render(Tile, { item: warn });
+    expect(container.querySelector(".tile")).not.toBeNull();
+    expect(container.querySelector("img.blur-img")).not.toBeNull();
+  });
+
+  it("safe mode on, switch off (default): warn post hidden", () => {
+    sfw!.set(true);
+    const { container } = render(Tile, { item: warn });
+    expect(container.querySelector(".tile")).toBeNull();
+  });
+
+  it("safe mode on, switch on: warn post stays, blurred", () => {
+    sfw!.set(true);
+    (options as { values: unknown }).values = { allow_blurred_tags: true };
+    const { container } = render(Tile, { item: warn });
+    expect(container.querySelector(".tile")).not.toBeNull();
+    expect(container.querySelector("img.blur-img")).not.toBeNull();
+  });
+
+  it("safe mode on: post without blur tag is unaffected", () => {
+    sfw!.set(true);
+    const { container } = render(Tile, { item: { ...warn, blur: null } as unknown as WebItem });
+    expect(container.querySelector(".tile")).not.toBeNull();
   });
 });
