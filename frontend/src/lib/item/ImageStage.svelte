@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { SvelteSet } from "svelte/reactivity";
   import { wheelFactor, type Zoom } from "./zoomModel.svelte";
 
   let { src, alt, preload = null, zoom }: {
@@ -15,7 +16,7 @@
   let swallowClick = false;
 
   let drag: { id: number; x: number; y: number; moved: boolean } | null = null;
-  let activePointers = new Set<number>();
+  const activePointers = new SvelteSet<number>();
   let pendingDx = 0;
   let pendingDy = 0;
   let last: { x: number; y: number } | null = null;
