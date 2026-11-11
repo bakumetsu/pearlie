@@ -36,6 +36,10 @@ IMAGE_UPDATE = (
     "mutation($i: ImageUpdateInput!) { imageUpdate(input: $i) { id } }"
 )
 
+SCENE_UPDATE = (
+    "mutation($i: SceneUpdateInput!) { sceneUpdate(input: $i) { id } }"
+)
+
 LIBRARY_PATHS = (
     "query { configuration { general { stashes { path } } } }"
 )
@@ -180,6 +184,29 @@ class StashClient:
             IMAGE_UPDATE,
             {"i": {"id": image_id, "tag_ids": tag_ids, "urls": urls}},
         )
+
+    def resolve_tag_ids(self, names: list[str]) -> list[str]:
+        """Resolve tag *names* to Stash tag ids, creating any missing tags."""
+        ids: list[str] = []
+        seen: set[str] = set()
+        for name in names:
+            tags = self.find_tags(name)
+            tag_id = None
+            for t in tags:
+                if t["name"].casefold() == name.casefold():
+                    tag_id = t["id"]
+                    break
+            if tag_id is None:
+                tag_id = self.tag_create(name)
+            if tag_id not in seen:
+                seen.add(tag_id)
+                ids.append(tag_id)
+        return ids
+
+    def update_item(self, kind: str, id: str, fields: dict) -> None:
+        """Apply *fields* to a single image or scene in Stash."""
+        query = IMAGE_UPDATE if kind == "images" else SCENE_UPDATE
+        self._gql(query, {"i": {"id": id, **fields}})
 
     def library_paths(self) -> list[str]:
         """Return all configured stash paths."""

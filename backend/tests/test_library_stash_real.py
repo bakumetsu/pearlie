@@ -406,24 +406,8 @@ def test_detail_not_found_none(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 5 – PATCH / DELETE not supported
+# 5 – DELETE not supported
 # ---------------------------------------------------------------------------
-
-
-def test_patch_not_supported(tmp_path):
-    """PATCH on images and videos → 501 not_supported."""
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        raise AssertionError("should not reach upstream")
-
-    client = make_client(tmp_path, handler)
-    r = client.patch("/api/library/images/1", json={"title": "x"})
-    assert r.status_code == 501
-    assert r.json()["code"] == "not_supported"
-
-    r = client.patch("/api/library/videos/1", json={"title": "x"})
-    assert r.status_code == 501
-    assert r.json()["code"] == "not_supported"
 
 
 def test_delete_not_supported(tmp_path):
