@@ -802,3 +802,108 @@ describe("loading, errors and gone (T-67)", () => {
     expect((getByRole("button", { name: "Delete" }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
+
+describe("WallOverlay fullscreen", () => {
+  function setFs(enabled: boolean, req: () => Promise<void>) {
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, value: enabled });
+    HTMLElement.prototype.requestFullscreen = req as never;
+  }
+  function setFsEl(el: Element | null) {
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, value: el });
+  }
+
+  afterEach(() => {
+    delete (document as never as Record<string, unknown>).fullscreenEnabled;
+    delete (document as never as Record<string, unknown>).fullscreenElement;
+    delete (HTMLElement.prototype as never as Record<string, unknown>).requestFullscreen;
+  });
+
+  it("fullscreen button sits between Zoom and Details", () => {
+    setFs(true, vi.fn(async () => {}));
+    const { getByRole } = mount();
+    const zoom = getByRole("button", { name: "Zoom" });
+    const fs = getByRole("button", { name: "Fullscreen" });
+    const details = getByRole("link", { name: "Details" });
+    expect(zoom.compareDocumentPosition(fs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(fs.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("click requests fullscreen on the overlay element", async () => {
+    const req = vi.fn(async () => {});
+    setFs(true, req);
+    const { getByRole } = mount();
+    const dialog = getByRole("dialog");
+    await fireEvent.click(getByRole("button", { name: "Fullscreen" }));
+    expect(req.mock.contexts[0]).toBe(dialog);
+  });
+
+  it("icon label flips on fullscreenchange", async () => {
+    setFs(true, vi.fn(async () => {}));
+    const { getByRole } = mount();
+    const dialog = getByRole("dialog");
+
+    setFsEl(dialog);
+    document.dispatchEvent(new Event("fullscreenchange"));
+    await waitFor(() => {
+      const btn = getByRole("button", { name: "Exit fullscreen" });
+      expect(btn.getAttribute("aria-pressed")).toBe("true");
+    });
+
+    setFsEl(null);
+    document.dispatchEvent(new Event("fullscreenchange"));
+    await waitFor(() => {
+      expect(getByRole("button", { name: "Fullscreen" })).toBeTruthy();
+    });
+  });
+
+  it("closing while fullscreen exits fullscreen", async () => {
+    // Close button
+    document.exitFullscreen = vi.fn(async () => {}) as never;
+    setFs(true, vi.fn(async () => {}));
+    const onclose1 = vi.fn();
+    const m1 = mount({ onclose: onclose1 });
+    const dialog1 = m1.getByRole("dialog");
+    setFsEl(dialog1);
+    await fireEvent.click(m1.getByRole("button", { name: "Close" }));
+    expect(document.exitFullscreen).toHaveBeenCalled();
+    expect(onclose1).toHaveBeenCalled();
+    m1.unmount();
+
+    // Escape key
+    document.exitFullscreen = vi.fn(async () => {}) as never;
+    setFs(true, vi.fn(async () => {}));
+    const onclose2 = vi.fn();
+    const m2 = mount({ onclose: onclose2 });
+    const dialog2 = m2.container.querySelector(".layer")!;
+    setFsEl(dialog2);
+    await fireEvent.keyDown(dialog2, { key: "Escape" });
+    expect(document.exitFullscreen).toHaveBeenCalled();
+    expect(onclose2).toHaveBeenCalled();
+  });
+
+  it("unmount while fullscreen exits fullscreen", async () => {
+    document.exitFullscreen = vi.fn(async () => {}) as never;
+    setFs(true, vi.fn(async () => {}));
+    const { container, unmount } = mount();
+    const dialog = container.querySelector(".layer")!;
+    setFsEl(dialog);
+    unmount();
+    expect(document.exitFullscreen).toHaveBeenCalled();
+  });
+
+  it("button absent when fullscreenEnabled is false", () => {
+    setFs(false, vi.fn(async () => {}));
+    const { queryByRole } = mount();
+    expect(queryByRole("button", { name: /fullscreen/i })).toBeNull();
+  });
+
+  it("rejected requestFullscreen does not throw", async () => {
+    const req = vi.fn(() => Promise.reject(new Error("no")));
+    setFs(true, req as never);
+    const { getByRole } = mount();
+    const btn = getByRole("button", { name: "Fullscreen" });
+    await fireEvent.click(btn);
+    await Promise.resolve();
+    expect(req).toHaveBeenCalled();
+  });
+});
