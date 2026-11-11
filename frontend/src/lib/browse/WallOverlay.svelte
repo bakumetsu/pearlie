@@ -8,6 +8,7 @@
   import type { GridLike, ToastsLike } from "../item/itemView.svelte";
   import { canStep, stepInList, nearestInList, pageEdge, type ListGrid } from "../item/listNav";
   import ImageStage from "../item/ImageStage.svelte";
+  import { createZoom, zoomKey } from "../item/zoomModel.svelte";
   import Icon from "../components/Icon.svelte";
   import { rangeText } from "./pager";
   import { swipeDir } from "./swipe";
@@ -40,7 +41,7 @@
 
   let layerEl: HTMLDivElement | undefined = $state();
   let closeEl: HTMLButtonElement | undefined = $state();
-  let zoomed = $state(false);
+  const zoom = createZoom();
   let stepping = $state(false);
   let deleting = $state(false);
   let imageFailed = $state(false);
@@ -63,7 +64,7 @@
     const i = id;
     untrack(() => {
       void view.load("images", i);
-      zoomed = false;
+      zoom.reset();
       imageFailed = false;
       retryN = 0;
     });
@@ -120,7 +121,7 @@
 
   function toggleZoom() {
     if (deleting) return;
-    zoomed = !zoomed;
+    zoom.toggleAt(0, 0);
   }
 
   const canRate = $derived(view.status === "ready" && view.detail?.id === id);
@@ -253,6 +254,11 @@
       return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
 
+    if (!deleting && zoomKey(e, zoom)) {
+      e.stopPropagation();
+      return;
+    }
+
     if (e.key === "ArrowLeft" || e.key === "j") {
       e.preventDefault();
       e.stopPropagation();
@@ -264,12 +270,7 @@
     } else if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
-      if (zoomed) zoomed = false;
-      else close();
-    } else if (e.key === "z") {
-      e.preventDefault();
-      e.stopPropagation();
-      toggleZoom();
+      close();
     } else if (/^[1-5]$/.test(e.key)) {
       e.preventDefault();
       e.stopPropagation();
@@ -286,7 +287,7 @@
     activePointers.add(e.pointerId);
     if (
       activePointers.size > 1 ||
-      zoomed ||
+      zoom.active ||
       stepping || deleting ||
       (e.target as HTMLElement).closest("button, a, select, input") !== null
     ) {
@@ -427,7 +428,7 @@
       {#if view.status === "error" || imageFailed}
         <div class="errbox" role="alert"><p>Could not load this image</p><div class="errbtns"><button type="button" class="retry" onclick={retry}>Retry</button><a class="retry" href={detailsHref}>Open details</a></div></div>
       {:else if view.status !== "gone" && stageSrc}
-        <ImageStage src={stageSrc} alt={name} preload={null} bind:zoomed />
+        <ImageStage src={stageSrc} alt={name} preload={null} {zoom} />
       {/if}
       {#if view.status === "loading"}<span class="spinner" aria-hidden="true"></span>{/if}
     </div>
@@ -445,7 +446,7 @@
   <div class="bottom">
     <div class="bar-left"><RatingStars value={canRate ? (view.detail?.rating ?? null) : null} onrate={rate} /></div>
     <div class="bar-name">{name}</div>
-    <div class="bar-right"><button type="button" class="act" aria-label="Zoom" aria-pressed={zoomed} onclick={toggleZoom}><Icon name={zoomed ? "zoom-out" : "zoom-in"} size={22} /></button>{#if canFullscreen}<button type="button" class="act" aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"} title={fullscreen ? "Exit fullscreen" : "Fullscreen"} aria-pressed={fullscreen} onclick={toggleFullscreen}><Icon name={fullscreen ? "minimize" : "maximize"} size={22} /></button>{/if}<a class="act" class:disabled={!canRate} href={detailsHref} aria-label="Details" aria-disabled={!canRate} tabindex={canRate ? undefined : -1} onclick={(e) => { if (!canRate) e.preventDefault(); }}><Icon name="info" size={22} /></a><button type="button" class="act danger" aria-label="Delete" disabled={!canRate || deleting} onclick={onDelete}><Icon name="trash" size={22} /></button></div>
+    <div class="bar-right"><button type="button" class="act" aria-label="Zoom" aria-pressed={zoom.active} onclick={toggleZoom}><Icon name={zoom.active ? "zoom-out" : "zoom-in"} size={22} /></button>{#if canFullscreen}<button type="button" class="act" aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"} title={fullscreen ? "Exit fullscreen" : "Fullscreen"} aria-pressed={fullscreen} onclick={toggleFullscreen}><Icon name={fullscreen ? "minimize" : "maximize"} size={22} /></button>{/if}<a class="act" class:disabled={!canRate} href={detailsHref} aria-label="Details" aria-disabled={!canRate} tabindex={canRate ? undefined : -1} onclick={(e) => { if (!canRate) e.preventDefault(); }}><Icon name="info" size={22} /></a><button type="button" class="act danger" aria-label="Delete" disabled={!canRate || deleting} onclick={onDelete}><Icon name="trash" size={22} /></button></div>
     <!-- bar-right: action group (zoom, fullscreen, details, trash); room for a favourite heart between zoom and details -->
   </div>
 </div>
@@ -602,10 +603,6 @@
 
   @keyframes overlay-spin {
     to { transform: rotate(360deg); }
-  }
-
-  .stage-wrap :global(.stage:not(.zoomed)) {
-    touch-action: pan-y pinch-zoom;
   }
 
   .errbox {
