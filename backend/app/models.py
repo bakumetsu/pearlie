@@ -133,6 +133,7 @@ class WebItem(BaseModel):
     height: int
     page_count: int | None = None
     target: Target
+    saveable: bool = True  # false while the source's target has no save path (no Save button)
     saved: SavedRef | None = None
     blur: Blur | None = None
 

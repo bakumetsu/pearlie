@@ -19,6 +19,7 @@ from app.models import (
     Section,
     SectionId,
     Tag,
+    Target,
     WebItem,
     WebSource,
 )
@@ -43,6 +44,9 @@ _TITLES = {
 
 
 _LIBRARY = {"stash_images", "stash_videos", "komga_books"}
+
+# Targets a save job can reach today; T-131b adds "komga".
+_SAVE_TARGETS = {"stash"}
 
 VIDEO_EXTS = (".mp4", ".webm", ".mov", ".m4v", ".mkv")
 
@@ -170,7 +174,7 @@ def search(
                             post_id=post.post_id,
                             thumb_url=_web_thumb(post),
                             preview_url=post.file_url or post.preview_url or "",
-                            title=None,
+                            title=post.title,
                             tags=[
                                 Tag(name=n, scope=kind)
                                 for kind, names in post.tags.items()
@@ -178,7 +182,9 @@ def search(
                             ],
                             width=post.width,
                             height=post.height,
-                            target="stash",
+                            page_count=post.page_count,
+                            target=typing.cast(Target, getattr(src, "target", "stash")),
+                            saveable=getattr(src, "target", "stash") in _SAVE_TARGETS,
                             blur=Blur(tag=verdict.tag) if verdict else None,
                         )
                     )

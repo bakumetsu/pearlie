@@ -192,6 +192,7 @@ def test_multi_source_unconfigured_error(tmp_path: Path) -> None:
     ]
     client = _client(tmp_path, posts)
     _put_rules(client, reject=["bad_tag"])
+    client.app.state.sources.pop("nhentai")  # pyright: ignore[reportAttributeAccessIssue]
     r = client.get("/api/search?q=bad&sources=danbooru,nhentai")
     assert r.status_code == 200
     danbooru = _section(r, "danbooru")

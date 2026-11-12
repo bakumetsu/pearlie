@@ -203,6 +203,7 @@ def test_search_not_connected_sections(tmp_path):
         return httpx.Response(200, json=load("search"))
 
     client = make_client(tmp_path, handler)
+    client.app.state.sources.pop("nhentai")  # pyright: ignore[reportAttributeAccessIssue]
     r = client.get("/api/search?q=test&sources=stash_images,nhentai")
     assert r.status_code == 200
     resp = SearchResponse.model_validate(r.json())

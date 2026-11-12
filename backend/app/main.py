@@ -50,6 +50,7 @@ from app.komga import Komga
 from app.sources.base import Source
 from app.sources.danbooru import Danbooru
 from app.sources.dapi import Gelbooru, Rule34
+from app.sources.nhentai import NHentai
 from app.sources.throttle import DEFAULT_PACE, Throttle
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
@@ -214,6 +215,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "gelbooru": Gelbooru(
             throttle=throttles["gelbooru"],
             credentials=lambda: app.state.connection_store.field_values("gelbooru"),
+        ),
+        "nhentai": NHentai(
+            throttle=throttles["nhentai"],
+            credentials=lambda: app.state.connection_store.field_values("nhentai"),
         ),
     }
     app.state.sources = sources
