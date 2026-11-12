@@ -46,7 +46,7 @@ describe("SeeAll web lightbox", () => {
       if (url.pathname === "/api/view-settings") return json({}, 404);
       if (url.pathname === "/api/search") {
         return json({
-          sections: [{ id: "danbooru", items: [web("1"), web("2"), web("3")], total: 3, next_page: null, pages: 1, page_size: 60 }],
+          sections: [{ id: "danbooru", items: [web("1"), web("2"), web("3")], total: 3, next_page: 2, pages: 3, page_size: 60 }],
         });
       }
       if (url.pathname === "/api/save") {
@@ -96,6 +96,13 @@ describe("SeeAll web lightbox", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await fireEvent.click(document.querySelector("dialog .save-btn")!);
     await vi.waitFor(() => expect(saves).toEqual([{ source: "danbooru", post_id: "2" }]));
+  });
+
+  it("arrow keys step the lightbox and do not change the See-all page", async () => {
+    await openFirst();
+    await fireEvent.keyDown(document.querySelector("dialog")!, { key: "ArrowRight" });
+    expect(title()).toBe("post 2");
+    expect(location.search).not.toContain("page=");
   });
 
   it("close (Escape closes the dialog) removes the lightbox", async () => {
