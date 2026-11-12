@@ -1110,6 +1110,12 @@ export interface components {
              * @default true
              */
             prefix_from_env: boolean;
+            /** Komga Sites */
+            komga_sites?: string[];
+            /** Komga Library Paths */
+            komga_library_paths?: string[];
+            /** Komga Library Error */
+            komga_library_error?: string | null;
         };
         /** FieldOut */
         FieldOut: {

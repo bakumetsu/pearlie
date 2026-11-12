@@ -52,6 +52,7 @@ from app.sources.danbooru import Danbooru
 from app.sources.dapi import Gelbooru, Rule34
 from app.sources.nhentai import NHentai
 from app.sources.throttle import DEFAULT_PACE, Throttle
+from app.targets.komga import KomgaTarget
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
 from app.update import runner
@@ -142,6 +143,9 @@ def rebuild_client(app: FastAPI, name: str) -> None:
     app.state.settings = settings
     if name == "komga":
         app.state.komga = _build_komga(settings)
+        komga_target = getattr(app.state, "komga_target", None)
+        if komga_target is not None and app.state.komga is not None:
+            komga_target.set_client(app.state.komga)
     elif name == "stash":
         app.state.stash = _build_stash(settings)
         worker = getattr(app.state, "worker", None)
@@ -249,26 +253,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.worker = None
     app.state.http = None
     app.state.stash_target = None
-    if "jobs" in real and stash_ok and app.state.stash is not None:
+    app.state.komga_target = None
+    stash_on = stash_ok and app.state.stash is not None
+    komga_on = komga_ok and app.state.komga is not None
+    if "jobs" in real and (stash_on or komga_on):
         http = httpx.Client()
         app.state.http = http
-        stash_target = StashTarget(
-            settings, app.state.stash, http, app.state.sources, throttles=throttles
-        )
-        app.state.stash_target = stash_target
+        targets: dict = {}
+        hooks = []
+        if app.state.stash is not None:
+            stash_target = StashTarget(
+                settings, app.state.stash, http, app.state.sources, throttles=throttles
+            )
+            app.state.stash_target = stash_target
+            targets["stash"] = stash_target
+            hooks.append(stash_target.cleanup_temp)
+        if app.state.komga is not None:
+            komga_target = KomgaTarget(
+                settings, app.state.komga, http, app.state.sources, throttles=throttles
+            )
+            app.state.komga_target = komga_target
+            targets["komga"] = komga_target
+            hooks.append(komga_target.cleanup_temp)
         app.state.worker = JobWorker(
             settings.db_path,
             app.state.sources,
-            {"stash": stash_target},
+            targets,
             interval_s=settings.download_interval_s,
-            startup_hooks=[stash_target.cleanup_temp],
+            startup_hooks=hooks,
         )
 
     komga_names = {"library_komga", "media_komga"}
-    stash_names = {"library_stash", "media_stash", "jobs"}
+    stash_names = {"library_stash", "media_stash"}
     stubbed: set[str] = set()
     for name in real:
-        if (name in komga_names and not komga_ok) or (name in stash_names and not stash_ok):
+        unconfigured = (
+            (name in komga_names and not komga_ok)
+            or (name in stash_names and not stash_ok)
+            or (name == "jobs" and not (stash_ok or komga_ok))
+        )
+        if unconfigured:
             app.include_router(
                 stub_router(REAL_ROUTERS[name], 503, "not_configured", f"{name} is not configured")
             )

@@ -361,6 +361,9 @@ class Destinations(BaseModel):
     prefix_pearlie: str = ""
     prefix_stash: str = ""
     prefix_from_env: bool = True
+    komga_sites: list[str] = Field(default_factory=list)
+    komga_library_paths: list[str] = Field(default_factory=list)
+    komga_library_error: str | None = None
 
 
 class MappingBody(BaseModel):

@@ -15,6 +15,9 @@ function dest(over: Partial<Destinations> = {}): Destinations {
     prefix_pearlie: "",
     prefix_stash: "",
     prefix_from_env: true,
+    komga_sites: [],
+    komga_library_paths: [],
+    komga_library_error: null,
     ...over,
   };
 }
@@ -140,5 +143,26 @@ describe("SaveFoldersCard", () => {
     expect(values).not.toContain("/other/lib");
     await fireEvent.change(pick, { target: { value: "/data/rule34" } });
     expect((screen.getByTestId("folder-default") as HTMLInputElement).value).toBe("/data/rule34");
+  });
+
+  it("shows a Komga site row with Komga library roots", async () => {
+    const put = vi.fn().mockResolvedValue(dest());
+    const { api } = makeApi({
+      getDestinations: vi.fn().mockResolvedValue(
+        dest({
+          komga_sites: ["nhentai"],
+          komga_library_paths: ["/mnt/komga/doujin"],
+          items: [{ site: "nhentai", folder: "/mnt/komga/doujin/in" }],
+        }),
+      ),
+      putSiteFolder: put,
+    });
+    render(SaveFoldersCard, { api });
+    const input = (await screen.findByTestId("folder-nhentai")) as HTMLInputElement;
+    expect(input.value).toBe("/mnt/komga/doujin/in");
+    expect(screen.getByTestId("pick-nhentai").textContent).toContain("/mnt/komga/doujin");
+    expect(screen.getByTestId("pick-danbooru").textContent).not.toContain("/mnt/komga/doujin");
+    await fireEvent.click(screen.getByTestId("save-nhentai"));
+    await waitFor(() => expect(put).toHaveBeenCalledWith("nhentai", "/mnt/komga/doujin/in"));
   });
 });

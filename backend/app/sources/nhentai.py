@@ -84,7 +84,8 @@ class NHentai:
     def page_urls(self, post: Post) -> list[str]:
         """Image URL of every page, in order (CDN host, never the API host)."""
         media_id = str(post.extra.get("media_id") or "")
-        exts = post.extra.get("page_exts") or []
+        raw = post.extra.get("page_exts")
+        exts = raw if isinstance(raw, list) else []
         if not media_id.isalnum():
             return []
         return [
