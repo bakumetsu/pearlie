@@ -48,6 +48,24 @@ class Komga:
         if resp.status_code >= 400:
             raise KomgaError("upstream_error", f"Komga returned {resp.status_code}", 502)
 
+    def list_libraries(self) -> list[dict]:
+        """Return every Komga library (id, name, root)."""
+        try:
+            resp = self._client.get("/api/v1/libraries")
+        except httpx.HTTPError:
+            raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+        self._check(resp)
+        data = resp.json()
+        return data if isinstance(data, list) else []
+
+    def scan_library(self, library_id: str) -> None:
+        """Ask Komga to scan one library for new files."""
+        try:
+            resp = self._client.post(f"/api/v1/libraries/{library_id}/scan")
+        except httpx.HTTPError:
+            raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+        self._check(resp)
+
     def list_series(self, page: int, size: int, q: str, sort: str) -> dict:
         """Return one page of series matching *q* (full-text search).
 
