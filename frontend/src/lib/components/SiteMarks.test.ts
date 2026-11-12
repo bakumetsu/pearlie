@@ -120,6 +120,18 @@ describe("SiteMarks reorder", () => {
     expect(onsites).not.toHaveBeenCalled();
   });
 
+  it("a drag released off the rail does not eat the next click", async () => {
+    const onsites = vi.fn();
+    render(SiteMarks, { sites: [], onsites, onreorder: () => {} });
+    layout();
+    await down(screen.getByRole("button", { name: "Danbooru" }), 25, "mouse");
+    ptr("pointermove", 125, "mouse");
+    ptr("pointerup", 900, "mouse");
+    await new Promise((r) => setTimeout(r, 5));
+    await fireEvent.click(screen.getByRole("button", { name: "Rule34" }));
+    expect(onsites).toHaveBeenCalledWith(["rule34"]);
+  });
+
   it("a tap still selects and saves no order", async () => {
     const onreorder = vi.fn();
     const onsites = vi.fn();

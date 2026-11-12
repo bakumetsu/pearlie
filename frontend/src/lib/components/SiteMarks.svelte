@@ -77,7 +77,11 @@
     const finish = () => {
       const result = preview;
       const changed = active && result !== null && result.join() !== orderedSites(order).join();
-      if (active) swallowClick = true;
+      // The click that ends a drag lands right after pointerup; if none lands, do not eat the next one.
+      if (active) {
+        swallowClick = true;
+        setTimeout(() => (swallowClick = false), 0);
+      }
       cancel();
       if (changed && result) onreorder?.(result);
     };
