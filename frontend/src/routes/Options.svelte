@@ -10,6 +10,7 @@
     type Group,
   } from "../lib/options/sections";
   import Icon from "../lib/components/Icon.svelte";
+  import "../lib/options/options.css";
   import { SvelteMap } from "svelte/reactivity";
   import Rules from "./Rules.svelte";
   import ImageViewerCard from "../lib/options/ImageViewerCard.svelte";
@@ -404,6 +405,7 @@
         {/if}
       {:else}
         <!-- Normal section view -->
+        <div class="crumb">Options &rsaquo; {activeSection.title}</div>
         <h1
           bind:this={h1El}
           class="pane-title"
@@ -471,11 +473,11 @@
   }
 
   .sidebar {
-    width: 280px;
-    min-width: 280px;
-    border-right: 1px solid var(--border, #e0e0e0);
+    width: 220px;
+    min-width: 220px;
+    border-right: 1px solid var(--line);
     overflow-y: auto;
-    padding: 16px 12px;
+    padding: 12px 8px;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -484,13 +486,19 @@
   .pane {
     flex: 1;
     overflow-y: auto;
-    padding: 24px 32px;
+    padding: 16px 24px;
+  }
+
+  .crumb {
+    font-size: var(--t-12);
+    color: var(--muted);
+    margin: 0 0 4px;
   }
 
   .pane-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin: 0 0 20px;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 12px;
     outline: none;
   }
 
@@ -503,15 +511,20 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    border: 1px solid var(--border, #e0e0e0);
-    border-radius: var(--radius-md, 8px);
-    padding: 0 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-md);
+    padding: 0 12px;
     min-height: 44px;
-    background: var(--surface, #fff);
+    background: var(--surface);
+  }
+
+  .search-wrap :global(svg) {
+    flex: none;
   }
 
   .search-wrap input {
     flex: 1;
+    min-width: 0;
     border: none;
     outline: none;
     font-size: 0.9rem;
@@ -572,7 +585,7 @@
     min-height: 44px;
     padding: 8px 12px;
     border: none;
-    border-radius: var(--radius-md, 8px);
+    border-radius: var(--r-sm);
     background: none;
     cursor: pointer;
     font-size: 0.9rem;
@@ -582,17 +595,22 @@
   }
 
   .section-row:hover {
-    background: var(--surface-hover, #f5f5f5);
+    background: var(--line);
   }
 
   .section-row:focus-visible {
-    outline: 2px solid var(--accent, #4f8ef7);
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
 
   .section-row.active {
-    background: var(--accent-subtle, #e8f0fe);
+    background: var(--accent-bg);
+    color: var(--accent);
     font-weight: 600;
+  }
+
+  .search-wrap:focus-within {
+    border-color: var(--accent);
   }
 
   .section-row.later {
@@ -604,14 +622,14 @@
   }
 
   .later-tag {
-    font-size: 0.65rem;
+    font-size: 9px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--muted);
-    border: 1px solid var(--border, #e0e0e0);
-    border-radius: 4px;
-    padding: 1px 5px;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--r-sm);
+    padding: 0 5px;
   }
 
   .count-badge {
@@ -621,36 +639,16 @@
     text-align: center;
   }
 
-  /* ── Cards ────────────────────────────────────────────── */
-  .card {
-    border: 1px solid var(--border, #e0e0e0);
-    border-radius: var(--radius-md, 8px);
-    padding: 16px 20px;
-    margin-bottom: 16px;
-  }
-
-  .card-title {
-    font-size: 1rem;
-    font-weight: 600;
-    margin: 0 0 12px;
-  }
-
-  .row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    min-height: 44px;
-    padding: 6px 0;
-  }
-
+  /* ── Placeholder cards: the shared look lives in options.css ── */
   .row dt {
-    font-weight: 500;
+    flex: 1;
+    font-weight: 400;
   }
 
   .row dd {
     margin: 0;
     color: var(--muted);
-    font-size: 0.85rem;
+    font-size: var(--t-13);
   }
 
   .coming-later {
@@ -715,11 +713,11 @@
   }
 
   .back-btn:hover {
-    background: var(--surface-hover, #f5f5f5);
+    background: var(--line);
   }
 
   .back-btn:focus-visible {
-    outline: 2px solid var(--accent, #4f8ef7);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 

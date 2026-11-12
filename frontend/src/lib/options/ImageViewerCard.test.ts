@@ -60,19 +60,19 @@ describe("ImageViewerCard", () => {
 		});
 		render(ImageViewerCard, { store });
 
-		const wall = screen.getByRole("switch", { name: "Wall overlay" });
+		const wall = screen.getByRole("switch", { name: "Show backdrop in wall overlay" });
 		expect(wall.getAttribute("aria-checked")).toBe("true");
 		await fireEvent.click(wall);
 		expect(store.set).toHaveBeenCalledWith({ backdrop_wall: false });
 		expect(wall.getAttribute("aria-checked")).toBe("false");
 
-		const item = screen.getByRole("switch", { name: "Item page" });
+		const item = screen.getByRole("switch", { name: "Show backdrop on item page" });
 		expect(item.getAttribute("aria-checked")).toBe("true");
 		await fireEvent.click(item);
 		expect(store.set).toHaveBeenCalledWith({ backdrop_item: false });
 		expect(item.getAttribute("aria-checked")).toBe("false");
 
-		const lightbox = screen.getByRole("switch", { name: "Lightbox" });
+		const lightbox = screen.getByRole("switch", { name: "Show backdrop in lightbox" });
 		expect(lightbox.getAttribute("aria-checked")).toBe("true");
 		await fireEvent.click(lightbox);
 		expect(store.set).toHaveBeenCalledWith({ backdrop_lightbox: false });
@@ -86,9 +86,9 @@ describe("ImageViewerCard", () => {
 		const slider = screen.getByLabelText("Backdrop strength") as HTMLInputElement;
 		expect(slider.value).toBe("60");
 
-		expect(screen.getByRole("switch", { name: "Wall overlay" }).getAttribute("aria-checked")).toBe("true");
-		expect(screen.getByRole("switch", { name: "Item page" }).getAttribute("aria-checked")).toBe("true");
-		expect(screen.getByRole("switch", { name: "Lightbox" }).getAttribute("aria-checked")).toBe("true");
+		expect(screen.getByRole("switch", { name: "Show backdrop in wall overlay" }).getAttribute("aria-checked")).toBe("true");
+		expect(screen.getByRole("switch", { name: "Show backdrop on item page" }).getAttribute("aria-checked")).toBe("true");
+		expect(screen.getByRole("switch", { name: "Show backdrop in lightbox" }).getAttribute("aria-checked")).toBe("true");
 	});
 
 	it("preview backdrop present at default strength, gone after slider set to 0", async () => {

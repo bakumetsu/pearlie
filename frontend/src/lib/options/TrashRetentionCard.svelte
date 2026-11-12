@@ -155,50 +155,6 @@
 {/if}
 
 <style>
-	.card {
-		border: 1px solid var(--border, #333);
-		border-radius: 8px;
-		padding: var(--pad, 16px);
-	}
-
-	.card-title {
-		margin: 0 0 4px;
-		font-size: 1.05rem;
-		font-weight: 600;
-	}
-
-	.hint {
-		margin: 0 0 var(--pad, 16px);
-		font-size: 0.85rem;
-		color: var(--muted, #999);
-	}
-
-	.row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-		min-height: 44px;
-		margin-bottom: 0.5rem;
-	}
-
-	input[type="number"] {
-		min-height: 44px;
-		width: 5.5rem;
-		padding: 0 0.5rem;
-		border: 1px solid var(--border, #333);
-		border-radius: 4px;
-		background: var(--input-bg, #111);
-		color: inherit;
-		text-align: right;
-	}
-
-	.err {
-		font-size: 0.8rem;
-		color: var(--error, #ff6b6b);
-	}
-
 	.overlay {
 		position: fixed;
 		inset: 0;
@@ -210,9 +166,9 @@
 	}
 
 	.overlay > div[role="dialog"] {
-		background: var(--bg, #1a1a1a);
+		background: var(--surface);
 		border-radius: 8px;
-		padding: var(--pad, 16px);
+		padding: var(--s-4);
 		max-width: 420px;
 		width: calc(100% - 32px);
 		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -221,7 +177,7 @@
 	.overlay .btn {
 		min-height: 44px;
 		padding: 0 16px;
-		border: 1px solid var(--border, #333);
+		border: 1px solid var(--line-strong);
 		border-radius: 4px;
 		cursor: pointer;
 		background: transparent;
@@ -230,8 +186,8 @@
 	}
 
 	.overlay .btn.primary {
-		background: var(--primary, #2563eb);
-		color: #fff;
-		border-color: var(--primary, #2563eb);
+		background: var(--accent-bg);
+		color: var(--accent);
+		border-color: var(--accent-bg);
 	}
 </style>
