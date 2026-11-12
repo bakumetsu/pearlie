@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import source from "./ConnectionRows.svelte?raw";
 import { render, screen, fireEvent, cleanup } from "@testing-library/svelte";
 import ConnectionRows from "./ConnectionRows.svelte";
 import { createConnections } from "../stores/connections.svelte";
@@ -264,5 +265,29 @@ describe("ConnectionRows", () => {
 
     expect(document.body.innerHTML).not.toContain(secret);
     expect(JSON.stringify(store.data)).not.toContain(secret);
+  });
+
+  it("Test button sits directly before the settings button", async () => {
+    await renderRows();
+
+    const testBtn = screen.getByRole("button", { name: "Test Stash" });
+    const editBtn = screen.getByRole("button", { name: "Edit Stash" });
+    expect(testBtn.nextElementSibling).toBe(editBtn);
+    // the auto margin that pushes the pair to the right end must sit on Test, not on settings
+    expect(testBtn.classList.contains("test-btn")).toBe(true);
+    expect(editBtn.classList.contains("test-btn")).toBe(false);
+    expect(source).toMatch(/\.test-btn\s*\{\s*margin-left:\s*auto/);
+
+    const row = testBtn.closest("[role='row']") ?? testBtn.parentElement!;
+    const statusEl = row.querySelector("[role='status']")!;
+    expect(statusEl).toBeTruthy();
+    expect(statusEl.compareDocumentPosition(testBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("no restart notice after save when restart_needed is false", async () => {
+    const { store, api } = await renderRows();
+    await store.save(api, "stash", { secret: "abc" });
+    expect(screen.queryByText("Restart Pearlie to apply")).toBeNull();
+    expect(store.restartNeeded.stash).toBe(false);
   });
 });

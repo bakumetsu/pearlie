@@ -184,4 +184,15 @@ describe("UpdateCard", () => {
     await fireEvent.click(checkBtn);
     expect(hoisted.api.getUpdateStatus).toHaveBeenCalledWith({ refresh: true, manual: true });
   });
+
+  it("Update button shows only the icon", async () => {
+    hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus({ can_apply: true }));
+
+    render(UpdateCard);
+
+    const btn = await screen.findByRole("button", { name: /^Update/ });
+    const el = btn as HTMLButtonElement;
+    expect(el.getAttribute("aria-label")?.startsWith("Update")).toBe(true);
+    expect(el.textContent?.trim()).toBe("");
+  });
 });

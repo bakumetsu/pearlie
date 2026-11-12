@@ -131,7 +131,6 @@
 						onclick={() => (confirming = true)}
 					>
 						<Icon name="download" />
-						<span class="btn-label">{updateLabel}</span>
 					</button>
 					{#if update.latest?.url}
 						<a
@@ -255,10 +254,6 @@
 		}
 	}
 
-	.btn-label {
-		font-size: var(--t-13);
-	}
-
 	.strip {
 		display: flex;
 		flex-direction: row;
@@ -313,9 +308,6 @@
 		color: var(--surface);
 	}
 	@media (max-width: 640px) {
-		.btn-label {
-			display: none;
-		}
 		.row {
 			flex-wrap: wrap;
 		}

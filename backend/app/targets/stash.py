@@ -98,6 +98,9 @@ class StashTarget:
         self._sleep = sleep
         self._clock = clock
 
+    def set_client(self, client: StashClient) -> None:
+        self._client = client
+
     def _check_host(self, post: Post) -> str:
         """Validate that the file URL host is allowed for the post's source."""
         url = post.file_url

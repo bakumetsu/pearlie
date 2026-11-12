@@ -42,17 +42,17 @@
 			{#if store.restartNeeded[key]}
 				<span class="muted">Restart Pearlie to apply</span>
 			{/if}
+			<span class="result{store.results[key] && !store.results[key]!.ok ? " err" : ""}" role="status"
+				>{store.results[key]?.message}</span
+			>
 			<button
-				class="btn"
+				class="btn test-btn"
 				aria-label={`Test ${label}`}
 				disabled={store.testing[key]}
 				on:click={() => store.test(api, key)}
 			>
 				{store.testing[key] ? "Testing..." : "Test"}
 			</button>
-			<span class="result{store.results[key] && !store.results[key]!.ok ? " err" : ""}" role="status"
-				>{store.results[key]?.message}</span
-			>
 			<button class="btn" aria-label={`Edit ${label}`} on:click={() => (editing = key)}><Icon name="settings" size={16} /></button>
 		</div>
 	{/each}
@@ -69,6 +69,9 @@
 {/if}
 
 <style>
+	.test-btn {
+		margin-left: auto;
+	}
 	.result {
 		font-size: var(--t-13);
 		color: var(--muted);
