@@ -6,6 +6,7 @@ export type SectionId =
   | 'rules'
   | 'sources'
   | 'library'
+  | 'save-folders'
   | 'trash'
   | 'update'
   | 'logs'
@@ -147,6 +148,21 @@ export const SECTIONS: Section[] = [
         title: 'Status',
         rows: [
           { label: 'Health', hint: 'Stash, Komga, database, mounts, sites' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'save-folders',
+    title: 'Save folders',
+    group: 'Library',
+    later: false,
+    cards: [
+      {
+        title: 'Save folders',
+        rows: [
+          { label: 'Default folder', hint: 'Stash folder for saved posts' },
+          { label: 'Per-site folder', hint: 'optional override per site' },
         ],
       },
     ],

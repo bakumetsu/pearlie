@@ -1012,6 +1012,22 @@ export interface components {
             default_folder: string;
             /** Items */
             items: components["schemas"]["DestinationItem"][];
+            /** Sites */
+            sites?: string[];
+            /** Library Paths */
+            library_paths?: string[];
+            /** Library Error */
+            library_error?: string | null;
+            /**
+             * Prefix Pearlie
+             * @default
+             */
+            prefix_pearlie: string;
+            /**
+             * Prefix Stash
+             * @default
+             */
+            prefix_stash: string;
         };
         /** FieldOut */
         FieldOut: {

@@ -9,6 +9,7 @@ import {
   canRemove,
   removeLabel,
   attentionText,
+  needsFolderFix,
   routeFor,
   type Job,
 } from "./group";
@@ -216,3 +217,13 @@ describe("routeFor", () => {
   });
 });
 
+
+describe("needsFolderFix", () => {
+  it("is true only for a failed job with the outside-library error", () => {
+    const msg = "folder is not inside a Stash library path";
+    expect(needsFolderFix(mk({ state: "failed", error: msg }))).toBe(true);
+    expect(needsFolderFix(mk({ state: "failed", error: "Timeout" }))).toBe(false);
+    expect(needsFolderFix(mk({ state: "failed" }))).toBe(false);
+    expect(needsFolderFix(mk({ state: "queued", error: msg }))).toBe(false);
+  });
+});

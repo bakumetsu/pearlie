@@ -353,6 +353,11 @@ class DestinationItem(BaseModel):
 class Destinations(BaseModel):
     default_folder: str
     items: list[DestinationItem]
+    sites: list[str] = Field(default_factory=list)
+    library_paths: list[str] = Field(default_factory=list)
+    library_error: str | None = None
+    prefix_pearlie: str = ""
+    prefix_stash: str = ""
 
 
 class FolderBody(BaseModel):

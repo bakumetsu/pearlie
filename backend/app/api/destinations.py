@@ -57,7 +57,20 @@ def _payload(request: Request) -> Destinations:
     )
     rows = destinations.list_destinations(settings.db_path)
     items = [DestinationItem(**row) for row in rows]
-    return Destinations(default_folder=default, items=items)
+    try:
+        library = _library_paths(request)
+        library_error = None
+    except ApiError as err:
+        library, library_error = [], err.message
+    return Destinations(
+        default_folder=default,
+        items=items,
+        sites=_sites(request),
+        library_paths=library,
+        library_error=library_error,
+        prefix_pearlie=settings.stash_path_prefix_pearlie,
+        prefix_stash=settings.stash_path_prefix_stash,
+    )
 
 
 @router.get("/destinations", response_model=Destinations)

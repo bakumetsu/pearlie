@@ -18,6 +18,7 @@
   import StatusCard from "../lib/options/StatusCard.svelte";
   import UpdateCard from "../lib/options/UpdateCard.svelte";
   import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
+  import SaveFoldersCard from "../lib/options/SaveFoldersCard.svelte";
   import ConnectionRows from "../lib/options/ConnectionRows.svelte";
   import ContentFilterCard from "../lib/options/ContentFilterCard.svelte";
   import DiscoverCard from "../lib/options/DiscoverCard.svelte";
@@ -275,6 +276,8 @@
             <DiscoverCard />
           {:else if activeSectionId === "sources" && card.title === "Downloads"}
             <DownloadsCard />
+          {:else if activeSectionId === "save-folders" && card.title === "Save folders"}
+            <SaveFoldersCard />
           {:else if activeSectionId === "trash" && card.title === "Retention"}
             <TrashRetentionCard />
           {:else if activeSectionId === "sources" && card.title === "Site access"}
@@ -431,6 +434,8 @@
               <DiscoverCard />
             {:else if activeSectionId === "sources" && card.title === "Downloads"}
               <DownloadsCard />
+            {:else if activeSectionId === "save-folders" && card.title === "Save folders"}
+              <SaveFoldersCard />
             {:else if activeSectionId === "trash" && card.title === "Retention"}
               <TrashRetentionCard />
             {:else if activeSectionId === "sources" && card.title === "Site access"}

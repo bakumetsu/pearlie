@@ -38,6 +38,7 @@ export type ConnectionTest = S["TestOut"];
 export type UpdateStatus = S["StatusOut"];
 export type UpdateSettingsIn = S["SettingsIn"];
 export type UpdateApplied = S["ApplyOut"];
+export type Destinations = S["Destinations"];
 
 export type Kind = "images" | "videos" | "series" | "books";
 
@@ -110,6 +111,10 @@ export interface Api {
   putConnection(name: string, body: Partial<ConnectionIn>, signal?: AbortSignal): Promise<ConnectionOut>;
   testConnection(name: string, signal?: AbortSignal): Promise<ConnectionTest>;
   removeJob(id: string, signal?: AbortSignal): Promise<void>;
+  getDestinations(signal?: AbortSignal): Promise<Destinations>;
+  putDefaultFolder(folder: string, signal?: AbortSignal): Promise<Destinations>;
+  putSiteFolder(site: string, folder: string, signal?: AbortSignal): Promise<Destinations>;
+  deleteSiteFolder(site: string, signal?: AbortSignal): Promise<Destinations>;
   getUpdateStatus(p?: { refresh?: boolean; manual?: boolean }, signal?: AbortSignal): Promise<UpdateStatus>;
   putUpdateSettings(body: UpdateSettingsIn, signal?: AbortSignal): Promise<UpdateStatus>;
   applyUpdate(signal?: AbortSignal): Promise<UpdateApplied>;
@@ -412,6 +417,30 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     removeJob(id, signal) {
       return request<void>(
         baseUrl + "/api/jobs/" + encodeURIComponent(id),
+        { method: "DELETE" },
+        signal,
+      );
+    },
+    getDestinations(signal) {
+      return request<Destinations>(baseUrl + "/api/destinations", undefined, signal);
+    },
+    putDefaultFolder(folder, signal) {
+      return request<Destinations>(
+        baseUrl + "/api/destinations/default",
+        { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ folder }) },
+        signal,
+      );
+    },
+    putSiteFolder(site, folder, signal) {
+      return request<Destinations>(
+        baseUrl + "/api/destinations/" + encodeURIComponent(site),
+        { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ folder }) },
+        signal,
+      );
+    },
+    deleteSiteFolder(site, signal) {
+      return request<Destinations>(
+        baseUrl + "/api/destinations/" + encodeURIComponent(site),
         { method: "DELETE" },
         signal,
       );

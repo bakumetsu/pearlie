@@ -210,6 +210,65 @@ def test_api_delete_destination(client) -> None:
     assert resp2.status_code == 404
 
 
+def test_api_get_destinations_lists_hints(client) -> None:
+    body = client.get("/api/destinations").json()
+    assert body["library_paths"] == [
+        "/mnt/media/stash/rule34",
+        "/mnt/media/stash/rule34video",
+        "/mnt/media/stash/Other",
+    ]
+    assert body["library_error"] is None
+    assert body["sites"]
+    assert "danbooru" in body["sites"]
+    assert body["prefix_pearlie"] == ""
+
+
+def test_api_get_destinations_survives_missing_stash(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    cfg = Settings(
+        mode="real",
+        db_path=tmp_path / "p.db",
+        static_dir=tmp_path / "nostatic",
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+    )
+    with TestClient(create_app(cfg)) as c:
+        resp = c.get("/api/destinations")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["library_paths"] == []
+    assert body["library_error"]
+
+
+def test_api_put_applies_prefix_map(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    cfg = Settings(
+        mode="fixture",
+        db_path=tmp_path / "p.db",
+        static_dir=tmp_path / "nostatic",
+        stash_path_prefix_pearlie="/data",
+        stash_path_prefix_stash="/mnt/media/stash",
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+    )
+    c = TestClient(create_app(cfg))
+    ok = c.put("/api/destinations/default", json={"folder": "/data/rule34"})
+    assert ok.status_code == 200
+    body = ok.json()
+    assert body["default_folder"] == "/data/rule34"
+    assert body["prefix_pearlie"] == "/data"
+    assert body["prefix_stash"] == "/mnt/media/stash"
+    bad = c.put("/api/destinations/default", json={"folder": "/mnt/media/stash/rule34"})
+    assert bad.status_code == 400
+    assert bad.json()["code"] == "outside_library"
+
+
 # --- Danbooru source ---
 
 
