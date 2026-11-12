@@ -61,6 +61,7 @@ def test_defaults(any_client: TestClient) -> None:
         "allow_blurred_tags": False,
         "trash_retention_days": 7,
         "source_pace": expected_pace,
+        "hidden_sites": [],
     }
 
 

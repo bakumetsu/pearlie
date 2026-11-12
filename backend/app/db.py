@@ -47,6 +47,12 @@ CREATE TABLE IF NOT EXISTS destinations (
     folder TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS site_icons (
+    site TEXT PRIMARY KEY,
+    data BLOB,
+    mime TEXT NOT NULL DEFAULT '',
+    fetched_at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

@@ -72,8 +72,8 @@ describe("Discover header", () => {
     render(App);
     const marks = screen.getByRole("group", { name: "Sites" });
     expect(within(marks).getByRole("button", { name: "Danbooru" }).textContent).toContain("Danbooru");
-    // inactive marks show the letter only; the name stays in aria-label
-    expect(within(marks).getByRole("button", { name: "Gelbooru" }).textContent?.trim()).toBe("G");
+    // inactive marks show the icon only; the name stays in aria-label
+    expect(within(marks).getByRole("button", { name: "Gelbooru" }).textContent?.trim()).toBe("");
   });
 
   it("hides the chips row at defaults and shows it when filters are set", async () => {

@@ -2,6 +2,7 @@ export type SectionId =
   | 'general'
   | 'viewing'
   | 'content-filter'
+  | 'discover'
   | 'rules'
   | 'sources'
   | 'library'
@@ -75,6 +76,18 @@ export const SECTIONS: Section[] = [
           { label: 'Allow blurred tags in safe mode', hint: 'warn-list posts stay blurred, never hidden' },
           { label: 'Reveal delay', hint: 'seconds before revealing' },
         ],
+      },
+    ],
+  },
+  {
+    id: 'discover',
+    title: 'Discover',
+    group: 'Personal',
+    later: false,
+    cards: [
+      {
+        title: 'Sites in the rail',
+        rows: [{ label: 'Show in rail', hint: 'per-site on/off' }],
       },
     ],
   },
