@@ -214,3 +214,99 @@ describe("UpdateCard", () => {
     expect(el.textContent?.trim()).toBe("");
   });
 });
+
+describe("UpdateCard changelog", () => {
+  afterEach(() => cleanup());
+
+  const block = (title: string, items: string[], extra: object = {}) => ({
+    title,
+    range: null,
+    version: null,
+    groups: [{ kind: "Added", items }],
+    total: items.length,
+    more: 0,
+    more_url: null,
+    ...extra,
+  });
+  const changelog = (overrides: object = {}) => ({
+    channel: "main",
+    unavailable: false,
+    stale: false,
+    whats_new: block("What's new", ["Shiny thing"], { range: "1.2.3 → 1.2.4" }),
+    history: [block("v1.2.4", ["Shiny thing"]), block("v1.2.3", ["Older thing"])],
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    hoisted.api = {
+      getUpdateStatus: vi.fn().mockResolvedValue(makeStatus()),
+      putUpdateSettings: vi.fn(),
+      getUpdateChangelog: vi.fn().mockResolvedValue(changelog()),
+    };
+  });
+
+  it("shows the What's new block with the installed to latest range", async () => {
+    render(UpdateCard);
+    expect(await screen.findByText("What's new")).toBeTruthy();
+    expect(screen.getByText("1.2.3 → 1.2.4")).toBeTruthy();
+    expect(screen.getAllByText("Shiny thing").length).toBeGreaterThan(0);
+  });
+
+  it("lists past versions collapsed, in the order the backend sent", async () => {
+    const { container } = render(UpdateCard);
+    await screen.findByText("What's new");
+    const details = [...container.querySelectorAll("details")];
+    expect(details.map((d) => d.querySelector("summary")?.textContent?.trim().split(" ")[0])).toEqual([
+      "v1.2.4",
+      "v1.2.3",
+    ]);
+    expect(details.every((d) => !d.open)).toBe(true);
+  });
+
+  it("defaults the toggle to the current channel and switches the view", async () => {
+    hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus({ channel: "dev" }));
+    render(UpdateCard);
+    const dev = await screen.findByRole("button", { name: "Changelog Dev" });
+    expect(dev.getAttribute("aria-pressed")).toBe("true");
+    expect(hoisted.api.getUpdateChangelog).toHaveBeenCalledWith({ channel: "dev", refresh: false });
+    await fireEvent.click(screen.getByRole("button", { name: "Changelog Main" }));
+    expect(hoisted.api.getUpdateChangelog).toHaveBeenLastCalledWith({ channel: "main", refresh: false });
+  });
+
+  it("refreshes the changelog on Check now", async () => {
+    render(UpdateCard);
+    await screen.findByText("What's new");
+    await fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+    await vi.waitFor(() =>
+      expect(hoisted.api.getUpdateChangelog).toHaveBeenLastCalledWith({ channel: "main", refresh: true }),
+    );
+  });
+
+  it("shows a quiet message when the changelog is unavailable", async () => {
+    hoisted.api.getUpdateChangelog.mockResolvedValue(
+      changelog({ unavailable: true, whats_new: null, history: [] }),
+    );
+    render(UpdateCard);
+    expect(await screen.findByText("Changelog unavailable.")).toBeTruthy();
+  });
+
+  it("links to GitHub when a version has more changes than shown", async () => {
+    hoisted.api.getUpdateChangelog.mockResolvedValue(
+      changelog({
+        whats_new: null,
+        history: [block("v1.2.4", ["A"], { more: 7, more_url: "https://github.com/x/compare/a...b" })],
+      }),
+    );
+    render(UpdateCard);
+    const link = await screen.findByText("+ 7 more on GitHub");
+    expect(link.getAttribute("href")).toBe("https://github.com/x/compare/a...b");
+  });
+
+  it("keeps the card working when the changelog call fails", async () => {
+    hoisted.api.getUpdateChangelog.mockRejectedValue(new Error("boom"));
+    render(UpdateCard);
+    expect(await screen.findByText("1.2.3")).toBeTruthy();
+    expect(screen.queryByText("What's new")).toBeNull();
+  });
+});
