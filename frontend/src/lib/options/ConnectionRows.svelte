@@ -69,6 +69,9 @@
 {/if}
 
 <style>
+	.test-btn {
+		margin-left: auto;
+	}
 	.result {
 		font-size: var(--t-13);
 		color: var(--muted);
