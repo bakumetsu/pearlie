@@ -456,7 +456,7 @@ download_and_extract() {
   if [ "$CHANNEL" = "dev" ]; then
     local base
     base=$(grep -m1 '^version[[:space:]]*=' "$REL/app/backend/pyproject.toml" | sed 's/.*"\(.*\)".*/\1/')
-    TARGET_VERSION="${base}-dev+${TARGET_COMMIT:0:7}"
+    TARGET_VERSION="${base}-dev"
   fi
 
   write_version_json

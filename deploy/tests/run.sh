@@ -626,7 +626,7 @@ case_dev() {
   expect "dev: state" "$(status_get state)" done
   local T
   T=$(current_target)
-  if grep -q '0\.1\.0-dev+bbbbbbb' "$T/app/VERSION.json"; then
+  if grep -q '"version":"0\.1\.0-dev"' "$T/app/VERSION.json"; then
     ok "dev: version in VERSION.json"
   else
     bad "dev: version in VERSION.json" "missing"

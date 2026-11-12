@@ -58,7 +58,7 @@ def current_version(roots: tuple[Path, ...] | None = None) -> Installed:
             continue
         if not isinstance(commit, str):
             commit = None
-        return Installed(version=version, channel=channel, commit=commit)
+        return Installed(version=version.split("+", 1)[0], channel=channel, commit=commit)
     base = "0.0.0"
     try:
         with open(Path(__file__).parents[2] / "pyproject.toml", "rb") as f:
@@ -68,7 +68,7 @@ def current_version(roots: tuple[Path, ...] | None = None) -> Installed:
             base = v
     except (OSError, tomllib.TOMLDecodeError, KeyError, TypeError):
         pass
-    return Installed(f"{base}-dev+local", "dev", None)
+    return Installed(f"{base}-dev", "dev", None)
 
 
 def short_label(installed: Installed) -> str:
