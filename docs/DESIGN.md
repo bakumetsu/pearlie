@@ -53,7 +53,7 @@ Pearlie triggers Stash and Komga scans itself after each save, because file watc
 Pearlie/
   backend/app/
     main.py  config.py  db.py  models.py
-    sources/   base.py  danbooru.py  dapi.py (Rule34, Gelbooru)  nhentai.py (planned)
+    sources/   base.py  danbooru.py  dapi.py (Rule34, Gelbooru)  nhentai.py (saves as a CBZ into a Komga library folder, T-131)
     targets/   stash.py  komga.py  comicinfo.py
     library/   stash_browse.py  komga_browse.py  trash.py
     filters/   rules.py  aliases.py  baselist.py
