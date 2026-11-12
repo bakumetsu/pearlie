@@ -49,6 +49,7 @@ from app.jobs.worker import JobWorker
 from app.komga import Komga
 from app.sources.base import Source
 from app.sources.danbooru import Danbooru
+from app.sources.dapi import Gelbooru, Rule34
 from app.sources.throttle import DEFAULT_PACE, Throttle
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
@@ -204,7 +205,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         throttle=throttles["danbooru"],
         credentials=lambda: app.state.connection_store.field_values("danbooru"),
     )
-    sources: dict[str, Source] = {"danbooru": danbooru}
+    sources: dict[str, Source] = {
+        "danbooru": danbooru,
+        "rule34": Rule34(
+            throttle=throttles["rule34"],
+            credentials=lambda: app.state.connection_store.field_values("rule34"),
+        ),
+        "gelbooru": Gelbooru(
+            throttle=throttles["gelbooru"],
+            credentials=lambda: app.state.connection_store.field_values("gelbooru"),
+        ),
+    }
     app.state.sources = sources
     options.apply_pace(app)
 
