@@ -72,6 +72,24 @@
     padding: var(--s-2) 0;
   }
 
+  /* Short screens (landscape phone): slim icon rail, no labels, scrolls if it still does not fit. */
+  @media (max-height: 500px) {
+    .nav.rail {
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+
+    .nav.rail .nav-item {
+      height: 44px;
+      min-height: 44px;
+      padding: 0;
+    }
+
+    .nav.rail .nav-label {
+      display: none;
+    }
+  }
+
   /* --- bar variant --- */
   .nav.bar {
     position: fixed;

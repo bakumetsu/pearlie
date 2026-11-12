@@ -177,7 +177,7 @@ Auth: a login that returns a token (cookie for the web UI, bearer token for iOS)
 ## 10. UI
 
 Layout A, chosen 2026-11-08 (mockups: https://claude.ai/artifact/FXZchWLeynCcAmEbJfKjbH):
-- One search box with tag chips (excluded tags in red), type pills (All, Images, Videos, Books, Web). Adding or removing a chip does not search (rule 5): a Search icon button (shown while the chips differ from the last search) or Enter on an empty field runs it, and an identical query (chips + sources) is never re-sent; Retry forces a re-send.
+- Discover header: site marks first (active ones named), one search field with a filter button inside, a chips row only while a filter differs from the default (each chip removes itself), and one filter panel (scope + sites, equal 2-column grid). Phone portrait pins only the field row at the bottom; short screens (height <= 500 px) pin it at the top and the nav rail shrinks to icons. One search box with tag chips (excluded tags in red); scope pills (All, Images, Videos, Books, Web) live in the filter panel. Adding or removing a chip does not search (rule 5): a Search icon button (shown while the chips differ from the last search) or Enter on an empty field runs it, and an identical query (chips + sources) is never re-sent; Retry forces a re-send.
 - Results in sections: Stash images, Stash videos, Komga books (progress bar), web results ("In library" badge or save button). "See all" opens a full grid for that one source.
 - Bottom bar: Search, Library, Queue, Rules.
 - **Mini player:** a playing video docks above the bottom bar and keeps playing while you browse (play/pause, progress, PiP, close).

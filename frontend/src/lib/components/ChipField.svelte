@@ -1,5 +1,6 @@
 <script lang="ts">
 
+  import type { Snippet } from "svelte";
   import type { Chip } from "../query";
   import { commitText, removeLastChip } from "../query";
   import Icon from "./Icon.svelte";
@@ -9,11 +10,13 @@
     onchange,
     label,
     onsubmit,
+    trailing,
   }: {
     chips: Chip[];
     onchange: (chips: Chip[]) => void;
     label?: string;
     onsubmit?: () => void;
+    trailing?: Snippet;
   } = $props();
 
   let text = $state("");
@@ -70,6 +73,7 @@
       }
     }}
   />
+  {@render trailing?.()}
 </div>
 
 <style>

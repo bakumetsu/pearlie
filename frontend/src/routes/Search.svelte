@@ -1,19 +1,20 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
   import { itemHref, toPlural } from "../lib/item/kinds";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { createSearch } from "../lib/stores/search.svelte";
   import { visibleInSafeMode } from "../lib/stores/safeFilter";
-  import { parseSearchParams, buildSearchParams, serialiseQuery, sectionsFor, webNeedsQuery } from "../lib/query";
+  import { parseSearchParams, buildSearchParams, serialiseQuery, sectionsFor, webNeedsQuery, filterChips, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SectionId, SiteId } from "../lib/query";
   import { hrefOf, linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
   import type { WebItem } from "../lib/api/client";
   import Icon from "../lib/components/Icon.svelte";
   import ChipField from "../lib/components/ChipField.svelte";
-  import PillBar from "../lib/components/PillBar.svelte";
+  import SiteMarks from "../lib/components/SiteMarks.svelte";
+  import FilterPanel from "../lib/components/FilterPanel.svelte";
   import SectionRow from "../lib/components/SectionRow.svelte";
   import Tile from "../lib/components/Tile.svelte";
   import Lightbox from "../lib/components/Lightbox.svelte";
@@ -45,10 +46,37 @@
   });
 
   let h1: HTMLHeadingElement | undefined;
+  // Phone portrait pins the field row at the bottom; landscape (short height) pins it at the top.
+  let phone = $state(false);
+  let landscape = $state(false);
   onMount(() => {
     h1?.focus();
-    return () => search.cancel();
+    const off: (() => void)[] = [];
+    if (typeof window.matchMedia === "function") {
+      const watch = (q: string, set: (v: boolean) => void) => {
+        const mq = window.matchMedia(q);
+        set(mq.matches);
+        const on = (e: { matches: boolean }) => set(e.matches);
+        mq.addEventListener("change", on);
+        off.push(() => mq.removeEventListener("change", on));
+      };
+      watch("(max-width: 719px)", (v) => (phone = v));
+      watch("(max-height: 500px)", (v) => (landscape = v));
+    }
+    return () => {
+      off.forEach((f) => f());
+      search.cancel();
+    };
   });
+
+  let filterOpen = $state(false);
+  let fibEl: HTMLButtonElement | undefined;
+
+  function closeFilters(): void {
+    filterOpen = false;
+    void tick().then(() => fibEl?.focus());
+  }
+  const chips = $derived(filterChips(query));
 
   function navigateState(next: SearchState): void {
     router.navigate("/" + buildSearchParams(next), { replace: true });
@@ -64,6 +92,10 @@
 
   function handlePillChange(pill: typeof query.pill): void {
     navigateState({ ...query, pill });
+  }
+
+  function clearFilters(): void {
+    navigateState({ ...query, pill: "all", sites: DEFAULT_SITES });
   }
 
   function handleSitesChange(sites: SiteId[]): void {
@@ -142,23 +174,49 @@
   const SKELETONS = Array.from({ length: 6 }, (_, i) => i);
 </script>
 
-<div class="page">
+<div class="page" class:phone={phone && !landscape} class:landscape>
   <header class="header">
     <h1 class="sr-only" tabindex="-1" bind:this={h1}>Discover</h1>
-    <div class="search-row">
-      <ChipField chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch} />
-      {#if dirty}
-        <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
-          <Icon name="search" size={20} />
-        </button>
-      {/if}
+    <div class="hmarks">
+      <SiteMarks sites={query.sites} onsites={handleSitesChange} />
     </div>
-    <PillBar
-      pill={query.pill}
-      sites={query.sites}
-      onpill={handlePillChange}
-      onsites={handleSitesChange}
-    />
+    <div class="hfield">
+      <div class="search-row">
+        <ChipField chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch}>
+          {#snippet trailing()}
+            <button
+              class="fib"
+              bind:this={fibEl}
+              class:on={chips.length > 0}
+              type="button"
+              aria-label={chips.length ? `Filters (${chips.length} set)` : "Filters"}
+              aria-expanded={filterOpen}
+              onclick={() => (filterOpen = true)}
+            >
+              <Icon name="sliders" size={20} />
+              {#if chips.length}<b>{chips.length}</b>{/if}
+            </button>
+          {/snippet}
+        </ChipField>
+        {#if dirty}
+          <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
+            <Icon name="search" size={20} />
+          </button>
+        {/if}
+      </div>
+    </div>
+    {#if chips.length}
+      <div class="hchips" role="group" aria-label="Active filters">
+        {#each chips as c (c.key)}
+          <span class="fchip">
+            {c.label}
+            <button type="button" aria-label="Remove {c.label}" onclick={() => navigateState({ ...query, ...c.remove })}>
+              <Icon name="x" size={14} />
+            </button>
+          </span>
+        {/each}
+      </div>
+    {/if}
   </header>
 
   <main class="content">
@@ -211,6 +269,17 @@
   </main>
 </div>
 
+{#if filterOpen}
+  <FilterPanel
+    pill={query.pill}
+    sites={query.sites}
+    onpill={handlePillChange}
+    onsites={handleSitesChange}
+    onclear={clearFilters}
+    onclose={closeFilters}
+  />
+{/if}
+
 {#if lightbox}
   <Lightbox
     item={lightbox}
@@ -262,6 +331,120 @@
   .search-row :global(.field) {
     flex: 1;
     min-width: 0;
+  }
+
+  .fib {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+    margin-left: auto;
+    width: 44px;
+    height: 44px;
+    margin-block: -8px;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: var(--r-md);
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .fib:hover {
+    color: var(--text);
+  }
+
+  .fib.on {
+    color: var(--accent);
+  }
+
+  .fib b {
+    position: absolute;
+    top: 5px;
+    right: 3px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 10px;
+    display: grid;
+    place-items: center;
+  }
+
+  .hchips {
+    display: flex;
+    gap: var(--s-1);
+    overflow-x: auto;
+    scrollbar-width: none;
+    align-items: center;
+    padding-block: 4px;
+  }
+
+  .fchip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 4px 0 12px;
+    border-radius: 18px;
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-size: var(--t-13);
+    white-space: nowrap;
+  }
+
+  .fchip button {
+    display: grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    margin-block: -4px;
+    padding: 0;
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  /* Phone portrait: only the field row is pinned, at the bottom. Landscape: pinned at the top. */
+  .page.phone .header,
+  .page.landscape .header {
+    display: contents;
+  }
+
+  .page.phone .hmarks,
+  .page.phone .hchips,
+  .page.landscape .hmarks,
+  .page.landscape .hchips {
+    padding: var(--s-2) var(--s-3) 0;
+  }
+
+  .page.landscape .hfield {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    padding: var(--s-2) var(--s-3);
+    padding-right: calc(var(--s-3) + var(--sfw-inset));
+    border-bottom: 1px solid var(--line);
+  }
+
+  .page.phone .hfield {
+    position: fixed;
+    left: var(--rail-w);
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    background: var(--bg);
+    padding: var(--s-2) var(--s-3);
+    padding-bottom: calc(var(--s-2) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line);
+  }
+
+  .page.phone .content {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   }
 
   .search-btn {
