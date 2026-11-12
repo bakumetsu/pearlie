@@ -326,7 +326,7 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (openId !== null) return;
+    if (openId !== null || lightboxKey !== null || e.defaultPrevented) return;
     const t = e.target as HTMLElement | null;
     if (t) {
       const tag = t.tagName;
