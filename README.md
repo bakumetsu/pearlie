@@ -28,7 +28,8 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/bakumetsu/pearlie/main/c
 To use real media, first mount the Stash Temp and Stash Other shares on the Proxmox host
 shell (NFS or any other method), then run the installer and give it those host folders.
 Answer `N` to run in fixture mode. The installer never asks for an NFS IP and never edits
-fstab.
+fstab. On OMV, set `all_squash,anonuid=<Stash/Komga UID>,anongid=<GID>` on both exports so
+files Pearlie writes belong to the Stash/Komga user.
 
 Pearlie has no login of its own: reach it only over Tailscale or a reverse proxy. Update with `update` in the container or from Options > System.
 
