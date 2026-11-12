@@ -82,6 +82,9 @@ def load_settings(**overrides: Any) -> Settings:
         if settings.host == "auto":
             ip = resolve_auto_host()
             if ip is None:
+                logging.getLogger(__name__).warning(
+                    "PEARLIE_HOST=auto found no IPv4; bound to 127.0.0.1, restart pearlie once the container has an address"
+                )
                 settings = settings.model_copy(update={"host": "127.0.0.1"})
             elif not settings.trusted_network:
                 logging.getLogger(__name__).warning(

@@ -107,10 +107,14 @@ def test_auto_host_ipv4_with_trusted_network(monkeypatch: pytest.MonkeyPatch) ->
     assert s.host == "10.0.0.5"
 
 
-def test_auto_host_fallback_loopback(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_auto_host_fallback_loopback(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
     monkeypatch.setattr("app.config.resolve_auto_host", lambda: None)
-    s = load_settings(mode="fixture", host="auto", _env_file=None)
+    with caplog.at_level(logging.WARNING, logger="app.config"):
+        s = load_settings(mode="fixture", host="auto", _env_file=None)
     assert s.host == "127.0.0.1"
+    assert "PEARLIE_HOST=auto found no IPv4" in caplog.text
 
 
 def test_auto_host_without_trusted_network_warns(
