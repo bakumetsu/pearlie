@@ -14,6 +14,7 @@ function dest(over: Partial<Destinations> = {}): Destinations {
     library_error: null,
     prefix_pearlie: "",
     prefix_stash: "",
+    prefix_from_env: true,
     ...over,
   };
 }
@@ -93,5 +94,51 @@ describe("SaveFoldersCard", () => {
     });
     render(SaveFoldersCard, { api });
     expect((await screen.findByRole("status")).textContent).toContain("Stash is not configured");
+  });
+
+  it("saves and resets the path mapping, showing where it comes from", async () => {
+    const mapped = dest({ prefix_pearlie: "/data", prefix_stash: "/mnt/media/stash", prefix_from_env: false });
+    const put = vi.fn().mockResolvedValue(mapped);
+    const reset = vi.fn().mockResolvedValue(dest());
+    const { api } = makeApi({ putPathMapping: put, resetPathMapping: reset });
+    render(SaveFoldersCard, { api });
+    expect((await screen.findByTestId("mapping-source")).textContent).toBe("From .env");
+    await fireEvent.input(screen.getByTestId("map-pearlie"), { target: { value: "/data" } });
+    await fireEvent.input(screen.getByTestId("map-stash"), { target: { value: "/mnt/media/stash" } });
+    await fireEvent.click(screen.getByTestId("save-mapping"));
+    await waitFor(() => expect(put).toHaveBeenCalledWith("/data", "/mnt/media/stash"));
+    await waitFor(() => expect(screen.getByTestId("mapping-source").textContent).toBe("Saved here"));
+    await fireEvent.click(screen.getByTestId("reset-mapping"));
+    await waitFor(() => expect(reset).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByTestId("mapping-source").textContent).toBe("From .env"));
+  });
+
+  it("shows a mapping validation error inline", async () => {
+    const put = vi.fn().mockRejectedValue(new ApiError(422, "invalid", "set both paths or leave both empty"));
+    const { api } = makeApi({ putPathMapping: put });
+    render(SaveFoldersCard, { api });
+    await fireEvent.input(await screen.findByTestId("map-pearlie"), { target: { value: "/data" } });
+    await fireEvent.click(screen.getByTestId("save-mapping"));
+    expect((await screen.findByRole("alert")).textContent).toBe("set both paths or leave both empty");
+  });
+
+  it("picker maps Stash library paths back to Pearlie paths", async () => {
+    const { api } = makeApi({
+      getDestinations: vi.fn().mockResolvedValue(
+        dest({
+          prefix_pearlie: "/data",
+          prefix_stash: "/mnt/media/stash",
+          library_paths: ["/mnt/media/stash/rule34", "/other/lib"],
+        }),
+      ),
+    });
+    render(SaveFoldersCard, { api });
+    const pick = (await screen.findByTestId("pick-default")) as HTMLSelectElement;
+    const values = Array.from(pick.options).map((o) => o.value);
+    expect(values).toContain("/data/rule34");
+    expect(values).not.toContain("/mnt/media/stash/rule34");
+    expect(values).not.toContain("/other/lib");
+    await fireEvent.change(pick, { target: { value: "/data/rule34" } });
+    expect((screen.getByTestId("folder-default") as HTMLInputElement).value).toBe("/data/rule34");
   });
 });

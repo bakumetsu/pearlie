@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Request
 
 from app.api.errors import ApiError
-from app.models import DestinationItem, Destinations, FolderBody
+from app.models import DestinationItem, Destinations, FolderBody, MappingBody
 from app.targets import destinations
 from app.targets.destinations import DestinationError
 from app.targets.stash_client import StashError
@@ -37,15 +37,19 @@ def _sites(request: Request) -> list[str]:
     ]
 
 
-def _validated(request: Request, folder: str) -> str:
+def _mapping(request: Request) -> tuple[str, str, bool]:
     settings = request.app.state.settings
+    return destinations.get_mapping(
+        settings.db_path,
+        settings.stash_path_prefix_pearlie,
+        settings.stash_path_prefix_stash,
+    )
+
+
+def _validated(request: Request, folder: str) -> str:
+    pp, ps, _env = _mapping(request)
     try:
-        return destinations.validate_folder(
-            folder,
-            _library_paths(request),
-            settings.stash_path_prefix_pearlie,
-            settings.stash_path_prefix_stash,
-        )
+        return destinations.validate_folder(folder, _library_paths(request), pp, ps)
     except DestinationError as err:
         raise ApiError(err.status, err.code, err.message) from None
 
@@ -62,14 +66,16 @@ def _payload(request: Request) -> Destinations:
         library_error = None
     except ApiError as err:
         library, library_error = [], err.message
+    pp, ps, from_env = _mapping(request)
     return Destinations(
         default_folder=default,
         items=items,
         sites=_sites(request),
         library_paths=library,
         library_error=library_error,
-        prefix_pearlie=settings.stash_path_prefix_pearlie,
-        prefix_stash=settings.stash_path_prefix_stash,
+        prefix_pearlie=pp,
+        prefix_stash=ps,
+        prefix_from_env=from_env,
     )
 
 
@@ -83,6 +89,22 @@ def put_default(body: FolderBody, request: Request) -> Destinations:
     validated = _validated(request, body.folder)
     settings = request.app.state.settings
     destinations.set_default(settings.db_path, validated)
+    return _payload(request)
+
+
+@router.put("/destinations/mapping", response_model=Destinations)
+def put_mapping(body: MappingBody, request: Request) -> Destinations:
+    try:
+        pp, ps = destinations.validate_mapping(body.prefix_pearlie, body.prefix_stash)
+    except DestinationError as err:
+        raise ApiError(err.status, err.code, err.message) from None
+    destinations.set_mapping(request.app.state.settings.db_path, pp, ps)
+    return _payload(request)
+
+
+@router.delete("/destinations/mapping", response_model=Destinations)
+def delete_mapping(request: Request) -> Destinations:
+    destinations.reset_mapping(request.app.state.settings.db_path)
     return _payload(request)
 
 

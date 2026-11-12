@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/svelte";
 import App from "../App.svelte";
 
-function job(id: string, error: string) {
+function job(id: string, error: string, error_code: string) {
   return {
     id,
     state: "failed",
@@ -13,6 +13,7 @@ function job(id: string, error: string) {
     target: "stash",
     progress: 0,
     error,
+    error_code,
   };
 }
 
@@ -24,8 +25,8 @@ describe("Queue failed save-folder job", () => {
         new Response(
           JSON.stringify({
             items: [
-              job("a", "folder is not inside a Stash library path"),
-              job("b", "Timeout"),
+              job("a", "folder is not inside a Stash library path", "outside_library"),
+              job("b", "Timeout", "download_failed"),
             ],
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },

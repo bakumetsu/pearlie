@@ -840,3 +840,35 @@ def test_download_429_slows_next_request(
     target._download(URL, make_post(), ".png")
 
     assert sleeps[-1] == pytest.approx(30.0)
+
+
+def test_save_uses_overridden_path_mapping(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+    graphql_calls: list[tuple[str, dict]],
+) -> None:
+    """A saved mapping wins over .env: folder is validated and the scan path translated with it."""
+    stash.destinations.set_mapping(settings.db_path, "/data", "/lib")
+    stash.destinations.set_default(settings.db_path, "/data/sub")
+    monkeypatch.setattr(
+        stash.StashTarget,
+        "_move",
+        lambda self, temp, folder, name, md5, notices: (Path(folder) / name, False),
+    )
+    result = make_target().save(make_post(), [])
+
+    assert result.status == "saved"
+    assert result.dest_path == "/lib/sub/fake_42.png"
+    assert graphql_calls[2][1] == {"p": ["/lib/sub/fake_42.png"]}
+
+
+def test_save_rejects_folder_outside_overridden_mapping(
+    settings: Settings,
+    make_target,
+) -> None:
+    stash.destinations.set_mapping(settings.db_path, "/data", "/lib")
+    stash.destinations.set_default(settings.db_path, "/elsewhere")
+    with pytest.raises(stash.SaveError) as exc:
+        make_target().save(make_post(), [])
+    assert exc.value.code == "outside_library"

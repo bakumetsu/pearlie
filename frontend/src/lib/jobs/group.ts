@@ -98,7 +98,7 @@ export function attentionText(job: Job): string {
 }
 
 export function needsFolderFix(job: Job): boolean {
-  return job.state === "failed" && (job.error ?? "").includes("not inside a Stash library path");
+  return job.state === "failed" && job.error_code === "outside_library";
 }
 
 export function routeFor(job: Job): string | null {

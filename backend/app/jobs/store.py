@@ -23,6 +23,7 @@ def _to_job(row: sqlite3.Row) -> Job:
         "progress": 1.0 if row["status"] == "done" else 0.0,
         "eta_s": None,
         "error": row["error"],
+        "error_code": row["error_code"],
         "library_ref": None,
         "created_at": row["created_at"],
         "finished_at": row["finished_at"],

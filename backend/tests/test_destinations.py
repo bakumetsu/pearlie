@@ -269,6 +269,50 @@ def test_api_put_applies_prefix_map(tmp_path: Path) -> None:
     assert bad.json()["code"] == "outside_library"
 
 
+def test_mapping_override_wins_and_reset_falls_back(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    cfg = Settings(
+        mode="fixture",
+        db_path=tmp_path / "p.db",
+        static_dir=tmp_path / "nostatic",
+        stash_path_prefix_pearlie="/env",
+        stash_path_prefix_stash="/mnt/media/stash",
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+    )
+    c = TestClient(create_app(cfg))
+    first = c.get("/api/destinations").json()
+    assert first["prefix_pearlie"] == "/env"
+    assert first["prefix_from_env"] is True
+    saved = c.put(
+        "/api/destinations/mapping",
+        json={"prefix_pearlie": "/data/", "prefix_stash": "/mnt/media/stash"},
+    )
+    assert saved.status_code == 200
+    assert saved.json()["prefix_pearlie"] == "/data"
+    assert saved.json()["prefix_from_env"] is False
+    assert c.put("/api/destinations/default", json={"folder": "/data/rule34"}).status_code == 200
+    assert c.put("/api/destinations/default", json={"folder": "/env/rule34"}).status_code == 400
+    back = c.delete("/api/destinations/mapping").json()
+    assert back["prefix_pearlie"] == "/env"
+    assert back["prefix_from_env"] is True
+
+
+def test_mapping_validation(client) -> None:
+    url = "/api/destinations/mapping"
+    one = client.put(url, json={"prefix_pearlie": "/data", "prefix_stash": ""})
+    assert one.status_code == 422
+    rel = client.put(url, json={"prefix_pearlie": "data", "prefix_stash": "/x"})
+    assert rel.status_code == 422
+    empty = client.put(url, json={"prefix_pearlie": "", "prefix_stash": ""})
+    assert empty.status_code == 200
+    assert empty.json()["prefix_pearlie"] == ""
+    assert empty.json()["prefix_from_env"] is False
+
+
 # --- Danbooru source ---
 
 

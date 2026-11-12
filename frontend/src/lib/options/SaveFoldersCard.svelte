@@ -56,8 +56,49 @@
 		}
 	}
 
+	// Library paths are Stash-side; folders are stored Pearlie-side, so map back.
+	function toPearlie(path: string): string | null {
+		const pp = dest?.prefix_pearlie ?? "";
+		const ps = dest?.prefix_stash ?? "";
+		if (!pp) return path;
+		if (path === ps) return pp;
+		if (path.startsWith(ps + "/")) return pp + path.slice(ps.length);
+		return null;
+	}
+
+	const pickable = $derived(
+		paths.map((p) => toPearlie(p)).filter((p): p is string => p !== null),
+	);
+
 	function pick(key: string, path: string) {
 		drafts[key] = path;
+	}
+
+	let mapPearlie = $state("");
+	let mapStash = $state("");
+	let mapError = $state("");
+
+	$effect(() => {
+		mapPearlie = dest?.prefix_pearlie ?? "";
+		mapStash = dest?.prefix_stash ?? "";
+	});
+
+	async function saveMapping() {
+		mapError = "";
+		try {
+			adopt(await api.putPathMapping(mapPearlie.trim(), mapStash.trim()));
+		} catch (e) {
+			mapError = message(e);
+		}
+	}
+
+	async function resetMapping() {
+		mapError = "";
+		try {
+			adopt(await api.resetPathMapping());
+		} catch (e) {
+			mapError = message(e);
+		}
 	}
 </script>
 
@@ -77,11 +118,24 @@
 				{/each}
 			</ul>
 		{/if}
-		{#if dest.prefix_pearlie}
-			<p class="hint">
-				Path mapping (from .env): {dest.prefix_pearlie} is {dest.prefix_stash} in Stash
-			</p>
-		{/if}
+		<form
+			class="row folder-row"
+			data-testid="mapping"
+			onsubmit={(e) => {
+				e.preventDefault();
+				saveMapping();
+			}}
+		>
+			<label for="map-pearlie">Path mapping</label>
+			<input id="map-pearlie" type="text" data-testid="map-pearlie" placeholder="Pearlie path" autocomplete="off" bind:value={mapPearlie} />
+			<input id="map-stash" type="text" data-testid="map-stash" aria-label="Stash path" placeholder="Stash path" autocomplete="off" bind:value={mapStash} />
+			<button class="btn" type="submit" data-testid="save-mapping">Save</button>
+			{#if !dest.prefix_from_env}
+				<button class="btn" type="button" data-testid="reset-mapping" onclick={resetMapping}>Reset to .env</button>
+			{/if}
+			<span class="ok" data-testid="mapping-source">{dest.prefix_from_env ? "From .env" : "Saved here"}</span>
+			{#if mapError}<span class="err" role="alert">{mapError}</span>{/if}
+		</form>
 		{#each [DEFAULT_KEY, ...sites] as key (key)}
 			<form
 				class="row folder-row"
@@ -104,7 +158,7 @@
 					}}
 				/>
 				<button class="btn" type="submit" data-testid="save-{key}">Save</button>
-				{#if paths.length}
+				{#if pickable.length}
 					<select
 						aria-label="Pick a library path for {key}"
 						data-testid="pick-{key}"
@@ -114,7 +168,7 @@
 						}}
 					>
 						<option value="">Library paths</option>
-						{#each paths as path (path)}
+						{#each pickable as path (path)}
 							<option value={path}>{path}</option>
 						{/each}
 					</select>

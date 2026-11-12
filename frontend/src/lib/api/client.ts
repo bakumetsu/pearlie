@@ -115,6 +115,8 @@ export interface Api {
   putDefaultFolder(folder: string, signal?: AbortSignal): Promise<Destinations>;
   putSiteFolder(site: string, folder: string, signal?: AbortSignal): Promise<Destinations>;
   deleteSiteFolder(site: string, signal?: AbortSignal): Promise<Destinations>;
+  putPathMapping(prefixPearlie: string, prefixStash: string, signal?: AbortSignal): Promise<Destinations>;
+  resetPathMapping(signal?: AbortSignal): Promise<Destinations>;
   getUpdateStatus(p?: { refresh?: boolean; manual?: boolean }, signal?: AbortSignal): Promise<UpdateStatus>;
   putUpdateSettings(body: UpdateSettingsIn, signal?: AbortSignal): Promise<UpdateStatus>;
   applyUpdate(signal?: AbortSignal): Promise<UpdateApplied>;
@@ -437,6 +439,20 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ folder }) },
         signal,
       );
+    },
+    putPathMapping(prefixPearlie, prefixStash, signal) {
+      return request<Destinations>(
+        baseUrl + "/api/destinations/mapping",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prefix_pearlie: prefixPearlie, prefix_stash: prefixStash }),
+        },
+        signal,
+      );
+    },
+    resetPathMapping(signal) {
+      return request<Destinations>(baseUrl + "/api/destinations/mapping", { method: "DELETE" }, signal);
     },
     deleteSiteFolder(site, signal) {
       return request<Destinations>(
