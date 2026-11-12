@@ -682,7 +682,7 @@ rollback() {
     return 1
   fi
   set_current "$prev"
-  "$SYSTEMCTL" start pearlie
+  "$SYSTEMCTL" start pearlie || true
   if wait_healthy "$FROM_V"; then
     write_status rolled_back rollback "$reason"
     FINAL_WRITTEN=1
