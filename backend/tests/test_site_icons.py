@@ -89,6 +89,25 @@ def test_redirect_not_followed(tmp_path):
     assert [r.url.host for r in seen] == ["danbooru.donmai.us"]
 
 
+def test_429_raises_throttle_pace(tmp_path):
+    c, _ = real_client(tmp_path, lambda _r: httpx.Response(429, headers={"Retry-After": "30"}))
+    throttle = c.app.state.throttles["danbooru"]  # pyright: ignore[reportAttributeAccessIssue]
+    throttle._sleep = lambda _s: None
+    assert not throttle.backing_off
+    assert c.get("/api/site-icons/danbooru").status_code == 404
+    assert throttle.backing_off
+
+
+def test_network_error_not_reported(tmp_path):
+    def boom(_r: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down")
+
+    c, _ = real_client(tmp_path, boom)
+    throttle = c.app.state.throttles["danbooru"]  # pyright: ignore[reportAttributeAccessIssue]
+    throttle.report = lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("reported"))
+    assert c.get("/api/site-icons/danbooru").status_code == 404
+
+
 def test_unknown_site(client: TestClient):
     assert client.get("/api/site-icons/nope").status_code == 422
 
@@ -106,4 +125,6 @@ def test_hidden_sites(mode, client, tmp_path):
     assert r.json()["hidden_sites"] == ["gelbooru", "rule34"]
     assert c.get("/api/options").json()["hidden_sites"] == ["gelbooru", "rule34"]
     assert c.put("/api/options", json={"hidden_sites": ["bogus"]}).status_code == 422
+    all_sites = ["danbooru", "gelbooru", "rule34", "nhentai"]
+    assert c.put("/api/options", json={"hidden_sites": all_sites}).status_code == 422
     assert c.put("/api/options", json={"hidden_sites": []}).json()["hidden_sites"] == []

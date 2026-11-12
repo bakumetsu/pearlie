@@ -34,4 +34,15 @@ describe("DiscoverCard", () => {
     await fireEvent.click(screen.getByRole("switch", { name: "Show Rule34 in rail" }));
     expect(store.set).toHaveBeenCalledWith({ hidden_sites: ["nhentai"] });
   });
+
+  it("disables the switch of the last visible site", async () => {
+    const store = makeStore({ hidden_sites: ["gelbooru", "rule34", "nhentai"] });
+    render(DiscoverCard, { store });
+    const sw = screen.getByRole("switch", { name: "Show Danbooru in rail" }) as HTMLButtonElement;
+    expect(sw.disabled).toBe(true);
+    expect(screen.getByText("At least one site stays on.")).toBeTruthy();
+    await fireEvent.click(sw);
+    expect(store.set).not.toHaveBeenCalled();
+    expect((screen.getByRole("switch", { name: "Show Rule34 in rail" }) as HTMLButtonElement).disabled).toBe(false);
+  });
 });

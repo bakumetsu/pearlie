@@ -279,6 +279,8 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
         for site in body.hidden_sites:
             if site not in DEFAULT_PACE:
                 raise ApiError(422, "invalid", f"unknown site: {site}", field="hidden_sites")
+        if set(DEFAULT_PACE) <= set(body.hidden_sites):
+            raise ApiError(422, "invalid", "keep at least one site visible", field="hidden_sites")
         write("options.global.hidden_sites", ",".join(sorted(set(body.hidden_sites))))
 
     if body.source_pace is not None:

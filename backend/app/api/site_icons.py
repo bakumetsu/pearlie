@@ -29,8 +29,13 @@ TYPES = {
 }
 
 
-def _fetch(base: str, client: httpx.Client | None) -> tuple[bytes, str] | None:
-    """GET <base>/favicon.ico with no cookies or keys; None on anything but a small image."""
+def _fetch(
+    base: str, client: httpx.Client | None
+) -> tuple[int | None, tuple[bytes, str] | None]:
+    """GET <base>/favicon.ico with no cookies or keys.
+
+    Returns (HTTP status or None on a network error, the icon or None unless a small image).
+    """
     http = client or httpx.Client(timeout=5.0, follow_redirects=False)
     try:
         with http.stream(
@@ -38,19 +43,20 @@ def _fetch(base: str, client: httpx.Client | None) -> tuple[bytes, str] | None:
             base.rstrip("/") + "/favicon.ico",
             headers={"User-Agent": "Pearlie"},
         ) as resp:
-            if resp.status_code != 200:
-                return None
+            status = resp.status_code
+            if status != 200:
+                return status, None
             ctype = resp.headers.get("content-type", "").split(";")[0].strip().lower()
             if ctype not in TYPES:
-                return None
+                return status, None
             data = bytearray()
             for chunk in resp.iter_bytes():
                 data.extend(chunk)
                 if len(data) > MAX_ICON_BYTES:
-                    return None
-            return (bytes(data), ctype) if data else None
+                    return status, None
+            return status, ((bytes(data), ctype) if data else None)
     except httpx.HTTPError:
-        return None
+        return None, None
     finally:
         if client is None:
             http.close()
@@ -98,9 +104,9 @@ def _icon(request: Request, site: str) -> tuple[bytes, str] | None:
     throttle = request.app.state.throttles.get(site)
     if throttle is not None:
         throttle.wait()
-    got = _fetch(base, getattr(request.app.state, "site_icon_client", None))
-    if throttle is not None:
-        throttle.report(200 if got else 404)
+    status, got = _fetch(base, getattr(request.app.state, "site_icon_client", None))
+    if throttle is not None and status is not None:
+        throttle.report(status)
     if got is None:
         if cached is not None and cached[0] is not None:
             return cached[0], cached[1]
