@@ -7,8 +7,8 @@
   import { createSearch } from "../lib/stores/search.svelte";
   import { options } from "../lib/stores/options.svelte";
   import { visibleInSafeMode } from "../lib/stores/safeFilter";
-  import { parseSearchParams, buildSearchParams, serialiseQuery, sectionsFor, webNeedsQuery, filterChips, effectiveSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
-  import type { SearchState, SectionId, SiteId } from "../lib/query";
+  import { parseSearchParams, buildSearchParams, serialiseQuery, filterChips, effectiveSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
+  import type { SearchState, SiteId } from "../lib/query";
   import { hrefOf, linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
   import type { WebItem } from "../lib/api/client";
@@ -25,14 +25,6 @@
   const api = getApi();
   const router = getRouter();
   const search = createSearch(api);
-
-  const WEB_IDS: SectionId[] = ["danbooru", "gelbooru", "rule34", "nhentai"];
-  const SITE_NAMES: Record<SiteId, string> = {
-    danbooru: "Danbooru",
-    gelbooru: "Gelbooru",
-    rule34: "Rule34",
-    nhentai: "nhentai",
-  };
 
   const hidden = $derived(options.values?.hidden_sites ?? []);
   // The address keeps the saved sites; a hidden one is only left out of what is shown and searched.
@@ -158,15 +150,6 @@
     }
   }
 
-  const webSitesToHint = $derived(
-    webNeedsQuery(query)
-      ? sectionsFor(query.pill, query.sites).filter(
-          (id): id is SiteId =>
-            (WEB_IDS as string[]).includes(id) && !(id in search.sections)
-        )
-      : []
-  );
-
   const noResults = $derived(
     Object.keys(search.sections).length > 0 &&
       Object.values(search.sections).every(
@@ -256,13 +239,6 @@
           {#each visibleInSafeMode(entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (lightbox = item)} />{:else}<Tile item={item} href={itemHref(item)} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
         </SectionRow>
       {/if}
-    {/each}
-
-    {#each webSitesToHint as site (site)}
-      <div class="web-hint">
-        <h2>{SITE_NAMES[site]}</h2>
-        <p>Type a tag to search the web</p>
-      </div>
     {/each}
 
     {#if noResults}
@@ -530,25 +506,6 @@
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
-  }
-
-  .web-hint {
-    display: flex;
-    flex-direction: column;
-    gap: var(--s-1);
-  }
-
-  .web-hint h2 {
-    margin: 0;
-    font-size: var(--t-20);
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .web-hint p {
-    margin: 0;
-    font-size: var(--t-14);
-    color: var(--muted);
   }
 
   .no-results {

@@ -1,9 +1,7 @@
 import { ApiError } from "../api/client";
 import type { Api, Section, WebItem } from "../api/client";
-import { sectionsFor, serialiseQuery, webNeedsQuery } from "../query";
+import { sectionsFor, serialiseQuery } from "../query";
 import type { SearchState } from "../query";
-
-const LIBRARY_IDS = new Set(["stash_images", "stash_videos", "komga_books"]);
 
 export function createSearch(api: Api, opts?: { debounceMs?: number }) {
   const debounceMs = opts?.debounceMs ?? 300;
@@ -30,10 +28,7 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
   }
 
   function run(state: SearchState, o?: { immediate?: boolean; force?: boolean }) {
-    let ids = sectionsFor(state.pill, state.sites);
-    if (webNeedsQuery(state)) {
-      ids = ids.filter((id) => LIBRARY_IDS.has(id));
-    }
+    const ids = sectionsFor(state.pill, state.sites, state.chips);
 
     // An identical query (chips + sources) is never re-sent.
     const key = JSON.stringify([serialiseQuery(state.chips), ids]);
