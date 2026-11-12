@@ -201,3 +201,11 @@ export function toggleSiteIn(sites: SiteId[], id: SiteId): SiteId[] {
   const next = sites.includes(id) ? sites.filter((s) => s !== id) : [...sites, id];
   return SITE_ORDER.map((d) => d.id).filter((x) => next.includes(x));
 }
+
+/** Sites to show: hidden ones drop out; a selection that was only hidden sites falls back to the first visible one. */
+export function effectiveSites(sites: SiteId[], hidden: readonly string[]): SiteId[] {
+  const shown = sites.filter((id) => !hidden.includes(id));
+  if (shown.length > 0 || sites.length === 0) return shown;
+  const first = SITE_ORDER.find((d) => !hidden.includes(d.id));
+  return first ? [first.id] : [];
+}

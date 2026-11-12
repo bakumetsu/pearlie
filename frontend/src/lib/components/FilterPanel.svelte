@@ -7,6 +7,7 @@
   let {
     pill,
     sites,
+    hidden = [],
     onpill,
     onsites,
     onclear,
@@ -14,6 +15,7 @@
   }: {
     pill: Pill;
     sites: SiteId[];
+    hidden?: readonly string[];
     onpill: (p: Pill) => void;
     onsites: (s: SiteId[]) => void;
     onclear: () => void;
@@ -67,7 +69,7 @@
     <section class="fsec">
       <h3>Sites</h3>
       <div class="opts" data-testid="site-opts">
-        {#each SITE_ORDER as s (s.id)}
+        {#each SITE_ORDER.filter((d) => !hidden.includes(d.id)) as s (s.id)}
           <button type="button" class:on={sites.includes(s.id)} aria-pressed={sites.includes(s.id)} onclick={() => onsites(toggleSiteIn(sites, s.id))}>{s.label}</button>
         {/each}
       </div>

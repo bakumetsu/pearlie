@@ -16,6 +16,7 @@ const base: Options = {
   backdrop_lightbox: true,
   allow_blurred_tags: false,
   trash_retention_days: 7,
+  hidden_sites: [],
   source_pace: {},
 };
 

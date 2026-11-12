@@ -2,11 +2,19 @@
   import type { SiteId } from "../query";
   import { SITE_ORDER, toggleSiteIn } from "../query";
 
-  let { sites, onsites }: { sites: SiteId[]; onsites: (s: SiteId[]) => void } = $props();
+  let {
+    sites,
+    onsites,
+    hidden = [],
+  }: { sites: SiteId[]; onsites: (s: SiteId[]) => void; hidden?: readonly string[] } = $props();
+
+  // Sites whose icon failed to load keep the letter mark.
+  let broken = $state<Record<string, boolean>>({});
+  const shown = $derived(SITE_ORDER.filter((s) => !hidden.includes(s.id)));
 </script>
 
 <div class="marks" role="group" aria-label="Sites">
-  {#each SITE_ORDER as s (s.id)}
+  {#each shown as s (s.id)}
     {@const on = sites.includes(s.id)}
     <button
       class="mark-btn"
@@ -17,7 +25,20 @@
       onclick={() => onsites(toggleSiteIn(sites, s.id))}
     >
       <span class="mark-visual" class:active={on}>
-        <span class="mk" aria-hidden="true">{s.label[0]}</span>
+        {#if broken[s.id]}
+          <span class="mk" aria-hidden="true">{s.label[0]}</span>
+        {:else}
+          <span class="mk" aria-hidden="true"
+            ><img
+              class="mk-img"
+              src={`/api/site-icons/${s.id}`}
+              alt=""
+              width="16"
+              height="16"
+              onerror={() => (broken[s.id] = true)}
+            /></span
+          >
+        {/if}
         {#if on}<span class="mk-name">{s.label}</span>{/if}
       </span>
     </button>
@@ -75,6 +96,12 @@
     color: var(--text);
     font-size: 11px;
     font-weight: 700;
+  }
+
+  .mk-img {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
   }
 
   .active .mk {

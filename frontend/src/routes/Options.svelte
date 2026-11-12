@@ -20,6 +20,7 @@
   import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
   import ConnectionRows from "../lib/options/ConnectionRows.svelte";
   import ContentFilterCard from "../lib/options/ContentFilterCard.svelte";
+  import DiscoverCard from "../lib/options/DiscoverCard.svelte";
   import { guardedNavigate } from "../lib/stores/rules.svelte";
 
   let { match }: { match: Match } = $props();
@@ -270,6 +271,8 @@
             <ImageViewerCard />
           {:else if activeSectionId === "content-filter" && card.title === "Content filter"}
             <ContentFilterCard />
+          {:else if activeSectionId === "discover" && card.title === "Sites in the rail"}
+            <DiscoverCard />
           {:else if activeSectionId === "sources" && card.title === "Downloads"}
             <DownloadsCard />
           {:else if activeSectionId === "trash" && card.title === "Retention"}
@@ -424,6 +427,8 @@
               <ImageViewerCard />
             {:else if activeSectionId === "content-filter" && card.title === "Content filter"}
               <ContentFilterCard />
+            {:else if activeSectionId === "discover" && card.title === "Sites in the rail"}
+              <DiscoverCard />
             {:else if activeSectionId === "sources" && card.title === "Downloads"}
               <DownloadsCard />
             {:else if activeSectionId === "trash" && card.title === "Retention"}

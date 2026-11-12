@@ -5,8 +5,9 @@
   import { itemHref, toPlural } from "../lib/item/kinds";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { createSearch } from "../lib/stores/search.svelte";
+  import { options } from "../lib/stores/options.svelte";
   import { visibleInSafeMode } from "../lib/stores/safeFilter";
-  import { parseSearchParams, buildSearchParams, serialiseQuery, sectionsFor, webNeedsQuery, filterChips, DEFAULT_SITES } from "../lib/query";
+  import { parseSearchParams, buildSearchParams, serialiseQuery, sectionsFor, webNeedsQuery, filterChips, effectiveSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SectionId, SiteId } from "../lib/query";
   import { hrefOf, linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
@@ -33,7 +34,10 @@
     nhentai: "nhentai",
   };
 
-  const query = $derived(parseSearchParams("?" + match.query.toString()));
+  const hidden = $derived(options.values?.hidden_sites ?? []);
+  // The address keeps the saved sites; a hidden one is only left out of what is shown and searched.
+  const saved = $derived(parseSearchParams("?" + match.query.toString()));
+  const query = $derived({ ...saved, sites: effectiveSites(saved.sites, hidden) });
 
   // Chip edits stay in a draft until the user runs the search.
   let draftChips = $derived(query.chips);
@@ -87,19 +91,20 @@
   }
 
   function runSearch(): void {
-    if (dirty) navigateState({ ...query, chips: draftChips });
+    if (dirty) navigateState({ ...saved, chips: draftChips });
   }
 
   function handlePillChange(pill: typeof query.pill): void {
-    navigateState({ ...query, pill });
+    navigateState({ ...saved, pill });
   }
 
   function clearFilters(): void {
-    navigateState({ ...query, pill: "all", sites: DEFAULT_SITES });
+    navigateState({ ...saved, pill: "all", sites: DEFAULT_SITES });
   }
 
   function handleSitesChange(sites: SiteId[]): void {
-    navigateState({ ...query, sites });
+    const kept = sites.length ? saved.sites.filter((id) => hidden.includes(id)) : [];
+    navigateState({ ...saved, sites: SITE_ORDER.map((d) => d.id).filter((id) => kept.includes(id) || sites.includes(id)) });
   }
 
   function tileSaveState(item: WebItem): "idle" | "queued" | "in_library" {
@@ -178,7 +183,7 @@
   <header class="header">
     <h1 class="sr-only" tabindex="-1" bind:this={h1}>Discover</h1>
     <div class="hmarks">
-      <SiteMarks sites={query.sites} onsites={handleSitesChange} />
+      <SiteMarks sites={query.sites} onsites={handleSitesChange} {hidden} />
     </div>
     <div class="hfield">
       <div class="search-row">

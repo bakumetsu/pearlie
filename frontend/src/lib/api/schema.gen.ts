@@ -833,6 +833,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/site-icons/{site}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Site Icon */
+        get: operations["get_site_icon_api_site_icons__site__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/update/status": {
         parameters: {
             query?: never;
@@ -1324,6 +1341,11 @@ export interface components {
             source_pace: {
                 [key: string]: components["schemas"]["SitePace"];
             };
+            /**
+             * Hidden Sites
+             * @default []
+             */
+            hidden_sites: string[];
         };
         /** OptionsUpdate */
         OptionsUpdate: {
@@ -1347,6 +1369,8 @@ export interface components {
             source_pace?: {
                 [key: string]: number;
             } | null;
+            /** Hidden Sites */
+            hidden_sites?: string[] | null;
         };
         /** PageStats */
         PageStats: {
@@ -3357,6 +3381,45 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TestOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_site_icon_api_site_icons__site__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                site: "danbooru" | "gelbooru" | "rule34" | "nhentai";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "image/*": unknown;
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
