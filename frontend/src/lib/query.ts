@@ -153,3 +153,51 @@ export function buildSearchParams(s: SearchState): string {
 export function webNeedsQuery(s: SearchState): boolean {
   return s.chips.length === 0;
 }
+
+export const PILLS: { id: Pill; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "images", label: "Images" },
+  { id: "videos", label: "Videos" },
+  { id: "books", label: "Books" },
+  { id: "web", label: "Web" },
+];
+
+export const SITE_ORDER: { id: SiteId; label: string }[] = [
+  { id: "danbooru", label: "Danbooru" },
+  { id: "gelbooru", label: "Gelbooru" },
+  { id: "rule34", label: "Rule34" },
+  { id: "nhentai", label: "nhentai" },
+];
+
+export type FilterChip = { key: string; label: string; remove: Partial<SearchState> };
+
+function isDefaultSites(sites: SiteId[]): boolean {
+  return sites.length === DEFAULT_SITES.length && sites.every((v, i) => v === DEFAULT_SITES[i]);
+}
+
+/** Filters that differ from the defaults, each with the state change that clears it. */
+export function filterChips(s: SearchState): FilterChip[] {
+  const out: FilterChip[] = [];
+  if (s.pill !== "all") {
+    out.push({ key: "pill", label: PILLS.find((p) => p.id === s.pill)?.label ?? s.pill, remove: { pill: "all" } });
+  }
+  if (!isDefaultSites(s.sites)) {
+    if (s.sites.length === 0) {
+      out.push({ key: "sites", label: "No sites", remove: { sites: DEFAULT_SITES } });
+    }
+    for (const id of s.sites) {
+      out.push({
+        key: "site:" + id,
+        label: SITE_ORDER.find((d) => d.id === id)?.label ?? id,
+        remove: { sites: s.sites.filter((x) => x !== id) },
+      });
+    }
+  }
+  return out;
+}
+
+/** Toggle one site, keeping the canonical site order. */
+export function toggleSiteIn(sites: SiteId[], id: SiteId): SiteId[] {
+  const next = sites.includes(id) ? sites.filter((s) => s !== id) : [...sites, id];
+  return SITE_ORDER.map((d) => d.id).filter((x) => next.includes(x));
+}
