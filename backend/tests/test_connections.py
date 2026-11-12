@@ -707,7 +707,12 @@ def test_put_komga_swaps_client(tmp_path: Path) -> None:
 def test_env_locked_key_wins_after_save(tmp_path: Path) -> None:
     c = make_client(
         tmp_path, mode="real", secret_key=master_key(),
-        env={"real": "search", "stash_url": "http://stash.local:9999", "komga_url": "http://komga.local:8888", "stash_api_key": "envsecret"},
+        env={
+            "real": "search",
+            "stash_url": "http://stash.local:9999",
+            "komga_url": "http://komga.local:8888",
+            "stash_api_key": "envsecret",
+        },
     )
     c.put(
         "/api/connections/stash",
