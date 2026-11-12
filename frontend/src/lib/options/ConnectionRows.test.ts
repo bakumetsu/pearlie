@@ -131,7 +131,7 @@ describe("ConnectionRows", () => {
 
     const keyInput = document.getElementById("conn-key") as HTMLInputElement;
     expect(keyInput.disabled).toBe(true);
-    expect(screen.getByRole("note").textContent).toBe("Set PEARLIE_SECRET_KEY in .env to save keys here");
+    expect(screen.getByRole("note").textContent).toContain("could not create its encryption key file");
 
     const addrInput = document.getElementById("conn-addr") as HTMLInputElement;
     expect(addrInput.disabled).toBe(false);
@@ -154,7 +154,7 @@ describe("ConnectionRows", () => {
     expect(screen.getByText("set in .env")).toBeDefined();
   });
 
-  it("Save and test sends only changed fields", async () => {
+  it("Save sends only changed fields", async () => {
     // Sub-test a: typing a key
     const { putConnection, testConnection } = await renderRows();
 
@@ -163,7 +163,7 @@ describe("ConnectionRows", () => {
 
     const keyInput = document.getElementById("conn-key") as HTMLInputElement;
     fireEvent.input(keyInput, { target: { value: "abc" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save and test" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await vi.waitFor(() => expect(putConnection).toHaveBeenCalledWith("stash", { secret: "abc" }));
     await vi.waitFor(() => expect(testConnection).toHaveBeenCalledWith("stash"));
@@ -183,7 +183,7 @@ describe("ConnectionRows", () => {
       await screen.findByText("Changing the address clears the stored key unless you also enter a key."),
     ).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: "Save and test" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await vi.waitFor(() =>
       expect(put2).toHaveBeenCalledWith("komga", { address: "http://new-address:1234" }),
@@ -240,7 +240,7 @@ describe("ConnectionRows", () => {
 
     const keyInput = document.getElementById("conn-key") as HTMLInputElement;
     fireEvent.input(keyInput, { target: { value: "try-key" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save and test" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toBe(errorText(new ApiError(409, "no_master_key", "Set PEARLIE_SECRET_KEY in .env to save keys here")));
@@ -258,7 +258,7 @@ describe("ConnectionRows", () => {
     const secret = "super-secret-123";
     const keyInput = document.getElementById("conn-key") as HTMLInputElement;
     fireEvent.input(keyInput, { target: { value: secret } });
-    fireEvent.click(screen.getByRole("button", { name: "Save and test" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 

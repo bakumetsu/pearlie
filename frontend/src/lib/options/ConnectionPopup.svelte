@@ -192,7 +192,7 @@
 				<span class="chip">{keySet ? "set" : "missing"}</span>
 			{/if}
 			{#if !store.canStore}
-				<p class="note" role="note">Set PEARLIE_SECRET_KEY in .env to save keys here</p>
+				<p class="note" role="note">Keys can't be saved here: Pearlie could not create its encryption key file. Check that the data folder is writable, or set PEARLIE_SECRET_KEY in .env.</p>
 			{/if}
 		</div>
 
@@ -216,7 +216,7 @@
 
 		<div class="row actions">
 			<button class="btn" disabled={busy} on:click={onclose}>Cancel</button>
-			<button class="btn primary" disabled={busy} on:click={handleSaveAndTest}>Save and test</button>
+			<button class="btn primary" disabled={busy} on:click={handleSaveAndTest}>Save</button>
 		</div>
 	</div>
 </div>
