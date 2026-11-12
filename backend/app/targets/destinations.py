@@ -185,3 +185,30 @@ def resolve(db_path: Path, site: str, fallback_default: str) -> str:
     finally:
         conn.close()
     return get_default(db_path, fallback_default)
+
+
+def resolve_site(db_path: Path, site: str, fallback: str) -> str:
+    """Return the site's folder if set, else the fallback (may be empty); no default row."""
+    conn = connect(db_path)
+    try:
+        row = conn.execute("SELECT folder FROM destinations WHERE site = ?", (site,)).fetchone()
+    finally:
+        conn.close()
+    return row["folder"] if row is not None else fallback
+
+
+def validate_komga_folder(
+    folder: str,
+    library_roots: list[str],
+    prefix_pearlie: str = "",
+    prefix_komga: str = "",
+) -> str:
+    """Like validate_folder, but against Komga library roots."""
+    try:
+        return validate_folder(folder, library_roots, prefix_pearlie, prefix_komga)
+    except DestinationError as err:
+        if err.code == "outside_library":
+            raise DestinationError(
+                "outside_library", "folder is not inside a Komga library root", 400
+            ) from None
+        raise

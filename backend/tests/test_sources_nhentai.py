@@ -191,7 +191,7 @@ def test_search_section_and_filters(tmp_path: Path) -> None:
     sec = c.get("/api/search?q=x&sources=nhentai").json()["sections"][0]
     assert sec["id"] == "nhentai" and sec["hidden"] == 2
     item = sec["items"][0]
-    assert item["target"] == "komga" and item["saveable"] is False
+    assert item["target"] == "komga" and item["saveable"] is True
     assert item["title"] == "Pretty 1" and item["page_count"] == 2
 
 

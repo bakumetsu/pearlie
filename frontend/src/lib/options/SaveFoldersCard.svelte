@@ -15,11 +15,13 @@
 
 	const sites = $derived(dest?.sites ?? []);
 	const paths = $derived(dest?.library_paths ?? []);
+	const komgaSites = $derived(dest?.komga_sites ?? []);
+	const komgaPaths = $derived(dest?.komga_library_paths ?? []);
 
 	function adopt(d: Destinations) {
 		dest = d;
 		const next: Record<string, string> = { [DEFAULT_KEY]: d.default_folder };
-		for (const site of d.sites ?? []) {
+		for (const site of [...(d.sites ?? []), ...(d.komga_sites ?? [])]) {
 			next[site] = d.items.find((i) => i.site === site)?.folder ?? "";
 		}
 		drafts = next;
@@ -70,6 +72,10 @@
 		paths.map((p) => toPearlie(p)).filter((p): p is string => p !== null),
 	);
 
+	function pathsFor(key: string): string[] {
+		return komgaSites.includes(key) ? komgaPaths : pickable;
+	}
+
 	function pick(key: string, path: string) {
 		drafts[key] = path;
 	}
@@ -104,10 +110,13 @@
 
 <section class="card" id="save-folders" data-testid="save-folders">
 	<h2 class="card-title">Save folders</h2>
-	<p class="hint">Where saved posts go in Stash. Folders must be inside a Stash library path.</p>
+	<p class="hint">Where saved posts go. Folders must be inside a Stash library path (Komga sites: a Komga library root).</p>
 	{#if loadError}
 		<span class="err" role="alert">{loadError}</span>
 	{:else if dest}
+		{#if dest.komga_library_error}
+			<p class="hint" role="status">Could not read Komga libraries: {dest.komga_library_error}</p>
+		{/if}
 		{#if dest.library_error}
 			<p class="hint" role="status">Could not read Stash library paths: {dest.library_error}</p>
 		{:else if paths.length}
@@ -136,7 +145,7 @@
 			<span class="ok" data-testid="mapping-source">{dest.prefix_from_env ? "From .env" : "Saved here"}</span>
 			{#if mapError}<span class="err" role="alert">{mapError}</span>{/if}
 		</form>
-		{#each [DEFAULT_KEY, ...sites] as key (key)}
+		{#each [DEFAULT_KEY, ...sites, ...komgaSites] as key (key)}
 			<form
 				class="row folder-row"
 				onsubmit={(e) => {
@@ -149,7 +158,11 @@
 					id="folder-{key}"
 					type="text"
 					data-testid="folder-{key}"
-					placeholder={key === DEFAULT_KEY ? "" : "Uses the default"}
+					placeholder={key === DEFAULT_KEY
+						? ""
+						: komgaSites.includes(key)
+							? "Komga folder"
+							: "Uses the default"}
 					autocomplete="off"
 					spellcheck="false"
 					bind:value={drafts[key]}
@@ -158,7 +171,7 @@
 					}}
 				/>
 				<button class="btn" type="submit" data-testid="save-{key}">Save</button>
-				{#if pickable.length}
+				{#if pathsFor(key).length}
 					<select
 						aria-label="Pick a library path for {key}"
 						data-testid="pick-{key}"
@@ -168,7 +181,7 @@
 						}}
 					>
 						<option value="">Library paths</option>
-						{#each pickable as path (path)}
+						{#each pathsFor(key) as path (path)}
 							<option value={path}>{path}</option>
 						{/each}
 					</select>

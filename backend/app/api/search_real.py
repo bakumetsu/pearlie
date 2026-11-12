@@ -46,7 +46,7 @@ _TITLES = {
 _LIBRARY = {"stash_images", "stash_videos", "komga_books"}
 
 # Targets a save job can reach today; T-131b adds "komga".
-_SAVE_TARGETS = {"stash"}
+_SAVE_TARGETS = {"stash", "komga"}
 
 VIDEO_EXTS = (".mp4", ".webm", ".mov", ".m4v", ".mkv")
 

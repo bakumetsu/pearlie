@@ -188,7 +188,7 @@ def test_api_put_rejects_dotdot(client) -> None:
 
 
 def test_api_put_rejects_unknown_site(client) -> None:
-    resp = client.put("/api/destinations/nhentai", json={"folder": "/mnt/media/stash/rule34"})
+    resp = client.put("/api/destinations/nosuchsite", json={"folder": "/mnt/media/stash/rule34"})
     assert resp.status_code == 422
     assert resp.json()["code"] == "invalid"
 
@@ -321,3 +321,34 @@ def test_danbooru_source() -> None:
     assert d.target == "stash"
     assert "cdn.donmai.us" in d.file_hosts
     assert "danbooru.donmai.us" in d.file_hosts
+
+
+def test_api_komga_site_validates_against_komga_roots(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    class FakeKomga:
+        def list_libraries(self) -> list[dict]:
+            return [{"id": "L1", "root": "/mnt/komga/doujin"}]
+
+    cfg = Settings(
+        mode="real",
+        db_path=tmp_path / "p.db",
+        static_dir=tmp_path / "nostatic",
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+    )
+    app = create_app(cfg)
+    app.state.komga = FakeKomga()
+    with TestClient(app) as c:
+        body = c.get("/api/destinations").json()
+        assert body["komga_sites"] == ["nhentai"]
+        assert body["komga_library_paths"] == ["/mnt/komga/doujin"]
+        bad = c.put("/api/destinations/nhentai", json={"folder": "/mnt/stash/x"})
+        assert bad.status_code == 400
+        assert "Komga" in bad.json()["message"]
+        ok = c.put("/api/destinations/nhentai", json={"folder": "/mnt/komga/doujin/in"})
+        assert ok.status_code == 200
+        assert ok.json()["items"] == [{"site": "nhentai", "folder": "/mnt/komga/doujin/in"}]
+        assert c.delete("/api/destinations/nhentai").status_code == 200

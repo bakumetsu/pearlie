@@ -81,6 +81,21 @@ class NHentai:
     def _auth(self) -> SiteAuth:
         return build_auth(self.id, self._credentials() if self._credentials else {})
 
+    def page_urls(self, post: Post) -> list[str]:
+        """Image URL of every page, in order (CDN host, never the API host)."""
+        media_id = str(post.extra.get("media_id") or "")
+        raw = post.extra.get("page_exts")
+        exts = raw if isinstance(raw, list) else []
+        if not media_id.isalnum():
+            return []
+        return [
+            f"https://i.nhentai.net/galleries/{media_id}/{n}.{e}" for n, e in enumerate(exts, 1)
+        ]
+
+    def page_headers(self) -> dict[str, str]:
+        """Headers for page downloads: User-Agent only, the Cookie stays on the API host."""
+        return {k: v for k, v in self._auth().headers.items() if k.lower() != "cookie"}
+
     def _get(self, path: str, params: dict[str, str | int] | None = None) -> dict:
         """GET one API path (Cookie goes to the API host only) and return the JSON object."""
         self._throttle.wait()

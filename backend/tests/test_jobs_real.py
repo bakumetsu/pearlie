@@ -273,3 +273,23 @@ def test_worker_wake(tmp_path: Path) -> None:
     assert isinstance(cast(FastAPI, client.app).state.worker, JobWorker)
     resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
     assert resp.status_code == 202
+
+
+def test_save_komga_source_without_komga_target(tmp_path: Path) -> None:
+    client, sources, _ = make_client(tmp_path)
+    sources["danbooru"].target = "komga"
+    resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "no_target"
+
+
+def test_save_komga_source_queues_with_title(tmp_path: Path) -> None:
+    client, sources, _ = make_client(tmp_path)
+    sources["danbooru"].target = "komga"
+    sources["danbooru"].posts["1"].title = "Some Gallery"
+    client.app.state.komga_target = object()  # type: ignore[attr-defined]
+    resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
+    assert resp.status_code == 202
+    job = client.get(f"/api/jobs/{resp.json()['job_id']}").json()
+    assert job["target"] == "komga"
+    assert job["title"] == "Some Gallery"

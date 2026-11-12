@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Request
 
 from app.api.errors import ApiError
+from app.komga import KomgaError
 from app.models import DestinationItem, Destinations, FolderBody, MappingBody
 from app.targets import destinations
 from app.targets.destinations import DestinationError
@@ -29,12 +30,18 @@ def _library_paths(request: Request) -> list[str]:
     raise ApiError(502, "not_configured", "Stash is not configured")
 
 
-def _sites(request: Request) -> list[str]:
-    return [
-        sid
-        for sid, src in request.app.state.sources.items()
-        if src.target == "stash"
-    ]
+def _sites(request: Request, target: str = "stash") -> list[str]:
+    return [sid for sid, src in request.app.state.sources.items() if src.target == target]
+
+
+def _komga_roots(request: Request) -> list[str]:
+    client = request.app.state.komga
+    if client is None:
+        raise ApiError(502, "not_configured", "Komga is not configured")
+    try:
+        return [str(lib.get("root", "")) for lib in client.list_libraries()]
+    except KomgaError as err:
+        raise ApiError(err.status, err.code, err.message) from None
 
 
 def _mapping(request: Request) -> tuple[str, str, bool]:
@@ -56,9 +63,7 @@ def _validated(request: Request, folder: str) -> str:
 
 def _payload(request: Request) -> Destinations:
     settings = request.app.state.settings
-    default = destinations.get_default(
-        settings.db_path, settings.stash_default_dir.as_posix()
-    )
+    default = destinations.get_default(settings.db_path, settings.stash_default_dir.as_posix())
     rows = destinations.list_destinations(settings.db_path)
     items = [DestinationItem(**row) for row in rows]
     try:
@@ -67,6 +72,14 @@ def _payload(request: Request) -> Destinations:
     except ApiError as err:
         library, library_error = [], err.message
     pp, ps, from_env = _mapping(request)
+    komga_sites = _sites(request, "komga")
+    komga_roots: list[str] = []
+    komga_error = None
+    if komga_sites:
+        try:
+            komga_roots = _komga_roots(request)
+        except ApiError as err:
+            komga_error = err.message
     return Destinations(
         default_folder=default,
         items=items,
@@ -76,6 +89,9 @@ def _payload(request: Request) -> Destinations:
         prefix_pearlie=pp,
         prefix_stash=ps,
         prefix_from_env=from_env,
+        komga_sites=komga_sites,
+        komga_library_paths=komga_roots,
+        komga_library_error=komga_error,
     )
 
 
@@ -110,9 +126,21 @@ def delete_mapping(request: Request) -> Destinations:
 
 @router.put("/destinations/{site}", response_model=Destinations)
 def put_destination(body: FolderBody, request: Request, site: str) -> Destinations:
-    if site not in _sites(request):
+    if site in _sites(request, "komga"):
+        s = request.app.state.settings
+        try:
+            validated = destinations.validate_komga_folder(
+                body.folder,
+                _komga_roots(request),
+                s.komga_path_prefix_pearlie,
+                s.komga_path_prefix_komga,
+            )
+        except DestinationError as err:
+            raise ApiError(err.status, err.code, err.message) from None
+    elif site in _sites(request):
+        validated = _validated(request, body.folder)
+    else:
         raise ApiError(422, "invalid", f"Unknown site {site}", field="site")
-    validated = _validated(request, body.folder)
     settings = request.app.state.settings
     destinations.set_destination(settings.db_path, site, validated)
     return _payload(request)
@@ -120,7 +148,7 @@ def put_destination(body: FolderBody, request: Request, site: str) -> Destinatio
 
 @router.delete("/destinations/{site}", response_model=Destinations)
 def delete_destination(request: Request, site: str) -> Destinations:
-    if site not in _sites(request):
+    if site not in _sites(request) + _sites(request, "komga"):
         raise ApiError(422, "invalid", f"Unknown site {site}", field="site")
     settings = request.app.state.settings
     if not destinations.delete_destination(settings.db_path, site):

@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     stash_path_prefix_pearlie: str = ""
     stash_path_prefix_stash: str = ""
     stash_scan_timeout_s: float = 120.0
+    komga_incoming_dir: str = ""
+    komga_temp_dir: Path = Path("/mnt/media/komga/.pearlie-tmp")
+    komga_path_prefix_pearlie: str = ""
+    komga_path_prefix_komga: str = ""
     download_interval_s: float = 2.0
     worker_enabled: bool = True
 
