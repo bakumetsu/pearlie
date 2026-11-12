@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "$#" -ne 3 || "$1" != "-sfn" ]]; then
+  echo "BAD ln $*" >> "$STUB_LOG"
+  exit 99
+fi
+
+echo "ln $*" >> "$STUB_LOG"
+
+target="$2"
+link="$3"
+
+rm -rf "$link"
+printf '%s' "$target" > "$link"

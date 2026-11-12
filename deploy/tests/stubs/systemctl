@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "$#" -eq 2 && "$2" == "pearlie" && ( "$1" == "stop" || "$1" == "start" ) ]]; then
+  echo "systemctl $*" >> "$STUB_LOG"
+
+  if [[ "$1" == "stop" ]]; then
+    touch "$STUB_STATE/stopped"
+    if [[ -e "$STUB_STATE/kill_on_stop" ]]; then
+      kill -TERM "$PPID"
+      sleep 1
+    fi
+    exit 0
+  fi
+
+  if [[ -e "$STUB_STATE/start_fail" ]]; then
+    exit 1
+  fi
+
+  rm -f "$STUB_STATE/stopped"
+  if [[ -e "$STUB_STATE/corrupt_db_on_start" ]]; then
+    printf 'db-corrupt\n' > "$PEARLIE_ROOT/data/pearlie.db"
+    rm -f "$STUB_STATE/corrupt_db_on_start"
+  fi
+  exit 0
+else
+  echo "BAD systemctl $*" >> "$STUB_LOG"
+  exit 99
+fi

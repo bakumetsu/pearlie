@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "$#" -eq 3 && "$1" == "-f" ]]; then
+  echo "mv $*" >> "$STUB_LOG"
+  PATH="$STUB_ORIG_PATH" mv -f "$2" "$3"
+elif [[ "$#" -eq 3 && "$1" == "-Tf" ]]; then
+  echo "mv $*" >> "$STUB_LOG"
+  dst="$3"
+  if [[ -d "$dst" ]]; then
+    echo "BAD mv $*" >> "$STUB_LOG"
+    exit 99
+  fi
+  rm -rf "$dst"
+  PATH="$STUB_ORIG_PATH" mv -f "$2" "$3"
+else
+  echo "BAD mv $*" >> "$STUB_LOG"
+  exit 99
+fi
