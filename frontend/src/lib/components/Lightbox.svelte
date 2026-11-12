@@ -135,26 +135,28 @@
       </section>
     {/if}
 
-    {#if saveState === "in_library"}
-      <a class="save-btn in-library" href={savedHref}>
-        <Icon name="check" size={18} />
-        In library
-      </a>
-    {:else if saveState === "queued"}
-      <button class="save-btn" disabled>
-        <Icon name="loader" size={18} />
-        Queued
-      </button>
-    {:else if saveState === "blocked"}
-      <button class="save-btn blocked" disabled>
-        <Icon name="alert" size={18} />
-        Blocked by a rule
-      </button>
-    {:else}
-      <button class="save-btn" onclick={onsave}>
-        <Icon name="download" size={18} />
-        Save
-      </button>
+    {#if item.saveable !== false}
+      {#if saveState === "in_library"}
+        <a class="save-btn in-library" href={savedHref}>
+          <Icon name="check" size={18} />
+          In library
+        </a>
+      {:else if saveState === "queued"}
+        <button class="save-btn" disabled>
+          <Icon name="loader" size={18} />
+          Queued
+        </button>
+      {:else if saveState === "blocked"}
+        <button class="save-btn blocked" disabled>
+          <Icon name="alert" size={18} />
+          Blocked by a rule
+        </button>
+      {:else}
+        <button class="save-btn" onclick={onsave}>
+          <Icon name="download" size={18} />
+          Save
+        </button>
+      {/if}
     {/if}
 
     <p class="meta">Source: {item.source} · Post {item.post_id}</p>

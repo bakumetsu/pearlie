@@ -36,6 +36,8 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
     src = sources.get(body.source)
     if src is None:
         raise ApiError(422, "source_unavailable", f"{body.source} is not connected")
+    if src.target != "stash":  # T-131b adds the Komga save path
+        raise ApiError(422, "no_target", f"saving from {body.source} is not available yet")
     store = _store(request)
     image_id = store.saved_image_id(body.source, body.post_id)
     if image_id is not None:

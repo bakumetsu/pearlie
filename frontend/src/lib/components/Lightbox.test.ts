@@ -59,6 +59,15 @@ describe("Lightbox", () => {
     vi.useRealTimers();
   });
 
+  it("shows Save for a saveable item and hides it when saveable is false", () => {
+    for (const [saveable, count] of [[true, 1], [false, 0]] as const) {
+      const item = { source: "x", post_id: "1", preview_url: "http://mock/p.jpg", thumb_url: "http://mock/t.jpg", width: 10, height: 10, tags: [], saveable } as never;
+      const r = render(Lightbox, { props: { item, onsave: () => {}, onclose: () => {} } });
+      expect(document.querySelectorAll(".save-btn").length).toBe(count);
+      r.unmount();
+    }
+  });
+
   it.each(cases)(
     "$label pointerover on .stage does NOT reveal img",
     ({ width, height }) => {

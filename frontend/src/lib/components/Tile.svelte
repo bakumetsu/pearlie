@@ -108,7 +108,7 @@
           <span class="badge"><Icon name="check" size={12} />In library</span>
         {/if}
       {/if}
-      {#if saveState === "idle" && !w.saved}
+      {#if saveState === "idle" && !w.saved && w.saveable !== false}
         <button class="save-btn" onclick={onsave} aria-label="Save"><Icon name="download" size={18} /></button>
       {:else if saveState === "queued"}
         <button class="save-btn" disabled aria-label="Queued"><span class="spin"><Icon name="loader" size={18} /></span></button>

@@ -1885,6 +1885,11 @@ export interface components {
              * @enum {string}
              */
             target: "stash" | "komga";
+            /**
+             * Saveable
+             * @default true
+             */
+            saveable: boolean;
             saved?: components["schemas"]["SavedRef"] | null;
             blur?: components["schemas"]["Blur"] | null;
         };

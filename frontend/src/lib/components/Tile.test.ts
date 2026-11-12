@@ -132,6 +132,13 @@ describe("Tile web caption", () => {
     const { container } = render(Tile, { item: webItem, variant: "list" });
     expect(container.querySelector(".title")!.textContent).toBe("Hello");
   });
+  it("shows Save for a saveable item and hides it when saveable is false", () => {
+    const on = render(Tile, { item: webItem });
+    expect(on.container.querySelector("button.save-btn")).not.toBeNull();
+    cleanup();
+    const off = render(Tile, { item: { ...(webItem as object), source: "nhentai", target: "komga", saveable: false } as never });
+    expect(off.container.querySelector("button.save-btn")).toBeNull();
+  });
   it("save button is revealed on hover/focus and on touch", () => {
     expect(tileSrc).toContain("@media (hover: none)");
     expect(tileSrc).toContain(".tile:focus-within .save-btn");
