@@ -62,6 +62,7 @@ def test_defaults(any_client: TestClient) -> None:
         "trash_retention_days": 7,
         "source_pace": expected_pace,
         "hidden_sites": [],
+        "site_order": ["danbooru", "gelbooru", "rule34", "nhentai"],
     }
 
 

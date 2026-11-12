@@ -7,7 +7,7 @@
   import { createSearch } from "../lib/stores/search.svelte";
   import { options } from "../lib/stores/options.svelte";
   import { visibleInSafeMode } from "../lib/stores/safeFilter";
-  import { parseSearchParams, buildSearchParams, serialiseQuery, filterChips, effectiveSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
+  import { parseSearchParams, buildSearchParams, serialiseQuery, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SiteId } from "../lib/query";
   import { hrefOf, linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
@@ -29,7 +29,12 @@
   const hidden = $derived(options.values?.hidden_sites ?? []);
   // The address keeps the saved sites; a hidden one is only left out of what is shown and searched.
   const saved = $derived(parseSearchParams("?" + match.query.toString()));
-  const query = $derived({ ...saved, sites: effectiveSites(saved.sites, hidden) });
+  // The saved site order sets the order of the site rows; the address keeps the fixed order.
+  const siteOrder = $derived(orderedSites(options.values?.site_order));
+  const query = $derived({
+    ...saved,
+    sites: siteOrder.filter((id) => effectiveSites(saved.sites, hidden).includes(id)),
+  });
 
   // Chip edits stay in a draft until the user runs the search.
   let draftChips = $derived(query.chips);
@@ -166,7 +171,7 @@
   <header class="header">
     <h1 class="sr-only" tabindex="-1" bind:this={h1}>Discover</h1>
     <div class="hmarks">
-      <SiteMarks sites={query.sites} onsites={handleSitesChange} {hidden} />
+      <SiteMarks sites={query.sites} onsites={handleSitesChange} {hidden} order={siteOrder} onreorder={(o) => options.set({ site_order: o })} />
     </div>
     <div class="hfield">
       <div class="search-row">

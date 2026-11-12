@@ -128,3 +128,24 @@ def test_hidden_sites(mode, client, tmp_path):
     all_sites = ["danbooru", "gelbooru", "rule34", "nhentai"]
     assert c.put("/api/options", json={"hidden_sites": all_sites}).status_code == 422
     assert c.put("/api/options", json={"hidden_sites": []}).json()["hidden_sites"] == []
+
+
+@pytest.mark.parametrize("mode", ["fixture", "real"])
+def test_site_order(mode, client, tmp_path):
+    c = client if mode == "fixture" else real_client(tmp_path, ok)[0]
+    default = ["danbooru", "gelbooru", "rule34", "nhentai"]
+    assert c.get("/api/options").json()["site_order"] == default
+    r = c.put("/api/options", json={"site_order": ["rule34", "danbooru"]})
+    assert r.status_code == 200
+    # Sites left out of the saved order are appended in the default order
+    assert r.json()["site_order"] == ["rule34", "danbooru", "gelbooru", "nhentai"]
+    assert c.get("/api/options").json()["site_order"] == r.json()["site_order"]
+    # A repeated site counts once; an unknown site is refused
+    r = c.put("/api/options", json={"site_order": ["nhentai", "nhentai", "gelbooru"]})
+    assert r.json()["site_order"] == ["nhentai", "gelbooru", "danbooru", "rule34"]
+    assert c.put("/api/options", json={"site_order": ["bogus"]}).status_code == 422
+    assert c.get("/api/options").json()["site_order"] == r.json()["site_order"]
+    # Reordering leaves hidden sites alone
+    c.put("/api/options", json={"hidden_sites": ["gelbooru"]})
+    c.put("/api/options", json={"site_order": default})
+    assert c.get("/api/options").json()["hidden_sites"] == ["gelbooru"]

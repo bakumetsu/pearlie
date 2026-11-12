@@ -28,6 +28,19 @@ describe("createSearch", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
+  it("a reorder of the sites moves the rows and runs no search", async () => {
+    const api = makeApi();
+    api.search.mockResolvedValue({ sections: [] });
+    const s = createSearch(api);
+    s.run(state({ sites: ["danbooru", "gelbooru"] }));
+    await vi.advanceTimersByTimeAsync(300);
+    expect(api.search).toHaveBeenCalledTimes(1);
+    s.run(state({ sites: ["gelbooru", "danbooru"] }));
+    await vi.advanceTimersByTimeAsync(600);
+    expect(api.search).toHaveBeenCalledTimes(1);
+    expect(Object.keys(s.sections)).toEqual(["stash_images", "stash_videos", "komga_books", "gelbooru", "danbooru"]);
+  });
+
   it("debounces and calls search once", async () => {
     const api = makeApi();
     api.search.mockResolvedValue({ sections: [] });
