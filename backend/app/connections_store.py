@@ -49,6 +49,7 @@ class ConnectionStore:
         self._settings: Settings = settings
         self._mem: dict[str, str] | None = mem
         self._auto_key: str | None = None
+        self._env_key_warned: bool = False
 
     # -- storage backend --
 
@@ -99,7 +100,15 @@ class ConnectionStore:
     def _key(self) -> str:
         env = self._settings.secret_key.get_secret_value()
         if env:
-            return env
+            try:
+                Fernet(env)
+                return env
+            except (ValueError, TypeError):
+                if not self._env_key_warned:
+                    self._env_key_warned = True
+                    logger.warning(
+                        "PEARLIE_SECRET_KEY is not a valid key; using the generated key file"
+                    )
         if self._auto_key is not None:
             return self._auto_key
         path = self._settings.db_path.parent / "secret.key"

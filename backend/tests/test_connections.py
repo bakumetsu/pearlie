@@ -110,6 +110,18 @@ def test_env_key_wins_no_file(tmp_path: Path) -> None:
     assert not (tmp_path / "secret.key").exists()
 
 
+def test_invalid_env_key_falls_back_to_key_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    bad = "ab" * 32  # openssl rand -hex 32 style, not a Fernet key
+    with caplog.at_level(logging.DEBUG):
+        c = make_client(tmp_path, secret_key=bad)
+        assert c.get("/api/connections").json()["can_store"] is True
+    assert (tmp_path / "secret.key").exists()
+    assert "not a valid key" in caplog.text
+    assert bad not in caplog.text
+
+
 # ---------------------------------------------------------------------------
 # 2. PUT secret: encrypted at rest, not in responses
 # ---------------------------------------------------------------------------
