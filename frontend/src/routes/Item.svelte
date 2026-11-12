@@ -407,16 +407,13 @@
     padding: var(--s-4);
     border-left: 1px solid var(--line);
     background: var(--surface);
-    min-width: 0;
+    width: 360px;
+    min-width: 360px;
     transition: visibility 0s linear 0s;
   }
 
   .body.collapsed:not(.phone) .panel {
     visibility: hidden;
-    padding-left: 0;
-    padding-right: 0;
-    border-left-width: 0;
-    overflow: hidden;
     transition: visibility 0s linear 250ms;
   }
 
@@ -426,6 +423,7 @@
     right: 0;
     bottom: 0;
     width: min(360px, calc(100% - 16px));
+    min-width: 0;
     z-index: 5;
     transform: translateX(0);
     transition: transform 250ms ease, visibility 0s linear 0s;
