@@ -194,7 +194,7 @@ def test_connection(request: Request, name: str) -> TestOut:
         params = {"page": "dapi", "s": "post", "q": "index", "json": "1", "limit": "1"}
         params.update(site_auth.params)
     elif name == "nhentai":
-        url = address + "/api/galleries/search?query=a"
+        url = address + "/api/v2/search?query=a"
 
     client = httpx.Client(transport=transport, timeout=10.0, follow_redirects=False)
     try:
