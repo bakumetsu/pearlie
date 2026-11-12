@@ -17,6 +17,7 @@
     onsave,
     onnavigate,
     onopenitem,
+    onopenweb,
   }: {
     items: (LibraryItem | WebItem)[];
     mode: Mode;
@@ -27,6 +28,7 @@
     onsave: (item: WebItem) => void;
     onnavigate: (e: MouseEvent) => void;
     onopenitem?: (item: LibraryItem) => void;
+    onopenweb?: (item: WebItem) => void;
   } = $props();
 
   let width = $state(0);
@@ -106,6 +108,7 @@
       aspect={aspect}
       saveState={saveStates[(item as WebItem).source + ":" + (item as WebItem).post_id] ?? "idle"}
       onsave={() => onsave(item as WebItem)}
+      onopen={onopenweb ? () => onopenweb(item as WebItem) : undefined}
     />
   {:else}
     <Tile

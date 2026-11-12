@@ -18,6 +18,7 @@
   import Pager from "../lib/browse/Pager.svelte";
   import ViewBar from "../lib/browse/ViewBar.svelte";
   import WallOverlay from "../lib/browse/WallOverlay.svelte";
+  import Lightbox from "../lib/components/Lightbox.svelte";
   import { parseOpen, openKey, withOpen } from "../lib/browse/overlayState";
 
   let { match }: { match: Match } = $props();
@@ -251,6 +252,18 @@
     }
   }
 
+  // --- web lightbox ---
+  let lightboxKey = $state<string | null>(null);
+  const webKey = (w: WebItem) => w.source + ":" + w.post_id;
+  const webItems = $derived(grid.items.filter((i): i is WebItem => "post_id" in i));
+  const lightboxIdx = $derived(lightboxKey ? webItems.findIndex((w) => webKey(w) === lightboxKey) : -1);
+  const lightboxItem = $derived(lightboxIdx >= 0 ? webItems[lightboxIdx] : null);
+
+  function stepLightbox(d: 1 | -1) {
+    const next = webItems[lightboxIdx + d];
+    if (next) lightboxKey = webKey(next);
+  }
+
   // --- URL query updates ---
   function setPage(p: number) {
     const qs = new SvelteURLSearchParams(match.query);
@@ -395,7 +408,7 @@
     {:else if grid.items.length === 0}
       <div class="empty">Nothing here.</div>
     {:else}
-      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} />
+      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => (lightboxKey = webKey(w))} />
     {/if}
 
     {#if grid.status !== "error" && grid.status !== "idle"}
@@ -406,6 +419,17 @@
 
 {#if openId !== null}
   <WallOverlay id={openId} grid={grid} perPage={vs.per_page} api={api} toasts={toasts} onstep={onStep} onclose={closeOverlay} />
+{/if}
+
+{#if lightboxItem}
+  <Lightbox
+    item={lightboxItem}
+    saveState={saveStates[webKey(lightboxItem)] ?? (lightboxItem.saved ? "in_library" : "idle")}
+    onsave={() => { if (lightboxItem) handleSave(lightboxItem); }}
+    onprev={lightboxIdx > 0 ? () => stepLightbox(-1) : undefined}
+    onnext={lightboxIdx < webItems.length - 1 ? () => stepLightbox(1) : undefined}
+    onclose={() => (lightboxKey = null)}
+  />
 {/if}
 
 <style>
