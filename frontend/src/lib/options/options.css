@@ -1,0 +1,241 @@
+/* Shared Options look (design v12): floating surface cards, airy 68px rows. */
+.options .card {
+  background: var(--surface);
+  border: 0;
+  border-radius: var(--r-sm);
+  padding: 0 0 4px;
+  margin: 0 0 20px;
+}
+
+.options .card-title,
+.options .card > h2 {
+  margin: 0;
+  padding: 16px 16px 2px;
+  font-size: var(--t-15);
+  font-weight: 600;
+}
+
+.options .card .hint {
+  margin: 0;
+  padding: 2px 16px 4px;
+  font-size: var(--t-13);
+  color: var(--muted);
+}
+
+.options .card .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  min-height: 68px;
+  margin: 0 16px;
+  padding: 10px 0;
+  border-top: 1px solid #2c2c33;
+  font-size: var(--t-15);
+}
+
+.options .card .card-title + .row,
+.options .card .hint + .row,
+.options .card > h2 + .row,
+.options .card .statusrows > .row:first-child,
+.options .card .rows > .row:first-child {
+  border-top: 0;
+}
+
+.options .row-text,
+.options .row-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.options .row-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.options .row-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--t-13);
+  color: var(--muted);
+}
+
+.options .slider .row-value::after {
+  content: "%";
+}
+
+.options .row-value {
+  min-width: 44px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.options .muted {
+  font-size: var(--t-13);
+  color: var(--muted);
+}
+
+.options .err {
+  font-size: var(--t-13);
+  color: var(--danger-hot);
+}
+
+.options .card input[type="number"] {
+  min-height: 44px;
+  min-width: 44px;
+  width: 84px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.options .card input[type="number"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.options .card .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 99px;
+  background: var(--line);
+  font-size: var(--t-12);
+  color: var(--muted);
+}
+
+.options .card .chip.ok,
+.options .card .chip.set {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.options .card .chip.down,
+.options .card .chip.missing {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+.options .card .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--t-14);
+  cursor: pointer;
+}
+
+.options .card .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.options .card .btn.primary {
+  background: var(--accent-bg);
+  border-color: transparent;
+  color: var(--accent);
+}
+
+/* Slider: accent track, 44 px touch height. */
+.options .slider {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 170px;
+}
+
+.options .slider input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* Live preview card */
+.options .card.live {
+  background: #1a1a20;
+  outline: 1px dashed var(--line-strong);
+  outline-offset: -1px;
+}
+
+.options .card.live > h2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.options .live-on {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ok-fg);
+}
+
+.options .live-on i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok-fg);
+}
+
+.options .live-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 16px;
+}
+
+.options .live-cap {
+  font-size: var(--t-12);
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 767px) {
+  .options .card .row {
+    flex-wrap: wrap;
+  }
+
+  .options .slider {
+    width: 100%;
+  }
+}
+
+/* Connection rows: name, status chip, address, then Test and edit on the right. */
+.options .card .row.conn {
+  justify-content: flex-start;
+}
+
+.options .card .row.conn .row-label {
+  flex: 0 0 5.5rem;
+}
+
+.options .card .row.conn .muted {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.options .card .row.conn .btn:last-child {
+  margin-left: auto;
+}

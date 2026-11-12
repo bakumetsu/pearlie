@@ -45,6 +45,8 @@ def test_etag_304_after_floor(tmp_path: Path) -> None:
     seen: list[httpx.Request] = []
 
     def h(req: httpx.Request) -> httpx.Response:
+        if str(req.url) == TAGS_URL:
+            return httpx.Response(404)
         seen.append(req)
         if len(seen) == 1:
             return httpx.Response(200, json={"tag_name": "v1.2.3"}, headers={"ETag": "e1"})
@@ -65,7 +67,8 @@ def test_no_request_within_floor(tmp_path: Path) -> None:
     n: list[int] = [0]
 
     def h(req: httpx.Request) -> httpx.Response:
-        n[0] += 1
+        if str(req.url) == LATEST_RELEASE_URL:
+            n[0] += 1
         return httpx.Response(200, json={"tag_name": "v1.2.3"})
 
     c = _chk(tmp_path / "p.db", h, clock)
@@ -118,6 +121,61 @@ def test_tags_fallback(tmp_path: Path) -> None:
     assert r.error is None
     assert r.latest is not None
     assert r.latest.version == "1.10.0"
+
+
+def test_stale_release_loses_to_newer_tag(tmp_path: Path) -> None:
+    clock: list[float] = [1_000.0]
+
+    def h(req: httpx.Request) -> httpx.Response:
+        if str(req.url) == LATEST_RELEASE_URL:
+            return httpx.Response(200, json={"tag_name": "v0.1.0"})
+        if str(req.url) == TAGS_URL:
+            return httpx.Response(
+                200,
+                json=[{"name": "v0.1.0"}, {"name": "v0.2.2"}],
+            )
+        return httpx.Response(404)
+
+    r = _chk(tmp_path / "p.db", h, clock).check("main")
+    assert r.error is None
+    assert r.latest is not None
+    assert r.latest.version == "0.2.2"
+    assert r.latest.url.endswith("/releases/tag/v0.2.2")
+
+
+def test_release_equal_to_highest_tag(tmp_path: Path) -> None:
+    clock: list[float] = [1_000.0]
+
+    def h(req: httpx.Request) -> httpx.Response:
+        if str(req.url) == LATEST_RELEASE_URL:
+            return httpx.Response(200, json={"tag_name": "v1.2.3"})
+        if str(req.url) == TAGS_URL:
+            return httpx.Response(
+                200,
+                json=[{"name": "v1.2.3"}, {"name": "v1.0.0"}],
+            )
+        return httpx.Response(404)
+
+    r = _chk(tmp_path / "p.db", h, clock).check("main")
+    assert r.error is None
+    assert r.latest is not None
+    assert r.latest.version == "1.2.3"
+
+
+def test_tags_failure_keeps_release(tmp_path: Path) -> None:
+    clock: list[float] = [1_000.0]
+
+    def h(req: httpx.Request) -> httpx.Response:
+        if str(req.url) == LATEST_RELEASE_URL:
+            return httpx.Response(200, json={"tag_name": "v1.2.3"})
+        if str(req.url) == TAGS_URL:
+            return httpx.Response(500)
+        return httpx.Response(404)
+
+    r = _chk(tmp_path / "p.db", h, clock).check("main")
+    assert r.error is None
+    assert r.latest is not None
+    assert r.latest.version == "1.2.3"
 
 
 def test_dev_good_and_bad(tmp_path: Path) -> None:

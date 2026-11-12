@@ -44,7 +44,6 @@ if [[ ! -f /opt/pearlie/.env ]]; then
       echo "PEARLIE_TRUSTED_NETWORK=1"
       echo "PEARLIE_STASH_TEMP_DIR=/mnt/media/stash/Temp"
       echo "PEARLIE_STASH_DEFAULT_DIR=/mnt/media/stash/Other"
-      printf 'PEARLIE_SECRET_KEY=%s\n' "$(openssl rand -hex 32)"
     } > /opt/pearlie/.env
   )
   chmod 600 /opt/pearlie/.env

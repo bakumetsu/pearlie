@@ -164,30 +164,10 @@
 	{/if}
 
 <style>
-	.card {
-		background: var(--surface);
-		border: 1px solid var(--line);
-		border-radius: var(--r-md);
-		padding: var(--s-3);
-	}
-
 	.rows {
 		list-style: none;
 		margin: 0;
 		padding: 0;
-	}
-
-	.row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		min-height: 44px;
-		padding: var(--s-1) 0;
-	}
-
-	.row-label {
-		font-size: var(--t-13);
-		color: var(--text);
 	}
 
 	.row-value {
@@ -213,15 +193,29 @@
 	}
 
 	.seg {
-		background: var(--surface);
+		background: transparent;
 		border: 1px solid var(--line-strong);
-		color: var(--text);
-		border-radius: var(--r-sm);
+		color: var(--muted);
+		border-radius: 0;
 		min-width: 44px;
 		min-height: 44px;
 		padding: 0 var(--s-2);
 		font-size: var(--t-13);
 		cursor: pointer;
+	}
+
+	.seg[aria-pressed="true"] {
+		background: var(--accent-bg);
+		color: var(--accent);
+	}
+
+	.seg:first-of-type {
+		border-radius: var(--r-sm) 0 0 var(--r-sm);
+	}
+
+	.seg:last-of-type {
+		border-radius: 0 var(--r-sm) var(--r-sm) 0;
+		border-left: 0;
 	}
 
 	.seg:disabled {
@@ -230,7 +224,7 @@
 	}
 
 	.iconbtn {
-		background: var(--surface);
+		background: transparent;
 		border: 1px solid var(--line-strong);
 		color: var(--text);
 		border-radius: var(--r-sm);
