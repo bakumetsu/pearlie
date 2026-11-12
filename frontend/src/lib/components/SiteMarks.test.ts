@@ -18,6 +18,15 @@ describe("SiteMarks", () => {
     ]);
   });
 
+  it("marks site icons data-sfw-shown", () => {
+    const { container } = render(SiteMarks, { sites: [], onsites: () => {} });
+    const imgs = container.querySelectorAll("img");
+    expect(imgs.length).toBeGreaterThan(0);
+    imgs.forEach((img) => {
+      expect(img.getAttribute("data-sfw-shown")).toBe("1");
+    });
+  });
+
   it("falls back to the letter when the icon fails", async () => {
     const { container } = render(SiteMarks, { sites: [], onsites: () => {} });
     const btn = screen.getByRole("button", { name: "Gelbooru" });

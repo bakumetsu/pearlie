@@ -31,6 +31,7 @@
           <span class="mk" aria-hidden="true"
             ><img
               class="mk-img"
+              data-sfw-shown="1"
               src={`/api/site-icons/${s.id}`}
               alt=""
               width="16"

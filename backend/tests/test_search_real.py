@@ -372,7 +372,7 @@ def test_search_library_not_configured(tmp_path):
     for section in r.json()["sections"]:
         assert section["items"] == []
         assert section["error"]["code"] == "not_configured"
-        assert section["error"]["message"].endswith("is not connected yet")
+        assert section["error"]["message"].endswith("search is not available yet")
 
 
 def test_search_library_unreachable_keeps_other_sections(tmp_path):

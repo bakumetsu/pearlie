@@ -50,7 +50,7 @@
     placeholder={chips.length === 0 ? "Search tags, e.g. cat -dog artist:x" : ""}
     autocomplete="off"
     onkeydown={(e) => {
-      if ((e.key === " " || e.key === "Enter" || e.key === ",") && text.trim()) {
+      if ((e.key === "Enter" || e.key === ",") && text.trim()) {
         e.preventDefault();
         onchange(commitText(chips, text));
         text = "";
@@ -117,7 +117,7 @@
     display: inline-flex;
     align-items: center;
     gap: 2px;
-    padding: 2px var(--s-1);
+    padding: 2px 18px 2px var(--s-1);
     border-radius: var(--r-sm);
     background: var(--accent-bg);
     color: var(--accent);
