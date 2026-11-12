@@ -13,31 +13,43 @@
 <style>
 	.switch {
 		position: relative;
-		border: 1px solid var(--border, #333);
-		border-radius: 999px;
-		background: var(--accent-bg, #22324f);
+		border: 0;
+		background: transparent;
 		cursor: pointer;
 		padding: 0;
 		min-height: 44px;
 		min-width: 56px;
 	}
+	.switch::before {
+		content: "";
+		position: absolute;
+		top: 50%;
+		left: 4px;
+		width: 48px;
+		height: 26px;
+		margin-top: -13px;
+		box-sizing: border-box;
+		border: 1px solid var(--line-strong, #34343b);
+		border-radius: 999px;
+		background: var(--accent-bg, #22324f);
+	}
 	.switch::after {
 		content: "";
 		position: absolute;
 		top: 50%;
-		left: 6px;
-		width: 20px;
-		height: 20px;
-		margin-top: -10px;
+		left: 9px;
+		width: 18px;
+		height: 18px;
+		margin-top: -9px;
 		border-radius: 50%;
 		background: var(--muted, #a3a3ad);
 		transition: transform 0.15s;
 	}
-	.switch[aria-checked="true"] {
+	.switch[aria-checked="true"]::before {
 		background: var(--accent, #7fb0ff);
 	}
 	.switch[aria-checked="true"]::after {
-		transform: translateX(24px);
+		transform: translateX(22px);
 		background: #fff;
 	}
 </style>
