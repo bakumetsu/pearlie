@@ -74,10 +74,10 @@ The stub generates placeholder media by default. For realistic photos, clips and
 
 | Source | Auth | Notes |
 |---|---|---|
-| Danbooru | none needed | first source; caps how many tags one search can hold, so Pearlie also filters results itself |
+| Danbooru | none needed; optional login + API key | first source; caps how many tags one search can hold, so Pearlie also filters results itself |
 | Gelbooru | `api_key` + `user_id` | from the account options page |
 | Rule34 | `api_key` + `user_id` | same dapi format as Gelbooru, one module |
-| nhentai | logged-in session cookies | see below |
+| nhentai | logged-in session cookies + the browser's User-Agent | see below |
 
 **nhentai.** The site's own CBZ link is signed by the server (`sig`), tied to the account (`u`) and expires (`exp`), so Pearlie cannot build it.
 - **Route A (default):** metadata from `/api/gallery/{id}`, pages through gallery-dl, packed into a CBZ (gallery-dl `zip` post-processor with `"extension": "cbz"`), then `ComicInfo.xml` added.
