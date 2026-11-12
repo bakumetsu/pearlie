@@ -23,7 +23,7 @@ from app.models import (
     WebSource,
 )
 from app.paging import PAGE_SIZE_CAPS, clamp_page_size, pages_for
-from app.sources.base import Source, SourceError
+from app.sources.base import Post, Source, SourceError
 from app.targets.stash_client import StashClient, StashError
 from app.targets.stash_library import image_item, map_items, stash_sort, video_item
 
@@ -43,6 +43,16 @@ _TITLES = {
 
 
 _LIBRARY = {"stash_images", "stash_videos", "komga_books"}
+
+VIDEO_EXTS = (".mp4", ".webm", ".mov", ".m4v", ".mkv")
+
+
+def _web_thumb(post: Post) -> str:
+    """Pick the tile image: the ~850 px sample, else the preview (video samples fall back)."""
+    sample = post.sample_url
+    if sample and not sample.lower().split("?", 1)[0].endswith(VIDEO_EXTS):
+        return sample
+    return post.preview_url or ""
 
 
 def _library_section(request: Request, sid: str, q: str, page: int, page_size: int, multi: bool):
@@ -158,7 +168,7 @@ def search(
                         WebItem(
                             source=typing.cast(WebSource, post.source),
                             post_id=post.post_id,
-                            thumb_url=post.preview_url or "",
+                            thumb_url=_web_thumb(post),
                             preview_url=post.file_url or post.preview_url or "",
                             title=None,
                             tags=[

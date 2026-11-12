@@ -173,6 +173,7 @@ class Danbooru:
             md5=d.get("md5"),
             file_url=d.get("file_url") or d.get("large_file_url"),
             preview_url=d.get("preview_file_url"),
+            sample_url=d.get("large_file_url"),
             width=d.get("image_width") or 0,
             height=d.get("image_height") or 0,
             rating=RATING_MAP.get(d.get("rating") or ""),

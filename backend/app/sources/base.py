@@ -13,6 +13,7 @@ class Post(BaseModel):
     md5: str | None = None
     file_url: str | None = None
     preview_url: str | None = None
+    sample_url: str | None = None
     width: int = 0
     height: int = 0
     rating: Rating | None = None
