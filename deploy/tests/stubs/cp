@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+if [[ -e "${STUB_STATE:-/nonexistent}/cp_fail" ]]; then
+  for a in "$@"; do
+    if [[ "$a" == */backups/* ]]; then
+      echo "cp $* (failed)" >> "$STUB_LOG"
+      exit 1
+    fi
+  done
+fi
+PATH="$STUB_ORIG_PATH" exec cp "$@"

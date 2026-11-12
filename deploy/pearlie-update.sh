@@ -27,6 +27,7 @@ TO_V=""
 LOCK_HELD=0
 INST_VERSION=""
 INST_COMMIT=""
+INST_CHANNEL=""
 STATUS_ON=0
 
 # --- helpers ---
@@ -127,6 +128,14 @@ release_lock() {
 # --- exit trap ---
 on_exit() {
   local rc=$?
+  if [[ "${PRE_SWITCH:-0}" == "1" ]]; then
+    PRE_SWITCH=0
+    "$SYSTEMCTL" start pearlie >/dev/null 2>&1 || true
+    if [[ "$STATUS_ON" == "1" && -z "${FINAL_WRITTEN:-}" ]]; then
+      write_status failed "$STEP" "failed at step $STEP; previous release restarted"
+      FINAL_WRITTEN=1
+    fi
+  fi
   if [[ "$STATUS_ON" == "1" && -z "${FINAL_WRITTEN:-}" ]]; then
     write_status failed "$STEP" "aborted at step $STEP"
   fi
@@ -214,15 +223,19 @@ try:
     print(d.get("version", "") or "")
     c = d.get("commit", "") or ""
     print(c)
+    print(d.get("channel", "") or "")
 except Exception:
+    print("")
     print("")
     print("")
 ' "$vfile" 2>/dev/null
   )" || out=""
   out="${out//$'\r'/}"
   INST_VERSION="${out%%$'\n'*}"
-  INST_COMMIT="${out#*$'\n'}"
-  INST_COMMIT="${INST_COMMIT%$'\n'}"
+  local rest="${out#*$'\n'}"
+  INST_COMMIT="${rest%%$'\n'*}"
+  INST_CHANNEL="${rest#*$'\n'}"
+  INST_CHANNEL="${INST_CHANNEL%%$'\n'*}"
 }
 http_get() {
   curl -fsSL --max-time 30 -H 'Accept: application/vnd.github+json' "$1"
@@ -306,6 +319,10 @@ resolve_target() {
 }
 
 is_newer() {
+  # a channel switch always counts as an update, even to an older or equal version
+  if [ -n "$INST_CHANNEL" ] && [ "$INST_CHANNEL" != "$CHANNEL" ]; then
+    return 0
+  fi
   if [ "$CHANNEL" = "dev" ]; then
     if [ "$TARGET_COMMIT" != "$INST_COMMIT" ]; then
       return 0
@@ -706,11 +723,15 @@ switch_and_verify() {
   prev=$(readlink "$ROOT/current" 2>/dev/null || true)
   write_status running stop ""
   "$SYSTEMCTL" stop pearlie || log "warning: failed to stop pearlie, continuing"
+  # stopped but not yet switched: any failure here must bring the old release back up
+  PRE_SWITCH_PREV="$prev"
+  PRE_SWITCH=1
   STEP="backup"
   backup_state
   STEP="switch"
   write_status running switch ""
   set_current "$REL"
+  PRE_SWITCH=0
   "$SYSTEMCTL" start pearlie || {
     rollback "$prev" "service did not start"
     return 1
@@ -733,7 +754,13 @@ main() {
   ORIG_ARGS=("$@")
   parse_args "$@"
   mkdir -p "$ROOT"/{releases,staging,backups,data}
+  # a UI run with a bad update.conf must still leave a final status (not a stale "running")
+  if [[ "$FROM_UI" == "1" && "$CHECK_ONLY" != "1" ]]; then
+    STATUS_ON=1
+    STEP="config"
+  fi
   read_conf
+  STATUS_ON=0
   if [[ "$CHECK_ONLY" == "1" ]]; then
     check_only
   fi

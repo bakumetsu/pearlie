@@ -211,16 +211,17 @@ new_case() {
 seed_install() {
   local version="$1"
   local commit="${2:-}"
+  local channel="${3:-main}"
 
   local dir="$ROOT/releases/seed/app"
   mkdir -p "$dir"
 
   if [[ -n "$commit" ]]; then
-    printf '{"version":"%s","channel":"main","commit":"%s","built_at":"x"}\n' \
-      "$version" "$commit" > "$dir/VERSION.json"
+    printf '{"version":"%s","channel":"%s","commit":"%s","built_at":"x"}\n' \
+      "$version" "$channel" "$commit" > "$dir/VERSION.json"
   else
-    printf '{"version":"%s","channel":"main","commit":null,"built_at":"x"}\n' \
-      "$version" > "$dir/VERSION.json"
+    printf '{"version":"%s","channel":"%s","commit":null,"built_at":"x"}\n' \
+      "$version" "$channel" > "$dir/VERSION.json"
   fi
 
   ln -sfn "$(mp "$ROOT/releases/seed")" "$ROOT/current"
@@ -585,7 +586,7 @@ case_aborted() {
 
 case_dev() {
   new_case dev
-  seed_install 1.0.0-dev+aaaaaaa "$SHA_A"
+  seed_install 1.0.0-dev+aaaaaaa "$SHA_A" dev
   add_dev_release "$SHA_B"
   run_update --channel dev
   expect "dev: RC" "$RC" 0
@@ -610,7 +611,7 @@ case_dev() {
   no_bad_args "dev: stub args"
 
   new_case dev_same
-  seed_install 1.0.0-dev+aaaaaaa "$SHA_A"
+  seed_install 1.0.0-dev+aaaaaaa "$SHA_A" dev
   add_dev_release "$SHA_A"
   run_update --channel dev
   expect "dev_same: RC" "$RC" 0
@@ -635,7 +636,73 @@ case_dry_run() {
   no_bad_args "dry_run: stub args"
 }
 
-CASES=(case_nothing_newer case_check case_success case_build_fail case_bad_health case_lock case_malicious case_aborted case_dev case_dry_run)
+case_stop_fail() {
+  new_case stop_fail
+  seed_install 1.0.0
+  local H
+  H=$(state_hash)
+  add_main_release 1.1.0 "$SHA_B"
+  touch "$STATE/cp_fail"
+  run_update
+  expect "stop_fail: RC" "$RC" 1
+  expect "stop_fail: state" "$(status_get state)" failed
+  case "$(current_target)" in
+    *releases/seed*) ok "stop_fail: target is seed" ;;
+    *) bad "stop_fail: target is seed" "not seed" ;;
+  esac
+  expect "stop_fail: state_hash" "$(state_hash)" "$H"
+  expect "stop_fail: stop" "$(stub_calls 'systemctl stop')" 1
+  expect "stop_fail: old release restarted" "$(stub_calls 'systemctl start')" 1
+  no_bad_args "stop_fail: stub args"
+}
+
+case_channel_switch() {
+  local T
+  new_case sw_dev_main_equal
+  seed_install 0.1.0-dev+aaaaaaa "$SHA_A" dev
+  add_main_release 0.1.0 "$SHA_B"
+  run_update --channel main
+  expect "switch dev->main equal: RC" "$RC" 0
+  expect "switch dev->main equal: state" "$(status_get state)" done
+  T=$(current_target)
+  grep -q '"channel":"main"' "$T/app/VERSION.json" && ok "switch dev->main equal: channel" || bad "switch dev->main equal: channel" "missing"
+
+  new_case sw_dev_main_older
+  seed_install 1.0.0-dev+aaaaaaa "$SHA_A" dev
+  add_main_release 0.1.0 "$SHA_B"
+  run_update --channel main
+  expect "switch dev->main older: RC" "$RC" 0
+  expect "switch dev->main older: state" "$(status_get state)" done
+
+  new_case sw_main_dev
+  seed_install 1.0.0 "$SHA_A" main
+  add_dev_release "$SHA_A"
+  run_update --channel dev
+  expect "switch main->dev: RC" "$RC" 0
+  expect "switch main->dev: state" "$(status_get state)" done
+  T=$(current_target)
+  grep -q '"channel":"dev"' "$T/app/VERSION.json" && ok "switch main->dev: channel" || bad "switch main->dev: channel" "missing"
+  no_bad_args "switch: stub args"
+}
+
+case_bad_conf() {
+  new_case bad_conf
+  seed_install 1.0.0
+  printf 'bogus\n' > "$ROOT/update.conf"
+  printf '{"state":"running","step":"x"}\n' > "$ROOT/update-status.json"
+  run_update --from-ui
+  expect "bad_conf: RC" "$RC" 1
+  expect "bad_conf: state" "$(status_get state)" failed
+  expect "bad_conf: step" "$(status_get step)" config
+}
+
+case_unit_sync() {
+  local heredoc
+  heredoc="$(sed -n "/^cat <<'UNIT'/,/^UNIT\$/p" "$REPO/install/pearlie-install.sh" | sed '1d;$d')"
+  expect "unit_sync: installer heredoc equals deploy/pearlie.service" "$heredoc" "$(cat "$REPO/deploy/pearlie.service")"
+}
+
+CASES=(case_nothing_newer case_check case_success case_build_fail case_bad_health case_lock case_malicious case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_unit_sync)
 
 for c in "${CASES[@]}"; do
   "$c"
