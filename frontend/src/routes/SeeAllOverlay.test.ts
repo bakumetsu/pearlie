@@ -1,6 +1,6 @@
 // SeeAll + WallOverlay wiring tests (T-65)
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi, beforeAll } from "vitest";
 
 function tile(id: string) {
   return {
@@ -31,6 +31,13 @@ function detail(id: string) {
 }
 
 describe("SeeAll + WallOverlay wiring", () => {
+  // Warm the transform cache once: the first dynamic import of App.svelte
+  // costs ~2 s cold and would otherwise count against the first test's 5 s.
+  beforeAll(async () => {
+    await import("@testing-library/svelte");
+    await import("../App.svelte");
+  }, 30000);
+
   let pages: number[];
   let detailIds: string[];
   let vsMode: string;
