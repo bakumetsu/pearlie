@@ -147,6 +147,7 @@ class DapiSource:
             md5=d.get(self.md5_key) or d.get("md5") or d.get("hash"),
             file_url=d.get("file_url") or d.get("sample_url"),
             preview_url=d.get("preview_url") or d.get("sample_url"),
+            sample_url=d.get("sample_url"),
             width=int(d.get("width") or 0),
             height=int(d.get("height") or 0),
             rating=RATING_MAP.get(str(d.get("rating") or "").lower()),
