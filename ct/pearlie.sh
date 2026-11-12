@@ -38,47 +38,29 @@ function update_script() {
 }
 
 function pearlie_host_setup() {
-  local ans _input nfs_export_temp nfs_export_other
-  local dirs exports idx dir
+  local ans _input
 
-  read -r -p "Mount your media shares from an NFS server (OMV)? [y/N] " ans
+  read -r -p "Bind media folders from the Proxmox host into the container (Stash Temp, Stash Other)? Mount the shares on the host first. [y/N] " ans
   if [[ "${ans,,}" != "y" ]]; then
     NFS_MODE="fixture"
   else
     NFS_MODE="nfs"
 
-    read -r -p "NFS server IP: " NFS_SERVER
-    read -r -p "Export path for Stash Temp: " nfs_export_temp
-    read -r -p "Export path for Stash Other (default save folder): " nfs_export_other
-    read -r -p "Stash/Komga UID [1000]: " STASH_UID
-    STASH_UID="${STASH_UID:-1000}"
-    read -r -p "Stash/Komga GID [1000]: " STASH_GID
-    STASH_GID="${STASH_GID:-1000}"
+    read -r -p "Host folder for Stash Temp (already mounted): " HOST_TEMP
+    if [[ ! -d "$HOST_TEMP" ]]; then
+      msg_error "Host folder for Stash Temp does not exist: $HOST_TEMP"
+      exit 1
+    fi
+    read -r -p "Host folder for Stash Other (already mounted): " HOST_OTHER
+    if [[ ! -d "$HOST_OTHER" ]]; then
+      msg_error "Host folder for Stash Other does not exist: $HOST_OTHER"
+      exit 1
+    fi
 
     read -r -p "Container path for Stash Temp [/mnt/media/stash/Temp]: " _input
     MP_TEMP="${_input:-/mnt/media/stash/Temp}"
     read -r -p "Container path for Stash Other [/mnt/media/stash/Other]: " _input
     MP_OTHER="${_input:-/mnt/media/stash/Other}"
-
-    dirs=("/mnt/pearlie/stash-temp" "/mnt/pearlie/stash-other")
-    exports=("$nfs_export_temp" "$nfs_export_other")
-
-    idx=0
-    for dir in "${dirs[@]}"; do
-      mkdir -p "$dir"
-      if ! awk -v d="$dir" '$2 == d { found = 1 } END { exit !found }' /etc/fstab; then
-        printf '%s:%s %s nfs defaults,_netdev,nofail 0 0\n' \
-          "$NFS_SERVER" "${exports[$idx]}" "$dir" >> /etc/fstab
-      fi
-      if ! mount "$dir"; then
-        msg_error "Failed to mount $dir"
-        exit 1
-      fi
-      idx=$((idx + 1))
-    done
-
-    msg_info "Set the following export option in OMV for both shares:"
-    echo "all_squash,anonuid=${STASH_UID},anongid=${STASH_GID}"
   fi
 
   read -r -p "Is access to this container limited to your tailnet or reverse proxy (for example a Proxmox firewall rule on the container)? [y/N] " ans
@@ -94,8 +76,8 @@ function pearlie_finish() {
   local mode_val host_ip temp_val other_val i
 
   if [[ "${NFS_MODE}" == "nfs" ]]; then
-    pct set "$CTID" -mp0 "/mnt/pearlie/stash-temp,mp=${MP_TEMP}"
-    pct set "$CTID" -mp1 "/mnt/pearlie/stash-other,mp=${MP_OTHER}"
+    pct set "$CTID" -mp0 "${HOST_TEMP},mp=${MP_TEMP}"
+    pct set "$CTID" -mp1 "${HOST_OTHER},mp=${MP_OTHER}"
     pct reboot "$CTID"
 
     for i in $(seq 1 30); do
