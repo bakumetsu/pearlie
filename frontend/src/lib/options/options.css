@@ -236,6 +236,6 @@
   overflow-wrap: anywhere;
 }
 
-.options .card .row.conn .btn:last-child {
+.options .card .row.conn .test-btn {
   margin-left: auto;
 }

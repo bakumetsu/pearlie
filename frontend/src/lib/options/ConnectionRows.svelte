@@ -46,7 +46,7 @@
 				>{store.results[key]?.message}</span
 			>
 			<button
-				class="btn"
+				class="btn test-btn"
 				aria-label={`Test ${label}`}
 				disabled={store.testing[key]}
 				on:click={() => store.test(api, key)}
