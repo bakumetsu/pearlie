@@ -15,6 +15,7 @@
   import ImageViewerCard from "../lib/options/ImageViewerCard.svelte";
   import DownloadsCard from "../lib/options/DownloadsCard.svelte";
   import StatusCard from "../lib/options/StatusCard.svelte";
+  import UpdateCard from "../lib/options/UpdateCard.svelte";
   import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
   import ConnectionRows from "../lib/options/ConnectionRows.svelte";
   import ContentFilterCard from "../lib/options/ContentFilterCard.svelte";
@@ -280,6 +281,8 @@
             <!-- shown with Stash -->
           {:else if activeSectionId === "library" && card.title === "Status"}
             <StatusCard />
+          {:else if activeSectionId === "update" && card.title === "Update"}
+            <UpdateCard />
           {:else}
             <section class="card">
               <h2 class="card-title">{card.title}</h2>
@@ -431,6 +434,8 @@
               <!-- shown with Stash -->
             {:else if activeSectionId === "library" && card.title === "Status"}
               <StatusCard />
+            {:else if activeSectionId === "update" && card.title === "Update"}
+              <UpdateCard />
             {:else}
               <section class="card">
                 <h2 class="card-title">{card.title}</h2>
