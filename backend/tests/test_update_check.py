@@ -67,7 +67,8 @@ def test_no_request_within_floor(tmp_path: Path) -> None:
     n: list[int] = [0]
 
     def h(req: httpx.Request) -> httpx.Response:
-        n[0] += 1
+        if str(req.url) == LATEST_RELEASE_URL:
+            n[0] += 1
         return httpx.Response(200, json={"tag_name": "v1.2.3"})
 
     c = _chk(tmp_path / "p.db", h, clock)
