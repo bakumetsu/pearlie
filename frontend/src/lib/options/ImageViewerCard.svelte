@@ -2,49 +2,34 @@
 	import Switch from "../components/Switch.svelte";
 	import Backdrop from "../components/Backdrop.svelte";
 	import { BACKDROP_DEFAULTS } from "./backdrop";
-	import { untrack } from "svelte";
 	import { options } from "../stores/options.svelte";
 	import type { OptionsStore } from "../stores/options.svelte";
 
 	let { store = options }: { store?: OptionsStore } = $props();
 
-	let strength = $state(untrack(() => store.values?.backdrop_strength ?? BACKDROP_DEFAULTS.strength));
-	let wallOn = $state(untrack(() => store.values?.backdrop_wall ?? BACKDROP_DEFAULTS.wall));
-	let itemOn = $state(untrack(() => store.values?.backdrop_item ?? BACKDROP_DEFAULTS.item));
-	let lightboxOn = $state(untrack(() => store.values?.backdrop_lightbox ?? BACKDROP_DEFAULTS.lightbox));
-
-	$effect(() => {
-		const v = store.values;
-		if (v) {
-			strength = v.backdrop_strength;
-			wallOn = v.backdrop_wall;
-			itemOn = v.backdrop_item;
-			lightboxOn = v.backdrop_lightbox;
-		}
-	});
+	const strength = $derived(store.values?.backdrop_strength ?? BACKDROP_DEFAULTS.strength);
+	const wallOn = $derived(store.values?.backdrop_wall ?? BACKDROP_DEFAULTS.wall);
+	const itemOn = $derived(store.values?.backdrop_item ?? BACKDROP_DEFAULTS.item);
+	const lightboxOn = $derived(store.values?.backdrop_lightbox ?? BACKDROP_DEFAULTS.lightbox);
 
 	const SAMPLE =
 		"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23ff6b6b'/%3E%3Cstop offset='50%25' stop-color='%234ecdc4'/%3E%3Cstop offset='100%25' stop-color='%2345b7d1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='320' height='180' fill='url(%23g)'/%3E%3C/svg%3E";
 
 	function onStrengthInput(e: Event) {
 		const n = Number((e.target as HTMLInputElement).value);
-		strength = n;
 		store.set({ backdrop_strength: n });
 	}
 
 	function toggleWall() {
-		wallOn = !wallOn;
-		store.set({ backdrop_wall: wallOn });
+		store.set({ backdrop_wall: !wallOn });
 	}
 
 	function toggleItem() {
-		itemOn = !itemOn;
-		store.set({ backdrop_item: itemOn });
+		store.set({ backdrop_item: !itemOn });
 	}
 
 	function toggleLightbox() {
-		lightboxOn = !lightboxOn;
-		store.set({ backdrop_lightbox: lightboxOn });
+		store.set({ backdrop_lightbox: !lightboxOn });
 	}
 </script>
 

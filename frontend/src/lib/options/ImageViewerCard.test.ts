@@ -4,13 +4,27 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/svelte";
 import ImageViewerCard from "./ImageViewerCard.svelte";
 import { BACKDROP_DEFAULTS } from "./backdrop";
 import type { OptionsStore } from "../stores/options.svelte";
+import type { Api, Options } from "../api/client";
 
-vi.mock("../stores/options.svelte", () => ({
-	options: { values: null, set: vi.fn() },
-}));
+vi.mock("../stores/options.svelte", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../stores/options.svelte")>();
+	return { ...actual, options: { values: null, set: vi.fn() } };
+});
+vi.mock("../stores/toasts.svelte", () => ({ toasts: { push: vi.fn() } }));
 
 function makeStore(values: Record<string, unknown> | null) {
 	return { values, set: vi.fn() } as unknown as OptionsStore & { set: ReturnType<typeof vi.fn> };
+}
+
+// A real (reactive) store with a mocked API, so cards see their own changes
+async function makeRealStore(values: Record<string, unknown>) {
+	const { createOptions } = await import("../stores/options.svelte");
+	const opts = { sfw: false, sfw_set: true, player_rate: 1, player_rate_set: true, source_pace: {}, ...values } as unknown as Options;
+	const api = { getOptions: vi.fn(async () => opts), putOptions: vi.fn(async () => opts) } as unknown as Api;
+	const store = createOptions({ sfw: { set: vi.fn() }, player: { loadRate: vi.fn() }, storage: { getItem: () => null, removeItem: () => {} } });
+	await store.load(api);
+	const set = vi.spyOn(store, "set");
+	return Object.assign(store, { set }) as OptionsStore & { set: typeof set };
 }
 
 beforeEach(() => {
@@ -38,7 +52,7 @@ describe("ImageViewerCard", () => {
 	});
 
 	it("clicking each switch calls set with the negated value and flips aria-checked", async () => {
-		const store = makeStore({
+		const store = await makeRealStore({
 			backdrop_strength: BACKDROP_DEFAULTS.strength,
 			backdrop_wall: true,
 			backdrop_item: true,
@@ -78,7 +92,7 @@ describe("ImageViewerCard", () => {
 	});
 
 	it("preview backdrop present at default strength, gone after slider set to 0", async () => {
-		const store = makeStore({
+		const store = await makeRealStore({
 			backdrop_strength: BACKDROP_DEFAULTS.strength,
 			backdrop_wall: BACKDROP_DEFAULTS.wall,
 			backdrop_item: BACKDROP_DEFAULTS.item,

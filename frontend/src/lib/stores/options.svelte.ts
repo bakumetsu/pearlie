@@ -26,6 +26,7 @@ export function createOptions(deps: {
   let pendingPatch: OptionsUpdate = {};
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let lastConfirmed: Options | null = null;
+  let inFlight = false;
   let early: OptionsUpdate = {};
   let failed = false;
   const debounceMs = deps.debounceMs ?? 300;
@@ -112,6 +113,58 @@ export function createOptions(deps: {
     return loading;
   }
 
+  function applyPatch(base: Options, patch: OptionsUpdate): Options {
+    const defined = Object.fromEntries(
+      Object.entries(patch).filter(([k, v]) => v !== null && v !== undefined && k !== "source_pace")
+    );
+    let result: Options = { ...base, ...defined };
+    if (patch.source_pace && result.source_pace) {
+      const oldPace = result.source_pace;
+      const newPace: typeof oldPace = { ...oldPace };
+      for (const [site, n] of Object.entries(patch.source_pace)) {
+        if (site in oldPace) {
+          newPace[site] = { ...oldPace[site], value: n };
+        }
+      }
+      result = { ...result, source_pace: newPace };
+    }
+    return result;
+  }
+
+  function flush(): void {
+    if (inFlight) return;
+    if (Object.keys(pendingPatch).length === 0) return;
+    const toSend = pendingPatch;
+    pendingPatch = {};
+    inFlight = true;
+    (async () => {
+      try {
+        const res = await _api!.putOptions(toSend);
+        lastConfirmed = res;
+        values = applyPatch(res, pendingPatch);
+        deps.sfw.set(values.sfw);
+        deps.player.loadRate(values.player_rate);
+        inFlight = false;
+        if (Object.keys(pendingPatch).length > 0 && debounceTimer === null) {
+          flush();
+        }
+      } catch {
+        inFlight = false;
+        pendingPatch = {};
+        if (debounceTimer !== null) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+        }
+        if (lastConfirmed) {
+          values = lastConfirmed;
+          deps.sfw.set(lastConfirmed.sfw);
+          deps.player.loadRate(lastConfirmed.player_rate);
+        }
+        toasts.push({ kind: "error", message: "Could not save options" });
+      }
+    })();
+  }
+
   function set(patch: OptionsUpdate): void {
     if (!_api || !values) {
       // Changed before the first GET came back: keep it and send it once loaded
@@ -122,18 +175,7 @@ export function createOptions(deps: {
     }
 
     // Optimistic update
-    const defined = Object.fromEntries(Object.entries(patch).filter(([k, v]) => v !== null && v !== undefined && k !== "source_pace"));
-    values = { ...values, ...defined };
-    if (patch.source_pace && values.source_pace) {
-      const oldPace = values.source_pace;
-      const newPace: typeof oldPace = { ...oldPace };
-      for (const [site, n] of Object.entries(patch.source_pace)) {
-        if (site in oldPace) {
-          newPace[site] = { ...oldPace[site], value: n };
-        }
-      }
-      values = { ...values, source_pace: newPace };
-    }
+    values = applyPatch(values, patch);
 
     if (patch.sfw !== undefined && patch.sfw !== null) deps.sfw.set(patch.sfw);
     if (patch.player_rate !== undefined && patch.player_rate !== null) deps.player.loadRate(patch.player_rate);
@@ -143,24 +185,9 @@ export function createOptions(deps: {
 
     // Debounce
     if (debounceTimer !== null) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(async () => {
+    debounceTimer = setTimeout(() => {
       debounceTimer = null;
-      const toSend = pendingPatch;
-      pendingPatch = {};
-      try {
-        const res = await _api!.putOptions(toSend);
-        values = res;
-        lastConfirmed = res;
-        deps.sfw.set(res.sfw);
-        deps.player.loadRate(res.player_rate);
-      } catch {
-        if (lastConfirmed) {
-          values = lastConfirmed;
-          deps.sfw.set(lastConfirmed.sfw);
-          deps.player.loadRate(lastConfirmed.player_rate);
-        }
-        toasts.push({ kind: "error", message: "Could not save options" });
-      }
+      flush();
     }, debounceMs);
   }
 
