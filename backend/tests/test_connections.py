@@ -674,7 +674,7 @@ def test_put_stash_swaps_client(tmp_path: Path) -> None:
         tmp_path, mode="real", secret_key=master_key(),
         env={"real": "search", "stash_url": "http://stash.local:9999", "komga_url": "http://komga.local:8888"},
     )
-    old = c.app.state.stash
+    old = c.app.state.stash  # pyright: ignore[reportAttributeAccessIssue]
     r = c.put(
         "/api/connections/stash",
         json={"address": "http://stash2.local:9999", "secret": "newkey"},
@@ -682,8 +682,8 @@ def test_put_stash_swaps_client(tmp_path: Path) -> None:
     )
     assert r.status_code == 200
     assert r.json()["restart_needed"] is False
-    assert c.app.state.stash is not old
-    assert isinstance(c.app.state.stash, StashClient)
+    assert c.app.state.stash is not old  # pyright: ignore[reportAttributeAccessIssue]
+    assert isinstance(c.app.state.stash, StashClient)  # pyright: ignore[reportAttributeAccessIssue]
     assert callable(old.library_paths)
 
 
@@ -692,7 +692,7 @@ def test_put_komga_swaps_client(tmp_path: Path) -> None:
         tmp_path, mode="real", secret_key=master_key(),
         env={"real": "search", "stash_url": "http://stash.local:9999", "komga_url": "http://komga.local:8888"},
     )
-    old = c.app.state.komga
+    old = c.app.state.komga  # pyright: ignore[reportAttributeAccessIssue]
     r = c.put(
         "/api/connections/komga",
         json={"address": "http://komga2.local:8888", "secret": "newkey"},
@@ -700,8 +700,8 @@ def test_put_komga_swaps_client(tmp_path: Path) -> None:
     )
     assert r.status_code == 200
     assert r.json()["restart_needed"] is False
-    assert c.app.state.komga is not old
-    assert isinstance(c.app.state.komga, Komga)
+    assert c.app.state.komga is not old  # pyright: ignore[reportAttributeAccessIssue]
+    assert isinstance(c.app.state.komga, Komga)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_env_locked_key_wins_after_save(tmp_path: Path) -> None:
@@ -719,7 +719,7 @@ def test_env_locked_key_wins_after_save(tmp_path: Path) -> None:
         json={"address": "http://stash2.local:9999"},
         headers=HDR,
     )
-    assert c.app.state.settings.stash_api_key.get_secret_value() == "envsecret"
+    assert c.app.state.settings.stash_api_key.get_secret_value() == "envsecret"  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_fixture_mode_keeps_none_clients(tmp_path: Path) -> None:
@@ -729,8 +729,8 @@ def test_fixture_mode_keeps_none_clients(tmp_path: Path) -> None:
         json={"address": "http://stash2.local:9999", "secret": "newkey"},
         headers=HDR,
     )
-    assert c.app.state.stash is None
-    assert c.app.state.komga is None
+    assert c.app.state.stash is None  # pyright: ignore[reportAttributeAccessIssue]
+    assert c.app.state.komga is None  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_swap_does_not_log_secret(
