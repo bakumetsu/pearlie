@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -60,7 +61,7 @@ def test_list_names_and_key_state(tmp_path: Path) -> None:
     r = c.get("/api/connections")
     assert r.status_code == 200
     data = r.json()
-    assert data["can_store"] is False
+    assert data["can_store"] is True
     names = [x["name"] for x in data["connections"]]
     assert names == ["stash", "komga", "danbooru", "gelbooru", "rule34", "nhentai"]
     for conn in data["connections"]:
@@ -68,6 +69,57 @@ def test_list_names_and_key_state(tmp_path: Path) -> None:
 
     c2 = make_client(tmp_path, secret_key=master_key())
     assert c2.get("/api/connections").json()["can_store"] is True
+
+
+# ---------------------------------------------------------------------------
+# 1b. Auto-generated key file
+# ---------------------------------------------------------------------------
+
+
+def test_auto_key_file_created_and_reused(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    key_file = tmp_path / "secret.key"
+    assert not key_file.exists()
+    with caplog.at_level(logging.DEBUG):
+        c = make_client(tmp_path, mode="real", env={"real": "search"})
+        assert c.get("/api/connections").json()["can_store"] is True
+        first = key_file.read_text(encoding="utf-8").strip()
+        Fernet(first)
+        r = c.put(
+            "/api/connections/stash",
+            json={"address": "http://stash.local:9999", "secret": "s3cret-value"},
+            headers=HDR,
+        )
+        assert r.status_code == 200
+        listing = c.get("/api/connections")
+    if os.name == "posix":
+        assert key_file.stat().st_mode & 0o077 == 0
+    assert first not in listing.text
+    assert first not in caplog.text
+
+    c2 = make_client(tmp_path, mode="real", env={"real": "search"})
+    assert c2.get("/api/connections").json()["can_store"] is True
+    assert key_file.read_text(encoding="utf-8").strip() == first
+    assert c2.get("/api/connections").json()["connections"][0]["key"] == "set"
+
+
+def test_env_key_wins_no_file(tmp_path: Path) -> None:
+    c = make_client(tmp_path, secret_key=master_key())
+    assert c.get("/api/connections").json()["can_store"] is True
+    assert not (tmp_path / "secret.key").exists()
+
+
+def test_invalid_env_key_falls_back_to_key_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    bad = "ab" * 32  # openssl rand -hex 32 style, not a Fernet key
+    with caplog.at_level(logging.DEBUG):
+        c = make_client(tmp_path, secret_key=bad)
+        assert c.get("/api/connections").json()["can_store"] is True
+    assert (tmp_path / "secret.key").exists()
+    assert "not a valid key" in caplog.text
+    assert bad not in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -111,7 +163,9 @@ def test_put_secret_encrypted_at_rest(tmp_path: Path) -> None:
 
 
 def test_put_secret_no_master_key(tmp_path: Path) -> None:
+    (tmp_path / "secret.key").mkdir()  # key file cannot be created
     c = make_client(tmp_path)
+    assert c.get("/api/connections").json()["can_store"] is False
     r = c.put(
         "/api/connections/stash",
         json={"secret": "someval"},

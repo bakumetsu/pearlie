@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -47,6 +48,8 @@ class ConnectionStore:
     def __init__(self, settings: Settings, mem: dict[str, str] | None) -> None:
         self._settings: Settings = settings
         self._mem: dict[str, str] | None = mem
+        self._auto_key: str | None = None
+        self._env_key_warned: bool = False
 
     # -- storage backend --
 
@@ -94,8 +97,45 @@ class ConnectionStore:
 
     # -- key management --
 
+    def _key(self) -> str:
+        env = self._settings.secret_key.get_secret_value()
+        if env:
+            try:
+                Fernet(env)
+                return env
+            except (ValueError, TypeError):
+                if not self._env_key_warned:
+                    self._env_key_warned = True
+                    logger.warning(
+                        "PEARLIE_SECRET_KEY is not a valid key; using the generated key file"
+                    )
+        if self._auto_key is not None:
+            return self._auto_key
+        path = self._settings.db_path.parent / "secret.key"
+        try:
+            if path.is_file():
+                key = path.read_text(encoding="utf-8").strip()
+            else:
+                key = Fernet.generate_key().decode()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(key)
+                try:
+                    os.chmod(path, 0o600)
+                except OSError:
+                    pass
+        except FileExistsError:
+            key = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            logger.warning("could not read or create the secret key file")
+            return ""
+        if key:
+            self._auto_key = key
+        return key
+
     def can_store(self) -> bool:
-        key: str = self._settings.secret_key.get_secret_value()
+        key: str = self._key()
         if not key:
             return False
         try:
@@ -105,7 +145,7 @@ class ConnectionStore:
         return True
 
     def _fernet(self) -> Fernet:
-        return Fernet(self._settings.secret_key.get_secret_value())
+        return Fernet(self._key())
 
     # -- env lock detection --
 
