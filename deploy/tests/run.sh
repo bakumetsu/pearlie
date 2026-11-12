@@ -12,6 +12,15 @@ mp() {
   fi
 }
 
+pp() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -u "$1"
+  else
+    printf '%s
+' "$1"
+  fi
+}
+
 PY=""
 if command -v python >/dev/null 2>&1; then
   PY="python"
@@ -108,7 +117,7 @@ finish() {
 use_stubs() {
   local mode="$1"
   if [[ "$mode" == "full" ]]; then
-    PATH="$TESTS/stubs:$ORIG_PATH"
+    PATH="$(pp "$TESTS/stubs"):$ORIG_PATH"
     export PATH
   elif [[ "$mode" == "real" ]]; then
     if [[ ! -d "$WORK/stubs-real" ]]; then

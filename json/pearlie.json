@@ -1,0 +1,28 @@
+{
+  "name": "Pearlie",
+  "slug": "pearlie",
+  "categories": [13],
+  "date_created": "2026-11-12",
+  "type": "ct",
+  "updateable": true,
+  "privileged": false,
+  "interface_port": 8000,
+  "documentation": "https://github.com/bakumetsu/pearlie#readme",
+  "website": "https://github.com/bakumetsu/pearlie",
+  "logo": null,
+  "config_path": "/opt/pearlie/.env",
+  "description": "Self-hosted media hub: browse Stash, Komga and booru or nhentai sites, and save into Stash and Komga with tag filters.",
+  "install_methods": [
+    {
+      "type": "default",
+      "script": "ct/pearlie.sh",
+      "resources": { "cpu": 1, "ram": 1024, "hdd": 4, "os": "debian", "version": "13" }
+    }
+  ],
+  "default_credentials": { "username": null, "password": null },
+  "notes": [
+    { "text": "Pearlie has no login of its own: reach it only over Tailscale or a reverse proxy with login.", "type": "warning" },
+    { "text": "API keys are entered on the Options page after install; they are stored encrypted and never shown.", "type": "info" },
+    { "text": "Update from Options > System, or run `pearlie-update` inside the container.", "type": "info" }
+  ]
+}
