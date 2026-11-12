@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Pill, SiteId } from "../query";
   import { PILLS, SITE_ORDER, toggleSiteIn } from "../query";
+  import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
 
   let {
@@ -18,15 +19,41 @@
     onclear: () => void;
     onclose: () => void;
   } = $props();
+
+  let panel: HTMLDivElement | undefined;
+  let closeBtn: HTMLButtonElement | undefined;
+
+  onMount(() => closeBtn?.focus());
+
+  // Escape closes; Tab wraps inside the panel so focus never lands in the page behind the scrim.
+  function onkeydown(e: KeyboardEvent): void {
+    if (e.key === "Escape") {
+      onclose();
+      return;
+    }
+    if (e.key !== "Tab" || !panel) return;
+    const items = [...panel.querySelectorAll<HTMLElement>("button:not([disabled])")];
+    if (items.length === 0) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || !panel.contains(active))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (active === last || !panel.contains(active))) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 </script>
 
-<svelte:window onkeydown={(e) => { if (e.key === "Escape") onclose(); }} />
+<svelte:window {onkeydown} />
 
 <div class="scrim" role="presentation" onclick={onclose}></div>
-<div class="fpanel" role="dialog" aria-modal="true" aria-label="Filters">
+<div class="fpanel" role="dialog" aria-modal="true" aria-label="Filters" bind:this={panel}>
   <div class="fh">
     <b>Filters</b>
-    <button class="close" type="button" aria-label="Close" onclick={onclose}><Icon name="x" size={20} /></button>
+    <button class="close" type="button" aria-label="Close" bind:this={closeBtn} onclick={onclose}><Icon name="x" size={20} /></button>
   </div>
   <div class="fb">
     <section class="fsec">

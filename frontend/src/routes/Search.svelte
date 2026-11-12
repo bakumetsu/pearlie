@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
   import { itemHref, toPlural } from "../lib/item/kinds";
@@ -70,6 +70,12 @@
   });
 
   let filterOpen = $state(false);
+  let fibEl: HTMLButtonElement | undefined;
+
+  function closeFilters(): void {
+    filterOpen = false;
+    void tick().then(() => fibEl?.focus());
+  }
   const chips = $derived(filterChips(query));
 
   function navigateState(next: SearchState): void {
@@ -180,6 +186,7 @@
           {#snippet trailing()}
             <button
               class="fib"
+              bind:this={fibEl}
               class:on={chips.length > 0}
               type="button"
               aria-label={chips.length ? `Filters (${chips.length} set)` : "Filters"}
@@ -269,7 +276,7 @@
     onpill={handlePillChange}
     onsites={handleSitesChange}
     onclear={clearFilters}
-    onclose={() => (filterOpen = false)}
+    onclose={closeFilters}
   />
 {/if}
 

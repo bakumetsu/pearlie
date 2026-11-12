@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent, within } from "@testing-library/svelte";
+import { render, screen, cleanup, fireEvent, within, waitFor } from "@testing-library/svelte";
 import App from "../App.svelte";
 import { filterChips, DEFAULT_SITES, toggleSiteIn } from "../lib/query";
 
@@ -109,6 +109,26 @@ describe("Discover header", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Filters" }));
     await fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Filters" })).toBeNull();
+  });
+
+  it("moves focus into the panel, keeps Tab inside, and returns it to the filter button", async () => {
+    render(App);
+    const fib = screen.getByRole("button", { name: "Filters" });
+    await fireEvent.click(fib);
+    const panel = screen.getByRole("dialog", { name: "Filters" });
+    await waitFor(() => expect(panel.contains(document.activeElement)).toBe(true));
+    expect(document.activeElement).toBe(within(panel).getByRole("button", { name: "Close" }));
+
+    const done = within(panel).getByRole("button", { name: "Done" });
+    done.focus();
+    await fireEvent.keyDown(window, { key: "Tab" });
+    expect(document.activeElement).toBe(within(panel).getByRole("button", { name: "Close" }));
+    await fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(done);
+
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Filters" })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Filters" })));
   });
 
   it("uses the bottom bar layout on a portrait phone", async () => {
