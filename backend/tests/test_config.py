@@ -1,10 +1,11 @@
 import logging
 import os
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from app.config import ConfigError, Settings, load_settings
+from app.config import ConfigError, Settings, load_settings, resolve_auto_host
 from app.main import create_app
 
 
@@ -98,3 +99,64 @@ def test_env_example_covers_every_setting_and_loads(monkeypatch: pytest.MonkeyPa
     s = load_settings(_env_file=example)
     assert s.mode == "fixture"
     assert s.secret_key.get_secret_value() == ""
+
+
+def test_auto_host_ipv4_with_trusted_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.config.resolve_auto_host", lambda: "10.0.0.5")
+    s = load_settings(mode="fixture", host="auto", trusted_network=True, _env_file=None)
+    assert s.host == "10.0.0.5"
+
+
+def test_auto_host_fallback_loopback(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.config.resolve_auto_host", lambda: None)
+    s = load_settings(mode="fixture", host="auto", _env_file=None)
+    assert s.host == "127.0.0.1"
+
+
+def test_auto_host_without_trusted_network_warns(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr("app.config.resolve_auto_host", lambda: "10.0.0.5")
+    with caplog.at_level(logging.WARNING, logger="app.config"):
+        s = load_settings(mode="fixture", host="auto", _env_file=None)
+    assert s.host == "127.0.0.1"
+    assert (
+        "PEARLIE_HOST=auto stays on 127.0.0.1 until PEARLIE_TRUSTED_NETWORK=1 is set"
+        in caplog.text
+    )
+
+
+def test_literal_host_does_not_resolve_auto(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.config.resolve_auto_host",
+        lambda: pytest.fail("resolve_auto_host should not be called"),
+    )
+    s = load_settings(mode="fixture", host="10.0.0.7", trusted_network=True, _env_file=None)
+    assert s.host == "10.0.0.7"
+
+
+def test_literal_non_loopback_host_without_flag_still_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.config.resolve_auto_host",
+        lambda: pytest.fail("resolve_auto_host should not be called"),
+    )
+    with pytest.raises(ConfigError):
+        load_settings(mode="fixture", host="203.0.113.1", _env_file=None)
+
+
+def test_resolve_auto_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout="10.0.0.5 fe80::1\n", stderr=""
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert resolve_auto_host() == "10.0.0.5"
+
+    def fake_run_error(cmd, **kwargs):
+        raise OSError("hostname failed")
+
+    monkeypatch.setattr(subprocess, "run", fake_run_error)
+    assert resolve_auto_host() is None

@@ -27,11 +27,7 @@ chmod 755 /usr/local/bin/pearlie-update
 
 host_ip=$(hostname -I | awk '{for (j = 1; j <= NF; j++) if ($j ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) { print $j; exit }}')
 if [[ -z $host_ip ]]; then
-  host_ip=127.0.0.1
-  trusted=0
-  msg_info "No container IPv4 found: Pearlie stays on 127.0.0.1. Put tailscale serve or a reverse proxy in front."
-else
-  trusted=1
+  msg_info "No container IPv4 found now; Pearlie stays on 127.0.0.1 until the container gets one; tailscale serve or a reverse proxy in front."
 fi
 mkdir -p /mnt/media/stash/Temp /mnt/media/stash/Other
 
@@ -43,11 +39,9 @@ if [[ ! -f /opt/pearlie/.env ]]; then
       echo "PEARLIE_MODE=real"
       echo "PEARLIE_DB_PATH=/opt/pearlie/data/pearlie.db"
       echo "PEARLIE_STATIC_DIR=/opt/pearlie/current/app/frontend/dist"
-      echo "PEARLIE_HOST=$host_ip"
+      echo "PEARLIE_HOST=auto"
       echo "PEARLIE_PORT=8000"
-      if [[ $trusted -eq 1 ]]; then
-        echo "PEARLIE_TRUSTED_NETWORK=1"
-      fi
+      echo "PEARLIE_TRUSTED_NETWORK=1"
       echo "PEARLIE_STASH_TEMP_DIR=/mnt/media/stash/Temp"
       echo "PEARLIE_STASH_DEFAULT_DIR=/mnt/media/stash/Other"
       printf 'PEARLIE_SECRET_KEY=%s\n' "$(openssl rand -hex 32)"
@@ -59,7 +53,7 @@ fi
 cat <<CONF > /opt/pearlie/update.conf
 channel=main
 check=on
-host=$host_ip
+host=auto
 port=8000
 CONF
 
