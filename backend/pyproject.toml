@@ -16,10 +16,14 @@ dev = [
     "pytest",
     "ruff",
     "pyright",
+    "setuptools",
 ]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.setuptools.package-data]
+app = ["filters/*.txt"]
 
 [tool.ruff]
 line-length = 100
