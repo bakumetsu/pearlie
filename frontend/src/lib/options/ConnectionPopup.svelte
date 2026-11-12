@@ -4,6 +4,7 @@
 	import type { ConnectionsStore } from "../stores/connections.svelte";
 	import { getApi, ApiError, errorText } from "../api/client";
 	import type { Api } from "../api/client";
+	import Icon from "../components/Icon.svelte";
 
 	let {
 		name,
@@ -25,9 +26,15 @@
 	const addressLocked = $derived(!!conn?.address_locked);
 	const keyLocked = $derived(!!conn?.key_locked);
 	const keySet = $derived(conn?.key === "set");
+	// Sites with more than one credential field (login + key, cookie + User-Agent, ...)
+	const fields = $derived(conn?.fields ?? []);
+	const multi = $derived(fields.length > 1);
+	const canEditKeys = $derived(store.canStore);
 
 	let address = $state(untrack(() => store.byName(name)?.address ?? ""));
 	let key = $state("");
+	let values = $state<Record<string, string>>({});
+	let confirmingField = $state<string | null>(null);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
 	let confirmingClear = $state(false);
@@ -114,6 +121,23 @@
 		}
 	}
 
+	async function handleClearField(id: string) {
+		busy = true;
+		error = null;
+		try {
+			await store.save(api, name, { clear_fields: [id] });
+			confirmingField = null;
+		} catch (e) {
+			if (e instanceof ApiError) {
+				error = errorText(e);
+			} else {
+				throw e;
+			}
+		} finally {
+			busy = false;
+		}
+	}
+
 	async function handleSaveAndTest() {
 		busy = true;
 		error = null;
@@ -125,12 +149,21 @@
 		if (key.trim()) {
 			body.secret = key.trim();
 		}
+		const typed = Object.fromEntries(
+			Object.entries(values)
+				.map(([id, v]) => [id, v.trim()])
+				.filter(([, v]) => v)
+		);
+		if (Object.keys(typed).length > 0) {
+			body.fields = typed;
+		}
 
 		try {
 			if (Object.keys(body).length > 0) {
 				await store.save(api, name, body);
 			}
 			key = "";
+			values = {};
 			await store.test(api, name);
 			onclose();
 		} catch (e) {
@@ -175,6 +208,40 @@
 			</div>
 		{/if}
 
+		{#if multi}
+			{#each fields as f (f.id)}
+				<div class="row">
+					<label for={`conn-f-${f.id}`}>{f.label}</label>
+					<input
+						id={`conn-f-${f.id}`}
+						type={f.primary ? "password" : "text"}
+						autocomplete="off"
+						value={values[f.id] ?? ""}
+						on:input={(e) => (values = { ...values, [f.id]: e.currentTarget.value })}
+						placeholder="Leave empty to keep"
+						disabled={f.locked || !canEditKeys}
+					/>
+					{#if f.locked}
+						<span class="chip">set in .env</span>
+					{:else}
+						<span class="chip">{f.state}</span>
+					{/if}
+					{#if f.state === "set" && !f.locked && canEditKeys}
+						{#if confirmingField === f.id}
+							<button class="btn" disabled={busy} aria-label={`Confirm clear ${f.label}`} on:click={() => handleClearField(f.id)}>Clear</button>
+							<button class="btn" disabled={busy} on:click={() => (confirmingField = null)}>Keep</button>
+						{:else}
+							<button class="btn" disabled={busy} aria-label={`Clear ${f.label}`} on:click={() => (confirmingField = f.id)}>
+								<Icon name="trash" size={16} />
+							</button>
+						{/if}
+					{/if}
+				</div>
+			{/each}
+			{#if !store.canStore}
+				<p class="note" role="note">Keys can't be saved here: Pearlie could not create its encryption key file. Check that the data folder is writable, or set PEARLIE_SECRET_KEY in .env.</p>
+			{/if}
+		{:else}
 		<div class="row">
 			<label for="conn-key">Key</label>
 			<input
@@ -208,6 +275,8 @@
 					<button class="btn" disabled={busy} on:click={() => (confirmingClear = true)}>Clear key</button>
 				</div>
 			{/if}
+		{/if}
+
 		{/if}
 
 		{#if error}

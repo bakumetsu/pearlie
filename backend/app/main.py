@@ -199,7 +199,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.connection_transport = None
     throttles: dict[str, Throttle] = {site: Throttle(DEFAULT_PACE[site]) for site in DEFAULT_PACE}
     app.state.throttles = throttles
-    sources: dict[str, Source] = {"danbooru": Danbooru(throttle=throttles["danbooru"])}
+    danbooru = Danbooru(
+        throttle=throttles["danbooru"],
+        credentials=lambda: app.state.connection_store.field_values("danbooru"),
+    )
+    sources: dict[str, Source] = {"danbooru": danbooru}
     app.state.sources = sources
     options.apply_pace(app)
 
