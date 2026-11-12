@@ -199,7 +199,10 @@ read_conf() {
 }
 
 read_installed() {
-  local vfile="$ROOT/current/app/VERSION.json"
+  local cur
+  cur="$(readlink "$ROOT/current" 2>/dev/null || true)"
+  [[ -n "$cur" ]] || cur="$ROOT/current"
+  local vfile="$cur/app/VERSION.json"
   [[ -f "$vfile" ]] || return 0
   local out
   out="$(
@@ -216,6 +219,7 @@ except Exception:
     print("")
 ' "$vfile" 2>/dev/null
   )" || out=""
+  out="${out//$'\r'/}"
   INST_VERSION="${out%%$'\n'*}"
   INST_COMMIT="${out#*$'\n'}"
   INST_COMMIT="${INST_COMMIT%$'\n'}"
@@ -354,7 +358,7 @@ download_and_extract() {
   fi
 
   local list
-  if ! list=$(tar -tzf "$tarball"); then
+  if ! list=$(tar --force-local -tzf "$tarball"); then
     die "unreadable archive"
   fi
 
@@ -387,7 +391,7 @@ download_and_extract() {
     case "$verbose_line" in
       l*|h*) die "unsafe archive: symlink or hardlink" ;;
     esac
-  done < <(tar -tvzf "$tarball")
+  done < <(tar --force-local -tvzf "$tarball")
 
   local short
   if [ -n "$TARGET_COMMIT" ]; then
@@ -400,7 +404,7 @@ download_and_extract() {
   REL="$ROOT/releases/$RELEASE_ID"
   mkdir -p "$REL/app"
 
-  if ! tar -xzf "$tarball" --strip-components=1 --no-same-owner -C "$REL/app"; then
+  if ! tar --force-local -xzf "$tarball" --strip-components=1 --no-same-owner -C "$REL/app"; then
     rm -rf "$REL"
     die "extract failed"
   fi
@@ -441,7 +445,7 @@ self_refresh() {
   STEP="self-refresh"
   [[ "$DRY_RUN" == "1" ]] && return
   [[ -n "$CONTINUE_ID" ]] && return
-  [[ -f "$BIN" ]] || return
+  [[ -f "$BIN" ]] || return 0
   if ! cmp -s "$REL/app/deploy/pearlie-update.sh" "$BIN"; then
     log "refreshing update script"
     install -m 755 "$REL/app/deploy/pearlie-update.sh" "$BIN"
@@ -465,10 +469,10 @@ load_continue() {
 
 swap_on() {
   [[ -n "${PEARLIE_SKIP_SWAP:-}" ]] && return
-  [[ -f /proc/meminfo ]] || return
+  [[ -f /proc/meminfo ]] || return 0
   local memtotal
   memtotal=$(awk '/MemTotal/{print $2}' /proc/meminfo)
-  [[ "$memtotal" -lt 1572864 ]] || return
+  [[ "$memtotal" -lt 1572864 ]] || return 0
   mkdir -p "$ROOT/staging"
   log "adding 1G swap for build"
   if ! fallocate -l 1G "$ROOT/staging/swap"; then

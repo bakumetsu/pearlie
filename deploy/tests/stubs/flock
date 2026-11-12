@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "$#" -ne 2 || "$1" != "-n" || "$2" != "9" ]]; then
+  echo "BAD flock $*" >> "$STUB_LOG"
+  exit 99
+fi
+
+echo "flock $*" >> "$STUB_LOG"
+
+lockdir="${PEARLIE_LOCK}.stub.d"
+
+if ! mkdir "$lockdir" 2>/dev/null; then
+  exit 1
+fi
+
+exit 0
