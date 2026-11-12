@@ -1,8 +1,6 @@
 // Item page: the panel collapse slide keeps padding, border and overflow fixed (T-116).
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-
-const css = readFileSync("src/routes/Item.svelte", "utf8");
+import css from "./Item.svelte?raw";
 
 function rule(selector: string): string {
   const start = css.indexOf(`${selector} {`);
