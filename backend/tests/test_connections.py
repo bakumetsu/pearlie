@@ -669,12 +669,23 @@ def test_tampered_token_gives_empty_and_warns(
 # ---------------------------------------------------------------------------
 
 
+def _seed(c: TestClient, name: str) -> None:
+    r = c.put(
+        f"/api/connections/{name}",
+        json={"address": f"http://{name}.local:9999", "secret": "firstkey"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+
+
 def test_put_stash_swaps_client(tmp_path: Path) -> None:
     c = make_client(
-        tmp_path, mode="real", secret_key=master_key(),
-        env={"real": "search", "stash_url": "http://stash.local:9999", "komga_url": "http://komga.local:8888"},
+        tmp_path, mode="real", secret_key=master_key(), env={"real": "search"}
     )
+    _seed(c, "stash")
     old = c.app.state.stash  # pyright: ignore[reportAttributeAccessIssue]
+    assert old is not None
+    c.app.state.stubbed_routes = set()  # pyright: ignore[reportAttributeAccessIssue]
     r = c.put(
         "/api/connections/stash",
         json={"address": "http://stash2.local:9999", "secret": "newkey"},
@@ -689,10 +700,12 @@ def test_put_stash_swaps_client(tmp_path: Path) -> None:
 
 def test_put_komga_swaps_client(tmp_path: Path) -> None:
     c = make_client(
-        tmp_path, mode="real", secret_key=master_key(),
-        env={"real": "search", "stash_url": "http://stash.local:9999", "komga_url": "http://komga.local:8888"},
+        tmp_path, mode="real", secret_key=master_key(), env={"real": "search"}
     )
+    _seed(c, "komga")
     old = c.app.state.komga  # pyright: ignore[reportAttributeAccessIssue]
+    assert old is not None
+    c.app.state.stubbed_routes = set()  # pyright: ignore[reportAttributeAccessIssue]
     r = c.put(
         "/api/connections/komga",
         json={"address": "http://komga2.local:8888", "secret": "newkey"},
@@ -706,20 +719,19 @@ def test_put_komga_swaps_client(tmp_path: Path) -> None:
 
 def test_env_locked_key_wins_after_save(tmp_path: Path) -> None:
     c = make_client(
-        tmp_path, mode="real", secret_key=master_key(),
-        env={
-            "real": "search",
-            "stash_url": "http://stash.local:9999",
-            "komga_url": "http://komga.local:8888",
-            "stash_api_key": "envsecret",
-        },
+        tmp_path,
+        mode="real",
+        secret_key=master_key(),
+        env={"real": "search", "stash_api_key": "envsecret"},
     )
-    c.put(
+    r = c.put(
         "/api/connections/stash",
         json={"address": "http://stash2.local:9999"},
         headers=HDR,
     )
-    assert c.app.state.settings.stash_api_key.get_secret_value() == "envsecret"  # pyright: ignore[reportAttributeAccessIssue]
+    assert r.status_code == 200
+    s = c.app.state.settings  # pyright: ignore[reportAttributeAccessIssue]
+    assert s.stash_api_key.get_secret_value() == "envsecret"
 
 
 def test_fixture_mode_keeps_none_clients(tmp_path: Path) -> None:
@@ -738,9 +750,9 @@ def test_swap_does_not_log_secret(
 ) -> None:
     caplog.set_level(logging.INFO, logger="pearlie")
     c = make_client(
-        tmp_path, mode="real", secret_key=master_key(),
-        env={"real": "search", "stash_url": "http://stash.local:9999", "komga_url": "http://komga.local:8888"},
+        tmp_path, mode="real", secret_key=master_key(), env={"real": "search"}
     )
+    _seed(c, "stash")
     r = c.put(
         "/api/connections/stash",
         json={"address": "http://stash2.local:9999", "secret": "topsecretvalue"},
