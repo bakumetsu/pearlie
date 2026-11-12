@@ -56,6 +56,7 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
       return;
     }
 
+    sections = {};
     for (const id of ids) {
       sections[id] = { status: "loading", section: null, error: null };
     }

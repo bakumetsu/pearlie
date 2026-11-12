@@ -29,4 +29,17 @@ describe("createSearch identical query", () => {
     s.retryAll();
     expect(api.search).toHaveBeenCalledTimes(3);
   });
+
+  it("rebuilds sections when the pill changes", () => {
+    const api = makeApi();
+    api.search.mockResolvedValue({ sections: [] });
+    const s = createSearch(api);
+    const chip = parseChip("cat")!;
+    s.run({ chips: [chip], pill: "all", sites: ["danbooru"] }, { immediate: true });
+    expect(Object.keys(s.sections).sort()).toEqual(["danbooru", "komga_books", "stash_images", "stash_videos"]);
+    s.run({ chips: [chip], pill: "videos", sites: ["danbooru"] }, { immediate: true });
+    expect(Object.keys(s.sections)).toEqual(["stash_videos"]);
+    s.run({ chips: [chip], pill: "all", sites: ["danbooru"] }, { immediate: true });
+    expect(Object.keys(s.sections).length).toBe(4);
+  });
 });
