@@ -128,4 +128,19 @@ describe("Lightbox", () => {
       expect(img.hasAttribute("data-sfw-shown")).toBe(false);
     },
   );
+
+  it("unknown size (0x0): no aspect-ratio style, empty stage still keeps blur", () => {
+    document.documentElement.dataset.sfw = "on";
+    vi.useFakeTimers();
+    dispose = installReveal();
+
+    renderItem(0, 0);
+
+    const img = document.querySelector<HTMLImageElement>(".stage img")!;
+    expect(img.getAttribute("style") ?? "").not.toContain("aspect-ratio");
+
+    document.querySelector(".stage")!.dispatchEvent(ptrEvent("pointerover", { pointerType: "mouse" }));
+    vi.advanceTimersByTime(REVEAL_DELAY_MS + 10);
+    expect(img.hasAttribute("data-sfw-shown")).toBe(false);
+  });
 });

@@ -37,6 +37,7 @@
   });
 
   const title = $derived(item.title ?? `${item.source} #${item.post_id}`);
+  const sized = $derived(item.width > 0 && item.height > 0);
   const backdrop = $derived(backdropStrength(options.values, "lightbox", sfw?.on ?? false));
 </script>
 
@@ -50,7 +51,7 @@
   <Backdrop src={item.preview_url} strength={backdrop} />
   <SfwToggle />
   <div class="stage">
-    <img src={item.preview_url} alt={item.title ?? ""} style="aspect-ratio: {item.width} / {item.height}; --ratio: {item.width / item.height};" />
+    <img src={item.preview_url} alt={item.title ?? ""} style={sized ? `aspect-ratio: ${item.width} / ${item.height}; --ratio: ${item.width / item.height};` : undefined} />
   </div>
 
   <div class="panel">
