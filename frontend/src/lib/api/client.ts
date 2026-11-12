@@ -38,6 +38,8 @@ export type ConnectionTest = S["TestOut"];
 export type UpdateStatus = S["StatusOut"];
 export type UpdateSettingsIn = S["SettingsIn"];
 export type UpdateApplied = S["ApplyOut"];
+export type UpdateChangelog = S["ChangelogOut"];
+export type ChangeBlock = S["ChangeBlockOut"];
 export type Destinations = S["Destinations"];
 
 export type Kind = "images" | "videos" | "series" | "books";
@@ -120,6 +122,7 @@ export interface Api {
   getUpdateStatus(p?: { refresh?: boolean; manual?: boolean }, signal?: AbortSignal): Promise<UpdateStatus>;
   putUpdateSettings(body: UpdateSettingsIn, signal?: AbortSignal): Promise<UpdateStatus>;
   applyUpdate(signal?: AbortSignal): Promise<UpdateApplied>;
+  getUpdateChangelog(p?: { channel?: "main" | "dev"; refresh?: boolean }, signal?: AbortSignal): Promise<UpdateChangelog>;
   testRules(tags: string[], signal?: AbortSignal): Promise<RulesTestResult>;
   saveProgress(bookId: string, page: number, signal?: AbortSignal, opts?: { keepalive?: boolean }): Promise<ProgressResult>;
 }
@@ -389,6 +392,16 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         buildUrl("/api/update/status", {
           refresh: p?.refresh ? "1" : undefined,
           manual: p?.manual ? "1" : undefined,
+        }),
+        undefined,
+        signal,
+      );
+    },
+    getUpdateChangelog(p, signal) {
+      return request<UpdateChangelog>(
+        buildUrl("/api/update/changelog", {
+          channel: p?.channel,
+          refresh: p?.refresh ? "1" : undefined,
         }),
         undefined,
         signal,

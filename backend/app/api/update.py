@@ -59,6 +59,35 @@ class SettingsIn(BaseModel):
     check_enabled: StrictBool | None = None
 
 
+class ChangeGroupOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["Added", "Fixed", "Reworked"]
+    items: list[str]
+
+
+class ChangeBlockOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str
+    range: str | None
+    version: str | None
+    groups: list[ChangeGroupOut]
+    total: int
+    more: int
+    more_url: str | None
+
+
+class ChangelogOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    channel: Literal["main", "dev"]
+    unavailable: bool
+    stale: bool
+    whats_new: ChangeBlockOut | None
+    history: list[ChangeBlockOut]
+
+
 class ApplyOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -170,6 +199,41 @@ def get_status(
     manual: bool = Query(False),
 ) -> StatusOut:
     return _status(request, refresh, manual)
+
+
+@router.get("/changelog")
+def get_changelog(
+    request: Request,
+    channel: Literal["main", "dev"] | None = Query(None),
+    refresh: bool = Query(False),
+) -> ChangelogOut:
+    app_state = request.app.state
+    db_path: Path = app_state.settings.db_path
+    checker = app_state.update_checker
+
+    raw_channel = _get(db_path, "update.channel")
+    own: Literal["main", "dev"] = raw_channel if raw_channel in ("main", "dev") else "main"
+    view: Literal["main", "dev"] = channel or own
+    enabled = _get(db_path, "update.check") != "off"
+
+    result = checker.cached(view)
+    if result is None and (enabled or refresh):
+        result = checker.check(view)
+    latest_ref: str | None = None
+    if result and result.latest:
+        latest_ref = result.latest.version if view == "main" else result.latest.commit
+
+    installed = update_version.current_version()
+    data = app_state.update_changelog.get(
+        view,
+        installed_version=installed.version,
+        installed_commit=installed.commit,
+        installed_known=not (installed.channel == "dev" and installed.commit is None),
+        latest_ref=latest_ref,
+        enabled=enabled,
+        force=refresh,
+    )
+    return ChangelogOut.model_validate(data)
 
 
 @router.put("/settings", dependencies=[Depends(write_guard)])

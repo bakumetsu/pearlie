@@ -885,6 +885,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/update/changelog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Changelog */
+        get: operations["get_changelog_api_update_changelog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/update/settings": {
         parameters: {
             query?: never;
@@ -963,6 +980,48 @@ export interface components {
         Blur: {
             /** Tag */
             tag: string;
+        };
+        /** ChangeBlockOut */
+        ChangeBlockOut: {
+            /** Title */
+            title: string;
+            /** Range */
+            range: string | null;
+            /** Version */
+            version: string | null;
+            /** Groups */
+            groups: components["schemas"]["ChangeGroupOut"][];
+            /** Total */
+            total: number;
+            /** More */
+            more: number;
+            /** More Url */
+            more_url: string | null;
+        };
+        /** ChangeGroupOut */
+        ChangeGroupOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "Added" | "Fixed" | "Reworked";
+            /** Items */
+            items: string[];
+        };
+        /** ChangelogOut */
+        ChangelogOut: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "main" | "dev";
+            /** Unavailable */
+            unavailable: boolean;
+            /** Stale */
+            stale: boolean;
+            whats_new: components["schemas"]["ChangeBlockOut"] | null;
+            /** History */
+            history: components["schemas"]["ChangeBlockOut"][];
         };
         /** ConnectionIn */
         ConnectionIn: {
@@ -3572,6 +3631,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_changelog_api_update_changelog_get: {
+        parameters: {
+            query?: {
+                channel?: ("main" | "dev") | null;
+                refresh?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangelogOut"];
                 };
             };
             /** @description Validation Error */

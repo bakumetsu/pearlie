@@ -54,6 +54,7 @@ from app.sources.throttle import DEFAULT_PACE, Throttle
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
 from app.update import runner
+from app.update.changelog import Changelog, FakeChangelog
 from app.update.check import FakeChecker, UpdateChecker
 from app.update.version import current_version
 
@@ -188,10 +189,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.update_http = None
     if settings.mode == "fixture":
         app.state.update_checker = FakeChecker()
+        app.state.update_changelog = FakeChangelog()
     else:
         http = httpx.Client(timeout=5.0)
         app.state.update_http = http
         app.state.update_checker = UpdateChecker(
+            http, settings.db_path, f"Pearlie/{current_version().version}"
+        )
+        app.state.update_changelog = Changelog(
             http, settings.db_path, f"Pearlie/{current_version().version}"
         )
     app.state.connections_mem = {}

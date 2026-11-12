@@ -2,6 +2,7 @@
 	import { onDestroy, onMount } from "svelte";
 	import { getApi } from "../api/client";
 	import { createUpdate } from "../stores/update.svelte";
+	import type { ChangeBlock } from "../api/client";
 	import Icon from "../components/Icon.svelte";
 	import Switch from "../components/Switch.svelte";
 
@@ -147,7 +148,67 @@
 			</li>
 		{/if}
 	</ul>
+	{#if update.status}
+		<div class="changelog" aria-label="Changelog">
+			<div class="cl-top">
+				<h3>Changelog</h3>
+				<span class="cl-seg">
+					<button
+						class="seg"
+						aria-label="Changelog Main"
+						aria-pressed={update.viewChannel === "main"}
+						onclick={() => update.setView("main")}
+					>
+						Main
+					</button>
+					<button
+						class="seg"
+						aria-label="Changelog Dev"
+						aria-pressed={update.viewChannel === "dev"}
+						onclick={() => update.setView("dev")}
+					>
+						Dev
+					</button>
+				</span>
+			</div>
+			{#if update.changelog && !update.changelog.unavailable}
+				{#if update.changelog.whats_new}
+					{@render block(update.changelog.whats_new)}
+				{/if}
+				{#each update.changelog.history as b (b.title)}
+					<details class="cl-block">
+						<summary>{b.title} <small class="muted">{b.total} {b.total === 1 ? "change" : "changes"}</small></summary>
+						{@render items(b)}
+					</details>
+				{/each}
+			{:else if update.changelog}
+				<p class="muted">Changelog unavailable.</p>
+			{/if}
+		</div>
+	{/if}
 </section>
+
+{#snippet items(b: ChangeBlock)}
+	{#each b.groups as g (g.kind)}
+		<p class="cl-kind">{g.kind}</p>
+		<ul class="cl-list">
+			{#each g.items as it, i (i)}
+				<li>{it}</li>
+			{/each}
+		</ul>
+	{/each}
+	{#if b.more > 0 && b.more_url}
+		<a class="cl-more" href={b.more_url} target="_blank" rel="noopener noreferrer">+ {b.more} more on GitHub</a>
+	{/if}
+{/snippet}
+
+{#snippet block(b: ChangeBlock)}
+	<div class="cl-new">
+		<b>What's new</b>
+		{#if b.range}<span class="muted">{b.range}</span>{/if}
+		{@render items(b)}
+	</div>
+{/snippet}
 <svelte:window onkeydown={(e) => { if (confirming && e.key === "Escape") confirming = false; }} />
 	{#if confirming}
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -177,6 +238,53 @@
 
 	.actions {
 		gap: var(--s-1);
+	}
+
+	.changelog {
+		margin-top: var(--s-3);
+		border-top: 1px solid var(--line);
+		padding-top: var(--s-2);
+		font-size: var(--t-13);
+	}
+	.cl-top {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+	.cl-top h3 {
+		margin: 0;
+		font-size: var(--t-13);
+	}
+	.cl-seg {
+		display: inline-flex;
+	}
+	.cl-new {
+		background: var(--accent-bg);
+		border-radius: var(--r-sm);
+		padding: var(--s-2);
+		margin: var(--s-2) 0;
+	}
+	.cl-block summary {
+		min-height: 44px;
+		display: flex;
+		align-items: center;
+		gap: var(--s-2);
+		cursor: pointer;
+	}
+	.cl-kind {
+		margin: var(--s-2) 0 var(--s-1);
+		color: var(--muted);
+		font-size: var(--t-12);
+	}
+	.cl-list {
+		margin: 0;
+		padding-left: var(--s-3);
+	}
+	.cl-more {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		color: var(--accent);
 	}
 
 	.pill {

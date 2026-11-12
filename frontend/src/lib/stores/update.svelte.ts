@@ -1,5 +1,5 @@
 import { isOffline, errorText, ApiError } from "../api/client";
-import type { Api, UpdateStatus } from "../api/client";
+import type { Api, UpdateChangelog, UpdateStatus } from "../api/client";
 import { toasts } from "./toasts.svelte";
 
 export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: number; maxMs?: number; reload?: () => void } = {}) {
@@ -13,6 +13,8 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
   let phase: "idle" | "running" | "restarting" | "failed_rollback" = $state("idle");
   let step: string | null = $state(null);
   let applyError: string | null = $state(null);
+  let changelog: UpdateChangelog | null = $state(null);
+  let viewOverride: "main" | "dev" | null = $state(null);
   let timer: ReturnType<typeof setTimeout> | null = null;
   let failureStart: number | null = null;
   let startedAt: number | null = null;
@@ -26,6 +28,25 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
   });
 
   const latest = $derived.by(() => status?.latest ?? lastLatest);
+
+  const viewChannel = $derived.by((): "main" | "dev" => viewOverride ?? status?.channel ?? "main");
+
+  async function loadChangelog(refresh = false) {
+    const want = viewChannel;
+    try {
+      const c = await api.getUpdateChangelog({ channel: want, refresh });
+      if (want === viewChannel) changelog = c;
+    } catch {
+      // the card just hides the changelog; the update status stays usable
+    }
+  }
+
+  async function setView(ch: "main" | "dev") {
+    if (viewChannel === ch) return;
+    viewOverride = ch;
+    changelog = null;
+    await loadChangelog();
+  }
 
   function stopPolling() {
     if (timer !== null) {
@@ -171,6 +192,7 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
       if (result.latest) lastLatest = result.latest;
       offline = false;
       error = null;
+      void loadChangelog(false);
     } catch (e) {
       if (isOffline(e)) {
         offline = true;
@@ -190,6 +212,7 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
       if (result.latest) lastLatest = result.latest;
       offline = false;
       error = null;
+      await loadChangelog(true);
     } catch (e) {
       if (isOffline(e)) {
         offline = true;
@@ -207,6 +230,7 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     try {
       const result = await api.putUpdateSettings({ channel: ch });
       status = result;
+      viewOverride = null;
       await checkNow();
     } catch {
       toasts.push({ kind: "error", message: "Could not switch channel. Try again." });
@@ -237,6 +261,8 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     get error() { return error; },
     get latest() { return latest; },
     get latestState() { return latestState; },
+    get changelog() { return changelog; },
+    get viewChannel() { return viewChannel; },
     get phase() { return phase; },
     get step() { return step; },
     get applyError() { return applyError; },
@@ -246,6 +272,7 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     dispose,
     checkNow,
     setChannel,
+    setView,
     setCheckEnabled,
   };
 }
