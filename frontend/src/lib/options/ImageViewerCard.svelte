@@ -33,29 +33,41 @@
 	}
 </script>
 
+<section class="card live" aria-label="Live preview">
+	<h2>Live preview <span class="live-on"><i></i>updates as you edit</span></h2>
+	<div class="live-body">
+		<div data-testid="backdrop-preview" class="preview">
+			{#if strength > 0}
+				<Backdrop src={SAMPLE} strength={strength} />
+			{/if}
+			<img src={SAMPLE} alt="Preview" class="preview-img" />
+		</div>
+		<small class="live-cap">Placeholder picture over its blurred backdrop.</small>
+	</div>
+</section>
+
 <section class="card">
 	<h2 class="card-title">Image viewer</h2>
-
-	<div data-testid="backdrop-preview" class="preview">
-		{#if strength > 0}
-			<Backdrop src={SAMPLE} strength={strength} />
-		{/if}
-		<img src={SAMPLE} alt="Preview" class="preview-img" />
-	</div>
+	<p class="hint">How a single opened image sits on the page.</p>
 
 	<div class="row">
-		<label class="row-label" for="backdrop-strength">Backdrop strength</label>
-		<input
-			id="backdrop-strength"
-			type="range"
-			min={0}
-			max={100}
-			step={1}
-			aria-label="Backdrop strength"
-			value={strength}
-			oninput={onStrengthInput}
-		/>
-		<span class="row-value">{strength}</span>
+		<div class="row-text">
+			<label class="row-label" for="backdrop-strength">Backdrop strength</label>
+			<span class="row-hint">Blurred copy behind the image. 0 = plain dark.</span>
+		</div>
+		<div class="slider">
+			<input
+				id="backdrop-strength"
+				type="range"
+				min={0}
+				max={100}
+				step={1}
+				aria-label="Backdrop strength"
+				value={strength}
+				oninput={onStrengthInput}
+			/>
+			<span class="row-value">{strength}</span>
+		</div>
 	</div>
 
 	<div class="row">
@@ -69,48 +81,33 @@
 	</div>
 
 	<div class="row">
-		<span class="row-label">Lightbox</span>
+		<div class="row-text">
+			<span class="row-label">Lightbox</span>
+			<span class="row-hint">Takes effect once the lightbox exists.</span>
+		</div>
 		<Switch checked={lightboxOn} label="Lightbox" onclick={toggleLightbox} />
 	</div>
 </section>
 
 <style>
-	.card {
-		border: 1px solid var(--border, #333);
-		border-radius: var(--radius, 8px);
-		padding: var(--pad, 16px);
-	}
-	.card-title {
-		margin: 0 0 var(--pad, 16px);
-		font-size: 1.1rem;
-	}
 	.preview {
-		aspect-ratio: 16 / 9;
-		border-radius: var(--radius, 8px);
+		width: 100%;
+		max-width: 238px;
+		height: 150px;
 		position: relative;
 		overflow: hidden;
+		border-radius: var(--r-md);
+		border: 1px solid var(--line);
 		background: #000;
-		margin-bottom: var(--pad, 16px);
 	}
 	.preview-img {
-		position: relative;
+		position: absolute;
 		z-index: 1;
-		width: 50%;
-		margin: 25% auto;
-		display: block;
-	}
-	.row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin-bottom: 0.5rem;
-	}
-	.row-label {
-		font-size: 0.9rem;
-	}
-	.row-value {
-		min-width: 2ch;
-		text-align: right;
-		font-variant-numeric: tabular-nums;
+		left: 50%;
+		top: 50%;
+		height: 84%;
+		width: auto;
+		transform: translate(-50%, -50%);
+		border-radius: 4px;
 	}
 </style>

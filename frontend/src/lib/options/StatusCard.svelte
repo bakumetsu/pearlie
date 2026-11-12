@@ -36,17 +36,17 @@
 </script>
 
 <section class="card">
-	<h2>Status</h2>
+	<h2 class="card-title">Status</h2>
 	{#if health}
 		<ul class="statusrows">
-			<li><span>Stash</span><span class="chip {chipClass(health.stash.state)}">{statusLabel(health.stash.state)}</span></li>
-			<li><span>Komga</span><span class="chip {chipClass(health.komga.state)}">{statusLabel(health.komga.state)}</span></li>
-			<li><span>Database</span><span class="chip {chipClass(health.db === "ok" ? "ok" : "down")}">{statusLabel(health.db === "ok" ? "ok" : "down")}</span></li>
+			<li class="row"><span>Stash</span><span class="chip {chipClass(health.stash.state)}">{statusLabel(health.stash.state)}</span></li>
+			<li class="row"><span>Komga</span><span class="chip {chipClass(health.komga.state)}">{statusLabel(health.komga.state)}</span></li>
+			<li class="row"><span>Database</span><span class="chip {chipClass(health.db === "ok" ? "ok" : "down")}">{statusLabel(health.db === "ok" ? "ok" : "down")}</span></li>
 			{#each health.mounts as mount, i (i)}
-				<li><span>Mount {mount.name}</span><span class="chip {chipClass(mount.state)}">{statusLabel(mount.state)}</span></li>
+				<li class="row"><span>Mount {mount.name}</span><span class="chip {chipClass(mount.state)}">{statusLabel(mount.state)}</span></li>
 			{/each}
 			{#each health.sites as site, i (i)}
-				<li><span>{site.id}</span><span class="chip {chipClass(site.state)}">{statusLabel(site.state)}</span></li>
+				<li class="row"><span>{site.id}</span><span class="chip {chipClass(site.state)}">{statusLabel(site.state)}</span></li>
 			{/each}
 		</ul>
 	{:else if healthError}
@@ -55,48 +55,9 @@
 </section>
 
 <style>
-	.card {
-		background: var(--surface);
-		border: 1px solid var(--line-strong);
-		border-radius: var(--r-md);
-		padding: var(--s-4);
-	}
-
 	.statusrows {
 		list-style: none;
+		margin: 0;
 		padding: 0;
-		display: flex;
-		flex-direction: column;
-		gap: var(--s-2);
-	}
-
-	.statusrows li {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		min-height: 44px;
-	}
-
-	.chip {
-		display: inline-flex;
-		gap: 4px;
-		font-size: var(--t-12);
-		padding: 2px 8px;
-		border-radius: 999px;
-	}
-
-	.chip.ok {
-		background: var(--ok-bg);
-		color: var(--ok-fg);
-	}
-
-	.chip.down {
-		background: var(--down-bg);
-		color: var(--down-fg);
-	}
-
-	.chip.neutral {
-		background: var(--neutral-bg);
-		color: var(--neutral-fg);
 	}
 </style>

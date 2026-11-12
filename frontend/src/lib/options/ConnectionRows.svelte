@@ -3,6 +3,7 @@
 	import type { ConnectionsStore } from "../stores/connections.svelte";
 	import { getApi } from "../api/client";
 	import type { Api } from "../api/client";
+	import Icon from "../components/Icon.svelte";
 	import ConnectionPopup from "./ConnectionPopup.svelte";
 
 	let {
@@ -30,7 +31,7 @@
 	<h2 class="card-title">{title}</h2>
 
 	{#each names as { key, label } (key)}
-		<div class="row">
+		<div class="row conn">
 			<span class="row-label">{label}</span>
 			<span class="chip"
 				>{store.loading ? "missing" : store.byName(key)?.key === "set" ? "set" : "missing"}</span
@@ -52,7 +53,7 @@
 			<span class="result{store.results[key] && !store.results[key]!.ok ? " err" : ""}" role="status"
 				>{store.results[key]?.message}</span
 			>
-			<button class="btn" aria-label={`Edit ${label}`} on:click={() => (editing = key)}>✎</button>
+			<button class="btn" aria-label={`Edit ${label}`} on:click={() => (editing = key)}><Icon name="settings" size={16} /></button>
 		</div>
 	{/each}
 </section>
@@ -68,59 +69,11 @@
 {/if}
 
 <style>
-	.card {
-		border: 1px solid var(--border, #333);
-		border-radius: var(--radius, 8px);
-		padding: var(--pad, 16px);
-	}
-	.card-title {
-		margin: 0 0 var(--pad, 16px);
-		font-size: 1.1rem;
-	}
-	.row {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-		min-height: 44px;
-		margin-bottom: 0.5rem;
-	}
-	.row-label {
-		font-size: 0.9rem;
-	}
-	.muted {
-		font-size: 0.8rem;
-		color: var(--muted, #999);
-	}
-	.chip {
-		display: inline-flex;
-		align-items: center;
-		min-height: 22px;
-		padding: 0 0.5rem;
-		border: 1px solid var(--muted, #555);
-		border-radius: 999px;
-		font-size: 0.7rem;
-		color: var(--muted, #999);
-	}
 	.result {
-		font-size: 0.8rem;
-		color: var(--muted, #999);
+		font-size: var(--t-13);
+		color: var(--muted);
 	}
 	.result.err {
-		color: var(--error, #ff6b6b);
-	}
-	.btn {
-		min-height: 44px;
-		min-width: 44px;
-		padding: 0 0.5rem;
-		border: 1px solid var(--border, #333);
-		border-radius: 4px;
-		background: var(--input-bg, #111);
-		color: inherit;
-		cursor: pointer;
-	}
-	.btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
+		color: var(--danger-hot);
 	}
 </style>
