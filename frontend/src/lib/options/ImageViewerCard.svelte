@@ -71,21 +71,21 @@
 	</div>
 
 	<div class="row">
-		<span class="row-label">Wall overlay</span>
-		<Switch checked={wallOn} label="Wall overlay" onclick={toggleWall} />
+		<span class="row-label">Show backdrop in wall overlay</span>
+		<Switch checked={wallOn} label="Show backdrop in wall overlay" onclick={toggleWall} />
 	</div>
 
 	<div class="row">
-		<span class="row-label">Item page</span>
-		<Switch checked={itemOn} label="Item page" onclick={toggleItem} />
+		<span class="row-label">Show backdrop on item page</span>
+		<Switch checked={itemOn} label="Show backdrop on item page" onclick={toggleItem} />
 	</div>
 
 	<div class="row">
 		<div class="row-text">
-			<span class="row-label">Lightbox</span>
+			<span class="row-label">Show backdrop in lightbox</span>
 			<span class="row-hint">Takes effect once the lightbox exists.</span>
 		</div>
-		<Switch checked={lightboxOn} label="Lightbox" onclick={toggleLightbox} />
+		<Switch checked={lightboxOn} label="Show backdrop in lightbox" onclick={toggleLightbox} />
 	</div>
 </section>
 
