@@ -2,7 +2,7 @@ import { isOffline, errorText, ApiError } from "../api/client";
 import type { Api, UpdateStatus } from "../api/client";
 import { toasts } from "./toasts.svelte";
 
-export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: number; reload?: () => void } = {}) {
+export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: number; maxMs?: number; reload?: () => void } = {}) {
   let status: UpdateStatus | null = $state(null);
   let loaded = $state(false);
   let offline = $state(false);
@@ -15,11 +15,12 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
   let applyError: string | null = $state(null);
   let timer: ReturnType<typeof setTimeout> | null = null;
   let failureStart: number | null = null;
+  let startedAt: number | null = null;
 
   const latestState = $derived.by(() => {
+    if (status?.available) return "available";
     if (status?.error === "rate_limited" || status?.retry_after != null) return "check_later";
     if (status?.error === "unreachable") return "unreachable";
-    if (status?.available) return "available";
     if (status?.latest != null) return "up_to_date";
     return "none";
   });
@@ -33,7 +34,17 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     }
   }
 
+  function giveUp(message: string) {
+    stopPolling();
+    phase = "idle";
+    toasts.push({ kind: "error", message });
+  }
+
   async function tick() {
+    if (startedAt !== null && Date.now() - startedAt > (opts.maxMs ?? 600_000)) {
+      giveUp("Update did not finish. Check /opt/pearlie/update.log.");
+      return;
+    }
     try {
       await api.health();
       failureStart = null;
@@ -41,9 +52,7 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
       if (failureStart === null) {
         failureStart = Date.now();
       } else if (Date.now() - failureStart > (opts.timeoutMs ?? 180_000)) {
-        stopPolling();
-        phase = "idle";
-        toasts.push({ kind: "error", message: "Pearlie did not come back. Check the console." });
+        giveUp("Pearlie did not come back. Check the console.");
         return;
       }
       phase = "restarting";
@@ -63,6 +72,11 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
         case "done":
           stopPolling();
           phase = "idle";
+          try {
+            sessionStorage.setItem("pearlie.update.notice", "Updated to " + s.installed.version);
+          } catch {
+            // storage blocked: the toast below still shows
+          }
           toasts.push({ kind: "info", message: "Updated to " + s.installed.version });
           (opts.reload ?? (() => window.location.reload()))();
           return;
@@ -88,9 +102,7 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
       if (failureStart === null) {
         failureStart = Date.now();
       } else if (Date.now() - failureStart > (opts.timeoutMs ?? 180_000)) {
-        stopPolling();
-        phase = "idle";
-        toasts.push({ kind: "error", message: "Pearlie did not come back. Check the console." });
+        giveUp("Pearlie did not come back. Check the console.");
         return;
       }
       phase = "restarting";
@@ -102,6 +114,7 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
   function startPolling() {
     if (timer !== null) return;
     failureStart = null;
+    startedAt = Date.now();
     timer = setTimeout(tick, opts.intervalMs ?? 2000);
   }
 
@@ -143,6 +156,15 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
   }
 
   async function load(refresh = false) {
+    try {
+      const notice = sessionStorage.getItem("pearlie.update.notice");
+      if (notice) {
+        sessionStorage.removeItem("pearlie.update.notice");
+        toasts.push({ kind: "info", message: notice });
+      }
+    } catch {
+      // storage blocked
+    }
     try {
       const result = await api.getUpdateStatus(refresh ? { refresh: true } : undefined);
       status = result;

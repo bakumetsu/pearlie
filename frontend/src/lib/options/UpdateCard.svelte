@@ -13,7 +13,13 @@
 	let confirming = $state(false);
 	onDestroy(() => update.dispose());
 	function confirm() { confirming = false; void update.apply(); }
-	const updateLabel = $derived(update.status && update.status.channel !== update.status.installed.channel && update.status.available ? `Switch to ${update.latest?.version}` : "Update");
+	const updateLabel = $derived(
+		update.status && update.status.channel !== update.status.installed.channel && update.status.available
+			? `Switch to ${update.latest?.version}`
+			: update.status?.available && update.latest?.version
+				? `Update to ${update.latest.version}`
+				: "Update",
+	);
 </script>
 
 <section class="card">
@@ -120,7 +126,7 @@
 					<button
 						class="iconbtn"
 						aria-label={updateLabel}
-						title={update.status && !update.status.can_apply ? "Updating is not available here" : "Update"}
+						title={update.status && !update.status.can_apply ? "Updating is not available here" : updateLabel}
 						disabled={!update.status?.available || !update.status?.can_apply || update.phase !== "idle"}
 						onclick={() => (confirming = true)}
 					>
@@ -313,6 +319,9 @@
 		color: var(--surface);
 	}
 	@media (max-width: 640px) {
+		.btn-label {
+			display: none;
+		}
 		.row {
 			flex-wrap: wrap;
 		}

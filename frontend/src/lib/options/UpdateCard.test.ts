@@ -72,7 +72,7 @@ describe("UpdateCard", () => {
     hoisted.api.health = vi.fn().mockResolvedValue({ status: "ok" });
     hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus());
     render(UpdateCard);
-    await fireEvent.click(await screen.findByRole("button", { name: "Update" }));
+    await fireEvent.click(await screen.findByRole("button", { name: /^Update/ }));
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toBeTruthy();
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -85,7 +85,7 @@ describe("UpdateCard", () => {
     hoisted.api.health = vi.fn().mockResolvedValue({ status: "ok" });
     hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus());
     render(UpdateCard);
-    await fireEvent.click(await screen.findByRole("button", { name: "Update" }));
+    await fireEvent.click(await screen.findByRole("button", { name: /^Update/ }));
     await fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     expect(hoisted.api.applyUpdate).toHaveBeenCalledTimes(1);
     const strip = await screen.findByRole("status");
@@ -99,7 +99,7 @@ describe("UpdateCard", () => {
       makeStatus({ state: "failed_rollback", error: "bad" }),
     );
     render(UpdateCard);
-    await fireEvent.click(await screen.findByRole("button", { name: "Update" }));
+    await fireEvent.click(await screen.findByRole("button", { name: /^Update/ }));
     await fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await vi.waitFor(
       () => expect(screen.queryByRole("alert")).toBeTruthy(),
@@ -147,7 +147,7 @@ describe("UpdateCard", () => {
 
     render(UpdateCard);
 
-    const btn = await screen.findByRole("button", { name: "Update" });
+    const btn = await screen.findByRole("button", { name: /^Update/ });
     expect((btn as HTMLButtonElement).disabled).toBe(true);
     expect(btn.getAttribute("title")).toBe("Updating is not available here");
   });
@@ -157,7 +157,7 @@ describe("UpdateCard", () => {
 
     render(UpdateCard);
 
-    const btn = await screen.findByRole("button", { name: "Update" });
+    const btn = await screen.findByRole("button", { name: /^Update/ });
     expect((btn as HTMLButtonElement).disabled).toBe(false);
 
     await fireEvent.click(btn);

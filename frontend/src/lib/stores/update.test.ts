@@ -185,6 +185,75 @@ describe("createUpdate", () => {
     }
   });
 
+  it("cap: status stays running, gives up after maxMs", async () => {
+    vi.useFakeTimers();
+    try {
+      const applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
+      const health = vi.fn().mockResolvedValue({ status: "ok" });
+      const getUpdateStatus = vi.fn().mockResolvedValue(makeStatus({ state: "running", step: "Building" }));
+      const putUpdateSettings = vi.fn();
+      const reload = vi.fn();
+      const api = { applyUpdate, health, getUpdateStatus, putUpdateSettings } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, timeoutMs: 100, maxMs: 100, reload });
+
+      await store.apply();
+      await vi.advanceTimersByTimeAsync(200);
+      expect(toasts.push).toHaveBeenCalledWith({
+        kind: "error",
+        message: "Update did not finish. Check /opt/pearlie/update.log.",
+      });
+      expect(store.phase).toBe("idle");
+      expect(reload).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("done saves the notice and the next load shows it once", async () => {
+    vi.useFakeTimers();
+    try {
+      sessionStorage.clear();
+      const applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
+      const health = vi.fn().mockResolvedValue({ status: "ok" });
+      const getUpdateStatus = vi
+        .fn()
+        .mockResolvedValueOnce(
+          makeStatus({ state: "done", installed: { version: "2.0.0", channel: "main", commit: "x" } })
+        )
+        .mockResolvedValue(makeStatus());
+      const putUpdateSettings = vi.fn();
+      const reload = vi.fn();
+      const api = { applyUpdate, health, getUpdateStatus, putUpdateSettings } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, timeoutMs: 100, reload });
+
+      await store.apply();
+      await vi.advanceTimersByTimeAsync(15);
+      expect(reload).toHaveBeenCalledTimes(1);
+      expect(sessionStorage.getItem("pearlie.update.notice")).toBe("Updated to 2.0.0");
+
+      vi.clearAllMocks();
+      const store2 = createUpdate(api, { reload });
+      await store2.load();
+      expect(toasts.push).toHaveBeenCalledWith({ kind: "info", message: "Updated to 2.0.0" });
+      expect(toasts.push).toHaveBeenCalledTimes(1);
+      expect(sessionStorage.getItem("pearlie.update.notice")).toBeNull();
+      await store2.load();
+      expect(toasts.push).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("available wins over retry_after", async () => {
+    const getUpdateStatus = vi.fn().mockResolvedValue(
+      makeStatus({ available: true, retry_after: 30, latest: { version: "1.2.4", url: "u" } as UpdateStatus["latest"] })
+    );
+    const api = { getUpdateStatus } as unknown as Api;
+    const store = createUpdate(api);
+    await store.load();
+    expect(store.latestState).toBe("available");
+  });
+
   it("restart tolerance: health rejects twice then recovers to done", async () => {
     vi.useFakeTimers();
     try {
