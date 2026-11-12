@@ -191,7 +191,7 @@ read_conf() {
         fi
         ;;
       host)
-        if [[ "$value" =~ ^[0-9A-Fa-f:.]+$ ]]; then
+        if [[ "$value" == "auto" || "$value" =~ ^[0-9A-Fa-f:.]+$ ]]; then
           HOST="$value"
         else
           echo "update.conf: bad line: $line" >&2
@@ -598,6 +598,10 @@ parse_args() {
 health_ok() {
   local expected="$1"
   local h="$HOST"
+  if [[ $h == "auto" ]]; then
+    h=$(hostname -I 2>/dev/null | awk '{for (j = 1; j <= NF; j++) if ($j ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) { print $j; exit }}' || true)
+    if [[ -z $h ]]; then h=127.0.0.1; fi
+  fi
   local url
   if [[ "$h" == *:* ]]; then
     url="http://[${h}]:${PORT}/api/health"

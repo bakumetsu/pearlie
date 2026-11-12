@@ -25,7 +25,7 @@ Creates a Debian 13 LXC (1 CPU, 1 GB, 4 GB) in community-scripts style. Run on t
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/bakumetsu/pearlie/main/ct/pearlie.sh)"
 ```
 
-The installer asks nothing beyond the standard community-scripts menu. Pearlie starts in real mode on the container IP, port 8000 (`http://<container IP>:8000`), with empty media folders `/mnt/media/stash/Temp` and `/mnt/media/stash/Other` inside the container. Pearlie has no login: keep it behind Tailscale, a firewall or a reverse proxy.
+The installer asks nothing beyond the standard community-scripts menu. Pearlie starts in real mode on the container IP, port 8000 (`http://<container IP>:8000`), with empty media folders `/mnt/media/stash/Temp` and `/mnt/media/stash/Other` inside the container. Pearlie has no login: keep it behind Tailscale, a firewall or a reverse proxy. The container follows DHCP: Pearlie binds the container's current IPv4 at each start (`PEARLIE_HOST=auto`); set a fixed IP in `/opt/pearlie/.env` to pin it.
 
 Configuration lives in `/opt/pearlie/.env` (edit it, then `systemctl restart pearlie`). Stash and Komga URLs and keys can also be typed into Options.
 

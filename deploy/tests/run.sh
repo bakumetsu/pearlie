@@ -696,6 +696,25 @@ case_bad_conf() {
   expect "bad_conf: step" "$(status_get step)" config
 }
 
+case_host_auto() {
+  new_case host_auto
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  printf 'port=%s\nhost=auto\n' "$PORT" > "$ROOT/update.conf"
+  run_update
+  expect "host_auto: RC" "$RC" 0
+  expect "host_auto: state" "$(status_get state)" done
+
+  new_case host_autox
+  seed_install 1.0.0
+  printf 'host=autox\n' > "$ROOT/update.conf"
+  printf '{"state":"running","step":"x"}\n' > "$ROOT/update-status.json"
+  run_update --from-ui
+  expect "host_autox: RC" "$RC" 1
+  expect "host_autox: state" "$(status_get state)" failed
+  expect "host_autox: step" "$(status_get step)" config
+}
+
 case_unit_sync() {
   local heredoc
   heredoc="$(sed -n "/^cat <<'UNIT'/,/^UNIT\$/p" "$REPO/install/pearlie-install.sh" | sed '1d;$d')"
@@ -715,9 +734,11 @@ case_installer_defaults() {
   for pat in PEARLIE_MODE=real PEARLIE_TRUSTED_NETWORK=1 PEARLIE_STASH_TEMP_DIR=/mnt/media/stash/Temp PEARLIE_STASH_DEFAULT_DIR=/mnt/media/stash/Other; do
     expect "installer_defaults: $pat appears once in installer" "$(grep -c "$pat" "$REPO/install/pearlie-install.sh" || true)" 1
   done
+  expect "installer_defaults: PEARLIE_HOST=auto appears once in installer" "$(grep -c 'PEARLIE_HOST=auto' "$REPO/install/pearlie-install.sh" || true)" 1
+  expect "installer_defaults: host=auto appears once in installer" "$(grep -c '^host=auto' "$REPO/install/pearlie-install.sh" || true)" 1
 }
 
-CASES=(case_nothing_newer case_check case_success case_build_fail case_bad_health case_lock case_malicious case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_unit_sync case_installer_defaults)
+CASES=(case_nothing_newer case_check case_success case_build_fail case_bad_health case_lock case_malicious case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_unit_sync case_installer_defaults)
 
 for c in "${CASES[@]}"; do
   "$c"
