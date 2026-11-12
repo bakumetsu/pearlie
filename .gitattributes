@@ -1,0 +1,3 @@
+*.sh text eol=lf
+deploy/pearlie.service text eol=lf
+deploy/requirements.lock text eol=lf
