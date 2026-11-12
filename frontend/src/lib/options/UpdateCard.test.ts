@@ -67,6 +67,46 @@ describe("UpdateCard", () => {
     expect(await screen.findByText("1.2.4")).toBeTruthy();
   });
 
+  it("Update opens the confirm sheet; Cancel closes it without applying", async () => {
+    hoisted.api.applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
+    hoisted.api.health = vi.fn().mockResolvedValue({ status: "ok" });
+    hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus());
+    render(UpdateCard);
+    await fireEvent.click(await screen.findByRole("button", { name: "Update" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(hoisted.api.applyUpdate).not.toHaveBeenCalled();
+  });
+
+  it("Confirm calls applyUpdate and shows the progress strip", async () => {
+    hoisted.api.applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
+    hoisted.api.health = vi.fn().mockResolvedValue({ status: "ok" });
+    hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus());
+    render(UpdateCard);
+    await fireEvent.click(await screen.findByRole("button", { name: "Update" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(hoisted.api.applyUpdate).toHaveBeenCalledTimes(1);
+    const strip = await screen.findByRole("status");
+    expect(strip).toBeTruthy();
+  });
+
+  it("failed_rollback status shows a persistent alert", async () => {
+    hoisted.api.applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
+    hoisted.api.health = vi.fn().mockResolvedValue({ status: "ok" });
+    hoisted.api.getUpdateStatus = vi.fn().mockResolvedValue(
+      makeStatus({ state: "failed_rollback", error: "bad" }),
+    );
+    render(UpdateCard);
+    await fireEvent.click(await screen.findByRole("button", { name: "Update" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await vi.waitFor(
+      () => expect(screen.queryByRole("alert")).toBeTruthy(),
+      { timeout: 5000 },
+    );
+  }, 10000);
+
   it("shows 'Switch to X' when channel differs from installed", async () => {
   hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus({ channel: "dev" }));
   render(UpdateCard);

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from "svelte";
+	import { onDestroy, onMount } from "svelte";
 	import { getApi } from "../api/client";
 	import { createUpdate } from "../stores/update.svelte";
 	import Icon from "../components/Icon.svelte";
@@ -7,15 +7,32 @@
 
 	const update = createUpdate(getApi());
 	onMount(() => {
-		void update.load(true);
+		void update.load(true).then(() => update.resume());
 	});
 
 	let { onupdate }: { onupdate?: () => void } = $props();
+	let confirming = $state(false);
+	onDestroy(() => update.dispose());
+	function confirm() { confirming = false; void update.apply(); }
 	const updateLabel = $derived(update.status && update.status.channel !== update.status.installed.channel && update.status.available ? `Switch to ${update.latest?.version}` : "Update");
 </script>
 
 <section class="card">
 	<h2>Update</h2>
+	{#if update.phase === "running" || update.phase === "restarting"}
+		<div class="strip" role="status">
+			<span class="spin"><Icon name="refresh" size={16} /></span>
+			{update.phase === "restarting" ? "Restarting…" : (update.step ?? "Starting…")}
+		</div>
+	{/if}
+	{#if update.phase === "failed_rollback"}
+		<div class="banner" role="alert">
+			<p>Update failed and could not be rolled back. Run pearlie-update in the Pearlie console to repair.</p>
+			{#if update.applyError}
+				<p>{update.applyError}</p>
+			{/if}
+		</div>
+	{/if}
 	<ul class="rows">
 		<!-- Installed -->
 		<li class="row">
@@ -105,8 +122,8 @@
 						class="iconbtn"
 						aria-label={updateLabel}
 						title={update.status && !update.status.can_apply ? "Updating is not available here" : "Update"}
-						disabled={!update.status?.available || !update.status?.can_apply}
-						onclick={() => onupdate?.()}
+						disabled={!update.status?.available || !update.status?.can_apply || update.phase !== "idle"}
+						onclick={() => { onupdate?.(); confirming = true; }}
 					>
 						<Icon name="download" />
 						<span class="btn-label">{updateLabel}</span>
@@ -127,6 +144,19 @@
 		{/if}
 	</ul>
 </section>
+<svelte:window onkeydown={(e) => { if (confirming && e.key === "Escape") confirming = false; }} />
+	{#if confirming}
+		
+		<div class="scrim" role="presentation" onclick={() => (confirming = false)}>
+			<div class="sheet" role="dialog" aria-modal="true" aria-label="Confirm update" tabindex="-1" onclick={(e) => e.stopPropagation()}>
+				<p>Pearlie restarts for about a minute. Your settings and library are not changed.</p>
+				<div class="sheet-actions">
+					<button class="sheetbtn" onclick={() => (confirming = false)}>Cancel</button>
+					<button class="sheetbtn primary" onclick={confirm}>Confirm</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 <style>
 	.card {
@@ -230,6 +260,59 @@
 		font-size: var(--t-13);
 	}
 
+	.strip {
+		display: flex;
+		flex-direction: row;
+		gap: var(--s-2);
+		align-items: center;
+		min-height: 44px;
+		color: var(--muted);
+		font-size: var(--t-13);
+	}
+	.banner {
+		border: 1px solid var(--accent);
+		background: var(--accent-bg);
+		border-radius: var(--r-sm);
+		padding: var(--s-2);
+		font-size: var(--t-13);
+		margin-bottom: var(--s-2);
+	}
+	.scrim {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+		z-index: 100;
+	}
+	.sheet {
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--r-md) var(--r-md) 0 0;
+		padding: var(--s-3);
+		width: 100%;
+		max-width: 480px;
+		font-size: var(--t-13);
+	}
+	.sheet-actions {
+		display: flex;
+		gap: var(--s-2);
+		justify-content: flex-end;
+	}
+	.sheetbtn {
+		min-height: 44px;
+		min-width: 88px;
+		border: 1px solid var(--line-strong);
+		background: var(--surface);
+		color: var(--text);
+		border-radius: var(--r-sm);
+		cursor: pointer;
+	}
+	.sheetbtn.primary {
+		background: var(--accent);
+		color: var(--surface);
+	}
 	@media (max-width: 640px) {
 		.row {
 			flex-wrap: wrap;

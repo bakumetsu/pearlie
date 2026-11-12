@@ -154,6 +154,235 @@ describe("createUpdate", () => {
     expect(store.status?.check_enabled).toBe(false);
   });
 
+  it("apply success then poll", async () => {
+    vi.useFakeTimers();
+    try {
+      const applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
+      const health = vi.fn().mockResolvedValue({ status: "ok" });
+      const getUpdateStatus = vi
+        .fn()
+        .mockResolvedValueOnce(makeStatus({ state: "running", step: "Building" }))
+        .mockResolvedValueOnce(
+          makeStatus({ state: "done", installed: { version: "2.0.0", channel: "main", commit: "x" } })
+        );
+      const putUpdateSettings = vi.fn();
+      const reload = vi.fn();
+      const api = { applyUpdate, health, getUpdateStatus, putUpdateSettings } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, timeoutMs: 100, reload });
+
+      await store.apply();
+      expect(store.phase).toBe("running");
+
+      await vi.advanceTimersByTimeAsync(15);
+      expect(store.step).toBe("Building");
+
+      await vi.advanceTimersByTimeAsync(15);
+      expect(toasts.push).toHaveBeenCalledWith({ kind: "info", message: "Updated to 2.0.0" });
+      expect(reload).toHaveBeenCalledTimes(1);
+      expect(store.phase).toBe("idle");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("restart tolerance: health rejects twice then recovers to done", async () => {
+    vi.useFakeTimers();
+    try {
+      const applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
+      const health = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("502"))
+        .mockRejectedValueOnce(new Error("502"))
+        .mockResolvedValue({ status: "ok" });
+      const getUpdateStatus = vi.fn().mockResolvedValue(
+        makeStatus({ state: "done", installed: { version: "2.0.0", channel: "main", commit: "x" } })
+      );
+      const putUpdateSettings = vi.fn();
+      const reload = vi.fn();
+      const api = { applyUpdate, health, getUpdateStatus, putUpdateSettings } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, timeoutMs: 100, reload });
+
+      await store.apply();
+
+      await vi.advanceTimersByTimeAsync(15);
+      expect(store.phase).toBe("restarting");
+
+      await vi.advanceTimersByTimeAsync(10);
+      expect(store.phase).toBe("restarting");
+
+      await vi.advanceTimersByTimeAsync(15);
+      expect(reload).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rolled_back: error toast, applyError set, no reload, phase idle", async () => {
+    vi.useFakeTimers();
+    try {
+      const applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
+      const health = vi.fn().mockResolvedValue({ status: "ok" });
+      const getUpdateStatus = vi
+        .fn()
+        .mockResolvedValue(makeStatus({ state: "rolled_back", error: "boom" }));
+      const putUpdateSettings = vi.fn();
+      const reload = vi.fn();
+      const api = { applyUpdate, health, getUpdateStatus, putUpdateSettings } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, timeoutMs: 100, reload });
+
+      await store.apply();
+      await vi.advanceTimersByTimeAsync(15);
+
+      expect(toasts.push).toHaveBeenCalledWith({
+        kind: "error",
+        message: "Update failed and was rolled back: boom",
+      });
+      expect(reload).not.toHaveBeenCalled();
+      expect(store.applyError).toBe("boom");
+      expect(store.phase).toBe("idle");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("failed_rollback: phase set, applyError set, no toast, no reload", async () => {
+    vi.useFakeTimers();
+    try {
+      const applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
+      const health = vi.fn().mockResolvedValue({ status: "ok" });
+      const getUpdateStatus = vi
+        .fn()
+        .mockResolvedValue(makeStatus({ state: "failed_rollback", error: "disk full" }));
+      const putUpdateSettings = vi.fn();
+      const reload = vi.fn();
+      const api = { applyUpdate, health, getUpdateStatus, putUpdateSettings } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, timeoutMs: 100, reload });
+
+      await store.apply();
+      await vi.advanceTimersByTimeAsync(15);
+
+      expect(store.phase).toBe("failed_rollback");
+      expect(store.applyError).toBe("disk full");
+      expect(toasts.push).not.toHaveBeenCalled();
+      expect(reload).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("timeout: health never recovers, error toast after 200 ms", async () => {
+    vi.useFakeTimers();
+    try {
+      const applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
+      const health = vi.fn().mockRejectedValue(new Error("down"));
+      const getUpdateStatus = vi.fn();
+      const putUpdateSettings = vi.fn();
+      const reload = vi.fn();
+      const api = { applyUpdate, health, getUpdateStatus, putUpdateSettings } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, timeoutMs: 100, reload });
+
+      await store.apply();
+      await vi.advanceTimersByTimeAsync(200);
+
+      expect(toasts.push).toHaveBeenCalledWith({
+        kind: "error",
+        message: "Pearlie did not come back. Check the console.",
+      });
+      expect(store.phase).toBe("idle");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("apply 409 already_running: phase becomes running", async () => {
+    vi.useFakeTimers();
+    try {
+      const applyUpdate = vi.fn().mockRejectedValue(new ApiError(409, "already_running", "x"));
+      const health = vi.fn().mockResolvedValue({ status: "ok" });
+      const getUpdateStatus = vi.fn().mockResolvedValue(
+        makeStatus({ state: "done", installed: { version: "2.0.0", channel: "main", commit: "x" } })
+      );
+      const putUpdateSettings = vi.fn();
+      const reload = vi.fn();
+      const api = { applyUpdate, health, getUpdateStatus, putUpdateSettings } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, timeoutMs: 100, reload });
+
+      await store.apply();
+      expect(store.phase).toBe("running");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("apply 409 up_to_date: info toast, phase stays idle", async () => {
+    vi.useFakeTimers();
+    try {
+      const applyUpdate = vi.fn().mockRejectedValue(new ApiError(409, "up_to_date", "x"));
+      const health = vi.fn();
+      const getUpdateStatus = vi.fn();
+      const putUpdateSettings = vi.fn();
+      const reload = vi.fn();
+      const api = { applyUpdate, health, getUpdateStatus, putUpdateSettings } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, timeoutMs: 100, reload });
+
+      await store.apply();
+      expect(toasts.push).toHaveBeenCalledWith({ kind: "info", message: "Already up to date." });
+      expect(store.phase).toBe("idle");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("apply 503: error toast 'Updating is not available here.'", async () => {
+    vi.useFakeTimers();
+    try {
+      const applyUpdate = vi.fn().mockRejectedValue(new ApiError(503, "unavailable", "x"));
+      const health = vi.fn();
+      const getUpdateStatus = vi.fn();
+      const putUpdateSettings = vi.fn();
+      const reload = vi.fn();
+      const api = { applyUpdate, health, getUpdateStatus, putUpdateSettings } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, timeoutMs: 100, reload });
+
+      await store.apply();
+      expect(toasts.push).toHaveBeenCalledWith({
+        kind: "error",
+        message: "Updating is not available here.",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("resume() starts polling after load(); dispose() stops it", async () => {
+    vi.useFakeTimers();
+    try {
+      const applyUpdate = vi.fn();
+      const health = vi.fn().mockResolvedValue({ status: "ok" });
+      const getUpdateStatus = vi
+        .fn()
+        .mockResolvedValueOnce(makeStatus({ state: "running", step: "Installing" }));
+      const putUpdateSettings = vi.fn();
+      const reload = vi.fn();
+      const api = { applyUpdate, health, getUpdateStatus, putUpdateSettings } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, timeoutMs: 100, reload });
+
+      await store.load();
+      store.resume();
+      expect(store.phase).toBe("running");
+
+      await vi.advanceTimersByTimeAsync(15);
+      const callsAfterPoll = health.mock.calls.length;
+      expect(callsAfterPoll).toBeGreaterThan(0);
+
+      store.dispose();
+      await vi.advanceTimersByTimeAsync(50);
+      expect(health.mock.calls.length).toBe(callsAfterPoll);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("offline on network ApiError(0,'network',…)", async () => {
     const api = {
       getUpdateStatus: vi.fn().mockRejectedValue(new ApiError(0, "network", "connection failed")),
