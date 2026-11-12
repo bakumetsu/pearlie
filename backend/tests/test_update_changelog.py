@@ -188,11 +188,36 @@ def test_check_now_refetches(tmp_path: Path) -> None:
 
 def test_new_latest_refetches_when_checks_on(tmp_path: Path) -> None:
     seen: list[str] = []
-    cl = _mk(tmp_path, _REL, seen)
+    routes = {**_REL, TAGS_URL: _tags("v0.3.0", "v0.4.0")}
+    cl = _mk(tmp_path, routes, seen)
     _get(cl, latest_ref="0.4.0")
     n = len(seen)
+    routes[TAGS_URL] = _REL[TAGS_URL]
     _get(cl, latest_ref="0.5.0")
     assert len(seen) > n
+
+
+def test_forced_get_with_same_tags_costs_one_call(tmp_path: Path) -> None:
+    seen: list[str] = []
+    cl = _mk(tmp_path, _REL, seen)
+    _get(cl, force=True)
+    seen.clear()
+    out = _get(cl, force=True)
+    assert seen == [TAGS_URL]
+    assert len(out["history"]) == 3
+
+
+def test_forced_get_with_new_tag_rebuilds_releases(tmp_path: Path) -> None:
+    seen: list[str] = []
+    routes = dict(_REL)
+    cl = _mk(tmp_path, routes, seen)
+    _get(cl, force=True)
+    routes[TAGS_URL] = _tags("v0.3.0", "v0.4.0", "v0.5.0", "v0.6.0")
+    routes[_cmp("v0.5.0", "v0.6.0")] = {"commits": [_c("feat: shiny")]}
+    seen.clear()
+    out = _get(cl, force=True, latest_ref="0.6.0")
+    assert _cmp("v0.5.0", "v0.6.0") in seen
+    assert [b["title"] for b in out["history"]][0] == "v0.6.0"
 
 
 def test_check_off_makes_no_fetch(tmp_path: Path) -> None:

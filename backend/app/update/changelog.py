@@ -111,16 +111,25 @@ class Changelog:
             store = self._load()
             ok = True
             rel_key = f"v{latest_ref}" if channel == "main" and latest_ref else None
+            tags_memo: list[list[str]] = []
+
+            def tags() -> list[str]:
+                if not tags_memo:
+                    tags_memo.append(self._tags())
+                return tags_memo[0]
+
             releases: list[Block] | None
             try:
-                releases = self._part(store, "releases", rel_key, force, enabled, self._releases)
+                releases = self._releases_part(store, rel_key, force, enabled, tags)
             except _Unavailable:
                 releases, ok = store.get("releases", {}).get("data"), False
             dev: Block | None = None
             if channel == "dev":
                 head = latest_ref if latest_ref and SHA_RE.match(latest_ref) else None
                 try:
-                    dev = self._part(store, "dev", head, force, enabled, self._dev_block)
+                    dev = self._part(
+                        store, "dev", head, force, enabled, lambda: self._dev_block(tags())
+                    )
                 except _Unavailable:
                     dev, ok = store.get("dev", {}).get("data"), False
             whats_new = self._whats_new(
@@ -165,6 +174,33 @@ class Changelog:
             return entry["data"] if have else None
         data = build()
         store[name] = {"key": key, "data": data}
+        return data
+
+    def _releases_part(
+        self,
+        store: dict[str, Any],
+        rel_key: str | None,
+        force: bool,
+        enabled: bool,
+        tags: Callable[[], list[str]],
+    ) -> list[Block] | None:
+        """Release blocks never change once tagged, so key them by the newest tag name.
+
+        A forced or moved refresh costs one tags call; the compare calls run only
+        when the newest tag differs from the cached key (or nothing is cached).
+        """
+        entry: Any = store.get("releases")
+        have = isinstance(entry, dict) and "data" in entry
+        if have and not force and (rel_key is None or entry["key"] == rel_key):
+            return entry["data"]
+        if not (force or enabled):
+            return entry["data"] if have else None
+        names = tags()
+        newest = names[0] if names else None
+        if have and entry["key"] == newest:
+            return entry["data"]
+        data = self._releases(names)
+        store["releases"] = {"key": newest, "data": data}
         return data
 
     def _load(self) -> dict[str, Any]:
@@ -223,8 +259,8 @@ class Changelog:
         found.sort(reverse=True)
         return [name for _, name in found]
 
-    def _releases(self) -> list[Block]:
-        tags = self._tags()[: _MAX_RELEASES + 1]
+    def _releases(self, names: list[str]) -> list[Block]:
+        tags = names[: _MAX_RELEASES + 1]
         blocks: list[Block] = []
         for i, tag in enumerate(tags[:_MAX_RELEASES]):
             if i + 1 < len(tags):
@@ -240,8 +276,7 @@ class Changelog:
             blocks.append(build_block(tag, commits, more_url, version=tag[1:]))
         return blocks
 
-    def _dev_block(self) -> Block:
-        tags = self._tags()
+    def _dev_block(self, tags: list[str]) -> Block:
         if not tags:
             raise _Unavailable
         last = tags[0]
