@@ -32,6 +32,14 @@ def _term(token: str) -> str:
     return f'{neg}{prefix}"{name}"' if name else ""
 
 
+def _int(value: object) -> int:
+    """A size field as an int; anything that is not a whole number counts as 0."""
+    try:
+        return int(value)  # type: ignore[call-overload]
+    except (ValueError, TypeError):
+        return 0
+
+
 def _obj(value: object) -> dict:
     """The value when it is a JSON object, else an empty dict."""
     return value if isinstance(value, dict) else {}
@@ -116,7 +124,14 @@ class NHentai:
         rows = data.get("result")
         if not isinstance(rows, list):
             raise SourceError("upstream_error", "nhentai sent invalid JSON")
-        posts = [self._to_post(d) for d in rows if isinstance(d, dict) and "id" in d]
+        posts = []
+        for d in rows:
+            if not isinstance(d, dict) or "id" not in d:
+                continue
+            try:
+                posts.append(self._to_post(d))
+            except (ValueError, TypeError):
+                continue  # one odd gallery must not fail the page
         pages = data.get("num_pages")
         pages = pages if isinstance(pages, int) else None
         per_page = data.get("per_page")
@@ -161,8 +176,8 @@ class NHentai:
             post_id=str(d["id"]),
             preview_url=cover_url,
             sample_url=cover_url,
-            width=int(cover.get("w") or 0),
-            height=int(cover.get("h") or 0),
+            width=_int(cover.get("w")),
+            height=_int(cover.get("h")),
             tags=grouped,
             source_url=f"{self._base_url}/g/{d['id']}/",
             title=title.get("pretty") or title.get("english") or title.get("japanese"),

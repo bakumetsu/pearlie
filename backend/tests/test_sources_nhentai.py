@@ -1,4 +1,5 @@
 """Tests for the nhentai adapter and its search wiring (mocked, no network)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -79,6 +80,23 @@ def test_search_parse_and_paging() -> None:
     assert p.tags["parody"] == ["original"]
     assert p.extra == {"media_id": "901", "page_exts": ["jpg", "png"]}
     assert (p.width, p.height) == (350, 500)
+
+
+def test_bad_row_is_skipped_not_fatal() -> None:
+    bad = gallery(2)
+    bad["images"]["cover"] = {"t": "j", "w": "wide", "h": None}
+    worse = gallery(3)
+    worse["images"] = "oops"
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"result": [gallery(1), bad, worse, gallery(4)], "num_pages": 1, "per_page": 25},
+        )
+
+    posts = make(handler).search([]).posts
+    assert [p.post_id for p in posts if p.post_id in {"1", "4"}] == ["1", "4"]
+    assert next(p for p in posts if p.post_id == "2").width == 0
 
 
 def test_empty_query_lists_all_and_last_page() -> None:
@@ -163,8 +181,11 @@ def test_search_section_and_filters(tmp_path: Path) -> None:
     c.put(
         "/api/rules",
         json={
-            "version": 1, "reject": ["bad", "artist:blocked artist"], "warn": [],
-            "require": [], "mapping": [],
+            "version": 1,
+            "reject": ["bad", "artist:blocked artist"],
+            "warn": [],
+            "require": [],
+            "mapping": [],
         },
     )
     sec = c.get("/api/search?q=x&sources=nhentai").json()["sections"][0]
