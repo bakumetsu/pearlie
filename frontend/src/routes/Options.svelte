@@ -14,6 +14,7 @@
   import { SvelteMap } from "svelte/reactivity";
   import Rules from "./Rules.svelte";
   import ImageViewerCard from "../lib/options/ImageViewerCard.svelte";
+  import ListsCard from "../lib/options/ListsCard.svelte";
   import DownloadsCard from "../lib/options/DownloadsCard.svelte";
   import StatusCard from "../lib/options/StatusCard.svelte";
   import UpdateCard from "../lib/options/UpdateCard.svelte";
@@ -270,6 +271,8 @@
         {#each activeSection.cards as card (card.title)}
           {#if activeSectionId === "viewing" && card.title === "Image viewer"}
             <ImageViewerCard />
+          {:else if activeSectionId === "viewing" && card.title === "Lists"}
+            <ListsCard />
           {:else if activeSectionId === "content-filter" && card.title === "Content filter"}
             <ContentFilterCard />
           {:else if activeSectionId === "discover" && card.title === "Sites in the rail"}
@@ -428,6 +431,8 @@
           {#each activeSection.cards as card (card.title)}
             {#if activeSectionId === "viewing" && card.title === "Image viewer"}
               <ImageViewerCard />
+            {:else if activeSectionId === "viewing" && card.title === "Lists"}
+              <ListsCard />
             {:else if activeSectionId === "content-filter" && card.title === "Content filter"}
               <ContentFilterCard />
             {:else if activeSectionId === "discover" && card.title === "Sites in the rail"}

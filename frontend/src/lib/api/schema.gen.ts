@@ -1389,6 +1389,11 @@ export interface components {
              */
             trash_retention_days: number;
             /**
+             * Infinite Scroll
+             * @default false
+             */
+            infinite_scroll: boolean;
+            /**
              * Source Pace
              * @default {}
              */
@@ -1424,6 +1429,8 @@ export interface components {
             allow_blurred_tags?: boolean | null;
             /** Trash Retention Days */
             trash_retention_days?: number | null;
+            /** Infinite Scroll */
+            infinite_scroll?: boolean | null;
             /** Source Pace */
             source_pace?: {
                 [key: string]: number;

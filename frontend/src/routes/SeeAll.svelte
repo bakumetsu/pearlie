@@ -12,6 +12,7 @@
   import { onMount } from "svelte";
   import { SvelteURLSearchParams } from "svelte/reactivity";
   import { viewSettings } from "../lib/stores/viewSettings.svelte";
+  import { options } from "../lib/stores/options.svelte";
   import { pageOf, remapPage } from "../lib/browse/pager";
   import type { Mode } from "../lib/browse/layout";
   import ResultsGrid from "../lib/browse/ResultsGrid.svelte";
@@ -50,6 +51,8 @@
   const seed = $derived(match.query.get("seed") ?? undefined);
   const page = $derived(pageOf(match.query.get("page")));
   const vs = $derived(viewSettings.get(source));
+  const infinite = $derived(options.values?.infinite_scroll ?? false);
+  let sentinelEl = $state<HTMLElement | null>(null);
   let pagerEl = $state<HTMLSelectElement | HTMLInputElement | null>(null);
 
   function sourceToKind(s: string): Kind | null {
@@ -144,12 +147,13 @@
   });
 
   const listKey = $derived(
-    [source, q, sort, favorite ? "1" : "0", seed ?? "", String(vs.per_page)].join("|"),
+    [source, q, sort, favorite ? "1" : "0", seed ?? "", String(vs.per_page), infinite ? "inf" : "pg"].join("|"),
   );
 
   $effect(() => {
-    if (!viewSettings.ready) return;
+    if (!viewSettings.ready || !options.ready) return;
     if (pendingCloseQuery !== null) return;
+    const inf = infinite;
     const k = sourceToKind(source);
     const src = source;
     const qq = q;
@@ -158,7 +162,8 @@
     const sd = seed;
     const pp = vs.per_page;
     const adopt = untrack(() => grid.listKey === listKey && grid.status === "done" && grid.takeCrossed());
-    const pg = adopt ? untrack(() => grid.page) : page;
+    // Infinite mode has no pager: it always starts at page 1 (the URL sync below drops ?page=)
+    const pg = inf ? 1 : adopt ? untrack(() => grid.page) : page;
 
     if (k) {
       const loader = async (p: number, signal: AbortSignal) => {
@@ -177,7 +182,7 @@
         notice = r.notice?.message ?? null;
         return { items: r.items, total: r.total ?? null, next_page: r.next_page ?? null, page: r.page ?? null, pages: r.pages ?? null, page_size: r.page_size ?? null, stats: r.stats ?? null };
       };
-      untrack(() => grid.open(listKey, loader, pg));
+      untrack(() => { grid.setAccumulate(inf); grid.open(listKey, loader, pg); });
     } else {
       notice = null;
       const loader = async (p: number, signal: AbortSignal) => {
@@ -193,8 +198,24 @@
           hidden: s?.hidden ?? null,
         };
       };
-      untrack(() => grid.open(listKey, loader, pg));
+      untrack(() => { grid.setAccumulate(inf); grid.open(listKey, loader, pg); });
     }
+  });
+
+  // Infinite scroll: ask for the next page once the end marker comes near. One page ahead only;
+  // loadMore ignores the call while a request runs, after the last page and after an error.
+  $effect(() => {
+    const el = sentinelEl;
+    void grid.lastPage; // re-observe after each page: a short page leaves the marker in view
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void grid.loadMore();
+      },
+      { rootMargin: "400px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
   });
 
   // Sync URL page param to served page
@@ -334,6 +355,7 @@
       if (t.isContentEditable) return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    if (infinite) return;
     if (e.key === "ArrowLeft") {
       const gp = grid.page;
       if (gp > 1) setPage(gp - 1);
@@ -394,7 +416,7 @@
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
   {#if viewSettings.ready}
-    {#if grid.status !== "error" && grid.status !== "idle"}
+    {#if !infinite && grid.status !== "error" && grid.status !== "idle"}
       <Pager page={grid.page} pages={grid.pages} hasNext={grid.hasNext} perPage={vs.per_page} shown={grid.items.length} total={grid.total} stats={grid.stats ? { megapixels: grid.stats.megapixels ?? null, size_bytes: grid.stats.size_bytes ?? null } : null} onpage={setPage} spaced bind:selectEl={pagerEl} />
     {/if}
 
@@ -411,7 +433,18 @@
       <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => (lightboxKey = webKey(w))} />
     {/if}
 
-    {#if grid.status !== "error" && grid.status !== "idle"}
+    {#if infinite && grid.status === "done"}
+      {#if grid.more === "error"}
+        <div class="more-box">
+          <p>Could not load more.</p>
+          <button class="retry-btn" onclick={() => grid.loadMore(true)}>Retry</button>
+        </div>
+      {:else if grid.hasNext}
+        <div class="more-box" data-testid="more-sentinel" bind:this={sentinelEl}>
+          <span class="sr-only" role="status">{grid.more === "loading" ? "Loading more" : ""}</span>
+        </div>
+      {/if}
+    {:else if !infinite && grid.status !== "error" && grid.status !== "idle"}
       <Pager page={grid.page} pages={grid.pages} hasNext={grid.hasNext} perPage={vs.per_page} shown={grid.items.length} total={grid.total} stats={grid.stats ? { megapixels: grid.stats.megapixels ?? null, size_bytes: grid.stats.size_bytes ?? null } : null} onpage={setPage} showStats={false} spaced />
     {/if}
   {/if}
@@ -443,6 +476,8 @@
   .sort-select { padding: var(--s-2) var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: var(--surface); color: var(--text); }
   .fav-toggle { min-height: 44px; display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: none; color: var(--text); cursor: pointer; }
   .error-box { padding: var(--s-4); text-align: center; color: var(--text); }
+  .more-box { min-height: 44px; padding: var(--s-4); text-align: center; color: var(--text); }
+  .more-box p { margin: 0; }
   .retry-btn { margin-top: var(--s-4); padding: var(--s-2) var(--s-4); border: none; border-radius: var(--s-2); background: var(--text); color: var(--surface); cursor: pointer; }
   .empty { text-align: center; padding: var(--s-8); color: var(--text); }
   .notice { margin: 0; font-size: 0.875rem; color: var(--muted); }

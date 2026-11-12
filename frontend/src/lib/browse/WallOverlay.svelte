@@ -6,7 +6,7 @@
   import { keyOf } from "../stores/shared.svelte";
   import { createItemView } from "../item/itemView.svelte";
   import type { GridLike, ToastsLike } from "../item/itemView.svelte";
-  import { canStep, stepInList, nearestInList, pageEdge, type ListGrid } from "../item/listNav";
+  import { canStep, stepInList, nearestInList, pageEdge, arrivalIdx, stepTarget, type ListGrid } from "../item/listNav";
   import ImageStage from "../item/ImageStage.svelte";
   import { createZoom, zoomKey } from "../item/zoomModel.svelte";
   import Icon from "../components/Icon.svelte";
@@ -169,10 +169,12 @@
     }
     const dir: 1 | -1 = pageEdge(grid, 1) ? 1 : -1;
     if (pageEdge(grid, dir)) {
-      await grid.goTo(grid.page + dir);
-      if (grid.status !== "error") {
+      const firstKey = grid.items[0] ? keyOf(grid.items[0]) : null;
+      const prevLen = grid.items.length;
+      await grid.goTo(stepTarget(grid, dir));
+      if (grid.status !== "error" && grid.more !== "error") {
         const items = grid.items;
-        const t = nearestInList(items, dir === 1 ? -1 : items.length, dir, "image");
+        const t = nearestInList(items, arrivalIdx(grid, dir, firstKey, prevLen), dir, "image");
         if (t) {
           grid.markCrossed();
           onstep(t.id);

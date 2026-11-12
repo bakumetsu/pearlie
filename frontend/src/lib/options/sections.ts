@@ -62,6 +62,10 @@ export const SECTIONS: Section[] = [
           { label: 'Default speed', hint: 'playback rate' },
         ],
       },
+      {
+        title: 'Lists',
+        rows: [{ label: 'Infinite scroll', hint: 'next page loads near the end' }],
+      },
     ],
   },
   {
