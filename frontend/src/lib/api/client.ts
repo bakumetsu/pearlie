@@ -35,6 +35,9 @@ export type ConnectionOut = S["ConnectionOut"];
 export type ConnectionsOut = S["ConnectionsOut"];
 export type ConnectionIn = S["ConnectionIn"];
 export type ConnectionTest = S["TestOut"];
+export type UpdateStatus = S["StatusOut"];
+export type UpdateSettingsIn = S["SettingsIn"];
+export type UpdateApplied = S["ApplyOut"];
 
 export type Kind = "images" | "videos" | "series" | "books";
 
@@ -107,6 +110,9 @@ export interface Api {
   putConnection(name: string, body: Partial<ConnectionIn>, signal?: AbortSignal): Promise<ConnectionOut>;
   testConnection(name: string, signal?: AbortSignal): Promise<ConnectionTest>;
   removeJob(id: string, signal?: AbortSignal): Promise<void>;
+  getUpdateStatus(p?: { refresh?: boolean; manual?: boolean }, signal?: AbortSignal): Promise<UpdateStatus>;
+  putUpdateSettings(body: UpdateSettingsIn, signal?: AbortSignal): Promise<UpdateStatus>;
+  applyUpdate(signal?: AbortSignal): Promise<UpdateApplied>;
   testRules(tags: string[], signal?: AbortSignal): Promise<RulesTestResult>;
   saveProgress(bookId: string, page: number, signal?: AbortSignal, opts?: { keepalive?: boolean }): Promise<ProgressResult>;
 }
@@ -363,6 +369,38 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     testConnection(name, signal) {
       return request<ConnectionTest>(
         baseUrl + "/api/connections/" + encodeURIComponent(name) + "/test",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        },
+        signal,
+      );
+    },
+    getUpdateStatus(p, signal) {
+      return request<UpdateStatus>(
+        buildUrl("/api/update/status", {
+          refresh: p?.refresh ? "1" : undefined,
+          manual: p?.manual ? "1" : undefined,
+        }),
+        undefined,
+        signal,
+      );
+    },
+    putUpdateSettings(body, signal) {
+      return request<UpdateStatus>(
+        baseUrl + "/api/update/settings",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        signal,
+      );
+    },
+    applyUpdate(signal) {
+      return request<UpdateApplied>(
+        baseUrl + "/api/update/apply",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
