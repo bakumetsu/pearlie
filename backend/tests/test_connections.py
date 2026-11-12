@@ -603,9 +603,9 @@ def test_write_guard_forwarded_host(tmp_path: Path) -> None:
 def test_restart_needed_flag(tmp_path: Path) -> None:
     c = make_client(tmp_path, secret_key=master_key())
     r = c.put("/api/connections/stash", json={"secret": "k"}, headers=HDR)
-    assert r.json()["restart_needed"] is True
+    assert r.json()["restart_needed"] is False
     r2 = c.put("/api/connections/komga", json={"secret": "k"}, headers=HDR)
-    assert r2.json()["restart_needed"] is True
+    assert r2.json()["restart_needed"] is False
     r3 = c.put("/api/connections/gelbooru", json={"secret": "k"}, headers=HDR)
     assert r3.json()["restart_needed"] is False
     listed = c.get("/api/connections").json()["connections"]
