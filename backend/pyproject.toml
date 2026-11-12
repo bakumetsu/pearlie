@@ -1,6 +1,6 @@
 [project]
 name = "pearlie"
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi",
@@ -38,3 +38,4 @@ venv = ".venv"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["no_default_origin: test builds requests without the default Origin header"]

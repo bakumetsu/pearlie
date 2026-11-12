@@ -1,11 +1,14 @@
+import asyncio
 import logging
+import random
+import subprocess
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
 import uvicorn
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import SecretStr
@@ -30,15 +33,17 @@ from app.api import (
     search,
     search_real,
     trash,
+    update,
     view_settings,
 )
 from app.api import fixture as fixture_api
 from app.api.errors import install as install_errors
 from app.api.errors import stub_router
+from app.api.guard import mutation_guard
 from app.api.health import router as health_router
 from app.config import ConfigError, Settings, load_settings
 from app.connections_store import ConnectionStore
-from app.db import init_db
+from app.db import connect, init_db
 from app.jobs.worker import JobWorker
 from app.komga import Komga
 from app.sources.base import Source
@@ -46,6 +51,9 @@ from app.sources.danbooru import Danbooru
 from app.sources.throttle import DEFAULT_PACE, Throttle
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
+from app.update import runner
+from app.update.check import FakeChecker, UpdateChecker
+from app.update.version import current_version
 
 FIXTURE_ROUTERS = {
     "search": search.router,
@@ -89,6 +97,28 @@ def _with_stored_connections(settings: Settings, store: ConnectionStore) -> Sett
     return settings
 
 
+async def _daily_update_check(app_: FastAPI) -> None:
+    await asyncio.sleep(random.uniform(0, 86400))
+    while True:
+        try:
+            with connect(app_.state.settings.db_path) as conn:
+                row = conn.execute(
+                    "SELECT value FROM settings WHERE key = 'update.check'"
+                ).fetchone()
+            if (row[0] if row else "on") != "off":
+                with connect(app_.state.settings.db_path) as conn:
+                    row = conn.execute(
+                        "SELECT value FROM settings WHERE key = 'update.channel'"
+                    ).fetchone()
+                channel = row[0] if row else "main"
+                if channel not in ("main", "dev"):
+                    channel = "main"
+                await asyncio.to_thread(app_.state.update_checker.check, channel)
+        except Exception:
+            logger.warning("daily update check failed")
+        await asyncio.sleep(86400)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     if settings is None:
         settings = load_settings()
@@ -104,18 +134,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         worker: JobWorker | None = getattr(app_.state, "worker", None)
         if worker is not None and worker_enabled:
             worker.start()
+        daily: asyncio.Task[None] | None = None
+        if app_.state.settings.mode == "real":
+            daily = asyncio.create_task(_daily_update_check(app_))
         try:
             yield
         finally:
+            if daily is not None:
+                daily.cancel()
             if worker is not None and worker_enabled:
                 worker.stop()
             client: httpx.Client | None = getattr(app_.state, "http", None)
             if client is not None:
                 client.close()
+            update_http: httpx.Client | None = getattr(app_.state, "update_http", None)
+            if update_http is not None:
+                update_http.close()
 
-    app = FastAPI(lifespan=lifespan)
+    app = FastAPI(lifespan=lifespan, dependencies=[Depends(mutation_guard)])
     install_errors(app)
     app.state.settings = settings
+    app.state.update_root = runner.LAYOUT_ROOT
+    app.state.update_run = subprocess.run
+    app.state.update_http = None
+    if settings.mode == "fixture":
+        app.state.update_checker = FakeChecker()
+    else:
+        http = httpx.Client(timeout=5.0)
+        app.state.update_http = http
+        app.state.update_checker = UpdateChecker(
+            http, settings.db_path, f"Pearlie/{current_version().version}"
+        )
     app.state.connections_mem = {}
     # Built on the original settings on purpose: the store needs the .env view,
     # while app.state.settings below may be replaced by a stored-values copy.
@@ -207,6 +256,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(player_settings.router)
     app.include_router(options.router)
     app.include_router(connections.router)
+    app.include_router(update.router)
     app.include_router(health_router)
 
     static_dir: Path = settings.static_dir

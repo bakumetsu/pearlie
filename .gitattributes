@@ -1,0 +1,5 @@
+*.sh text eol=lf
+deploy/pearlie.service text eol=lf
+deploy/requirements.lock text eol=lf
+deploy/tests/stubs/* text eol=lf
+deploy/tests/*.py text eol=lf

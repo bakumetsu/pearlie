@@ -17,6 +17,16 @@ Deletes go to a Pearlie trash with an Undo, and each site is throttled (one down
 time per site by default). The backend holds all logic; the web UI only calls its JSON API.
 Design notes are in [docs/DESIGN.md](docs/DESIGN.md).
 
+## Install on Proxmox
+
+Creates a Debian 13 LXC (1 CPU, 1 GB, 4 GB) in community-scripts style. Run on the Proxmox host:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/bakumetsu/pearlie/main/ct/pearlie.sh)"
+```
+
+Pearlie has no login of its own: reach it only over Tailscale or a reverse proxy. Update with `update` in the container or from Options > System.
+
 ## Dev setup
 
 Needs Python 3.12+ and Node.js.

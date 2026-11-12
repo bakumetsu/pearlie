@@ -66,7 +66,16 @@ def test_invalid_port() -> None:
 def test_non_loopback_host_refused() -> None:
     with pytest.raises(ConfigError) as exc:
         load_settings(mode="fixture", host="0.0.0.0", _env_file=None)
-    assert "loopback only" in str(exc.value)
+    assert "PEARLIE_TRUSTED_NETWORK" in str(exc.value)
+
+
+def test_non_loopback_host_allowed_when_trusted() -> None:
+    s = load_settings(mode="fixture", host="10.0.0.5", trusted_network=True, _env_file=None)
+    assert s.host == "10.0.0.5"
+
+
+def test_trusted_network_does_not_change_loopback_default() -> None:
+    assert load_settings(mode="fixture", _env_file=None).trusted_network is False
 
 
 def test_loopback_hosts_allowed() -> None:
