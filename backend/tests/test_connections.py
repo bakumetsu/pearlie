@@ -14,7 +14,9 @@ from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
 from app.config import Settings
+from app.komga import Komga
 from app.main import create_app
+from app.targets.stash_client import StashClient
 
 pytestmark = pytest.mark.no_default_origin
 
@@ -660,3 +662,84 @@ def test_tampered_token_gives_empty_and_warns(
     caplog.set_level(logging.WARNING, logger="pearlie")
     assert store.effective_secret("stash") == ""
     assert "cannot be decrypted" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# 16. Client swap on address change (real mode with urls set)
+# ---------------------------------------------------------------------------
+
+
+def test_put_stash_swaps_client(tmp_path: Path) -> None:
+    c = make_client(
+        tmp_path, mode="real", secret_key=master_key(),
+        env={"real": "search", "stash_url": "http://stash.local:9999", "komga_url": "http://komga.local:8888"},
+    )
+    old = c.app.state.stash
+    r = c.put(
+        "/api/connections/stash",
+        json={"address": "http://stash2.local:9999", "secret": "newkey"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    assert r.json()["restart_needed"] is False
+    assert c.app.state.stash is not old
+    assert isinstance(c.app.state.stash, StashClient)
+    assert callable(old.library_paths)
+
+
+def test_put_komga_swaps_client(tmp_path: Path) -> None:
+    c = make_client(
+        tmp_path, mode="real", secret_key=master_key(),
+        env={"real": "search", "stash_url": "http://stash.local:9999", "komga_url": "http://komga.local:8888"},
+    )
+    old = c.app.state.komga
+    r = c.put(
+        "/api/connections/komga",
+        json={"address": "http://komga2.local:8888", "secret": "newkey"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    assert r.json()["restart_needed"] is False
+    assert c.app.state.komga is not old
+    assert isinstance(c.app.state.komga, Komga)
+
+
+def test_env_locked_key_wins_after_save(tmp_path: Path) -> None:
+    c = make_client(
+        tmp_path, mode="real", secret_key=master_key(),
+        env={"real": "search", "stash_url": "http://stash.local:9999", "komga_url": "http://komga.local:8888", "stash_api_key": "envsecret"},
+    )
+    c.put(
+        "/api/connections/stash",
+        json={"address": "http://stash2.local:9999"},
+        headers=HDR,
+    )
+    assert c.app.state.settings.stash_api_key.get_secret_value() == "envsecret"
+
+
+def test_fixture_mode_keeps_none_clients(tmp_path: Path) -> None:
+    c = make_client(tmp_path, secret_key=master_key())
+    c.put(
+        "/api/connections/stash",
+        json={"address": "http://stash2.local:9999", "secret": "newkey"},
+        headers=HDR,
+    )
+    assert c.app.state.stash is None
+    assert c.app.state.komga is None
+
+
+def test_swap_does_not_log_secret(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger="pearlie")
+    c = make_client(
+        tmp_path, mode="real", secret_key=master_key(),
+        env={"real": "search", "stash_url": "http://stash.local:9999", "komga_url": "http://komga.local:8888"},
+    )
+    r = c.put(
+        "/api/connections/stash",
+        json={"address": "http://stash2.local:9999", "secret": "topsecretvalue"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    assert "topsecretvalue" not in caplog.text

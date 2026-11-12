@@ -44,7 +44,7 @@ export function createConnections() {
         data = { ...data, connections: [...data.connections, updated] };
       }
     }
-    if (updated.restart_needed) restartNeeded = { ...restartNeeded, [name]: true };
+    restartNeeded = { ...restartNeeded, [name]: updated.restart_needed };
     results = { ...results, [name]: undefined };
   }
 

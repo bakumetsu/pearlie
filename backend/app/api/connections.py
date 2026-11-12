@@ -93,8 +93,18 @@ def put_connection(request: Request, name: str, body: ConnectionIn) -> Connectio
             raise ApiError(404, "not_found", "unknown connection") from exc
         raise ApiError(500, "error", "unexpected store error") from exc
     out = _build_out(name, store)
-    # Stash and Komga clients are built at app start from these values.
-    out.restart_needed = name in ("stash", "komga")
+    if name in ("stash", "komga"):
+        from app.main import rebuild_client
+
+        rebuild_client(request.app, name)
+        if name == "stash":
+            out.restart_needed = bool(
+                {"library_stash", "media_stash", "jobs"} & request.app.state.stubbed_routes
+            )
+        else:
+            out.restart_needed = bool(
+                {"library_komga", "media_komga"} & request.app.state.stubbed_routes
+            )
     return out
 
 

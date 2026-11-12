@@ -265,4 +265,24 @@ describe("ConnectionRows", () => {
     expect(document.body.innerHTML).not.toContain(secret);
     expect(JSON.stringify(store.data)).not.toContain(secret);
   });
+
+  it("Test button sits directly before the settings button", async () => {
+    await renderRows();
+
+    const testBtn = screen.getByRole("button", { name: "Test Stash" });
+    const editBtn = screen.getByRole("button", { name: "Edit Stash" });
+    expect(testBtn.nextElementSibling).toBe(editBtn);
+
+    const row = testBtn.closest("[role='row']") ?? testBtn.parentElement!;
+    const statusEl = row.querySelector("[role='status']")!;
+    expect(statusEl).toBeTruthy();
+    expect(statusEl.compareDocumentPosition(testBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("no restart notice after save when restart_needed is false", async () => {
+    const { store, api } = await renderRows();
+    await store.save(api, "stash", { secret: "abc" });
+    expect(screen.queryByText("Restart Pearlie to apply")).toBeNull();
+    expect(store.restartNeeded.stash).toBe(false);
+  });
 });

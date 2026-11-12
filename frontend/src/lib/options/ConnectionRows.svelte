@@ -42,6 +42,9 @@
 			{#if store.restartNeeded[key]}
 				<span class="muted">Restart Pearlie to apply</span>
 			{/if}
+			<span class="result{store.results[key] && !store.results[key]!.ok ? " err" : ""}" role="status"
+				>{store.results[key]?.message}</span
+			>
 			<button
 				class="btn"
 				aria-label={`Test ${label}`}
@@ -50,9 +53,6 @@
 			>
 				{store.testing[key] ? "Testing..." : "Test"}
 			</button>
-			<span class="result{store.results[key] && !store.results[key]!.ok ? " err" : ""}" role="status"
-				>{store.results[key]?.message}</span
-			>
 			<button class="btn" aria-label={`Edit ${label}`} on:click={() => (editing = key)}><Icon name="settings" size={16} /></button>
 		</div>
 	{/each}

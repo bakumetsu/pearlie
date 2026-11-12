@@ -119,6 +119,33 @@ async def _daily_update_check(app_: FastAPI) -> None:
         await asyncio.sleep(86400)
 
 
+def _build_stash(settings: Settings) -> StashClient | None:
+    if not settings.stash_url:
+        return None
+    return StashClient(settings.stash_url, settings.stash_api_key.get_secret_value())
+
+
+def _build_komga(settings: Settings) -> Komga | None:
+    if not settings.komga_url:
+        return None
+    return Komga(settings.komga_url, settings.komga_api_key.get_secret_value())
+
+
+def rebuild_client(app: FastAPI, name: str) -> None:
+    if app.state.settings.mode == "fixture":
+        return
+    settings = _with_stored_connections(app.state.settings, app.state.connection_store)
+    app.state.settings = settings
+    if name == "komga":
+        app.state.komga = _build_komga(settings)
+    elif name == "stash":
+        app.state.stash = _build_stash(settings)
+        worker = getattr(app.state, "worker", None)
+        stash_target = getattr(app.state, "stash_target", None)
+        if worker is not None and stash_target is not None and app.state.stash is not None:
+            stash_target.set_client(app.state.stash)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     if settings is None:
         settings = load_settings()
@@ -190,26 +217,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.settings = settings
     komga_ok = bool(settings.komga_url)
     stash_ok = bool(settings.stash_url)
-    app.state.komga = (
-        Komga(settings.komga_url, settings.komga_api_key.get_secret_value())
-        if komga_ok and settings.mode != "fixture"
-        else None
-    )
-
-    app.state.stash = (
-        StashClient(settings.stash_url, settings.stash_api_key.get_secret_value())
-        if settings.stash_url and settings.mode != "fixture"
-        else None
-    )
+    app.state.komga = _build_komga(settings) if settings.mode != "fixture" else None
+    app.state.stash = _build_stash(settings) if settings.mode != "fixture" else None
 
     app.state.worker = None
     app.state.http = None
+    app.state.stash_target = None
     if "jobs" in real and stash_ok and app.state.stash is not None:
         http = httpx.Client()
         app.state.http = http
         stash_target = StashTarget(
             settings, app.state.stash, http, app.state.sources, throttles=throttles
         )
+        app.state.stash_target = stash_target
         app.state.worker = JobWorker(
             settings.db_path,
             app.state.sources,
@@ -229,6 +249,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             stubbed.add(name)
         else:
             app.include_router(REAL_ROUTERS[name])
+    app.state.stubbed_routes = stubbed
     if stubbed:
         logger.warning("not configured, answering 503: %s", ", ".join(sorted(stubbed)))
     if settings.mode == "real":
