@@ -151,7 +151,9 @@ def test_put_secret_encrypted_at_rest(tmp_path: Path) -> None:
 
 
 def test_put_secret_no_master_key(tmp_path: Path) -> None:
+    (tmp_path / "secret.key").mkdir()  # key file cannot be created
     c = make_client(tmp_path)
+    assert c.get("/api/connections").json()["can_store"] is False
     r = c.put(
         "/api/connections/stash",
         json={"secret": "someval"},
