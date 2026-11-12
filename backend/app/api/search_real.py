@@ -209,7 +209,7 @@ def search(
                     hidden=0,
                     error=Problem(
                         code="not_configured",
-                        message=f"{title} is not connected yet",
+                        message=f"{title} search is not available yet",
                     ),
                 )
             )

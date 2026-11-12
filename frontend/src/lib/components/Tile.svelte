@@ -97,7 +97,7 @@
   <div class="tile web {variant}">
     <div class="media" style:aspect-ratio={aspectRatio}>
       <img src={w.thumb_url} alt="" loading="lazy" class:blur-img={blurred} />
-      <button class="open" onclick={handleOpenClick} aria-label="Open preview"></button>
+      <button class="open" onclick={handleOpenClick} aria-label={`${w.source} #${w.post_id}`} title={`${w.source} #${w.post_id}`}></button>
       {#if blurred}
         <div class="warn-overlay">Warn: {w.blur!.tag}</div>
       {/if}
@@ -119,8 +119,6 @@
         <div class="title">{w.title ?? `${w.source} #${w.post_id}`}</div>
         {#if w.title}<div class="meta">{w.source} #{w.post_id}</div>{/if}
       </div>
-    {:else}
-      <div class="title">{w.title ?? `${w.source} #${w.post_id}`}</div>
     {/if}
   </div>
 {:else}
@@ -268,6 +266,19 @@
     border-radius: var(--r-md);
     color: var(--text);
     cursor: pointer;
+  }
+  .save-btn {
+    opacity: 0;
+  }
+  .tile:hover .save-btn,
+  .tile:focus-within .save-btn,
+  .save-btn:focus-visible {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .save-btn {
+      opacity: 1;
+    }
   }
   .save-btn:disabled {
     opacity: 0.7;

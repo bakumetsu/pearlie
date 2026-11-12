@@ -360,7 +360,7 @@
       <button class="back-btn" aria-label="Back" onclick={() => history.back()}>
         <Icon name="arrow-left" size={20} />
       </button>
-      <h2 class="header-title">{title} ({grid.total ?? "…"})</h2>
+      <h2 class="header-title">{title}{grid.total != null ? ` (${grid.total})` : ""}</h2>
     </div>
 
     {#if q}
