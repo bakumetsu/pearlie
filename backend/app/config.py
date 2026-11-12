@@ -1,3 +1,6 @@
+import logging
+import re
+import subprocess
 from pathlib import Path
 from typing import Any, Literal
 
@@ -52,11 +55,45 @@ class Settings(BaseSettings):
 
 
 LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
+AUTO_HOST_IPV4_RE = re.compile(r"^\d+\.\d+\.\d+\.\d+$")
+
+
+def resolve_auto_host() -> str | None:
+    try:
+        result = subprocess.run(
+            ["hostname", "-I"],
+            timeout=3,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    for token in (result.stdout or "").split():
+        if AUTO_HOST_IPV4_RE.match(token):
+            return token
+    return None
 
 
 def load_settings(**overrides: Any) -> Settings:
     try:
         settings = Settings(**overrides)
+        if settings.host == "auto":
+            ip = resolve_auto_host()
+            if ip is None:
+                logging.getLogger(__name__).warning(
+                    "PEARLIE_HOST=auto found no IPv4; bound to 127.0.0.1, "
+                    "restart pearlie once the container has an address"
+                )
+                settings = settings.model_copy(update={"host": "127.0.0.1"})
+            elif not settings.trusted_network:
+                logging.getLogger(__name__).warning(
+                    "PEARLIE_HOST=auto stays on 127.0.0.1 until PEARLIE_TRUSTED_NETWORK=1 is set"
+                )
+                settings = settings.model_copy(update={"host": "127.0.0.1"})
+            else:
+                settings = settings.model_copy(update={"host": ip})
         if settings.host not in LOOPBACK_HOSTS and not settings.trusted_network:
             raise ConfigError(
                 "no login yet: a non-loopback PEARLIE_HOST needs "
