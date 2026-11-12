@@ -282,8 +282,11 @@ class StashTarget:
         url = self._check_host(post)
         ext = self._ext(url)
 
-        pp = self._settings.stash_path_prefix_pearlie
-        ps = self._settings.stash_path_prefix_stash
+        pp, ps, _env = destinations.get_mapping(
+            self._settings.db_path,
+            self._settings.stash_path_prefix_pearlie,
+            self._settings.stash_path_prefix_stash,
+        )
         folder = destinations.resolve(
             self._settings.db_path,
             post.source,

@@ -11,6 +11,7 @@
     canRemove,
     removeLabel,
     attentionText,
+    needsFolderFix,
     routeFor,
   } from "../lib/jobs/group";
   import type { Job } from "../lib/jobs/group";
@@ -118,6 +119,9 @@
       {/if}
       {#if job.state === "failed" || job.state === "needs_click"}
         <p class="attn">{attentionText(job)}</p>
+        {#if needsFolderFix(job)}
+          <a class="fix" href="/options/save-folders" onclick={(e) => linkClick(e, router)}>Set the save folder</a>
+        {/if}
       {/if}
     </div>
     <div class="actions">
@@ -281,6 +285,13 @@
     color: var(--danger-fg);
     font-size: var(--t-13);
     margin: 0;
+  }
+
+  .fix {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font-size: var(--t-13);
   }
 
   .actions {

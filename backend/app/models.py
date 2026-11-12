@@ -208,6 +208,7 @@ class Job(BaseModel):
     progress: float = 0.0
     eta_s: float | None = None
     error: str | None = None
+    error_code: str | None = None
     library_ref: SavedRef | None = None
     notices: list[Problem] = Field(default_factory=list)
     created_at: str
@@ -353,6 +354,17 @@ class DestinationItem(BaseModel):
 class Destinations(BaseModel):
     default_folder: str
     items: list[DestinationItem]
+    sites: list[str] = Field(default_factory=list)
+    library_paths: list[str] = Field(default_factory=list)
+    library_error: str | None = None
+    prefix_pearlie: str = ""
+    prefix_stash: str = ""
+    prefix_from_env: bool = True
+
+
+class MappingBody(BaseModel):
+    prefix_pearlie: str = ""
+    prefix_stash: str = ""
 
 
 class FolderBody(BaseModel):
