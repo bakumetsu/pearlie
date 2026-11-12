@@ -16,7 +16,8 @@ API_HOST = "nhentai.net"
 CDN_HOST = re.compile(r"^[it]\d?\.nhentai\.net$")
 TYPES = ("artist", "group", "parody", "character", "language", "category")
 QUERY_TYPES = (*TYPES, "tag")
-EXT = {"j": "jpg", "p": "png", "g": "gif", "w": "webp"}
+IMG_HOST = "https://i.nhentai.net"
+THUMB_HOST = "https://t.nhentai.net"
 
 
 def _term(token: str) -> str:
@@ -88,9 +89,7 @@ class NHentai:
         exts = raw if isinstance(raw, list) else []
         if not media_id.isalnum():
             return []
-        return [
-            f"https://i.nhentai.net/galleries/{media_id}/{n}.{e}" for n, e in enumerate(exts, 1)
-        ]
+        return [f"{IMG_HOST}/galleries/{media_id}/{n}.{e}" for n, e in enumerate(exts, 1)]
 
     def page_headers(self) -> dict[str, str]:
         """Headers for page downloads: User-Agent only, the Cookie stays on the API host."""
@@ -133,9 +132,9 @@ class NHentai:
         page = max(page, 1)
         query = build_query(tags)
         if query:
-            data = self._get("/api/galleries/search", {"query": query, "page": page})
+            data = self._get("/api/v2/search", {"query": query, "page": page})
         else:
-            data = self._get("/api/galleries/all", {"page": page})
+            data = self._get("/api/v2/galleries", {"page": page})
         rows = data.get("result")
         if not isinstance(rows, list):
             raise SourceError("upstream_error", "nhentai sent invalid JSON")
@@ -159,17 +158,30 @@ class NHentai:
         pid = post_id.strip()
         if not pid.isdigit():
             raise SourceError("not_found", "Gallery not found", 404)
-        return self._to_post(self._get(f"/api/gallery/{pid}"))
+        return self._to_post(self._get(f"/api/v2/galleries/{pid}"))
 
     # --- API parsing: the only place that knows the nhentai JSON shape ---
 
     @staticmethod
     def _parse_pages(d: dict) -> tuple[list[str], dict]:
-        """(page extensions in order, cover image dict) from a gallery's images block."""
-        images = _obj(d.get("images"))
-        pages = _list(images.get("pages"))
-        exts = [EXT.get(str(p.get("t")), "jpg") for p in pages if isinstance(p, dict)]
-        return exts, _obj(images.get("cover"))
+        """(page extensions in order, cover dict) from a v2 gallery.
+
+        A full gallery has `pages` and `cover`; a list/search row has neither and only a
+        `thumbnail` path, so it gives no pages and the thumbnail as the cover.
+        """
+        exts = []
+        for p in _list(d.get("pages")):
+            path = str(_obj(p).get("path") or "")
+            ext = path.rpartition(".")[2] if "." in path else ""
+            exts.append(ext if ext.isalnum() else "jpg")
+        cover = _obj(d.get("cover"))
+        if not cover.get("path"):
+            cover = {
+                "path": d.get("thumbnail"),
+                "width": d.get("thumbnail_width"),
+                "height": d.get("thumbnail_height"),
+            }
+        return exts, cover
 
     def _to_post(self, d: dict) -> Post:
         exts, cover = self._parse_pages(d)
@@ -181,21 +193,30 @@ class NHentai:
                 continue
             kind = str(t.get("type"))
             grouped.setdefault(kind if kind in TYPES else "general", []).append(str(t["name"]))
-        cover_url = None
-        if media_id:
-            ext = EXT.get(str(cover.get("t")), "jpg")
-            cover_url = f"https://t.nhentai.net/galleries/{media_id}/cover.{ext}"
+        path = str(cover.get("path") or "")
+        cover_url = (
+            f"{THUMB_HOST}/{path.lstrip('/')}"
+            if path.startswith("galleries/") and ".." not in path
+            else None
+        )
         count = d.get("num_pages")
         return Post(
             source=self.id,
             post_id=str(d["id"]),
             preview_url=cover_url,
             sample_url=cover_url,
-            width=_int(cover.get("w")),
-            height=_int(cover.get("h")),
+            width=_int(cover.get("width")),
+            height=_int(cover.get("height")),
             tags=grouped,
             source_url=f"{self._base_url}/g/{d['id']}/",
-            title=title.get("pretty") or title.get("english") or title.get("japanese"),
+            title=(
+                title.get("pretty")
+                or title.get("english")
+                or title.get("japanese")
+                or d.get("english_title")
+                or d.get("japanese_title")
+                or None
+            ),
             page_count=count if isinstance(count, int) else (len(exts) or None),
             extra={"media_id": media_id, "page_exts": exts},
         )

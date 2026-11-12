@@ -80,7 +80,7 @@ The stub generates placeholder media by default. For realistic photos, clips and
 | nhentai | logged-in session cookies + the browser's User-Agent | see below |
 
 **nhentai.** The site's own CBZ link is signed by the server (`sig`), tied to the account (`u`) and expires (`exp`), so Pearlie cannot build it.
-- **Route A (default):** metadata from `/api/gallery/{id}`, pages through gallery-dl, packed into a CBZ (gallery-dl `zip` post-processor with `"extension": "cbz"`), then `ComicInfo.xml` added.
+- **Route A (default):** metadata from `/api/v2/galleries/{id}`, pages through gallery-dl, packed into a CBZ (gallery-dl `zip` post-processor with `"extension": "cbz"`), then `ComicInfo.xml` added.
 - **Route B (fallback):** replay the request the Download button sends (with session cookies, and `cf_clearance` plus the same User-Agent if Cloudflare is in front), take the signed URL, fetch the file at once. FlareSolverr only if needed; a captcha puts the job in a "needs click" state.
 - Still to check: that gallery-dl's nhentai extractor works today (`gallery-dl --simulate https://nhentai.net/g/<id>/`), and which request the button sends (for route B).
 
