@@ -30,6 +30,21 @@ _TIMEOUT = 5.0
 _SETTINGS_KEY = "update.last"
 
 
+def _higher(a: Latest | None, b: Latest | None) -> Latest | None:
+    """Return the higher of two candidate versions, the non-None one, or None."""
+    if a is None:
+        return b
+    if b is None:
+        return a
+    va = parse_semver(a.version)
+    vb = parse_semver(b.version)
+    if va is None:
+        return b
+    if vb is None:
+        return a
+    return a if va > vb else b
+
+
 @dataclass(frozen=True)
 class Latest:
     version: str
@@ -165,8 +180,12 @@ class UpdateChecker:
         except httpx.HTTPError:
             return CheckResult(None, "unreachable", None, _iso_now()), etag
 
+        # 304: keep cached release as candidate
+        rel: Latest | None
         if resp.status_code == 304:
-            return CheckResult(cached_latest, None, None, _iso_now()), etag
+            rel = cached_latest
+        else:
+            rel = None
 
         if resp.status_code in (403, 429) and resp.headers.get("X-RateLimit-Remaining") == "0":
             ra = self._rate_limited(resp)
@@ -181,11 +200,14 @@ class UpdateChecker:
                 return CheckResult(None, "unreachable", None, _iso_now()), new_etag
             tag = data.get("tag_name") if isinstance(data, dict) else None
             if isinstance(tag, str) and TAG_RE.match(tag):
-                latest = Latest(version=tag[1:], commit=None, url=release_page_url(tag))
-                return CheckResult(latest, None, None, _iso_now()), new_etag
+                rel = Latest(version=tag[1:], commit=None, url=release_page_url(tag))
 
-        # 404 or tag mismatch → fall back
-        return self._fetch_tags(new_etag)
+        # Merge: report the higher of the release tag and highest vX.Y.Z tag
+        tag_res, _ = self._fetch_tags(None)
+        winner = _higher(tag_res.latest, rel)
+        if winner is not None:
+            return CheckResult(winner, None, None, _iso_now()), new_etag
+        return tag_res, new_etag
 
     def _fetch_tags(self, etag: str | None) -> tuple[CheckResult, str | None]:
         hdrs = self._hdrs(etag)

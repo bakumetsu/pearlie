@@ -356,6 +356,39 @@ case_nothing_newer() {
   no_bad_args "nothing_newer: stub args"
 }
 
+case_release_pick() {
+  new_case pick_stale_release
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  printf '{"tag_name":"v0.1.0"}' > "$FIX/gh/releases/latest"
+  printf '[{"name":"v0.1.0"},{"name":"v1.1.0"},{"name":"junk"}]' > "$FIX/gh/tags"
+  run_update
+  expect "pick_stale_release: RC" "$RC" 0
+  expect "pick_stale_release: state" "$(status_get state)" done
+  grep -q '"version":"1.1.0"' "$(current_target)/app/VERSION.json" && ok "pick_stale_release: version" || bad "pick_stale_release: version" "not 1.1.0"
+
+  new_case pick_equal
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  printf '[{"name":"v1.1.0"},{"name":"v1.0.0"}]' > "$FIX/gh/tags"
+  run_update
+  expect "pick_equal: RC" "$RC" 0
+  expect "pick_equal: state" "$(status_get state)" done
+  grep -q '"version":"1.1.0"' "$(current_target)/app/VERSION.json" && ok "pick_equal: version" || bad "pick_equal: version" "not 1.1.0"
+
+  new_case pick_tags_only
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  rm -f "$FIX/gh/releases/latest"
+  printf '[{"name":"v1.1.0"}]' > "$FIX/gh/tags"
+  run_update
+  expect "pick_tags_only: RC" "$RC" 0
+  expect "pick_tags_only: state" "$(status_get state)" done
+  grep -q '"version":"1.1.0"' "$(current_target)/app/VERSION.json" && ok "pick_tags_only: version" || bad "pick_tags_only: version" "not 1.1.0"
+
+  no_bad_args "release_pick: stub args"
+}
+
 case_check() {
   new_case check
   seed_install 1.0.0
@@ -738,7 +771,7 @@ case_installer_defaults() {
   expect "installer_defaults: host=auto appears once in installer" "$(grep -c '^host=auto' "$REPO/install/pearlie-install.sh" || true)" 1
 }
 
-CASES=(case_nothing_newer case_check case_success case_build_fail case_bad_health case_lock case_malicious case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_unit_sync case_installer_defaults)
+CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_unit_sync case_installer_defaults)
 
 for c in "${CASES[@]}"; do
   "$c"

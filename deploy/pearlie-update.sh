@@ -295,13 +295,27 @@ resolve_target() {
     TARGET_VERSION="dev:${sha:0:7}"
   else
     local body tag sha commit_body
+    local rel hi
     body=$(http_get "$API/releases/latest") || true
-    tag=$(json_field "$body" "tag_name")
-    if ! printf '%s' "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-      if ! body=$(http_get "$API/tags"); then
+    rel=$(json_field "$body" "tag_name")
+    if ! printf '%s' "$rel" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+      rel=""
+    fi
+    if ! body=$(http_get "$API/tags"); then
+      if [[ -n "$rel" ]]; then
+        tag="$rel"
+      else
         die "cannot reach update server"
       fi
-      tag=$(highest_tag "$body")
+    else
+      hi=$(highest_tag "$body")
+      if [[ -n "$rel" && -n "$hi" ]]; then
+        tag="v$(printf '%s\n%s\n' "${rel#v}" "${hi#v}" | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1)"
+      elif [[ -n "$rel" ]]; then
+        tag="$rel"
+      else
+        tag="$hi"
+      fi
     fi
     if ! printf '%s' "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
       die "no release found"
