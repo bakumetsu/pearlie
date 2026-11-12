@@ -15,6 +15,7 @@
   import ImageViewerCard from "../lib/options/ImageViewerCard.svelte";
   import DownloadsCard from "../lib/options/DownloadsCard.svelte";
   import StatusCard from "../lib/options/StatusCard.svelte";
+  import UpdateCard from "../lib/options/UpdateCard.svelte";
   import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
   import ConnectionRows from "../lib/options/ConnectionRows.svelte";
   import ContentFilterCard from "../lib/options/ContentFilterCard.svelte";
@@ -280,6 +281,8 @@
             <!-- shown with Stash -->
           {:else if activeSectionId === "library" && card.title === "Status"}
             <StatusCard />
+          {:else if activeSectionId === "update" && card.title === "Update"}
+            <UpdateCard />
           {:else}
             <section class="card">
               <h2 class="card-title">{card.title}</h2>
@@ -431,6 +434,8 @@
               <!-- shown with Stash -->
             {:else if activeSectionId === "library" && card.title === "Status"}
               <StatusCard />
+            {:else if activeSectionId === "update" && card.title === "Update"}
+              <UpdateCard />
             {:else}
               <section class="card">
                 <h2 class="card-title">{card.title}</h2>
@@ -457,7 +462,7 @@
     height: 100%;
     min-height: 0;
     font-family: var(--font-sans, system-ui, sans-serif);
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text);
   }
 
   /* ── Desktop two-pane ─────────────────────────────────── */
@@ -512,11 +517,11 @@
     font-size: 0.9rem;
     min-height: 44px;
     background: transparent;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text);
   }
 
   .search-wrap input::placeholder {
-    color: var(--text-muted, #999);
+    color: var(--muted);
   }
 
   .clear-btn {
@@ -529,12 +534,12 @@
     border: none;
     background: none;
     cursor: pointer;
-    color: var(--text-secondary, #666);
+    color: var(--muted);
     border-radius: 50%;
   }
 
   .clear-btn:hover {
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text);
   }
 
   /* ── Section list ─────────────────────────────────────── */
@@ -548,7 +553,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--text-muted, #999);
+    color: var(--muted);
     margin: 12px 0 4px;
     padding-left: 12px;
   }
@@ -571,7 +576,7 @@
     background: none;
     cursor: pointer;
     font-size: 0.9rem;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text);
     text-align: left;
     transition: background 120ms;
   }
@@ -603,7 +608,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--text-muted, #999);
+    color: var(--muted);
     border: 1px solid var(--border, #e0e0e0);
     border-radius: 4px;
     padding: 1px 5px;
@@ -611,7 +616,7 @@
 
   .count-badge {
     font-size: 0.75rem;
-    color: var(--text-secondary, #666);
+    color: var(--muted);
     min-width: 20px;
     text-align: center;
   }
@@ -644,12 +649,12 @@
 
   .row dd {
     margin: 0;
-    color: var(--text-secondary, #666);
+    color: var(--muted);
     font-size: 0.85rem;
   }
 
   .coming-later {
-    color: var(--text-muted, #999);
+    color: var(--muted);
     font-style: italic;
   }
 
@@ -659,13 +664,13 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--text-secondary, #666);
+    color: var(--muted);
     margin: 20px 0 8px;
   }
 
   /* ── No results ───────────────────────────────────────── */
   .no-results {
-    color: var(--text-muted, #999);
+    color: var(--muted);
     padding: 16px 12px;
     font-size: 0.9rem;
   }
@@ -705,7 +710,7 @@
     border: none;
     background: none;
     cursor: pointer;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text);
     border-radius: 50%;
   }
 

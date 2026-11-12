@@ -154,8 +154,8 @@ export const SECTIONS: Section[] = [
     id: 'update',
     title: 'Update',
     group: 'System',
-    later: true,
-    cards: [{ title: 'Coming later', rows: [] }],
+    later: false,
+    cards: [{ title: 'Update', rows: [{ label: 'Installed', hint: 'version and channel' }, { label: 'Latest', hint: 'newest release' }, { label: 'Channel', hint: 'main or dev' }, { label: 'Automatic check', hint: 'check for updates automatically' }] }],
   },
   {
     id: 'logs',
