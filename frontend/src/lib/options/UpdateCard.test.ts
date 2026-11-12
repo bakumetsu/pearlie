@@ -67,6 +67,24 @@ describe("UpdateCard", () => {
     expect(await screen.findByText("1.2.4")).toBeTruthy();
   });
 
+  it("shows the installed version with the short commit as a tooltip", async () => {
+    hoisted.api.getUpdateStatus.mockResolvedValue(
+      makeStatus({ installed: { version: "0.4.0-dev", channel: "dev", commit: "abc1234def5678" } }),
+    );
+    render(UpdateCard);
+    const el = await screen.findByText("0.4.0-dev");
+    expect(el.getAttribute("title")).toBe("abc1234");
+  });
+
+  it("has no tooltip when the commit is absent", async () => {
+    hoisted.api.getUpdateStatus.mockResolvedValue(
+      makeStatus({ installed: { version: "0.4.0-dev", channel: "dev", commit: "" } }),
+    );
+    render(UpdateCard);
+    const el = await screen.findByText("0.4.0-dev");
+    expect(el.hasAttribute("title")).toBe(false);
+  });
+
   it("Update opens the confirm sheet; Cancel closes it without applying", async () => {
     hoisted.api.applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
     hoisted.api.health = vi.fn().mockResolvedValue({ status: "ok" });

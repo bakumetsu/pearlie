@@ -44,7 +44,7 @@
 			<span class="row-label">Installed</span>
 			<span class="row-value">
 				{#if update.status}
-					{update.status.installed.version}
+					<span title={update.status.installed.commit ? update.status.installed.commit.slice(0, 7) : undefined}>{update.status.installed.version}</span>
 					<span class="pill">{update.status.installed.channel}</span>
 				{:else if update.offline || update.error}
 					<span class="muted">Update status unavailable.</span>
