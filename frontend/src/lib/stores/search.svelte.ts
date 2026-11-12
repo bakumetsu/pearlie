@@ -1,3 +1,4 @@
+import { untrack } from "svelte";
 import { ApiError } from "../api/client";
 import type { Api, Section, WebItem } from "../api/client";
 import { sectionsFor, serialiseQuery } from "../query";
@@ -31,8 +32,17 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
     const ids = sectionsFor(state.pill, state.sites, state.chips);
 
     // An identical query (chips + sources) is never re-sent.
-    const key = JSON.stringify([serialiseQuery(state.chips), ids]);
-    if (!o?.force && key === lastKey) return;
+    // The order of the rows is not part of the query: a reorder only moves them.
+    const key = JSON.stringify([serialiseQuery(state.chips), [...ids].sort()]);
+    if (!o?.force && key === lastKey) {
+      // Untracked: run() is called from an effect, which must not depend on the rows.
+      untrack(() => {
+        const moved: typeof sections = {};
+        for (const id of ids) if (sections[id] !== undefined) moved[id] = sections[id];
+        if (Object.keys(moved).length === Object.keys(sections).length && Object.keys(moved).join() !== Object.keys(sections).join()) sections = moved;
+      });
+      return;
+    }
     lastKey = key;
 
     banner = null;

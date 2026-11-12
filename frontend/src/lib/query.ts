@@ -172,6 +172,24 @@ export const SITE_ORDER: { id: SiteId; label: string }[] = [
   { id: "nhentai", label: "nhentai" },
 ];
 
+/** The sites in the saved order; a site the order lacks goes last in the default order. */
+export function orderedSites(order: readonly string[] | undefined): SiteId[] {
+  const all = SITE_ORDER.map((d) => d.id);
+  const known = (order ?? []).filter((id): id is SiteId => (all as string[]).includes(id));
+  const first = [...new Set(known)];
+  return [...first, ...all.filter((id) => !first.includes(id))];
+}
+
+/** Move one site to where another sits; sites that are not shown keep their place. */
+export function moveSite(order: readonly SiteId[], id: SiteId, target: SiteId): SiteId[] {
+  const from = order.indexOf(id);
+  const to = order.indexOf(target);
+  if (from < 0 || to < 0 || from === to) return [...order];
+  const next = order.filter((x) => x !== id);
+  next.splice(to, 0, id);
+  return next;
+}
+
 export type FilterChip = { key: string; label: string; remove: Partial<SearchState> };
 
 function isDefaultSites(sites: SiteId[]): boolean {

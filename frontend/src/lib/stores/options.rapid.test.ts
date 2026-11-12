@@ -23,6 +23,7 @@ function makeOptions(overrides: Partial<Options> = {}): Options {
     allow_blurred_tags: false,
     trash_retention_days: 7,
     hidden_sites: [],
+    site_order: [],
     source_pace: {},
     ...overrides,
   };

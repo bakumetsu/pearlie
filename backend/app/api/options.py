@@ -44,6 +44,7 @@ class Options(BaseModel):
     trash_retention_days: StrictInt = Field(default=7, ge=1, le=365)
     source_pace: dict[str, SitePace] = {}
     hidden_sites: list[str] = []
+    site_order: list[str] = []
 
     @field_validator("player_rate")
     @classmethod
@@ -66,6 +67,7 @@ class OptionsUpdate(BaseModel):
     trash_retention_days: StrictInt | None = Field(default=None, ge=1, le=365)
     source_pace: dict[str, float] | None = None
     hidden_sites: list[str] | None = None
+    site_order: list[str] | None = None
 
     @field_validator("player_rate")
     @classmethod
@@ -226,6 +228,10 @@ def get_options(request: Request) -> Options:
     hs_raw = read("options.global.hidden_sites")
     hidden_sites = [s for s in DEFAULT_PACE if s in (hs_raw or "").split(",")]
 
+    so_raw = (read("options.global.site_order") or "").split(",")
+    site_order = list(dict.fromkeys(s for s in so_raw if s in DEFAULT_PACE))
+    site_order += [s for s in DEFAULT_PACE if s not in site_order]
+
     return Options(
         sfw=sfw_val,
         sfw_set=sfw_set,
@@ -240,6 +246,7 @@ def get_options(request: Request) -> Options:
         trash_retention_days=trash_retention_days,
         source_pace=source_pace,
         hidden_sites=hidden_sites,
+        site_order=site_order,
     )
 
 
@@ -282,6 +289,12 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
         if set(DEFAULT_PACE) <= set(body.hidden_sites):
             raise ApiError(422, "invalid", "keep at least one site visible", field="hidden_sites")
         write("options.global.hidden_sites", ",".join(sorted(set(body.hidden_sites))))
+
+    if body.site_order is not None:
+        for site in body.site_order:
+            if site not in DEFAULT_PACE:
+                raise ApiError(422, "invalid", f"unknown site: {site}", field="site_order")
+        write("options.global.site_order", ",".join(dict.fromkeys(body.site_order)))
 
     if body.source_pace is not None:
         settings = request.app.state.settings

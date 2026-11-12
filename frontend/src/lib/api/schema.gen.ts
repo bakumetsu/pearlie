@@ -1400,6 +1400,11 @@ export interface components {
              * @default []
              */
             hidden_sites: string[];
+            /**
+             * Site Order
+             * @default []
+             */
+            site_order: string[];
         };
         /** OptionsUpdate */
         OptionsUpdate: {
@@ -1425,6 +1430,8 @@ export interface components {
             } | null;
             /** Hidden Sites */
             hidden_sites?: string[] | null;
+            /** Site Order */
+            site_order?: string[] | null;
         };
         /** PageStats */
         PageStats: {
