@@ -53,7 +53,7 @@ Pearlie triggers Stash and Komga scans itself after each save, because file watc
 Pearlie/
   backend/app/
     main.py  config.py  db.py  models.py
-    sources/   base.py  danbooru.py  gelbooru.py (also rule34)  nhentai.py
+    sources/   base.py  danbooru.py  dapi.py (Rule34, Gelbooru)  nhentai.py (planned)
     targets/   stash.py  komga.py  comicinfo.py
     library/   stash_browse.py  komga_browse.py  trash.py
     filters/   rules.py  aliases.py  baselist.py
@@ -76,7 +76,7 @@ The stub generates placeholder media by default. For realistic photos, clips and
 |---|---|---|
 | Danbooru | none needed; optional login + API key | first source; caps how many tags one search can hold, so Pearlie also filters results itself |
 | Gelbooru | `api_key` + `user_id` | from the account options page |
-| Rule34 | `api_key` + `user_id` | same dapi format as Gelbooru, one module |
+| Rule34 | `api_key` + `user_id` | same dapi format as Gelbooru, one module (`sources/dapi.py`); rating tags filtered by Pearlie, other tags sent to the site; key never logged |
 | nhentai | logged-in session cookies + the browser's User-Agent | see below |
 
 **nhentai.** The site's own CBZ link is signed by the server (`sig`), tied to the account (`u`) and expires (`exp`), so Pearlie cannot build it.
