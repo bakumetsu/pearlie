@@ -702,7 +702,22 @@ case_unit_sync() {
   expect "unit_sync: installer heredoc equals deploy/pearlie.service" "$heredoc" "$(cat "$REPO/deploy/pearlie.service")"
 }
 
-CASES=(case_nothing_newer case_check case_success case_build_fail case_bad_health case_lock case_malicious case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_unit_sync)
+case_installer_defaults() {
+  local rc pat
+  rc=0; bash -n "$REPO/ct/pearlie.sh" || rc=$?
+  expect "installer_defaults: ct/pearlie.sh syntax ok" "$rc" 0
+
+  rc=0; bash -n "$REPO/install/pearlie-install.sh" || rc=$?
+  expect "installer_defaults: install/pearlie-install.sh syntax ok" "$rc" 0
+
+  expect "installer_defaults: no pearlie_host_setup or read -r -p in ct/pearlie.sh" "$(grep -c 'pearlie_host_setup\|read -r -p' "$REPO/ct/pearlie.sh" || true)" 0
+
+  for pat in PEARLIE_MODE=real PEARLIE_TRUSTED_NETWORK=1 PEARLIE_STASH_TEMP_DIR=/mnt/media/stash/Temp PEARLIE_STASH_DEFAULT_DIR=/mnt/media/stash/Other; do
+    expect "installer_defaults: $pat appears once in installer" "$(grep -c "$pat" "$REPO/install/pearlie-install.sh" || true)" 1
+  done
+}
+
+CASES=(case_nothing_newer case_check case_success case_build_fail case_bad_health case_lock case_malicious case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_unit_sync case_installer_defaults)
 
 for c in "${CASES[@]}"; do
   "$c"
