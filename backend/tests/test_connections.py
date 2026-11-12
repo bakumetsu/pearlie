@@ -82,7 +82,7 @@ def test_auto_key_file_created_and_reused(
     key_file = tmp_path / "secret.key"
     assert not key_file.exists()
     with caplog.at_level(logging.DEBUG):
-        c = make_client(tmp_path)
+        c = make_client(tmp_path, mode="real", env={"real": "search"})
         assert c.get("/api/connections").json()["can_store"] is True
         first = key_file.read_text(encoding="utf-8").strip()
         Fernet(first)
@@ -98,7 +98,7 @@ def test_auto_key_file_created_and_reused(
     assert first not in listing.text
     assert first not in caplog.text
 
-    c2 = make_client(tmp_path)
+    c2 = make_client(tmp_path, mode="real", env={"real": "search"})
     assert c2.get("/api/connections").json()["can_store"] is True
     assert key_file.read_text(encoding="utf-8").strip() == first
     assert c2.get("/api/connections").json()["connections"][0]["key"] == "set"
