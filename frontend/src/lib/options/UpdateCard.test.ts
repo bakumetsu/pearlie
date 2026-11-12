@@ -108,10 +108,10 @@ describe("UpdateCard", () => {
   }, 10000);
 
   it("shows 'Switch to X' when channel differs from installed", async () => {
-  hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus({ channel: "dev" }));
-  render(UpdateCard);
-  expect(await screen.findByRole("button", { name: "Switch to 1.2.4" })).toBeTruthy();
-});
+    hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus({ channel: "dev" }));
+    render(UpdateCard);
+    expect(await screen.findByRole("button", { name: "Switch to 1.2.4" })).toBeTruthy();
+  });
 
   it("shows 'Up to date' when no update is available", async () => {
     hoisted.api.getUpdateStatus.mockResolvedValue(
@@ -152,17 +152,16 @@ describe("UpdateCard", () => {
     expect(btn.getAttribute("title")).toBe("Updating is not available here");
   });
 
-  it("calls onupdate when Update button is clicked and can_apply is true", async () => {
+  it("opens the confirm sheet when Update is clicked and can_apply is true", async () => {
     hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus());
 
-    const onupdate = vi.fn();
-    render(UpdateCard, { onupdate });
+    render(UpdateCard);
 
     const btn = await screen.findByRole("button", { name: "Update" });
     expect((btn as HTMLButtonElement).disabled).toBe(false);
 
     await fireEvent.click(btn);
-    expect(onupdate).toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Confirm update" })).toBeTruthy();
   });
 
   it('calls putUpdateSettings with {channel:"dev"} when "Dev" is clicked', async () => {

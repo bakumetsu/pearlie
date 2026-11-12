@@ -10,7 +10,6 @@
 		void update.load(true).then(() => update.resume());
 	});
 
-	let { onupdate }: { onupdate?: () => void } = $props();
 	let confirming = $state(false);
 	onDestroy(() => update.dispose());
 	function confirm() { confirming = false; void update.apply(); }
@@ -95,9 +94,9 @@
 
 			<!-- Auto-check -->
 			<li class="row">
+				<span class="row-label">Check for updates automatically</span>
 				<span class="row-value">
-					<span class="row-label">Check for updates automatically</span>
-						<Switch
+					<Switch
 						checked={update.status.check_enabled}
 						label="Check for updates automatically"
 						onclick={() => update.setCheckEnabled(!update.status?.check_enabled)}
@@ -123,7 +122,7 @@
 						aria-label={updateLabel}
 						title={update.status && !update.status.can_apply ? "Updating is not available here" : "Update"}
 						disabled={!update.status?.available || !update.status?.can_apply || update.phase !== "idle"}
-						onclick={() => { onupdate?.(); confirming = true; }}
+						onclick={() => (confirming = true)}
 					>
 						<Icon name="download" />
 						<span class="btn-label">{updateLabel}</span>
@@ -146,7 +145,7 @@
 </section>
 <svelte:window onkeydown={(e) => { if (confirming && e.key === "Escape") confirming = false; }} />
 	{#if confirming}
-		
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<div class="scrim" role="presentation" onclick={() => (confirming = false)}>
 			<div class="sheet" role="dialog" aria-modal="true" aria-label="Confirm update" tabindex="-1" onclick={(e) => e.stopPropagation()}>
 				<p>Pearlie restarts for about a minute. Your settings and library are not changed.</p>
