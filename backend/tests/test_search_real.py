@@ -129,6 +129,25 @@ def test_search_multi_ignores_page_size(tmp_path):
     assert recorded["url"].params["limit"] == "60"
 
 
+def test_search_empty_tags_page_one_in_request_order(tmp_path):
+    """Empty q asks each selected site once for page 1, and sections keep the request order."""
+    calls: list = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url)
+        return httpx.Response(200, json=load("search"))
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/search?sources=danbooru,stash_images,komga_books")
+    assert r.status_code == 200
+    body = r.json()
+    assert [s["id"] for s in body["sections"]] == ["danbooru", "stash_images", "komga_books"]
+    assert len(calls) == 1
+    assert calls[0].params["tags"] == ""
+    assert calls[0].params["page"] == "1"
+    assert len(body["sections"][0]["items"]) <= 18
+
+
 def test_search_page_size_is_what_source_used(tmp_path):
     """page_size is clamped by the source cap and reflected in section and limit."""
     recorded: dict = {}
