@@ -940,6 +940,15 @@ export interface components {
              * @default false
              */
             clear_secret: boolean;
+            /** Fields */
+            fields?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Clear Fields
+             * @default []
+             */
+            clear_fields: string[];
         };
         /** ConnectionOut */
         ConnectionOut: {
@@ -958,6 +967,8 @@ export interface components {
             address_locked: boolean;
             /** Key Locked */
             key_locked: boolean;
+            /** Fields */
+            fields: components["schemas"]["FieldOut"][];
             /**
              * Restart Needed
              * @default false
@@ -984,6 +995,22 @@ export interface components {
             default_folder: string;
             /** Items */
             items: components["schemas"]["DestinationItem"][];
+        };
+        /** FieldOut */
+        FieldOut: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "set" | "missing";
+            /** Locked */
+            locked: boolean;
+            /** Primary */
+            primary: boolean;
         };
         /** FolderBody */
         FolderBody: {

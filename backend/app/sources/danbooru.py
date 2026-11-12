@@ -1,10 +1,12 @@
 """Danbooru source adapter."""
 
+from collections.abc import Callable
 from urllib.parse import urlparse
 
 import httpx
 
 from app.paging import clamp_page_size
+from app.sources.auth import SiteAuth, build_auth
 from app.sources.base import Post, Rating, SearchPage, SourceError
 from app.sources.throttle import DEFAULT_PACE, Throttle
 
@@ -57,6 +59,7 @@ class Danbooru:
         base_url: str = "https://danbooru.donmai.us",
         tag_limit: int = 2,  # anonymous search cap
         page_size: int = 60,
+        credentials: Callable[[], dict[str, str]] | None = None,
     ) -> None:
         self._client = client or httpx.Client(
             timeout=15.0, headers={"User-Agent": "Pearlie/0.1"}
@@ -66,12 +69,20 @@ class Danbooru:
         self.file_hosts = (urlparse(base_url).hostname or "", "cdn.donmai.us")
         self._tag_limit = tag_limit
         self._page_size = page_size
+        self._credentials = credentials
+
+    def _auth(self) -> SiteAuth:
+        """Login + API key when both are stored; anonymous otherwise."""
+        return build_auth("danbooru", self._credentials() if self._credentials else {})
 
     def _get(self, path: str, params: dict | None = None) -> dict | list:
         """Fetch a JSON resource from Danbooru."""
         self._throttle.wait()
         try:
-            resp = self._client.get(self._base_url + path, params=params)
+            auth = self._auth()
+            resp = self._client.get(
+                self._base_url + path, params=params, headers=auth.headers, auth=auth.basic
+            )
         except httpx.HTTPError:
             raise SourceError("upstream_error", "Danbooru is unreachable") from None
         self._throttle.report(resp.status_code, _retry_after(resp))
