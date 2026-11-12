@@ -25,6 +25,11 @@ Creates a Debian 13 LXC (1 CPU, 1 GB, 4 GB) in community-scripts style. Run on t
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/bakumetsu/pearlie/main/ct/pearlie.sh)"
 ```
 
+To use real media, first mount the Stash Temp and Stash Other shares on the Proxmox host
+shell (NFS or any other method), then run the installer and give it those host folders.
+Answer `N` to run in fixture mode. The installer never asks for an NFS IP and never edits
+fstab.
+
 Pearlie has no login of its own: reach it only over Tailscale or a reverse proxy. Update with `update` in the container or from Options > System.
 
 ## Dev setup
