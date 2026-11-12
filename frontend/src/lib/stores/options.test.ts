@@ -22,6 +22,7 @@ function makeOptions(overrides: Partial<Options> = {}): Options {
     backdrop_lightbox: true,
     allow_blurred_tags: false,
     trash_retention_days: 7,
+    infinite_scroll: false,
     hidden_sites: [],
     source_pace: { danbooru: { value: 1, default: 1, locked: false, backing_off: false } },
     ...overrides,
