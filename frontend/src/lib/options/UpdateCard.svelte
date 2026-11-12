@@ -11,6 +11,7 @@
 	});
 
 	let { onupdate }: { onupdate?: () => void } = $props();
+	const updateLabel = $derived(update.status && update.status.channel !== update.status.installed.channel && update.status.available ? `Switch to ${update.latest?.version}` : "Update");
 </script>
 
 <section class="card">
@@ -78,7 +79,8 @@
 			<!-- Auto-check -->
 			<li class="row">
 				<span class="row-value">
-					<Switch
+					<span class="row-label">Check for updates automatically</span>
+						<Switch
 						checked={update.status.check_enabled}
 						label="Check for updates automatically"
 						onclick={() => update.setCheckEnabled(!update.status?.check_enabled)}
@@ -101,13 +103,13 @@
 					</button>
 					<button
 						class="iconbtn"
-						aria-label="Update"
+						aria-label={updateLabel}
 						title={update.status && !update.status.can_apply ? "Updating is not available here" : "Update"}
 						disabled={!update.status?.available || !update.status?.can_apply}
 						onclick={() => onupdate?.()}
 					>
 						<Icon name="download" />
-						<span class="btn-label">Update</span>
+						<span class="btn-label">{updateLabel}</span>
 					</button>
 					{#if update.latest?.url}
 						<a
