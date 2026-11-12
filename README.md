@@ -25,13 +25,21 @@ Creates a Debian 13 LXC (1 CPU, 1 GB, 4 GB) in community-scripts style. Run on t
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/bakumetsu/pearlie/main/ct/pearlie.sh)"
 ```
 
-To use real media, first mount the Stash Temp and Stash Other shares on the Proxmox host
-shell (NFS or any other method), then run the installer and give it those host folders.
-Answer `N` to run in fixture mode. The installer never asks for an NFS IP and never edits
-fstab. On OMV, set `all_squash,anonuid=<Stash/Komga UID>,anongid=<GID>` on both exports so
-files Pearlie writes belong to the Stash/Komga user.
+The installer asks nothing beyond the standard community-scripts menu. Pearlie starts in real mode on the container IP, port 8000 (`http://<container IP>:8000`), with empty media folders `/mnt/media/stash/Temp` and `/mnt/media/stash/Other` inside the container. Pearlie has no login: keep it behind Tailscale, a firewall or a reverse proxy.
 
-Pearlie has no login of its own: reach it only over Tailscale or a reverse proxy. Update with `update` in the container or from Options > System.
+Configuration lives in `/opt/pearlie/.env` (edit it, then `systemctl restart pearlie`). Stash and Komga URLs and keys can also be typed into Options.
+
+**Bind host folders.** Mount the Stash Temp and Stash Other shares on the Proxmox host first (NFS or any other method), then bind them over the container folders, in the Proxmox UI (container > Resources > Add > Mount Point) or:
+
+```bash
+pct set <CTID> -mp0 /host/path/Temp,mp=/mnt/media/stash/Temp
+pct set <CTID> -mp1 /host/path/Other,mp=/mnt/media/stash/Other
+pct reboot <CTID>
+```
+
+Notes: the installer never asks for an NFS IP and never edits fstab. On OMV, set `all_squash,anonuid=<Stash/Komga UID>,anongid=<GID>` on both exports so files Pearlie writes belong to the Stash/Komga user.
+
+Update with `update` in the container or from Options > System.
 
 ## Dev setup
 

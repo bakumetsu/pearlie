@@ -25,26 +25,41 @@ mkdir -p /opt/pearlie/data /opt/pearlie/releases /opt/pearlie/backups
 curl -fsSL "${PEARLIE_RAW_URL:-https://raw.githubusercontent.com/bakumetsu/pearlie/main}/deploy/pearlie-update.sh" -o /usr/local/bin/pearlie-update
 chmod 755 /usr/local/bin/pearlie-update
 
+host_ip=$(hostname -I | awk '{for (j = 1; j <= NF; j++) if ($j ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) { print $j; exit }}')
+if [[ -z $host_ip ]]; then
+  host_ip=127.0.0.1
+  trusted=0
+  msg_info "No container IPv4 found: Pearlie stays on 127.0.0.1. Put tailscale serve or a reverse proxy in front."
+else
+  trusted=1
+fi
+mkdir -p /mnt/media/stash/Temp /mnt/media/stash/Other
+
 if [[ ! -f /opt/pearlie/.env ]]; then
   (
     umask 077
     {
-      echo "# written by pearlie-install; the container script (ct/pearlie.sh) switches mode and host after host setup"
-      echo "PEARLIE_MODE=fixture"
+      echo "# written by pearlie-install; edit and run: systemctl restart pearlie"
+      echo "PEARLIE_MODE=real"
       echo "PEARLIE_DB_PATH=/opt/pearlie/data/pearlie.db"
       echo "PEARLIE_STATIC_DIR=/opt/pearlie/current/app/frontend/dist"
-      echo "PEARLIE_HOST=127.0.0.1"
+      echo "PEARLIE_HOST=$host_ip"
       echo "PEARLIE_PORT=8000"
+      if [[ $trusted -eq 1 ]]; then
+        echo "PEARLIE_TRUSTED_NETWORK=1"
+      fi
+      echo "PEARLIE_STASH_TEMP_DIR=/mnt/media/stash/Temp"
+      echo "PEARLIE_STASH_DEFAULT_DIR=/mnt/media/stash/Other"
       printf 'PEARLIE_SECRET_KEY=%s\n' "$(openssl rand -hex 32)"
     } > /opt/pearlie/.env
   )
   chmod 600 /opt/pearlie/.env
 fi
 
-cat <<'CONF' > /opt/pearlie/update.conf
+cat <<CONF > /opt/pearlie/update.conf
 channel=main
 check=on
-host=127.0.0.1
+host=$host_ip
 port=8000
 CONF
 
@@ -75,7 +90,7 @@ $STD /usr/local/bin/pearlie-update --install
 msg_ok "Built Pearlie"
 systemctl enable -q --now pearlie
 
-msg_ok "Pearlie has no login of its own: reach it only over Tailscale or a reverse proxy."
+msg_ok "Pearlie has no login: keep it behind Tailscale, a firewall or a reverse proxy."
 
 motd_ssh
 customize
