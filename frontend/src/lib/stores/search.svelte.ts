@@ -20,6 +20,7 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
   let token = 0;
   let lastQuery = "";
   let lastState: SearchState | null = null;
+  let lastKey: string | null = null;
 
   function clearTimer() {
     if (timer !== null) {
@@ -28,17 +29,22 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
     }
   }
 
-  function run(state: SearchState, o?: { immediate?: boolean }) {
+  function run(state: SearchState, o?: { immediate?: boolean; force?: boolean }) {
+    let ids = sectionsFor(state.pill, state.sites);
+    if (webNeedsQuery(state)) {
+      ids = ids.filter((id) => LIBRARY_IDS.has(id));
+    }
+
+    // An identical query (chips + sources) is never re-sent.
+    const key = JSON.stringify([serialiseQuery(state.chips), ids]);
+    if (!o?.force && key === lastKey) return;
+    lastKey = key;
+
     banner = null;
     clearTimer();
     if (controller !== null) {
       controller.abort();
       controller = null;
-    }
-
-    let ids = sectionsFor(state.pill, state.sites);
-    if (webNeedsQuery(state)) {
-      ids = ids.filter((id) => LIBRARY_IDS.has(id));
     }
 
     lastQuery = serialiseQuery(state.chips);
@@ -121,10 +127,11 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
   }
 
   function retryAll() {
-    if (lastState !== null) run(lastState, { immediate: true });
+    if (lastState !== null) run(lastState, { immediate: true, force: true });
   }
 
   function cancel() {
+    lastKey = null;
     clearTimer();
     if (controller !== null) {
       controller.abort();

@@ -8,10 +8,12 @@
     chips,
     onchange,
     label,
+    onsubmit,
   }: {
     chips: Chip[];
     onchange: (chips: Chip[]) => void;
     label?: string;
+    onsubmit?: () => void;
   } = $props();
 
   let text = $state("");
@@ -49,6 +51,9 @@
         e.preventDefault();
         onchange(commitText(chips, text));
         text = "";
+      } else if (e.key === "Enter" && !text.trim()) {
+        e.preventDefault();
+        onsubmit?.();
       } else if (e.key === "Backspace" && text === "") {
         onchange(removeLastChip(chips));
       }

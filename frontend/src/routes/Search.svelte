@@ -11,6 +11,7 @@
   import { hrefOf, linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
   import type { WebItem } from "../lib/api/client";
+  import Icon from "../lib/components/Icon.svelte";
   import ChipField from "../lib/components/ChipField.svelte";
   import PillBar from "../lib/components/PillBar.svelte";
   import SectionRow from "../lib/components/SectionRow.svelte";
@@ -33,16 +34,20 @@
 
   const query = $derived(parseSearchParams("?" + match.query.toString()));
 
+  // Chip edits stay in a draft until the user runs the search.
+  let draftChips = $derived(query.chips);
+  const dirty = $derived(serialiseQuery(draftChips) !== serialiseQuery(query.chips));
+
   let first = true;
   $effect(() => {
     search.run(query, { immediate: first });
     first = false;
-    return () => search.cancel();
   });
 
   let h1: HTMLHeadingElement | undefined;
   onMount(() => {
     h1?.focus();
+    return () => search.cancel();
   });
 
   function navigateState(next: SearchState): void {
@@ -50,7 +55,11 @@
   }
 
   function handleChipsChange(chips: typeof query.chips): void {
-    navigateState({ ...query, chips });
+    draftChips = chips;
+  }
+
+  function runSearch(): void {
+    if (dirty) navigateState({ ...query, chips: draftChips });
   }
 
   function handlePillChange(pill: typeof query.pill): void {
@@ -136,7 +145,14 @@
 <div class="page">
   <header class="header">
     <h1 class="sr-only" tabindex="-1" bind:this={h1}>Discover</h1>
-    <ChipField chips={query.chips} onchange={handleChipsChange} />
+    <div class="search-row">
+      <ChipField chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch} />
+      {#if dirty}
+        <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
+          <Icon name="search" size={20} />
+        </button>
+      {/if}
+    </div>
     <PillBar
       pill={query.pill}
       sites={query.sites}
@@ -235,6 +251,31 @@
     padding: var(--s-3) var(--s-4);
     padding-right: calc(var(--s-4) + var(--sfw-inset));
     border-bottom: 1px solid var(--line);
+  }
+
+  .search-row {
+    display: flex;
+    align-items: stretch;
+    gap: var(--s-2);
+  }
+
+  .search-row :global(.field) {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .search-btn {
+    flex: 0 0 44px;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
+    background: var(--accent);
+    color: var(--surface);
+    border: none;
+    border-radius: var(--r-lg);
+    cursor: pointer;
   }
 
   .content {
