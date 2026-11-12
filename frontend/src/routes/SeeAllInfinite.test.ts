@@ -11,6 +11,7 @@ describe("SeeAll infinite scroll", () => {
   let requested: number[];
   let infinite: boolean;
   let failPage: number | null;
+  let blurPage1: boolean;
   let tl: typeof import("@testing-library/svelte");
   let observers: { cb: (e: Entries) => void; live: boolean }[];
 
@@ -42,12 +43,13 @@ describe("SeeAll infinite scroll", () => {
     requested = [];
     infinite = true;
     failPage = null;
+    blurPage1 = false;
     globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, "http://localhost");
       const json = (body: unknown, status = 200) =>
         Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
       if (url.pathname === "/api/options") {
-        return json({ sfw: false, sfw_set: true, player_rate: 1, player_rate_set: true, source_pace: {}, infinite_scroll: infinite });
+        return json({ sfw: blurPage1, sfw_set: true, player_rate: 1, player_rate_set: true, source_pace: {}, infinite_scroll: infinite });
       }
       if (url.pathname.startsWith("/api/library/")) {
         const p = Number(url.searchParams.get("page") ?? "1");
@@ -57,7 +59,7 @@ describe("SeeAll infinite scroll", () => {
           return json({ error: { code: "boom", message: "boom" } }, 500);
         }
         return json({
-          items: [tile(`${p}a`), tile(`${p}b`)],
+          items: [tile(`${p}a`), tile(`${p}b`)].map((t) => (blurPage1 && p === 1 ? { ...t, blur: { reason: "x" } } : t)),
           page: p,
           page_size: 60,
           total: 6,
@@ -125,5 +127,24 @@ describe("SeeAll infinite scroll", () => {
     await tl.fireEvent.click(tl.screen.getByRole("button", { name: "Retry" }));
     await vi.waitFor(() => expect(container.querySelectorAll("a.tile").length).toBe(4));
     expect(requested).toEqual([1, 2, 2]);
+  });
+
+  it("on: a first page hidden by the content filter still loads the next page", async () => {
+    blurPage1 = true;
+    const tlm = (tl = await import("@testing-library/svelte"));
+    const { default: App } = await import("../App.svelte");
+    const { container } = tlm.render(App);
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="more-sentinel"]')).toBeTruthy());
+    expect(container.querySelectorAll("a.tile").length).toBe(0);
+    nearEnd();
+    await vi.waitFor(() => expect(container.querySelectorAll("a.tile").length).toBe(2));
+    expect(requested).toEqual([1, 2]);
+  });
+
+  it("on: ?page=2 opens at page 1 and drops page from the URL", async () => {
+    history.replaceState({}, "", "/see-all?source=stash_images&page=2");
+    await firstPage();
+    expect(requested).toEqual([1]);
+    await vi.waitFor(() => expect(location.search).not.toContain("page="));
   });
 });

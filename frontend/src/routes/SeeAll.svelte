@@ -162,7 +162,8 @@
     const sd = seed;
     const pp = vs.per_page;
     const adopt = untrack(() => grid.listKey === listKey && grid.status === "done" && grid.takeCrossed());
-    const pg = adopt ? untrack(() => grid.page) : page;
+    // Infinite mode has no pager: it always starts at page 1 (the URL sync below drops ?page=)
+    const pg = inf ? 1 : adopt ? untrack(() => grid.page) : page;
 
     if (k) {
       const loader = async (p: number, signal: AbortSignal) => {
@@ -432,7 +433,7 @@
       <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => (lightboxKey = webKey(w))} />
     {/if}
 
-    {#if infinite && grid.status === "done" && grid.items.length > 0}
+    {#if infinite && grid.status === "done"}
       {#if grid.more === "error"}
         <div class="more-box">
           <p>Could not load more.</p>
