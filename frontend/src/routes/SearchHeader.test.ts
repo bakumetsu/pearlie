@@ -30,10 +30,8 @@ describe("filterChips", () => {
     expect(chips[2].remove).toEqual({ sites: ["danbooru"] });
   });
 
-  it("shows No sites that resets to the default", () => {
-    const chips = filterChips({ ...base, sites: [] });
-    expect(chips).toHaveLength(1);
-    expect(chips[0].remove).toEqual({ sites: DEFAULT_SITES });
+  it("shows no chip when no sites are selected", () => {
+    expect(filterChips({ ...base, sites: [] })).toEqual([]);
   });
 
   it("toggleSiteIn keeps the canonical order", () => {
