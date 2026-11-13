@@ -21,6 +21,7 @@
   import WallOverlay from "../lib/browse/WallOverlay.svelte";
   import Lightbox from "../lib/components/Lightbox.svelte";
   import Toolbar from "../lib/browse/Toolbar.svelte";
+  import { nextAutohide } from "../lib/browse/autohide";
   import { parseOrder, parseRating, ORDER_LABELS, RATING_LABELS } from "../lib/browse/filters";
   import type { SourceFilters } from "../lib/api/client";
   import { parseOpen, openKey, withOpen, findTile } from "../lib/browse/overlayState";
@@ -404,18 +405,30 @@
     }
   }
 
+  // Hide the sticky header on scroll down, show on scroll up. Never while a menu or sheet is open.
+  let barHidden = $state(false);
+  let headerEl: HTMLElement | undefined = $state();
+  let lastY = 0;
+
+  function onScrollBar() {
+    const blocked = !!headerEl?.querySelector('[aria-expanded="true"], [role="dialog"]');
+    const next = nextAutohide(barHidden, lastY, window.scrollY, blocked);
+    lastY = next.lastY;
+    if (next.hidden !== barHidden) barHidden = next.hidden;
+  }
+
   function onNav(e: MouseEvent) {
     linkClick(e, router);
   }
 
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} onscroll={onScrollBar} />
 
 <div class="content" inert={openId !== null}>
   <h1 class="sr-only" tabindex="-1" bind:this={h1}>{title}</h1>
 
-  <header class="sticky-header">
+  <header class="sticky-header" class:hidden={barHidden} bind:this={headerEl} onfocusin={() => (barHidden = false)}>
     <div class="header-row">
       <button class="back-btn" aria-label="Back" onclick={() => history.back()}>
         <Icon name="arrow-left" size={20} />
@@ -441,8 +454,8 @@
       </div>
     {/if}
 
+    <div class="controls">
     {#if isLibrary}
-      <div class="controls">
         <select aria-label="Sort" class="sort-select" value={sort} onchange={(e) => onSortChange((e.target as HTMLSelectElement).value)}>
           <option value="">Newest</option>
           <option value="rating">Rating</option>
@@ -456,16 +469,14 @@
           <Icon name={favorite ? "heart-filled" : "heart"} size={16} />
           Favorites
         </button>
-      </div>
     {/if}
     {#if showFilters}
-      <div class="controls">
-        <Toolbar {order} {rating} orders={orderOptions} ratings={ratingOptions} {orderBlocked} onapply={onFilters} />
-      </div>
+      <Toolbar {order} {rating} orders={orderOptions} ratings={ratingOptions} {orderBlocked} onapply={onFilters} />
     {/if}
     {#if viewSettings.ready}
       <ViewBar modes={vs.modes as Mode[]} mode={vs.mode as Mode} perPage={vs.per_page} zoom={vs.zoom} options={vs.per_page_options} max={vs.per_page_max} onmode={onMode} onperpage={onPerPage} onzoom={onZoom} onzoompreview={onZoomPreview} />
     {/if}
+    </div>
   </header>
 
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
@@ -528,7 +539,10 @@
   .header-row { display: flex; align-items: center; gap: var(--s-4); padding-right: var(--sfw-inset); }
   .back-btn { min-width: 44px; min-height: 44px; display: grid; place-items: center; border: none; background: none; cursor: pointer; color: var(--text); }
   .header-title { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text); }
-  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); margin-top: var(--s-4); }
+  .sticky-header { transition: transform 0.2s ease; }
+  .sticky-header.hidden { transform: translateY(-100%); }
+  @media (prefers-reduced-motion: reduce) { .sticky-header { transition: none; } }
+  .controls { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--s-2); margin-top: var(--s-4); }
   .sort-select { min-height: 44px; padding: var(--s-2) var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: var(--surface); color: var(--text); }
   .shown { font-size: 0.875rem; color: var(--muted); }
   .f-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
