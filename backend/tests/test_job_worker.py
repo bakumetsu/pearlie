@@ -17,6 +17,7 @@ from app.jobs.worker import JobWorker
 from app.models import Problem
 from app.sources.base import Post, SourceError
 from app.targets.stash import SaveError, SaveResult
+from app.targets.stash_client import StashError
 
 
 class FakeClock:
@@ -150,6 +151,18 @@ def test_unknown_save_status_fails_job(tmp_path: Path) -> None:
     assert job is not None
     assert job.state == "failed"
     assert job.error == "unexpected save result"
+
+
+def test_stash_error_keeps_its_code(tmp_path: Path) -> None:
+    worker, store, target, sources, clock = make(tmp_path)
+    target.results.append(StashError("upstream_auth", "Stash refused the API key", 502))
+    jid = enqueue(store, sources, "danbooru", "1")
+    assert worker.run_once() is True
+    job = store.get(jid)
+    assert job is not None
+    assert job.state == "failed"
+    assert job.error == "Stash refused the API key"
+    assert job.error_code == "upstream_auth"
 
 
 def test_tags_are_flattened_sorted(tmp_path: Path) -> None:

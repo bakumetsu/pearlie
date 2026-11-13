@@ -13,6 +13,7 @@ from app import logs
 from app.jobs.store import JobStore
 from app.sources.base import Post, Source, SourceError
 from app.targets.stash import SaveError, SaveResult
+from app.targets.stash_client import StashError
 
 logger = logging.getLogger("pearlie.jobs")
 
@@ -209,7 +210,7 @@ class JobWorker:
                     job_id, "failed", "unexpected_error", "unexpected save result", logging.ERROR
                 )
 
-        except (SaveError, SourceError) as e:
+        except (SaveError, SourceError, StashError) as e:
             self._store.finish(job_id, "failed", error=e.message, error_code=e.code)
             self._end(job_id, "failed", e.code, e.message, logging.ERROR)
         except Exception as e:
