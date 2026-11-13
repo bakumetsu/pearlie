@@ -4,7 +4,6 @@
 	import type { ConnectionsStore } from "../stores/connections.svelte";
 	import { getApi, ApiError, errorText } from "../api/client";
 	import type { Api } from "../api/client";
-	import Icon from "../components/Icon.svelte";
 
 	let {
 		name,
@@ -30,14 +29,32 @@
 	const fields = $derived(conn?.fields ?? []);
 	const multi = $derived(fields.length > 1);
 	const canEditKeys = $derived(store.canStore);
+	// Fixed length: neither the real key nor its length reaches the DOM
+	const MASK = "•".repeat(8);
 
 	let address = $state(untrack(() => store.byName(name)?.address ?? ""));
 	let key = $state("");
 	let values = $state<Record<string, string>>({});
-	let confirmingField = $state<string | null>(null);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
-	let confirmingClear = $state(false);
+	// Fields the user edited; a touched, empty secret field means "remove"
+	let touched = $state<Record<string, boolean>>({});
+
+	const clearKey = $derived(
+		keySet && !keyLocked && canEditKeys && !!touched.key && !key.trim()
+	);
+	const clearFieldIds = $derived(
+		fields
+			.filter(
+				(f) =>
+					f.state === "set" &&
+					!f.locked &&
+					canEditKeys &&
+					touched[f.id] &&
+					!(values[f.id] ?? "").trim()
+			)
+			.map((f) => f.id)
+	);
 
 	const normalizedAddress = $derived(address.trim().replace(/\/$/, ""));
 	const originalAddress = $derived(
@@ -104,40 +121,6 @@
 		}
 	}
 
-	async function handleClearKey() {
-		busy = true;
-		error = null;
-		try {
-			await store.save(api, name, { clear_secret: true });
-			onclose();
-		} catch (e) {
-			if (e instanceof ApiError) {
-				error = errorText(e);
-			} else {
-				throw e;
-			}
-		} finally {
-			busy = false;
-		}
-	}
-
-	async function handleClearField(id: string) {
-		busy = true;
-		error = null;
-		try {
-			await store.save(api, name, { clear_fields: [id] });
-			confirmingField = null;
-		} catch (e) {
-			if (e instanceof ApiError) {
-				error = errorText(e);
-			} else {
-				throw e;
-			}
-		} finally {
-			busy = false;
-		}
-	}
-
 	async function handleSaveAndTest() {
 		busy = true;
 		error = null;
@@ -148,6 +131,8 @@
 		}
 		if (key.trim()) {
 			body.secret = key.trim();
+		} else if (clearKey && !multi) {
+			body.clear_secret = true;
 		}
 		const typed = Object.fromEntries(
 			Object.entries(values)
@@ -157,6 +142,9 @@
 		if (Object.keys(typed).length > 0) {
 			body.fields = typed;
 		}
+		if (multi && clearFieldIds.length > 0) {
+			body.clear_fields = clearFieldIds;
+		}
 
 		try {
 			if (Object.keys(body).length > 0) {
@@ -164,6 +152,7 @@
 			}
 			key = "";
 			values = {};
+			touched = {};
 			await store.test(api, name);
 			onclose();
 		} catch (e) {
@@ -217,8 +206,11 @@
 						type={f.primary ? "password" : "text"}
 						autocomplete="off"
 						value={values[f.id] ?? ""}
-						on:input={(e) => (values = { ...values, [f.id]: e.currentTarget.value })}
-						placeholder="Leave empty to keep"
+						on:input={(e) => {
+							values = { ...values, [f.id]: e.currentTarget.value };
+							touched = { ...touched, [f.id]: true };
+						}}
+						placeholder={f.state === "set" && !touched[f.id] ? MASK : ""}
 						disabled={f.locked || !canEditKeys}
 					/>
 					{#if f.locked}
@@ -226,15 +218,8 @@
 					{:else}
 						<span class="chip">{f.state}</span>
 					{/if}
-					{#if f.state === "set" && !f.locked && canEditKeys}
-						{#if confirmingField === f.id}
-							<button class="btn" disabled={busy} aria-label={`Confirm clear ${f.label}`} on:click={() => handleClearField(f.id)}>Clear</button>
-							<button class="btn" disabled={busy} on:click={() => (confirmingField = null)}>Keep</button>
-						{:else}
-							<button class="btn" disabled={busy} aria-label={`Clear ${f.label}`} on:click={() => (confirmingField = f.id)}>
-								<Icon name="trash" size={16} />
-							</button>
-						{/if}
+					{#if clearFieldIds.includes(f.id)}
+						<p class="hint">{f.label} will be removed</p>
 					{/if}
 				</div>
 			{/each}
@@ -250,7 +235,8 @@
 				autocomplete="off"
 				bind:this={keyInput}
 				bind:value={key}
-				placeholder="Leave empty to keep"
+				on:input={() => (touched = { ...touched, key: true })}
+				placeholder={(keySet || keyLocked) && !touched.key ? MASK : ""}
 				disabled={keyLocked || !store.canStore}
 			/>
 			{#if keyLocked}
@@ -263,18 +249,8 @@
 			{/if}
 		</div>
 
-		{#if keySet && !keyLocked && store.canStore}
-			{#if confirmingClear}
-				<div class="row">
-					<span class="row-label">Clear the stored key?</span>
-					<button class="btn" disabled={busy} on:click={handleClearKey}>Clear</button>
-					<button class="btn" disabled={busy} on:click={() => (confirmingClear = false)}>Keep</button>
-				</div>
-			{:else}
-				<div class="row">
-					<button class="btn" disabled={busy} on:click={() => (confirmingClear = true)}>Clear key</button>
-				</div>
-			{/if}
+		{#if clearKey}
+			<p class="hint">Key will be removed</p>
 		{/if}
 
 		{/if}
