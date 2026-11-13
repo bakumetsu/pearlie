@@ -12,7 +12,7 @@
     | "grid" | "wall" | "masonry" | "sliders" | "chevrons-left" | "chevrons-right"
     | "skip-back" | "skip-forward" | "rewind" | "fast-forward" | "replay-10" | "forward-10"
     | "zoom-in" | "zoom-out" | "info" | "order" | "shield"
-    | "octagon-x" | "triangle-alert" | "bug" | "copy";
+    | "octagon-x" | "triangle-alert" | "bug" | "copy" | "history";
 
   const paths: Record<IconName, string[]> = {
     "search": [
@@ -173,6 +173,11 @@
     "clock": [
       "M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z",
       "M12 7v5l3 2",
+    ],
+    "history": [
+      "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8",
+      "M3 3v5h5",
+      "M12 7v5l4 2",
     ],
     "minus": [
       "M5 12h14",

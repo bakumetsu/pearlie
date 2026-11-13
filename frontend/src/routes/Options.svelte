@@ -23,6 +23,7 @@
   import DownloadsCard from "../lib/options/DownloadsCard.svelte";
   import StatusCard from "../lib/options/StatusCard.svelte";
   import UpdateCard from "../lib/options/UpdateCard.svelte";
+  import ChangelogCard from "../lib/options/ChangelogCard.svelte";
   import LogsCard from "../lib/options/LogsCard.svelte";
   import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
   import SaveFoldersCard from "../lib/options/SaveFoldersCard.svelte";
@@ -230,6 +231,8 @@
     <StatusCard />
   {:else if sectionId === "update" && card.title === "Update"}
     <UpdateCard />
+  {:else if sectionId === "changelog" && card.title === "Changelog"}
+    <ChangelogCard active={q === ""} />
   {:else if sectionId === "logs" && card.title === "Logging"}
     <LogsCard />
   {:else if sectionId === "logs" && card.title === "Log viewer"}

@@ -27,7 +27,8 @@ from app.update.version import parse_semver
 _TIMEOUT = 5.0
 _SETTINGS_KEY = "update.changelog"
 _MAX_ITEMS = 50
-_MAX_RELEASES = 10
+PAGE_SIZE = 10
+_CACHE_VERSION = 2
 _KINDS = {"feat": "Added", "fix": "Fixed", "refactor": "Reworked", "perf": "Reworked"}
 _ORDER = ("Added", "Fixed", "Reworked")
 _KIND_TYPE = {"Added": "feat", "Fixed": "fix", "Reworked": "refactor"}
@@ -57,6 +58,7 @@ def build_block(
     *,
     range_label: str | None = None,
     version: str | None = None,
+    date: str | None = None,
 ) -> Block:
     """Group commits (newest first) into Added/Fixed/Reworked, capped at 50 items."""
     items: list[tuple[str, str]] = []
@@ -81,11 +83,24 @@ def build_block(
         "title": title,
         "range": range_label,
         "version": version,
+        "date": date,
         "groups": groups,
         "total": len(items),
         "more": len(items) - len(shown),
         "more_url": more_url,
     }
+
+
+def commit_date(commits: list[dict[str, Any]]) -> str | None:
+    """ISO date (UTC) of the newest commit (first in the list), before any filter."""
+    if not commits:
+        return None
+    commit = commits[0].get("commit")
+    committer = commit.get("committer") if isinstance(commit, dict) else None
+    raw = committer.get("date") if isinstance(committer, dict) else None
+    if not isinstance(raw, str) or not re.match(r"^\d{4}-\d{2}-\d{2}", raw):
+        return None
+    return raw[:10]
 
 
 class Changelog:
@@ -105,53 +120,119 @@ class Changelog:
         latest_ref: str | None,
         enabled: bool,
         force: bool,
+        offset: int = 0,
+        limit: int = PAGE_SIZE,
     ) -> dict[str, Any]:
-        """Changelog for the viewed channel; fetches only when allowed (see _part)."""
+        """One page of the changelog; fetches only when allowed (see _part, _page)."""
+        limit = max(1, min(limit, PAGE_SIZE))
+        offset = max(0, offset)
         with self._lock:
             store = self._load()
             ok = True
+            rb = self._release_blocks(store)
             rel_key = f"v{latest_ref}" if channel == "main" and latest_ref else None
-            tags_memo: list[list[str]] = []
+            stale_tags = not rb["tags"] or (rel_key is not None and rb["tags"][0] != rel_key)
+            refresh_tags = force or (enabled and stale_tags)
+            tags_done: list[bool] = []
 
             def tags() -> list[str]:
-                if not tags_memo:
-                    tags_memo.append(self._tags())
-                return tags_memo[0]
+                if refresh_tags and not tags_done:
+                    tags_done.append(True)
+                    rb["tags"] = self._tags()
+                return rb["tags"]
 
-            releases: list[Block] | None
             try:
-                releases = self._releases_part(store, rel_key, force, enabled, tags)
+                tags()
             except _Unavailable:
-                releases, ok = store.get("releases", {}).get("data"), False
-            dev: Block | None = None
-            if channel == "dev":
-                head = latest_ref if latest_ref and SHA_RE.match(latest_ref) else None
-                try:
-                    dev = self._part(
-                        store, "dev", head, force, enabled, lambda: self._dev_block(tags())
-                    )
-                except _Unavailable:
-                    dev, ok = store.get("dev", {}).get("data"), False
-            whats_new = self._whats_new(
-                store,
-                channel,
-                releases,
-                installed_version,
-                installed_commit,
-                installed_known,
-                latest_ref,
-                enabled,
-                force,
+                ok = False
+            names: list[str] = rb["tags"]
+            releases, more_tags, next_cached, page_ok = self._page(
+                rb, names, offset, limit, force or enabled
             )
+            ok = ok and page_ok
+            has_more = (
+                more_tags
+                and page_ok
+                and (force or enabled or next_cached)
+                and len(releases) == len(names[offset : offset + limit])
+            )
+            dev: Block | None = None
+            whats_new: Block | None = None
+            if offset == 0:
+                if channel == "dev":
+                    head = latest_ref if latest_ref and SHA_RE.match(latest_ref) else None
+                    try:
+                        dev = self._part(
+                            store, "dev", head, force, enabled, lambda: self._dev_block(names)
+                        )
+                    except _Unavailable:
+                        dev, ok = store.get("dev", {}).get("data"), False
+                whats_new = self._whats_new(
+                    store,
+                    channel,
+                    releases,
+                    installed_version,
+                    installed_commit,
+                    installed_known,
+                    latest_ref,
+                    enabled,
+                    force,
+                )
             self._save(store)
-        history: list[Block] = ([dev] if dev else []) + list(releases or [])
+        history: list[Block] = ([dev] if dev else []) + releases
         return {
             "channel": channel,
             "unavailable": not history and whats_new is None,
             "stale": not ok,
             "whats_new": whats_new,
             "history": history,
+            "has_more": has_more,
         }
+
+    @staticmethod
+    def _release_blocks(store: dict[str, Any]) -> dict[str, Any]:
+        """The per-tag block cache; an old-format cache is dropped (blocks lack a date)."""
+        store.pop("releases", None)
+        rb = store.get("release_blocks")
+        valid = (
+            isinstance(rb, dict)
+            and rb.get("version") == _CACHE_VERSION
+            and isinstance(rb.get("tags"), list)
+            and isinstance(rb.get("blocks"), dict)
+        )
+        if not valid:
+            rb = {"version": _CACHE_VERSION, "tags": [], "blocks": {}}
+        store["release_blocks"] = rb
+        return rb  # type: ignore[no-any-return]
+
+    def _page(
+        self, rb: dict[str, Any], names: list[str], offset: int, limit: int, fetch: bool
+    ) -> tuple[list[Block], bool, bool, bool]:
+        """Blocks for names[offset:offset+limit]: (blocks, more_tags, next_cached, ok).
+
+        A tag block never changes, so a cached one is never refetched. Without
+        permission to fetch, the page stops at the first uncached tag.
+        """
+        blocks: dict[str, Block] = rb["blocks"]
+        picked = names[offset : offset + limit]
+        out: list[Block] = []
+        ok = True
+        for i, tag in enumerate(picked):
+            block = blocks.get(tag)
+            if block is None:
+                if not fetch:
+                    break
+                prev = names[offset + i + 1] if offset + i + 1 < len(names) else None
+                try:
+                    block = self._release(tag, prev)
+                except _Unavailable:
+                    ok = False
+                    break
+                blocks[tag] = block
+            out.append(block)
+        more_tags = len(names) > offset + limit
+        next_cached = more_tags and names[offset + limit] in blocks
+        return out, more_tags, next_cached, ok
 
     # -- cache ---------------------------------------------------------------
 
@@ -174,33 +255,6 @@ class Changelog:
             return entry["data"] if have else None
         data = build()
         store[name] = {"key": key, "data": data}
-        return data
-
-    def _releases_part(
-        self,
-        store: dict[str, Any],
-        rel_key: str | None,
-        force: bool,
-        enabled: bool,
-        tags: Callable[[], list[str]],
-    ) -> list[Block] | None:
-        """Release blocks never change once tagged, so key them by the newest tag name.
-
-        A forced or moved refresh costs one tags call; the compare calls run only
-        when the newest tag differs from the cached key (or nothing is cached).
-        """
-        entry: Any = store.get("releases")
-        have = isinstance(entry, dict) and "data" in entry
-        if have and not force and (rel_key is None or entry["key"] == rel_key):
-            return entry["data"]
-        if not (force or enabled):
-            return entry["data"] if have else None
-        names = tags()
-        newest = names[0] if names else None
-        if have and entry["key"] == newest:
-            return entry["data"]
-        data = self._releases(names)
-        store["releases"] = {"key": newest, "data": data}
         return data
 
     def _load(self) -> dict[str, Any]:
@@ -259,22 +313,17 @@ class Changelog:
         found.sort(reverse=True)
         return [name for _, name in found]
 
-    def _releases(self, names: list[str]) -> list[Block]:
-        tags = names[: _MAX_RELEASES + 1]
-        blocks: list[Block] = []
-        for i, tag in enumerate(tags[:_MAX_RELEASES]):
-            if i + 1 < len(tags):
-                prev = tags[i + 1]
-                commits = self._compare(prev, tag)
-                more_url = compare_page_url(prev, tag)
-            else:
-                data = self._get(tag_commits_url(tag))
-                if not isinstance(data, list):
-                    raise _Unavailable
-                commits = [c for c in data if isinstance(c, dict)]
-                more_url = release_page_url(tag)
-            blocks.append(build_block(tag, commits, more_url, version=tag[1:]))
-        return blocks
+    def _release(self, tag: str, prev: str | None) -> Block:
+        if prev is not None:
+            commits = self._compare(prev, tag)
+            more_url = compare_page_url(prev, tag)
+        else:
+            data = self._get(tag_commits_url(tag))
+            if not isinstance(data, list):
+                raise _Unavailable
+            commits = [c for c in data if isinstance(c, dict)]
+            more_url = release_page_url(tag)
+        return build_block(tag, commits, more_url, version=tag[1:], date=commit_date(commits))
 
     def _dev_block(self, tags: list[str]) -> Block:
         if not tags:
@@ -361,4 +410,5 @@ class FakeChangelog:
             "stale": False,
             "whats_new": None,
             "history": [block],
+            "has_more": False,
         }

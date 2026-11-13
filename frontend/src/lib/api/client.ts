@@ -142,7 +142,7 @@ export interface Api {
   getUpdateStatus(p?: { refresh?: boolean; manual?: boolean }, signal?: AbortSignal): Promise<UpdateStatus>;
   putUpdateSettings(body: UpdateSettingsIn, signal?: AbortSignal): Promise<UpdateStatus>;
   applyUpdate(signal?: AbortSignal): Promise<UpdateApplied>;
-  getUpdateChangelog(p?: { channel?: "main" | "dev"; refresh?: boolean }, signal?: AbortSignal): Promise<UpdateChangelog>;
+  getUpdateChangelog(p?: { channel?: "main" | "dev"; refresh?: boolean; offset?: number; limit?: number }, signal?: AbortSignal): Promise<UpdateChangelog>;
   getLogs(signal?: AbortSignal): Promise<LogFiles>;
   getLogLines(date: string, p: { level: LogLevel; cursor?: string | null; limit?: number }, signal?: AbortSignal): Promise<LogPage>;
   putLogDebug(debug: boolean, signal?: AbortSignal): Promise<{ debug: boolean }>;
@@ -457,6 +457,8 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         buildUrl("/api/update/changelog", {
           channel: p?.channel,
           refresh: p?.refresh ? "1" : undefined,
+          offset: p?.offset ? String(p.offset) : undefined,
+          limit: p?.limit ? String(p.limit) : undefined,
         }),
         undefined,
         signal,
