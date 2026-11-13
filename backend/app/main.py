@@ -41,6 +41,7 @@ from app.api import (
     view_settings,
 )
 from app.api import fixture as fixture_api
+from app.api import logs as logs_api
 from app.api.errors import install as install_errors
 from app.api.errors import stub_router
 from app.api.guard import mutation_guard
@@ -339,6 +340,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(destinations.router)
     app.include_router(view_settings.router)
     app.include_router(tabs.router)
+    app.include_router(logs_api.router)
     app.include_router(player_settings.router)
     app.include_router(options.router)
     app.include_router(connections.router)
