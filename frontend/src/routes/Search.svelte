@@ -164,6 +164,12 @@
       )
   );
 
+  // The nhentai row is pinned first; the other rows keep their order.
+  const orderedSections = $derived.by(() => {
+    const all = Object.entries(search.sections);
+    return [...all.filter(([id]) => id === "nhentai"), ...all.filter(([id]) => id !== "nhentai")];
+  });
+
   const SKELETONS = Array.from({ length: 6 }, (_, i) => i);
 </script>
 
@@ -220,7 +226,7 @@
       </div>
     {/if}
 
-    {#each Object.entries(search.sections) as [id, entry] (id)}
+    {#each orderedSections as [id, entry] (id)}
       {#if entry.status === "loading"}
         <div class="skeleton-row">
           <div class="skeleton-title"></div>
@@ -238,10 +244,11 @@
           hidden={(entry.section as { hidden?: number })?.hidden}
           rulesHref="/rules"
           error={entry.error}
+          wide={id === "stash_videos"}
           onretry={() => search.retrySection(id)}
           onnavigate={(e) => linkClick(e, router)}
         >
-          {#each visibleInSafeMode(entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (lightbox = item)} />{:else}<Tile item={item} href={itemHref(item)} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
+          {#each visibleInSafeMode(entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (lightbox = item)} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
         </SectionRow>
       {/if}
     {/each}
