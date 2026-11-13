@@ -499,11 +499,43 @@ class StashTarget:
             "%sstep=lookup code=image_not_found path=%s md5=%s", logs.ctx(), stash_path, md5
         )
 
+    def drop_if_gone(self, image_id: str) -> bool:
+        """Drop the index rows of *image_id* when Stash no longer has that image.
+
+        One lookup per dedupe hit. A Stash error or a row without an image id
+        keeps the row: only a clear "not found" counts as gone.
+        """
+        if not image_id:
+            return False
+        try:
+            if self._client.get_image(image_id) is not None:
+                return False
+        except Exception as e:
+            logger.warning(
+                "%sstep=dedupe stale check failed image=%s error=%s",
+                logs.ctx(),
+                image_id,
+                type(e).__name__,
+            )
+            return False
+        conn = connect(self._settings.db_path)
+        try:
+            conn.execute(
+                "DELETE FROM saved_items WHERE target = 'stash' AND image_id = ?",
+                (image_id,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        logger.info("%sstep=dedupe stale index row dropped image=%s", logs.ctx(), image_id)
+        return True
+
     def _dedupe(
         self, source: str, post_id: str, md5: str | None
     ) -> tuple[str, str] | None:
         conn = connect(self._settings.db_path)
         try:
+            hits: list[tuple[str, str]] = []
             cur = conn.execute(
                 "SELECT image_id FROM saved_items "
                 "WHERE source = ? AND post_id = ?",
@@ -511,7 +543,7 @@ class StashTarget:
             )
             row = cur.fetchone()
             if row is not None:
-                return (row["image_id"] or "", "saved_items by post")
+                hits.append((row["image_id"] or "", "saved_items by post"))
             if md5:
                 cur = conn.execute(
                     "SELECT image_id FROM saved_items WHERE md5 = ? LIMIT 1",
@@ -519,9 +551,18 @@ class StashTarget:
                 )
                 row = cur.fetchone()
                 if row is not None:
-                    return (row["image_id"] or "", "saved_items by md5")
+                    hits.append((row["image_id"] or "", "saved_items by md5"))
         finally:
             conn.close()
+
+        gone: set[str] = set()
+        for image_id, via in hits:
+            if image_id in gone:
+                continue
+            if self.drop_if_gone(image_id):
+                gone.add(image_id)
+                continue
+            return (image_id, via)
 
         if md5:
             img = self._client.find_image_by_checksum(md5)

@@ -40,6 +40,10 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
         raise ApiError(422, "no_target", f"saving from {body.source} is not available")
     store = _store(request)
     image_id = store.saved_image_id(body.source, body.post_id)
+    if image_id and src.target == "stash":
+        # The index can outlive the image: one Stash lookup, drop the row if it is gone.
+        if request.app.state.stash_target.drop_if_gone(image_id):
+            image_id = store.saved_image_id(body.source, body.post_id)
     if image_id is not None:
         ref: dict[str, str] | None = None if image_id == "" else {"kind": "image", "id": image_id}
         raise ApiError(409, "already_saved", "Already saved", library_ref=ref)
