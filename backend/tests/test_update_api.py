@@ -290,7 +290,7 @@ def test_write_guard_rejects_non_json_content_type(client: TestClient) -> None:
         "/api/update/settings",
         content="{}",
         headers={
-            "Origin": "http://testserver",
+            "Origin": "http://localhost",
             "Content-Type": "text/plain",
         },
     )

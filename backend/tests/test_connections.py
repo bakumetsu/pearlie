@@ -21,7 +21,7 @@ from app.targets.stash_client import StashClient
 pytestmark = pytest.mark.no_default_origin
 
 HDR: dict[str, str] = {
-    "Origin": "http://testserver",
+    "Origin": "http://localhost",
     "Content-Type": "application/json",
 }
 
@@ -50,7 +50,7 @@ def make_client(
     app = create_app(settings)
     if transport is not None:
         app.state.connection_transport = transport
-    return TestClient(app, base_url="http://testserver")
+    return TestClient(app, base_url="http://localhost")
 
 
 # ---------------------------------------------------------------------------
@@ -243,7 +243,7 @@ def test_write_guard_origin(tmp_path: Path) -> None:
     r3 = c.put(
         "/api/connections/stash",
         json=body,
-        headers={"Referer": "http://testserver", "Content-Type": "application/json"},
+        headers={"Referer": "http://localhost", "Content-Type": "application/json"},
     )
     assert r3.status_code == 200
 
@@ -261,7 +261,7 @@ def test_write_guard_content_type(tmp_path: Path) -> None:
     r = c.put(
         "/api/connections/stash",
         content='{"secret": "x"}',
-        headers={"Origin": "http://testserver", "Content-Type": "text/plain"},
+        headers={"Origin": "http://localhost", "Content-Type": "text/plain"},
     )
     assert r.status_code == 415
 
@@ -280,7 +280,7 @@ def test_no_cors(tmp_path: Path) -> None:
     }
     settings = Settings(**kwargs, _env_file=None)  # pyright: ignore[reportCallIssue]
     app = create_app(settings)
-    c = TestClient(app, base_url="http://testserver")
+    c = TestClient(app, base_url="http://localhost")
 
     r = c.options(
         "/api/connections/stash",
@@ -555,13 +555,13 @@ def test_stored_key_without_master_key_no_500(tmp_path: Path) -> None:
 def test_write_guard_forwarded_host(tmp_path: Path) -> None:
     c = make_client(tmp_path, secret_key=master_key())
     body: dict[str, Any] = {"secret": "x"}
-    ok = {"Origin": "http://pearlie.example", "Content-Type": "application/json"}
+    ok = {"Origin": "http://pearlie.tail1.ts.net", "Content-Type": "application/json"}
 
     # Proxy rewrote Host, browser-facing host in X-Forwarded-Host
     r = c.put(
         "/api/connections/stash",
         json=body,
-        headers={**ok, "X-Forwarded-Host": "pearlie.example"},
+        headers={**ok, "X-Forwarded-Host": "pearlie.tail1.ts.net"},
     )
     assert r.status_code == 200
 
@@ -569,7 +569,7 @@ def test_write_guard_forwarded_host(tmp_path: Path) -> None:
     r2 = c.put(
         "/api/connections/stash",
         json=body,
-        headers={**ok, "X-Forwarded-Host": "pearlie.example, inner.local"},
+        headers={**ok, "X-Forwarded-Host": "pearlie.tail1.ts.net, inner.local"},
     )
     assert r2.status_code == 200
 
@@ -577,7 +577,7 @@ def test_write_guard_forwarded_host(tmp_path: Path) -> None:
     r3 = c.put(
         "/api/connections/stash",
         json=body,
-        headers={**HDR, "X-Forwarded-Host": "pearlie.example"},
+        headers={**HDR, "X-Forwarded-Host": "pearlie.tail1.ts.net"},
     )
     assert r3.status_code == 403
     r4 = c.put("/api/connections/stash", json=body, headers=ok)
@@ -589,7 +589,7 @@ def test_write_guard_forwarded_host(tmp_path: Path) -> None:
         json=body,
         headers={
             "Content-Type": "application/json",
-            "X-Forwarded-Host": "pearlie.example",
+            "X-Forwarded-Host": "pearlie.tail1.ts.net",
         },
     )
     assert r5.status_code == 403

@@ -21,7 +21,7 @@ from app.sources.throttle import Throttle
 
 pytestmark = pytest.mark.no_default_origin
 
-HDR: dict[str, str] = {"Origin": "http://testserver", "Content-Type": "application/json"}
+HDR: dict[str, str] = {"Origin": "http://localhost", "Content-Type": "application/json"}
 
 
 def make_client(
@@ -41,7 +41,7 @@ def make_client(
     app = create_app(Settings(**kwargs, _env_file=None))  # pyright: ignore[reportCallIssue]
     if handler is not None:
         app.state.connection_transport = httpx.MockTransport(handler)
-    return TestClient(app, base_url="http://testserver")
+    return TestClient(app, base_url="http://localhost")
 
 
 def put(c: TestClient, name: str, body: dict[str, Any]) -> Any:
