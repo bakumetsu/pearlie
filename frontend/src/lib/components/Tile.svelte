@@ -20,6 +20,24 @@
   } = $props();
 
   const isWeb = $derived("post_id" in item);
+  // Web thumbs fall back thumb_url -> preview_url -> placeholder with Retry.
+  let stage = $state<0 | 1 | 2>(0);
+  let lastThumb = "";
+  $effect(() => {
+    const t = isWeb ? (item as WebItem).thumb_url : "";
+    if (t !== lastThumb) {
+      lastThumb = t;
+      stage = 0;
+    }
+  });
+  function webSrc(w: WebItem): string {
+    return stage === 1 ? w.preview_url : w.thumb_url;
+  }
+  function onWebError() {
+    const w = item as WebItem;
+    if (stage === 0 && w.preview_url && w.preview_url !== w.thumb_url) stage = 1;
+    else stage = 2;
+  }
   let revealed = $state(false);
   const blurred = $derived(!revealed && item.blur != null);
 
@@ -77,7 +95,14 @@
     if (variant === "wall" || variant === "masonry") {
       if (aspect != null && Number.isFinite(aspect) && aspect > 0) return `${aspect}`;
     }
-    return isWeb ? "1 / 1" : "2 / 3";
+    if (isWeb) {
+      const w = item as WebItem;
+      if (w.source === "nhentai") return "2 / 3";
+      // Booru posts keep their native shape, like the library image card.
+      if (w.width > 0 && w.height > 0) return `${w.width} / ${w.height}`;
+      return "1 / 1";
+    }
+    return "2 / 3";
   });
 
   function metaLine(): string {
@@ -96,7 +121,14 @@
   {@const w = item as WebItem}
   <div class="tile web {variant}">
     <div class="media" style:aspect-ratio={aspectRatio}>
-      <img src={w.thumb_url} alt="" loading="lazy" class:blur-img={blurred} />
+      {#if stage === 2}
+        <div class="thumb-fail">
+          <Icon name="image" size={24} />
+          <button class="retry" onclick={(e) => { e.stopPropagation(); stage = 0; }}>Retry</button>
+        </div>
+      {:else}
+        <img src={webSrc(w)} alt="" loading="lazy" referrerpolicy="no-referrer" class:blur-img={blurred} onerror={onWebError} />
+      {/if}
       <button class="open" onclick={handleOpenClick} aria-label={`${w.source} #${w.post_id}`} title={`${w.source} #${w.post_id}`}></button>
       {#if blurred}
         <div class="warn-overlay">Warn: {w.blur!.tag}</div>
@@ -178,6 +210,28 @@
     height: 100%;
     object-fit: cover;
     display: block;
+  }
+  .thumb-fail {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s-1);
+    color: var(--muted);
+  }
+  .retry {
+    position: relative;
+    z-index: 1;
+    min-height: 44px;
+    padding: 0 var(--s-3);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    color: var(--text);
+    font-size: var(--t-13);
+    cursor: pointer;
   }
   .blur-img {
     filter: blur(18px);
