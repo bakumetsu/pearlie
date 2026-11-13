@@ -17,6 +17,8 @@ describe("SeeAll toolbar", () => {
   let caps: Record<string, unknown> | null;
   let filtersMode: "ok" | "fail" | "hold";
   let sectionNotice: unknown;
+  let sectionError: unknown;
+  let sectionEmpty: boolean;
 
   beforeEach(() => {
     vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {} });
@@ -36,6 +38,8 @@ describe("SeeAll toolbar", () => {
     caps = { danbooru: { order: ["newest", "score"], rating: ["g", "s", "q", "e"], order_blocked_when: null } };
     filtersMode = "ok";
     sectionNotice = null;
+    sectionError = null;
+    sectionEmpty = false;
     const json = (body: unknown, status = 200) =>
       Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
     globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
@@ -47,7 +51,7 @@ describe("SeeAll toolbar", () => {
       }
       if (url.pathname === "/api/search") {
         searches.push(url.searchParams);
-        return json({ sections: [{ id: "danbooru", items: [web("1"), web("2")], next_page: null, page_size: 60, notice: sectionNotice }] });
+        return json({ sections: [{ id: "danbooru", items: sectionEmpty ? [] : [web("1"), web("2")], next_page: null, page_size: 60, notice: sectionNotice, error: sectionError }] });
       }
       if (url.pathname.startsWith("/api/library/")) {
         lists.push(url.searchParams);
@@ -201,6 +205,57 @@ describe("SeeAll toolbar", () => {
     sectionNotice = { code: "filter_notice", message: "Rating filtered on this page only" };
     const { container } = await ready();
     expect(container.querySelector("p.notice")?.textContent).toBe("Rating filtered on this page only");
+  });
+
+  it("a failed section shows the error with Retry, not Nothing here", async () => {
+    sectionError = { code: "upstream_error", message: "Danbooru is down" };
+    sectionEmpty = true;
+    render(App);
+    expect(await screen.findByText(/Danbooru is down/)).toBeTruthy();
+    expect(screen.queryByText("Nothing here.")).toBeNull();
+    sectionError = null;
+    await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await vi.waitFor(() => expect(screen.getByText("Nothing here.")).toBeTruthy());
+  });
+
+  it("filter_dropped shows as a notice next to the results", async () => {
+    sectionError = { code: "filter_dropped", message: "Ignored: dog (Danbooru allows 2 tags)" };
+    const { container } = await ready();
+    expect(container.querySelector("p.notice")?.textContent).toContain("Ignored: dog");
+  });
+
+  it("Rating menu closes on outside click and Escape, focus back to the button", async () => {
+    await ready();
+    const btn = screen.getByRole("button", { name: "Rating" });
+    await fireEvent.click(btn);
+    expect(screen.queryByRole("group", { name: "Rating" })).not.toBeNull();
+    await fireEvent.pointerDown(document.body);
+    await vi.waitFor(() => expect(screen.queryByRole("group", { name: "Rating" })).toBeNull());
+    await fireEvent.click(btn);
+    expect(screen.queryByRole("group", { name: "Rating" })).not.toBeNull();
+    await fireEvent.keyDown(document.body, { key: "Escape" });
+    await vi.waitFor(() => expect(screen.queryByRole("group", { name: "Rating" })).toBeNull());
+    expect(document.activeElement).toBe(btn);
+  });
+
+  it("blocked Order sends no order=score and shows no Top score chip", async () => {
+    caps = { danbooru: { order: ["newest", "score"], rating: ["g", "s", "q", "e"], order_blocked_when: 2 } };
+    history.replaceState({}, "", `/see-all?source=danbooru&q=cat${n}+dog&order=score`);
+    await ready();
+    await vi.waitFor(() => expect((screen.getByRole("combobox", { name: "Order" }) as HTMLSelectElement).disabled).toBe(true));
+    await vi.waitFor(() => expect(searches.length).toBeGreaterThan(0));
+    expect(searches[searches.length - 1].has("order")).toBe(false);
+    expect(screen.queryByRole("button", { name: "Remove Top score" })).toBeNull();
+  });
+
+  it("ignores an order or rating the site does not list", async () => {
+    caps = { danbooru: { order: ["newest"], rating: ["g", "q"], order_blocked_when: null } };
+    history.replaceState({}, "", `/see-all?source=danbooru&q=cat${n}&order=score&rating=g,s`);
+    await ready(false);
+    await vi.waitFor(() => expect(searches.length).toBeGreaterThan(1));
+    const last = searches[searches.length - 1];
+    expect(last.has("order")).toBe(false);
+    expect(last.get("rating")).toBe("g");
   });
 
   it("touch targets are at least 44px", () => {
