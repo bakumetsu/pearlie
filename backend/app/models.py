@@ -176,6 +176,23 @@ class Section(BaseModel):
     hidden: int = 0
     next_page: int | None = None
     error: Problem | None = None
+    notice: Problem | None = None  # a filter was applied locally or dropped; results still valid
+
+
+class SourceFilters(BaseModel):
+    """What the order/rating/per-page toolbar may offer for one source."""
+
+    order: list[str] = Field(default_factory=list)
+    rating: list[str] = Field(default_factory=list)
+    sort: list[str] = Field(default_factory=list)  # library sources only
+    favorite: bool = False  # library sources only
+    per_page_options: list[int] = Field(default_factory=list)
+    per_page_max: int
+    order_blocked_when: int | None = None  # Order is off when this many search words are set
+
+
+class FiltersResponse(BaseModel):
+    sources: dict[str, SourceFilters]
 
 
 T = TypeVar("T")

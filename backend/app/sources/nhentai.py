@@ -126,7 +126,14 @@ class NHentai:
             raise SourceError("upstream_error", "nhentai sent invalid JSON")
         return data
 
-    def search(self, tags: list[str], page: int = 1, page_size: int | None = None) -> SearchPage:
+    def search(
+        self,
+        tags: list[str],
+        page: int = 1,
+        page_size: int | None = None,
+        order: str | None = None,
+        rating: list[str] | None = None,
+    ) -> SearchPage:
         """Search galleries; the site's page size is fixed, page_size only clamps."""
         clamp_page_size(self.id, page_size or self._page_size)
         page = max(page, 1)

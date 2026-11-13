@@ -47,6 +47,8 @@ NFS share (OMV): .../stash-library/stash-incoming   .../komga-library/komga-inco
 
 Pearlie triggers Stash and Komga scans itself after each save, because file watching over NFS is unreliable.
 
+**Logs.** `backend/app/logs.py` writes one file per local day, `pearlie-YYYY-MM-DD.log`, into `PEARLIE_LOG_DIR` (default: a `logs` folder next to the database). One record is one line (`key=value` fields; newlines escaped). A file stops at 20 MB (errors still get through); files older than 7 days (`PEARLIE_LOG_KEEP_DAYS`) are deleted at start-up and at each day change. A scrub filter removes every registered secret (env keys, keys saved on the Options page, site cookies) and common secret shapes (`api_key=`, `Authorization`, cookies) from the final line, tracebacks included. `PEARLIE_LOG_DEBUG=1` (or the stored `logs.debug` setting) adds debug lines. The save pipeline logs each step with the job and post id; a failed Stash lookup also logs file-on-disk, Stash library paths and a checksum search elsewhere, and the worker end line carries state, code and message.
+
 ## 5. Project layout
 
 ```
@@ -147,7 +149,8 @@ Notes:
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/search?q=&sources=&page=&page_size=` | one search across library and sites; results grouped per section |
+| GET | `/api/search?q=&sources=&page=&page_size=&order=&rating=` | one search across library and sites; results grouped per section; `order` newest\|score and `rating` csv g,s,q,e apply to web sites (a section `notice` says when a filter is local or dropped) |
+| GET | `/api/search/filters` | per source: the order, rating, sort, per-page options the toolbar may offer; no site call |
 | GET | `/api/library/stash/images` · `/videos` · `/api/library/komga/series` · `/books` | the "See all" views |
 | GET / PUT | `/api/view-settings`, `/api/view-settings/{source}` | per-source grid view (`mode` grid, wall, masonry or list; `per_page`; `zoom` 1-5), stored as `view.<source>` in the settings table (in memory in fixture mode). GET fills defaults (grid, 60, 3; nhentai 25) and returns `per_page_options` and `per_page_max`; PUT answers 422 `invalid` for an unknown source, mode, zoom, or a `per_page` outside 1 to the source cap |
 | GET / PUT | `/api/player-settings` | the player's Autoplay user setting, body and answer `{"autoplay": bool}`, stored as `player.autoplay` ('1' or '0') in the settings table (in memory in fixture mode). GET answers `false` until set; PUT answers 422 for a body that is not a boolean |

@@ -19,7 +19,7 @@ class FakeSource:
     def __init__(self, posts: list[Post]) -> None:
         self.posts = posts
 
-    def search(self, tags, page, page_size):
+    def search(self, tags, page, page_size, order=None, rating=None):
         return SearchPage(posts=self.posts, page=1, total=len(self.posts), pages=1)
 
 

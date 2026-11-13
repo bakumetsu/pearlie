@@ -660,6 +660,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/search/filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Filters
+         * @description Per source: which filters its toolbar offers. No site call.
+         */
+        get: operations["search_filters_api_search_filters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/destinations": {
         parameters: {
             query?: never;
@@ -757,6 +777,24 @@ export interface paths {
         get?: never;
         /** Put View Setting */
         put: operations["put_view_setting_api_view_settings__source__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tabs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Tabs */
+        get: operations["get_tabs_api_tabs_get"];
+        /** Put Tabs */
+        put: operations["put_tabs_api_tabs_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1132,6 +1170,13 @@ export interface components {
             locked: boolean;
             /** Primary */
             primary: boolean;
+        };
+        /** FiltersResponse */
+        FiltersResponse: {
+            /** Sources */
+            sources: {
+                [key: string]: components["schemas"]["SourceFilters"];
+            };
         };
         /** FolderBody */
         FolderBody: {
@@ -1689,6 +1734,7 @@ export interface components {
             /** Next Page */
             next_page?: number | null;
             error?: components["schemas"]["Problem"] | null;
+            notice?: components["schemas"]["Problem"] | null;
         };
         /** SettingsIn */
         SettingsIn: {
@@ -1717,6 +1763,29 @@ export interface components {
             locked: boolean;
             /** Backing Off */
             backing_off: boolean;
+        };
+        /**
+         * SourceFilters
+         * @description What the order/rating/per-page toolbar may offer for one source.
+         */
+        SourceFilters: {
+            /** Order */
+            order?: string[];
+            /** Rating */
+            rating?: string[];
+            /** Sort */
+            sort?: string[];
+            /**
+             * Favorite
+             * @default false
+             */
+            favorite: boolean;
+            /** Per Page Options */
+            per_page_options?: number[];
+            /** Per Page Max */
+            per_page_max: number;
+            /** Order Blocked When */
+            order_blocked_when?: number | null;
         };
         /** StashHealth */
         StashHealth: {
@@ -1762,6 +1831,39 @@ export interface components {
             mime: string;
             /** Url */
             url: string;
+        };
+        /** Tab */
+        Tab: {
+            /** Id */
+            id: string;
+            /** Q */
+            q: string;
+            /** Src */
+            src: string;
+            /** Sites */
+            sites: string[];
+            /** Order */
+            order: string;
+            /** Rating */
+            rating: string[];
+        };
+        /** TabList */
+        TabList: {
+            /** Tabs */
+            tabs: components["schemas"]["Tab"][];
+            /** Active */
+            active: string | null;
+            /** Rev */
+            rev: number;
+        };
+        /** TabListBody */
+        TabListBody: {
+            /** Tabs */
+            tabs: components["schemas"]["Tab"][];
+            /** Active */
+            active: string | null;
+            /** Rev */
+            rev: number;
         };
         /** Tag */
         Tag: {
@@ -1915,6 +2017,8 @@ export interface operations {
                 sources?: string;
                 page?: number;
                 page_size?: number;
+                order?: string;
+                rating?: string;
             };
             header?: never;
             path?: never;
@@ -3165,6 +3269,26 @@ export interface operations {
             };
         };
     };
+    search_filters_api_search_filters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FiltersResponse"];
+                };
+            };
+        };
+    };
     get_destinations_api_destinations_get: {
         parameters: {
             query?: never;
@@ -3379,6 +3503,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ViewSettingItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tabs_api_tabs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TabList"];
+                };
+            };
+        };
+    };
+    put_tabs_api_tabs_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TabListBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TabList"];
                 };
             };
             /** @description Validation Error */
