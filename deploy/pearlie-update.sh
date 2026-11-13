@@ -370,6 +370,8 @@ check_only() {
   exit 0
 }
 
+MAX_EXTRACTED_BYTES="${PEARLIE_MAX_EXTRACTED_BYTES:-524288000}"
+
 download_and_extract() {
   STEP="download"
   rm -rf "$ROOT/staging"
@@ -386,6 +388,18 @@ download_and_extract() {
   file_size=$((file_size))
   if [ "$file_size" -gt 104857600 ]; then
     die "download too large"
+  fi
+
+  # git archive stamps the commit sha into the pax global header (first block);
+  # the download must carry exactly the commit we resolved through the API
+  if ! printf '%s' "$TARGET_COMMIT" | grep -qE '^[0-9a-f]{40}$'; then
+    die "cannot verify download: no resolved commit"
+  fi
+  local archive_commit
+  archive_commit=$(gzip -dc "$tarball" 2>/dev/null | head -c 4096 | grep -a -o 'comment=[0-9a-f]\{40\}' | head -n1) || true
+  archive_commit="${archive_commit#comment=}"
+  if [ "$archive_commit" != "$TARGET_COMMIT" ]; then
+    die "download does not match the resolved commit"
   fi
 
   local list
@@ -417,11 +431,19 @@ download_and_extract() {
     die "unsafe archive: multiple top-level directories"
   fi
 
-  local verbose_line
+  local verbose_line f_mode f_owner f_size total_size=0
   while IFS= read -r verbose_line; do
     case "$verbose_line" in
       l*|h*) die "unsafe archive: symlink or hardlink" ;;
     esac
+    read -r f_mode f_owner f_size _ <<< "$verbose_line"
+    case "$f_size" in
+      ''|*[!0-9]*) die "unsafe archive: unreadable entry size" ;;
+    esac
+    total_size=$((total_size + f_size))
+    if [ "$total_size" -gt "$MAX_EXTRACTED_BYTES" ]; then
+      die "unsafe archive: extracted size too large"
+    fi
   done < <(tar --force-local -tvzf "$tarball")
 
   local short

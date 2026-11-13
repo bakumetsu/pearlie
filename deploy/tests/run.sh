@@ -255,13 +255,14 @@ from mkfixture import make_tarball
 dest = Path(sys.argv[1])
 version = sys.argv[2]
 repo = Path(sys.argv[3])
+sha = sys.argv[4]
 extra = []
-for a in sys.argv[4:]:
+for a in sys.argv[5:]:
     parts = a.split(":", 2)
     if len(parts) == 3:
         extra.append((parts[0], parts[1], parts[2]))
-make_tarball(dest, "pearlie-" + version, version, repo, extra)
-' "$dest" "$version" "$(mp "$REPO")" "$@"
+make_tarball(dest, "pearlie-" + version, version, repo, extra, commit=sha)
+' "$dest" "$version" "$(mp "$REPO")" "$sha" "$@"
 }
 
 add_dev_release() {
@@ -279,8 +280,8 @@ from pathlib import Path
 from mkfixture import make_tarball
 dest = Path(sys.argv[1])
 repo = Path(sys.argv[2])
-make_tarball(dest, "pearlie-0.1.0", "0.1.0", repo)
-' "$dest" "$(mp "$REPO")"
+make_tarball(dest, "pearlie-0.1.0", "0.1.0", repo, commit=sys.argv[3])
+' "$dest" "$(mp "$REPO")" "$sha"
 }
 
 # ---- test helpers ------------------------------------------------------------
@@ -748,6 +749,48 @@ case_host_auto() {
   expect "host_autox: step" "$(status_get step)" config
 }
 
+case_integrity() {
+  new_case integrity_mismatch
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  printf '{"sha":"%s"}
+' "$SHA_A" > "$FIX/gh/commits/v1.1.0"
+  run_update
+  expect "integrity_mismatch: RC" "$RC" 1
+  expect "integrity_mismatch: state" "$(status_get state)" failed
+  expect "integrity_mismatch: release_dirs" "$(release_dirs)" 0
+  expect "integrity_mismatch: pip not run" "$(stub_calls pip)" 0
+  expect "integrity_mismatch: npm not run" "$(stub_calls npm)" 0
+
+  new_case integrity_no_commit
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  rm -f "$FIX/gh/commits/v1.1.0"
+  run_update
+  expect "integrity_no_commit: RC" "$RC" 1
+  expect "integrity_no_commit: release_dirs" "$(release_dirs)" 0
+  expect "integrity_no_commit: npm not run" "$(stub_calls npm)" 0
+
+  new_case integrity_dev_mismatch
+  seed_install 1.0.0 "$SHA_A" dev
+  add_dev_release "$SHA_B"
+  cp "$FIX/dl/tar.gz/$SHA_B" "$FIX/dl/tar.gz/cccccccccccccccccccccccccccccccccccccccc"
+  printf '{"sha":"cccccccccccccccccccccccccccccccccccccccc"}
+' > "$FIX/gh/commits/dev"
+  run_update --channel dev
+  expect "integrity_dev_mismatch: RC" "$RC" 1
+  expect "integrity_dev_mismatch: release_dirs" "$(release_dirs)" 0
+
+  new_case size_cap
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  PEARLIE_MAX_EXTRACTED_BYTES=10 run_update
+  expect "size_cap: RC" "$RC" 1
+  expect "size_cap: state" "$(status_get state)" failed
+  expect "size_cap: release_dirs" "$(release_dirs)" 0
+  expect "size_cap: npm not run" "$(stub_calls npm)" 0
+}
+
 case_unit_sync() {
   local heredoc
   heredoc="$(sed -n "/^cat <<'UNIT'/,/^UNIT\$/p" "$REPO/install/pearlie-install.sh" | sed '1d;$d')"
@@ -771,7 +814,7 @@ case_installer_defaults() {
   expect "installer_defaults: host=auto appears once in installer" "$(grep -c '^host=auto' "$REPO/install/pearlie-install.sh" || true)" 1
 }
 
-CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_unit_sync case_installer_defaults)
+CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_integrity case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_unit_sync case_installer_defaults)
 
 for c in "${CASES[@]}"; do
   "$c"
