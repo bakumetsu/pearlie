@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     notices TEXT NOT NULL DEFAULT '[]',
     library_ref_id TEXT,
     attempts INTEGER NOT NULL DEFAULT 0,
+    restarts INTEGER NOT NULL DEFAULT 0,
     started_at TEXT,
     finished_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -86,6 +87,7 @@ def init_db(path: Path) -> None:
         "notices": "notices TEXT NOT NULL DEFAULT '[]'",
         "library_ref_id": "library_ref_id TEXT",
         "attempts": "attempts INTEGER NOT NULL DEFAULT 0",
+        "restarts": "restarts INTEGER NOT NULL DEFAULT 0",
         "started_at": "started_at TEXT",
         "finished_at": "finished_at TEXT",
     }
