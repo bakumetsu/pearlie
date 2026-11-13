@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { createApi, ApiError } from "./client";
+import { hostBlock } from "../stores/hostBlock.svelte";
 
 function ok(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -7,6 +8,25 @@ function ok(body: unknown, status = 200): Response {
     headers: { "Content-Type": "application/json" },
   });
 }
+
+describe("host_not_allowed", () => {
+  it("403 host_not_allowed sets the full-page host block message", async () => {
+    const msg = "host not allowed: add pearlie.home to PEARLIE_ALLOWED_HOSTS";
+    const api = createApi("", vi.fn().mockResolvedValue(ok({ code: "host_not_allowed", message: msg }, 403)));
+    hostBlock.clear();
+    const err = await api.health().catch((e: unknown) => e as ApiError);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(hostBlock.message).toBe(msg);
+    hostBlock.clear();
+  });
+
+  it("other 403s leave the host block unset", async () => {
+    const api = createApi("", vi.fn().mockResolvedValue(ok({ code: "forbidden", message: "x" }, 403)));
+    hostBlock.clear();
+    await api.health().catch(() => undefined);
+    expect(hostBlock.message).toBeNull();
+  });
+});
 
 describe("createApi", () => {
   it("search builds /api/search?q=...&sources=a,b&page=2 and passes signal", async () => {

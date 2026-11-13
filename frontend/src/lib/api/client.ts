@@ -1,5 +1,6 @@
 import { getContext, setContext } from "svelte";
 import type { components } from "./schema.gen";
+import { hostBlock } from "../stores/hostBlock.svelte";
 
 type S = components["schemas"];
 
@@ -200,6 +201,7 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
       } catch {
         // non-JSON or empty error body – keep defaults
       }
+      if (res.status === 403 && code === "host_not_allowed") hostBlock.set(message);
       throw new ApiError(res.status, code, message, libraryRef);
     }
 

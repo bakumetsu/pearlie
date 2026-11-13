@@ -41,6 +41,8 @@ Notes: the installer never asks for an NFS IP and never edits fstab. On OMV, set
 
 Update with `update` in the container or from Options > System.
 
+**Upgrade note for reverse-proxy users.** Pearlie only answers `/api` requests whose host is an IP address, `localhost`, a `*.ts.net` name or a name listed in `PEARLIE_ALLOWED_HOSTS` (DNS rebinding defence). If you reach Pearlie through a reverse proxy with its own host name, add that name to `PEARLIE_ALLOWED_HOSTS` in `/opt/pearlie/.env` (comma list, e.g. `PEARLIE_ALLOWED_HOSTS=pearlie.home`) and run `systemctl restart pearlie`. Without it the web UI shows a "host not allowed" page naming the host to add.
+
 ## Dev setup
 
 Needs Python 3.12+ and Node.js.
