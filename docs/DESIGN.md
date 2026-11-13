@@ -15,8 +15,8 @@ The web app comes first (self-hosted, then PWA). A native iOS client (SwiftUI) f
 
 ## 2. Product rules (every change is checked against these)
 
-1. **Stash and Komga are the library.** Pearlie stores only its own data: jobs, rules, the index of saved items (source, post id, MD5), trash records. It never keeps a second copy of the media. 
-2. **Never exposed directly.** Access only through Tailscale/WireGuard or a reverse proxy with login. Outbound calls go only to the configured sites (including their `/favicon.ico` for the Discover site icons), Stash and Komga, and to GitHub (`api.github.com` for the update check, `codeload.github.com` for the update download; no tokens; can be turned off).
+1. **Stash and Komga are the library.** Pearlie stores only its own data: jobs, rules, the index of saved items (source, post id, MD5), trash records. It never keeps a second copy of the media, except a disposable, size-capped thumbnail cache, thumbnails only, never full media, stored in Pearlie's data folder, not under trash/undo. 
+2. **Never exposed directly.** Access only through Tailscale/WireGuard or a reverse proxy with login. Outbound calls go only to the configured sites (including their `/favicon.ico` for the Discover site icons and their thumbnail CDN hosts, fetched through the thumbnail cache), Stash and Komga, and to GitHub (`api.github.com` for the update check, `codeload.github.com` for the update download; no tokens; can be turned off).
 3. **Secrets stay local.** API keys and site cookies live in `.env` or the local config, are never logged and never reach the browser. Clients never get Stash or Komga keys. Secrets may be typed into the Options page (write-only, stored encrypted); they are never shown, logged or sent to the browser.
 4. **No delete without undo.** Library deletes go to a Pearlie trash folder with an Undo toast; real deletion happens after a retention period the user sets.
 5. **Polite to sites.** Every source has a throttle; one download at a time per site by default.
@@ -162,6 +162,8 @@ Notes:
 | GET | `/api/trash` | list trashed items with token, expires_at, retention_days; expired entries are left out but not dropped by the GET (they are dropped on restore, on empty, or when retention purges them) |
 | DELETE | `/api/trash` | Empty: permanently delete everything in the trash, returns `{removed}` (the real deletion rule 4 allows; the UI asks to confirm first). Fixture mode only for now; in real mode the route is absent (404), never an empty list |
 | GET | `/api/media/...` | proxy for thumbnails, images, video (Range), book pages |
+| GET | `/api/media/web/{source}/{post_id}/thumb` | web-site tile thumbnail, cached on disk and fetched through a per-site thumbnail lane (one at a time, 0.25 s, site-wide backoff on 429/503); a hit never touches the site. `source` is one of the four web sites, `post_id` matches `[A-Za-z0-9_-]{1,32}`, else 404 |
+| POST | `/api/thumb-cache/clear` | delete every cached thumbnail; answers `{freed_mb}`; no Undo (the cache is disposable) |
 | POST | `/api/save` `{source, post_id}` | rules, dedupe (409), queue; returns job id |
 | GET / POST / DELETE | `/api/jobs`, `/api/jobs/{id}`, `/retry` | queue (newest first; `?state=` CSV; jobs carry `notices`). Worker: one job per site, 2 s gap (`PEARLIE_DOWNLOAD_INTERVAL_S`), running jobs requeued at startup, at most 3 times in a row (`restarts` column, `MAX_RESTARTS` in jobs/store.py), then failed with `restart_limit` until the user retries (retry resets the count); a failed `finish` is retried once; a row still stuck is bounded by the restart cap |
 | GET / PUT | `/api/rules`; POST `/api/rules/test` | filters (base list returned read-only) |
@@ -185,6 +187,16 @@ PATCH per side (real mode): Stash images and videos take `rating` (stored as rat
 Paging fields: list and search answers carry `page` (the page actually served), `page_size`, `total`, `pages` (null where the source gives no count, such as Danbooru) and, for Stash, `stats {megapixels, size_bytes}`. `page_size` is clamped to the source cap (200 Stash, Komga, Danbooru; 100 Gelbooru, Rule34; 25 nhentai; search `page_size` above 200 is a 422). A `page` past the last one is served as the last page, never an error. With several sources in one search `page_size` is ignored (each section keeps its short preview) and the section `page_size` is null.
 
 Auth: a login that returns a token (cookie for the web UI, bearer token for iOS).
+
+### Thumbnail cache
+
+A disposable cache of web-site thumbnails (Danbooru, Gelbooru, Rule34, nhentai). Thumbnails only: never full images, video, book pages or nhentai page images; Stash and Komga thumbnails are not cached. Code: `backend/app/thumbcache.py`.
+
+- **Root:** `PEARLIE_THUMB_CACHE_DIR`, default `thumbcache` next to the database (`data/thumbcache`). A root inside the trash folder, `stash_temp_dir` or `komga_temp_dir` is refused.
+- **Layout:** one folder per site (fixed list of four ids), file name `sha256(source + "\0" + post_id)` in hex with a two-character fan-out folder and the extension `.img`. The name holds no URL, token or cookie. The content type is read from the first bytes at serve time.
+- **Write:** atomic (`*.part` in the same folder, then `os.replace`); start-up deletes leftover `*.part`.
+- **Cap:** `thumbcache.max_mb` in the settings table, default 1024, allowed 50 to 20480. Eviction is by least recent use: a hit touches the file's mtime. The folder is the truth; no index. A background walk at start-up builds the in-memory total. After a store above the cap, the oldest files go until the total is at most 90 % of the cap. Lowering the cap evicts at once.
+- **Errors:** a full disk or write error serves the bytes without storing them and logs one warning a minute. A folder that is missing or not writable at start-up runs the cache in pass-through mode (fetch and serve, no store) and Options shows "cache unavailable".
 
 ## 10. UI
 
