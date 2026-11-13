@@ -194,8 +194,23 @@ export const SECTIONS: Section[] = [
     id: 'logs',
     title: 'Logs',
     group: 'System',
-    later: true,
-    cards: [{ title: 'Coming later', rows: [] }],
+    later: false,
+    cards: [
+      {
+        title: 'Logging',
+        rows: [
+          { label: 'Debug', hint: 'Adds detail. Off by default. Turn off when done.' },
+          { label: 'Kept', hint: '7 days, one file per day' },
+        ],
+      },
+      {
+        title: 'Log viewer',
+        rows: [
+          { label: 'Day', hint: 'pick a day' },
+          { label: 'Level', hint: 'error, warning, info, debug' },
+        ],
+      },
+    ],
   },
   {
     id: 'about',
