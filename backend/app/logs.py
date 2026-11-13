@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import contextvars
 import logging
 import os
 import re
@@ -110,6 +111,27 @@ def register_connection_secrets(values: dict[str, str]) -> None:
             if fid == "cookie":
                 for part in v.split(";"):
                     register_secret(part.partition("=")[2].strip())
+
+
+# -- job context -------------------------------------------------------------
+
+_job: contextvars.ContextVar[str] = contextvars.ContextVar("pearlie_log_job", default="")
+
+
+def set_job(job_id: str, source: str = "", post_id: str = "") -> contextvars.Token[str]:
+    """Mark the current thread's lines with the job; reset with reset_job(token)."""
+    tag = f"job={job_id}" + (f" {source}/{post_id}" if source else "")
+    return _job.set(tag)
+
+
+def reset_job(token: contextvars.Token[str]) -> None:
+    _job.reset(token)
+
+
+def ctx() -> str:
+    """Prefix for a log message: the job tag and a space, or nothing."""
+    tag = _job.get()
+    return tag + " " if tag else ""
 
 
 # -- URL sanitizer -----------------------------------------------------------
