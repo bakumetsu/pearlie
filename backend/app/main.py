@@ -33,6 +33,7 @@ from app.api import (
     search,
     search_real,
     site_icons,
+    tabs,
     trash,
     update,
     view_settings,
@@ -324,6 +325,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(destinations.router)
     app.include_router(view_settings.router)
+    app.include_router(tabs.router)
     app.include_router(player_settings.router)
     app.include_router(options.router)
     app.include_router(connections.router)
