@@ -2,7 +2,7 @@
 
 import re
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import BinaryIO
 
@@ -55,6 +55,35 @@ def _count_lines(path: Path) -> int:
     if last and last != b"\n":
         count += 1
     return count
+
+
+_line_counts: dict[tuple[str, int, int], int] = {}
+
+
+def _count_lines_cached(path: Path, size: int, mtime_ns: int) -> int:
+    """Count lines once per (file, size, mtime): listing must not re-read every log."""
+    key = (path.name, size, mtime_ns)
+    n = _line_counts.get(key)
+    if n is None:
+        n = _count_lines(path)
+        if len(_line_counts) > 64:
+            _line_counts.clear()
+        _line_counts[key] = n
+    return n
+
+
+def _line_start(path: Path, pos: int) -> int:
+    """Snap a byte offset inside a line back to that line's start."""
+    with path.open("rb") as fh:
+        while pos > 0:
+            n = min(_CHUNK, pos)
+            fh.seek(pos - n)
+            chunk = fh.read(n)
+            idx = chunk.rfind(b"\n")
+            if idx >= 0:
+                return pos - n + idx + 1
+            pos -= n
+    return 0
 
 
 def _iter_lines_backwards(fh: BinaryIO, end: int) -> Iterator[tuple[int, bytes]]:
@@ -119,7 +148,7 @@ def list_logs() -> dict:
             "files": [],
             "cap_bytes": logs.DAY_CAP,
         }
-    logs.purge_old(log_dir)
+    cutoff = date.today() - timedelta(days=logs.LOG_KEEP_DAYS)
     files: list[dict] = []
     try:
         entries = sorted(log_dir.iterdir())
@@ -137,11 +166,17 @@ def list_logs() -> dict:
         m = logs.FILE_RE.fullmatch(entry.name)
         if m is None:
             continue
+        try:
+            if date(int(m[1]), int(m[2]), int(m[3])) < cutoff:
+                continue  # waiting for the handler's purge; a GET never deletes
+            stat = entry.stat()
+        except (ValueError, OSError):
+            continue
         files.append(
             {
                 "date": f"{m[1]}-{m[2]}-{m[3]}",
-                "size_bytes": entry.stat().st_size,
-                "lines": _count_lines(entry),
+                "size_bytes": stat.st_size,
+                "lines": _count_lines_cached(entry, stat.st_size, stat.st_mtime_ns),
             }
         )
     files.sort(key=lambda f: f["date"], reverse=True)
@@ -229,6 +264,7 @@ def get_log_lines(
             raise ApiError(422, "invalid", "invalid cursor") from None
         if not 0 <= end <= path.stat().st_size:
             raise ApiError(422, "invalid", "invalid cursor")
+        end = _line_start(path, end)
 
     q_lower = q.lower() if q else None
     results: list[dict] = []

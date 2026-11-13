@@ -156,7 +156,7 @@ class StashTarget:
 
     def _download(self, url: str, post: Post, ext: str) -> tuple[Path, str]:
         """Stream the file to a temp .part file and verify size/MD5."""
-        md5_placeholder = post.md5 or "unknown"
+        md5_placeholder = (post.md5 or "unknown").lower()
         part_path = self._temp_path(post, md5_placeholder, ext, part=True)
         h = hashlib.md5()
         bytes_written = 0
@@ -181,6 +181,9 @@ class StashTarget:
                         502,
                     )
                 content_length = response.headers.get("content-length")
+                if response.headers.get("content-encoding", "identity").lower() != "identity":
+                    # Content-Length counts the encoded bytes; we write the decoded ones.
+                    content_length = None
                 with open(part_path, "wb") as f:
                     for chunk in response.iter_bytes():
                         f.write(chunk)
@@ -264,6 +267,13 @@ class StashTarget:
 
         conn = connect(self._settings.db_path)
         try:
+            active_jobs = [
+                (r["source"], r["post_id"])
+                for r in conn.execute(
+                    "SELECT source, post_id FROM jobs "
+                    "WHERE status IN ('queued', 'running', 'failed')"
+                )
+            ]
             for f in temp_dir.iterdir():
                 if not f.name.startswith(TEMP_PREFIX):
                     continue
@@ -272,19 +282,10 @@ class StashTarget:
                     deleted.append(f.name)
                     continue
 
-                rest = f.name[len(TEMP_PREFIX):]
-                parts = rest.rsplit("-", 1)
-                if len(parts) != 2:
-                    continue
-                source_post = parts[0]
-                source, post_id = source_post.split("-", 1)
-
-                cur = conn.execute(
-                    "SELECT 1 FROM jobs WHERE source = ? AND post_id = ? "
-                    "AND status IN ('queued', 'running', 'failed')",
-                    (source, post_id),
-                )
-                if cur.fetchone():
+                if any(
+                    f.name.startswith(f"{TEMP_PREFIX}{_safe(src)}-{_safe(pid)}-")
+                    for src, pid in active_jobs
+                ):
                     continue
 
                 f.unlink()
@@ -533,6 +534,7 @@ class StashTarget:
     def _dedupe(
         self, source: str, post_id: str, md5: str | None
     ) -> tuple[str, str] | None:
+        md5 = md5.lower() if md5 else md5
         conn = connect(self._settings.db_path)
         try:
             hits: list[tuple[str, str]] = []
@@ -577,6 +579,7 @@ class StashTarget:
     def _insert(
         self, source: str, post_id: str, md5: str | None, image_id: str
     ) -> None:
+        md5 = md5.lower() if md5 else md5
         conn = connect(self._settings.db_path)
         try:
             conn.execute(

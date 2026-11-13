@@ -22,6 +22,9 @@ export function createViewSettings() {
   let ready = $state(false);
   let _api: Api | null = null;
   let loading: Promise<void> | null = null;
+  // PUTs go out one at a time per source, and only the newest response is applied.
+  const chains: Record<string, Promise<void>> = {};
+  const seqs: Record<string, number> = {};
 
   function load(api: Api): Promise<void> {
     if (loading) return loading;
@@ -78,17 +81,26 @@ export function createViewSettings() {
     const next: ViewSettingItem = { ...current, ...partial };
     sources[source] = next;
 
-    if (_api) {
-      try {
-        const res = await _api.putViewSetting(source, {
-          mode: next.mode,
-          per_page: next.per_page,
-          zoom: next.zoom,
-        });
-        sources[source] = { ...sources[source], mode: res.mode, per_page: res.per_page, zoom: res.zoom };
-      } catch {
-        toasts.push({ kind: "error", message: "Could not save view" });
-      }
+    const api = _api;
+    if (api) {
+      const seq = (seqs[source] = (seqs[source] ?? 0) + 1);
+      const run = async () => {
+        try {
+          const res = await api.putViewSetting(source, {
+            mode: next.mode,
+            per_page: next.per_page,
+            zoom: next.zoom,
+          });
+          if (seqs[source] === seq) {
+            sources[source] = { ...sources[source], mode: res.mode, per_page: res.per_page, zoom: res.zoom };
+          }
+        } catch {
+          toasts.push({ kind: "error", message: "Could not save view" });
+        }
+      };
+      const done = (chains[source] ?? Promise.resolve()).then(run);
+      chains[source] = done;
+      await done;
     }
 
     return true;

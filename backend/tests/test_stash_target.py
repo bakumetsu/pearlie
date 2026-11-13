@@ -1003,3 +1003,75 @@ def test_save_rejects_folder_outside_overridden_mapping(
     with pytest.raises(stash.SaveError) as exc:
         make_target().save(make_post(), [])
     assert exc.value.code == "outside_library"
+
+
+def test_gzip_response_is_not_a_size_mismatch(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    import gzip
+
+    patch_folder(monkeypatch)
+    target = make_target()
+    raw = b"pngbytes"
+    packed = gzip.compress(raw)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=packed,
+            headers={"content-encoding": "gzip", "content-length": str(len(packed))},
+        )
+
+    target._http = httpx.Client(base_url="http://site", transport=httpx.MockTransport(handler))
+    temp, md5 = target._download(URL, make_post(), ".png")
+    assert md5 == MD5
+    assert temp.read_bytes() == raw
+
+
+def test_cleanup_temp_dashed_source_and_post_id(
+    settings: Settings,
+    make_target: Callable[..., StashTarget],
+) -> None:
+    temp_dir = settings.stash_temp_dir
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    running = temp_dir / f"pearlie-my-site-ab-12-{MD5}.png"
+    orphan = temp_dir / f"pearlie-my-site-ab-13-{MD5}.png"
+    for path in (running, orphan):
+        path.write_text("x")
+    conn = connect(settings.db_path)
+    conn.execute(
+        "INSERT INTO jobs (source, post_id, status) VALUES (?, ?, ?)",
+        ("my-site", "ab-12", "running"),
+    )
+    conn.commit()
+    conn.close()
+
+    make_target().cleanup_temp()
+
+    assert running.exists()
+    assert not orphan.exists()
+
+
+def test_uppercase_post_md5_is_stored_lowercase(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target: Callable[..., StashTarget],
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(checksum_ids=())
+    target.save(make_post(md5=MD5.upper()), [])
+    conn = connect(settings.db_path)
+    row = conn.execute("SELECT md5 FROM saved_items WHERE post_id = '42'").fetchone()
+    conn.close()
+    assert row is not None and row["md5"] == MD5
+
+
+def test_dedupe_matches_uppercase_md5(
+    settings: Settings,
+    saved_item: None,
+    make_target: Callable[..., StashTarget],
+) -> None:
+    dup = make_target()._dedupe("fake", "other", MD5.upper())
+    assert dup is not None and dup[1] == "saved_items by md5"

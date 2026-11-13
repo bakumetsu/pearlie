@@ -3,6 +3,7 @@
   import { ZOOM_MIN, ZOOM_MAX } from "./layout";
   import { clampInput } from "./pager";
   import Icon from "../components/Icon.svelte";
+  import { toasts } from "../stores/toasts.svelte";
 
   let {
     mode,
@@ -32,6 +33,7 @@
   let sheet = $state(false);
   let vw = $state(1024);
   let customVal = $state("");
+  let customBad = $state(false);
 
   const phone = $derived(vw < 720);
 
@@ -63,10 +65,18 @@
     }
   }
 
-  function commitCustom() {
+  function commitCustom(blur = false) {
     const n = clampInput(customVal, max);
+    if (n === null && customVal.trim() !== "") {
+      if (!blur) {
+        customBad = true;
+        return;
+      }
+      toasts.push({ kind: "error", message: `Per page must be 1 to ${max}` });
+    }
     if (n !== null && n !== perPage) onperpage(n);
     custom = false;
+    customBad = false;
     customVal = "";
   }
 </script>
@@ -88,9 +98,14 @@
         class="custom-input"
         placeholder={String(max)}
         bind:value={customVal}
+        aria-invalid={customBad}
+        oninput={() => (customBad = false)}
         onkeydown={(e) => e.key === "Enter" && commitCustom()}
-        onblur={commitCustom}
+        onblur={() => commitCustom(true)}
       />
+      {#if customBad}
+        <span class="custom-err" role="alert">Use 1 to {max}</span>
+      {/if}
     {/if}
   </div>
   <div class="modes">
@@ -175,6 +190,15 @@
     background: var(--surface, #1e1e1e);
     color: inherit;
     font-size: 0.9rem;
+  }
+
+  .custom-input[aria-invalid="true"] {
+    border-color: var(--danger, #e5484d);
+  }
+
+  .custom-err {
+    color: var(--danger, #e5484d);
+    font-size: 0.8rem;
   }
 
   .modes {

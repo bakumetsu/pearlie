@@ -13,6 +13,13 @@ from app.sources.base import Post
 MAX_RESTARTS = 3
 
 
+def _utc_iso(value: str | None) -> str | None:
+    """SQLite CURRENT_TIMESTAMP is naive UTC text; the API sends it as ISO with Z."""
+    if not value or value.endswith("Z") or "+" in value[10:]:
+        return value
+    return value.replace(" ", "T", 1) + "Z"
+
+
 def _to_job(row: sqlite3.Row) -> Job:
     data: dict[str, object] = {
         "id": str(row["id"]),
@@ -27,8 +34,8 @@ def _to_job(row: sqlite3.Row) -> Job:
         "error": row["error"],
         "error_code": row["error_code"],
         "library_ref": None,
-        "created_at": row["created_at"],
-        "finished_at": row["finished_at"],
+        "created_at": _utc_iso(row["created_at"]),
+        "finished_at": _utc_iso(row["finished_at"]),
     }
     if row["library_ref_id"] is not None:
         kind = "image" if row["target"] == "stash" else "book"
