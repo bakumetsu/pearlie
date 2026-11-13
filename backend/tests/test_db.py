@@ -127,3 +127,23 @@ def test_schema_snapshot_needs_version_bump(tmp_path: Path) -> None:
     conn.close()
     expected = SNAPSHOTS[SCHEMA_VERSION]
     assert snapshot == expected, "schema changed: bump SCHEMA_VERSION and add a snapshot"
+
+
+def test_v1_jobs_table_gains_dest_path(tmp_path: Path) -> None:
+    db_path = tmp_path / "old.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, "
+        "post_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', error TEXT, "
+        "library_ref_id TEXT)"
+    )
+    conn.execute("INSERT INTO jobs (source, post_id) VALUES ('nhentai', '1')")
+    conn.execute("PRAGMA user_version = 1")
+    conn.commit()
+    conn.close()
+    init_db(db_path)
+    conn = connect(db_path)
+    row = conn.execute("SELECT dest_path FROM jobs").fetchone()
+    conn.close()
+    assert row["dest_path"] is None
+    assert schema_version(db_path) == SCHEMA_VERSION
