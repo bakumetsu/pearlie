@@ -8,7 +8,7 @@ from pathlib import Path
 
 import httpx
 import uvicorn
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import SecretStr
@@ -42,8 +42,8 @@ from app.api import (
 )
 from app.api import fixture as fixture_api
 from app.api import logs as logs_api
+from app.api.errors import ApiError, stub_router
 from app.api.errors import install as install_errors
-from app.api.errors import stub_router
 from app.api.guard import mutation_guard
 from app.api.health import router as health_router
 from app.config import ConfigError, Settings, load_settings
@@ -146,6 +146,17 @@ def _build_komga(settings: Settings) -> Komga | None:
     return Komga(settings.komga_url, settings.komga_api_key.get_secret_value())
 
 
+def _require_configured(name: str, clients: tuple[str, ...]):
+    """Per-request guard: 503 until at least one of *clients* is connected."""
+
+    def check(request: Request) -> None:
+        state = request.app.state
+        if all(getattr(state, c, None) is None for c in clients):
+            raise ApiError(503, "not_configured", f"{name} is not configured")
+
+    return check
+
+
 def rebuild_client(app: FastAPI, name: str) -> None:
     if app.state.settings.mode == "fixture":
         return
@@ -154,13 +165,12 @@ def rebuild_client(app: FastAPI, name: str) -> None:
     if name == "komga":
         app.state.komga = _build_komga(settings)
         komga_target = getattr(app.state, "komga_target", None)
-        if komga_target is not None and app.state.komga is not None:
+        if komga_target is not None:
             komga_target.set_client(app.state.komga)
     elif name == "stash":
         app.state.stash = _build_stash(settings)
-        worker = getattr(app.state, "worker", None)
         stash_target = getattr(app.state, "stash_target", None)
-        if worker is not None and stash_target is not None and app.state.stash is not None:
+        if stash_target is not None:
             stash_target.set_client(app.state.stash)
 
 
@@ -264,8 +274,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings.mode == "real":
         settings = _with_stored_connections(settings, app.state.connection_store)
         app.state.settings = settings
-    komga_ok = bool(settings.komga_url)
-    stash_ok = bool(settings.stash_url)
     app.state.komga = _build_komga(settings) if settings.mode != "fixture" else None
     app.state.stash = _build_stash(settings) if settings.mode != "fixture" else None
 
@@ -273,54 +281,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.http = None
     app.state.stash_target = None
     app.state.komga_target = None
-    stash_on = stash_ok and app.state.stash is not None
-    komga_on = komga_ok and app.state.komga is not None
-    if "jobs" in real and (stash_on or komga_on):
+    if "jobs" in real:
         http = install_http_hooks(httpx.Client(), "download", save=True)
         app.state.http = http
-        targets: dict = {}
-        hooks = []
-        if app.state.stash is not None:
-            stash_target = StashTarget(
-                settings, app.state.stash, http, app.state.sources, throttles=throttles
-            )
-            app.state.stash_target = stash_target
-            targets["stash"] = stash_target
-            hooks.append(stash_target.cleanup_temp)
-        if app.state.komga is not None:
-            komga_target = KomgaTarget(
-                settings, app.state.komga, http, app.state.sources, throttles=throttles
-            )
-            app.state.komga_target = komga_target
-            targets["komga"] = komga_target
-            hooks.append(komga_target.cleanup_temp)
+        stash_target = StashTarget(
+            settings, app.state.stash, http, app.state.sources, throttles=throttles
+        )
+        komga_target = KomgaTarget(
+            settings, app.state.komga, http, app.state.sources, throttles=throttles
+        )
+        app.state.stash_target = stash_target
+        app.state.komga_target = komga_target
         app.state.worker = JobWorker(
             settings.db_path,
             app.state.sources,
-            targets,
+            {"stash": stash_target, "komga": komga_target},
             interval_s=settings.download_interval_s,
-            startup_hooks=hooks,
+            startup_hooks=[stash_target.cleanup_temp, komga_target.cleanup_temp],
         )
 
-    komga_names = {"library_komga", "media_komga"}
-    stash_names = {"library_stash", "media_stash"}
-    stubbed: set[str] = set()
+    needs = {
+        "library_komga": ("komga",),
+        "media_komga": ("komga",),
+        "library_stash": ("stash",),
+        "media_stash": ("stash",),
+        "jobs": ("stash", "komga"),
+    }
     for name in real:
-        unconfigured = (
-            (name in komga_names and not komga_ok)
-            or (name in stash_names and not stash_ok)
-            or (name == "jobs" and not (stash_ok or komga_ok))
-        )
-        if unconfigured:
-            app.include_router(
-                stub_router(REAL_ROUTERS[name], 503, "not_configured", f"{name} is not configured")
-            )
-            stubbed.add(name)
-        else:
-            app.include_router(REAL_ROUTERS[name])
-    app.state.stubbed_routes = stubbed
-    if stubbed:
-        logger.warning("not configured, answering 503: %s", ", ".join(sorted(stubbed)))
+        deps = [Depends(_require_configured(name, needs[name]))] if name in needs else []
+        app.include_router(REAL_ROUTERS[name], dependencies=deps)
     if settings.mode == "real":
         for name, router in FIXTURE_ROUTERS.items():
             if name not in REAL_ROUTERS:

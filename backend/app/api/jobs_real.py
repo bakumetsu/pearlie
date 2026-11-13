@@ -36,7 +36,7 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
     src = sources.get(body.source)
     if src is None:
         raise ApiError(422, "source_unavailable", f"{body.source} is not connected")
-    if getattr(request.app.state, f"{src.target}_target", None) is None:
+    if getattr(request.app.state, src.target, None) is None:
         raise ApiError(422, "no_target", f"saving from {body.source} is not available")
     store = _store(request)
     image_id = store.saved_image_id(body.source, body.post_id)

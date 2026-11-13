@@ -47,7 +47,6 @@ class ConnectionOut(BaseModel):
     address_locked: bool
     key_locked: bool
     fields: list[FieldOut]
-    restart_needed: bool = False
 
 
 class ConnectionsOut(BaseModel):
@@ -141,14 +140,6 @@ def put_connection(request: Request, name: str, body: ConnectionIn) -> Connectio
         from app.main import rebuild_client
 
         rebuild_client(request.app, name)
-        if name == "stash":
-            out.restart_needed = bool(
-                {"library_stash", "media_stash", "jobs"} & request.app.state.stubbed_routes
-            )
-        else:
-            out.restart_needed = bool(
-                {"library_komga", "media_komga"} & request.app.state.stubbed_routes
-            )
     return out
 
 

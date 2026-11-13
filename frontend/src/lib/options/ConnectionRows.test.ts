@@ -18,9 +18,9 @@ function makeConnections(can_store = true): ConnectionsOut {
   return {
     can_store,
     connections: [
-      { name: "stash", address: "http://stash.local:9999", key: "missing", address_fixed: false, address_locked: false, key_locked: false, fields: [], restart_needed: false },
-      { name: "komga", address: "http://komga.local:8888", key: "set", address_fixed: false, address_locked: false, key_locked: false, fields: [], restart_needed: false },
-      { name: "danbooru", address: "https://danbooru.donmai.us", key: "set", address_fixed: true, address_locked: true, key_locked: false, fields: [], restart_needed: false },
+      { name: "stash", address: "http://stash.local:9999", key: "missing", address_fixed: false, address_locked: false, key_locked: false, fields: [] },
+      { name: "komga", address: "http://komga.local:8888", key: "set", address_fixed: false, address_locked: false, key_locked: false, fields: [] },
+      { name: "danbooru", address: "https://danbooru.donmai.us", key: "set", address_fixed: true, address_locked: true, key_locked: false, fields: [] },
     ],
   };
 }
@@ -142,7 +142,7 @@ describe("ConnectionRows", () => {
     const data: ConnectionsOut = {
       can_store: true,
       connections: [
-        { name: "stash", address: "http://stash.local:9999", key: "missing", address_fixed: false, address_locked: false, key_locked: true, fields: [], restart_needed: false },
+        { name: "stash", address: "http://stash.local:9999", key: "missing", address_fixed: false, address_locked: false, key_locked: true, fields: [] },
       ],
     };
     await renderRows(data);
@@ -282,12 +282,5 @@ describe("ConnectionRows", () => {
     const statusEl = row.querySelector("[role='status']")!;
     expect(statusEl).toBeTruthy();
     expect(statusEl.compareDocumentPosition(testBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("no restart notice after save when restart_needed is false", async () => {
-    const { store, api } = await renderRows();
-    await store.save(api, "stash", { secret: "abc" });
-    expect(screen.queryByText("Restart Pearlie to apply")).toBeNull();
-    expect(store.restartNeeded.stash).toBe(false);
   });
 });

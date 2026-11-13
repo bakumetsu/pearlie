@@ -596,23 +596,6 @@ def test_write_guard_forwarded_host(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 14. restart_needed after saving stash or komga
-# ---------------------------------------------------------------------------
-
-
-def test_restart_needed_flag(tmp_path: Path) -> None:
-    c = make_client(tmp_path, secret_key=master_key())
-    r = c.put("/api/connections/stash", json={"secret": "k"}, headers=HDR)
-    assert r.json()["restart_needed"] is False
-    r2 = c.put("/api/connections/komga", json={"secret": "k"}, headers=HDR)
-    assert r2.json()["restart_needed"] is False
-    r3 = c.put("/api/connections/gelbooru", json={"secret": "k"}, headers=HDR)
-    assert r3.json()["restart_needed"] is False
-    listed = c.get("/api/connections").json()["connections"]
-    assert all(x["restart_needed"] is False for x in listed)
-
-
-# ---------------------------------------------------------------------------
 # 15. rule34 host, httpx logging, tampered token
 # ---------------------------------------------------------------------------
 
@@ -685,14 +668,12 @@ def test_put_stash_swaps_client(tmp_path: Path) -> None:
     _seed(c, "stash")
     old = c.app.state.stash  # pyright: ignore[reportAttributeAccessIssue]
     assert old is not None
-    c.app.state.stubbed_routes = set()  # pyright: ignore[reportAttributeAccessIssue]
     r = c.put(
         "/api/connections/stash",
         json={"address": "http://stash2.local:9999", "secret": "newkey"},
         headers=HDR,
     )
     assert r.status_code == 200
-    assert r.json()["restart_needed"] is False
     assert c.app.state.stash is not old  # pyright: ignore[reportAttributeAccessIssue]
     assert isinstance(c.app.state.stash, StashClient)  # pyright: ignore[reportAttributeAccessIssue]
     assert callable(old.library_paths)
@@ -705,14 +686,12 @@ def test_put_komga_swaps_client(tmp_path: Path) -> None:
     _seed(c, "komga")
     old = c.app.state.komga  # pyright: ignore[reportAttributeAccessIssue]
     assert old is not None
-    c.app.state.stubbed_routes = set()  # pyright: ignore[reportAttributeAccessIssue]
     r = c.put(
         "/api/connections/komga",
         json={"address": "http://komga2.local:8888", "secret": "newkey"},
         headers=HDR,
     )
     assert r.status_code == 200
-    assert r.json()["restart_needed"] is False
     assert c.app.state.komga is not old  # pyright: ignore[reportAttributeAccessIssue]
     assert isinstance(c.app.state.komga, Komga)  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -825,3 +804,35 @@ def test_swap_does_not_log_secret(
     )
     assert r.status_code == 200
     assert "topsecretvalue" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# 17. First-time connect works without a restart
+# ---------------------------------------------------------------------------
+
+
+def test_save_then_use_without_restart(tmp_path: Path) -> None:
+    c = make_client(
+        tmp_path, mode="real", secret_key=master_key(), env={"real": "search"}
+    )
+    app = c.app
+    assert app.state.stash is None  # pyright: ignore[reportAttributeAccessIssue]
+    assert app.state.worker is not None  # pyright: ignore[reportAttributeAccessIssue]
+    stash_target = app.state.stash_target  # pyright: ignore[reportAttributeAccessIssue]
+    komga_target = app.state.komga_target  # pyright: ignore[reportAttributeAccessIssue]
+    assert stash_target is not None and komga_target is not None
+    before = c.get("/api/library/stash/images")
+    assert before.status_code == 503
+    assert before.json()["code"] == "not_configured"
+    assert c.get("/api/jobs").status_code == 503
+
+    _seed(c, "stash")
+    assert app.state.stash is not None  # pyright: ignore[reportAttributeAccessIssue]
+    assert stash_target._c is app.state.stash  # pyright: ignore[reportAttributeAccessIssue]
+    assert c.get("/api/jobs").status_code != 503
+    assert c.get("/api/library/stash/images").status_code != 503
+
+    assert c.get("/api/library/komga/series").status_code == 503
+    _seed(c, "komga")
+    assert komga_target._c is app.state.komga  # pyright: ignore[reportAttributeAccessIssue]
+    assert c.get("/api/library/komga/series").status_code != 503

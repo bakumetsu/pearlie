@@ -1170,11 +1170,6 @@ export interface components {
             key_locked: boolean;
             /** Fields */
             fields: components["schemas"]["FieldOut"][];
-            /**
-             * Restart Needed
-             * @default false
-             */
-            restart_needed: boolean;
         };
         /** ConnectionsOut */
         ConnectionsOut: {

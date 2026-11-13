@@ -39,9 +39,6 @@
 			{#if store.byName(key)?.address}
 				<span class="muted">{store.byName(key)?.address}</span>
 			{/if}
-			{#if store.restartNeeded[key]}
-				<span class="muted">Restart Pearlie to apply</span>
-			{/if}
 			<span class="result{store.results[key] && !store.results[key]!.ok ? " err" : ""}" role="status"
 				>{store.results[key]?.message}</span
 			>

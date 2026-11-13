@@ -19,7 +19,6 @@ function conn(name: string, fields: ConnectionOut["fields"]): ConnectionOut {
     address_locked: true,
     key_locked: false,
     fields,
-    restart_needed: false,
   };
 }
 

@@ -45,21 +45,31 @@ class KomgaTarget:
     def __init__(
         self,
         settings: Settings,
-        client: Komga,
+        client: Komga | None,
         http: httpx.Client,
         sources: dict[str, Source],
         throttles: dict[str, Throttle] | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self._settings = settings
-        self._client = client
+        self._c = client
         self._http = http
         self._sources = sources
         self._throttles = throttles or {}
         self._clock = clock
 
     def set_client(self, client: Komga) -> None:
-        self._client = client
+        self._c = client
+
+    @property
+    def _client(self) -> Komga:
+        if self._c is None:
+            raise SaveError("not_configured", "Komga is not configured", 503)
+        return self._c
+
+    @_client.setter
+    def _client(self, client: Komga) -> None:
+        self._c = client
 
     def _folder(self, source_id: str) -> str:
         s = self._settings
