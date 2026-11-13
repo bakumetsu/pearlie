@@ -115,6 +115,32 @@ describe("Options", () => {
     expect(noResults?.textContent?.trim()).toBe("Nothing found");
   });
 
+  it("search keeps focus while typing several characters", async () => {
+    render(Options, { props: { match: makeMatch() } });
+
+    const inputs = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[aria-label="Search options"]'),
+    );
+    const input = inputs[inputs.length - 1];
+    const nativeSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!;
+    input.focus();
+    for (const v of ["a", "ab"]) {
+      nativeSetter.call(input, v);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await tick();
+      expect(document.activeElement).toBe(input);
+    }
+  });
+
+  it("every section row has an icon", () => {
+    render(Options, { props: { match: makeMatch() } });
+    const rows = document.querySelectorAll("button[data-section]");
+    for (const r of Array.from(rows)) expect(r.querySelector("svg")).toBeTruthy();
+  });
+
   it("phone: /options shows list only (no pane)", () => {
     mockMatchMedia(true);
 

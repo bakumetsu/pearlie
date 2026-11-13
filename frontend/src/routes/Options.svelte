@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { type Match } from "../lib/router";
   import { getRouter } from "../lib/ctx";
   import {
     SECTIONS,
     searchSections,
+    SECTION_ICONS,
     isSectionId,
     type SectionId,
     type Section,
@@ -110,9 +112,14 @@
   // ── H1 focus on mount / section change ─────────────────────
   let h1El = $state<HTMLHeadingElement | null>(null);
 
+  // Focus only when the section id changes, not when the h1 is re-mounted
+  // (search typing toggles it) - otherwise the search input loses focus.
+  let focusedSectionId: SectionId | null = null;
   $effect(() => {
-    if (!activeSectionId) return;
-    h1El?.focus();
+    const id = activeSectionId;
+    if (id === focusedSectionId) return;
+    focusedSectionId = id;
+    untrack(() => h1El?.focus());
   });
 
   // ── List keyboard nav (ArrowUp / ArrowDown) ─────────────────
@@ -223,6 +230,7 @@
                     aria-current={s.id === activeSectionId ? "page" : undefined}
                     onclick={() => goTo(s.id)}
                   >
+                    <Icon name={SECTION_ICONS[s.id]} size={18} />
                     <span class="section-row-label">{s.title}</span>
                     {#if s.later}
                       <span class="later-tag">LATER</span>
@@ -367,6 +375,7 @@
                       aria-current={s.id === activeSectionId ? "page" : undefined}
                       onclick={() => goTo(s.id)}
                     >
+                      <Icon name={SECTION_ICONS[s.id]} size={18} />
                       <span class="section-row-label">{s.title}</span>
                       {#if s.later}
                         <span class="later-tag">LATER</span>
