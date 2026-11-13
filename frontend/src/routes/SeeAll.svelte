@@ -21,7 +21,7 @@
   import WallOverlay from "../lib/browse/WallOverlay.svelte";
   import Lightbox from "../lib/components/Lightbox.svelte";
   import Toolbar from "../lib/browse/Toolbar.svelte";
-  import { parseOrder, parseRating, ORDER_LABELS, RATING_LABELS, DEFAULT_ORDERS, DEFAULT_RATINGS } from "../lib/browse/filters";
+  import { parseOrder, parseRating, ORDER_LABELS, RATING_LABELS } from "../lib/browse/filters";
   import type { SourceFilters } from "../lib/api/client";
   import { parseOpen, openKey, withOpen } from "../lib/browse/overlayState";
 
@@ -36,7 +36,7 @@
   onMount(() => {
     h1?.focus();
     viewSettings.load(api);
-    // Capability list for the toolbar; the built-in defaults stand in until it answers or if it fails.
+    // Capability list for the toolbar. No answer yet or a failed call: no Order/Rating controls, plain list.
     api.searchFilters().then((f) => { filterCaps = f; }).catch(() => {});
   });
 
@@ -156,11 +156,11 @@
   });
 
   const caps = $derived(filterCaps[source]);
-  const orderOptions = $derived(caps?.order ?? DEFAULT_ORDERS);
-  const ratingOptions = $derived(caps?.rating ?? DEFAULT_RATINGS);
+  const orderOptions = $derived(caps?.order ?? []);
+  const ratingOptions = $derived(caps?.rating ?? []);
   const blockedAt = $derived(caps?.order_blocked_when ?? null);
   const orderBlocked = $derived(blockedAt !== null && q.trim().split(/\s+/).filter(Boolean).length >= blockedAt);
-  const showFilters = $derived(!isLibrary && (caps ? (caps.order?.length ?? 0) > 1 || (caps.rating?.length ?? 0) > 0 : true));
+  const showFilters = $derived(!isLibrary && caps !== undefined && ((caps.order?.length ?? 0) > 1 || (caps.rating?.length ?? 0) > 0));
 
   const listKey = $derived(
     [source, q, sort, favorite ? "1" : "0", order, rating.join(","), seed ?? "", String(vs.per_page), infinite ? "inf" : "pg"].join("|"),
