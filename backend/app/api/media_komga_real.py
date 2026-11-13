@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
 from app.api.errors import ApiError
+from app.api.library_komga_real import _check_id
 from app.komga import KomgaError
 
 router = APIRouter(prefix="/api/media")
@@ -37,16 +38,19 @@ def _proxy(
 
 @router.get("/komga/series/{id}/thumb")
 def series_thumb(request: Request, id: str) -> StreamingResponse:
+    _check_id(id)
     return _proxy(request, f"/api/v1/series/{id}/thumbnail")
 
 
 @router.get("/komga/books/{id}/thumb")
 def book_thumb(request: Request, id: str) -> StreamingResponse:
+    _check_id(id)
     return _proxy(request, f"/api/v1/books/{id}/thumbnail")
 
 
 @router.get("/komga/books/{id}/pages/{n}")
 def book_page(request: Request, id: str, n: int) -> StreamingResponse:
+    _check_id(id)
     if n < 1:
         raise ApiError(404, "not_found", "Media not found")
     return _proxy(request, f"/api/v1/books/{id}/pages/{n}", params={"zero_based": "false"})
@@ -54,6 +58,7 @@ def book_page(request: Request, id: str, n: int) -> StreamingResponse:
 
 @router.get("/komga/books/{id}/pages/{n}/thumb")
 def book_page_thumb(request: Request, id: str, n: int) -> StreamingResponse:
+    _check_id(id)
     if n < 1:
         raise ApiError(404, "not_found", "Media not found")
     return _proxy(
