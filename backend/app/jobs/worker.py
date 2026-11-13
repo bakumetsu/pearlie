@@ -143,6 +143,19 @@ class JobWorker:
         finally:
             logs.reset_job(token)
 
+    def _finish_failed(self, job_id: str, error: str, error_code: str) -> None:
+        """Write the failed row; retry once so a transient DB error cannot leave it running."""
+        for attempt in (1, 2):
+            try:
+                self._store.finish(job_id, "failed", error=error, error_code=error_code)
+                return
+            except Exception as e:
+                logger.error(
+                    "job=%s finish failed (try %d): %s", job_id, attempt, type(e).__name__
+                )
+                if attempt == 1:
+                    time.sleep(0.2)
+
     def _run_job(self, job_id: str, source_id: str) -> None:
         try:
             src = self._sources.get(source_id)
@@ -211,15 +224,12 @@ class JobWorker:
                 )
 
         except (SaveError, SourceError, StashError) as e:
-            self._store.finish(job_id, "failed", error=e.message, error_code=e.code)
+            self._finish_failed(job_id, e.message, e.code)
             self._end(job_id, "failed", e.code, e.message, logging.ERROR)
         except Exception as e:
             logger.error("job %s failed: %s", job_id, type(e).__name__, exc_info=True)
-            self._store.finish(
-                job_id,
-                "failed",
-                error=f"unexpected error ({type(e).__name__})",
-                error_code="unexpected_error",
+            self._finish_failed(
+                job_id, f"unexpected error ({type(e).__name__})", "unexpected_error"
             )
             self._end(
                 job_id, "failed", "unexpected_error", type(e).__name__, logging.ERROR

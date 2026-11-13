@@ -465,3 +465,28 @@ def test_thread_lifecycle(tmp_path: Path) -> None:
     worker.stop()
     remaining = [t for t in threading.enumerate() if t.name.startswith("pearlie-job")]
     assert remaining == []
+
+
+def test_failed_finish_does_not_leave_job_running(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    worker, store, target, sources, clock = make(tmp_path)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    real_finish = store.finish
+    worker_store = worker._store
+    calls: list[str] = []
+
+    def flaky(job_id: str, state: str, *args: Any, **kwargs: Any) -> None:
+        calls.append(state)
+        if len(calls) <= 2:
+            raise RuntimeError("db locked")
+        real_finish(job_id, state, *args, **kwargs)
+
+    monkeypatch.setattr(worker_store, "finish", flaky)
+    jid = enqueue(store, sources, "danbooru", "1")
+    assert worker.run_once() is True
+    job = store.get(jid)
+    assert job is not None
+    assert job.state == "failed"
+    assert job.error_code == "unexpected_error"
+    assert calls == ["done", "failed", "failed"]
