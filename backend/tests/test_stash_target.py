@@ -61,6 +61,8 @@ def make_graphql_handler(
             return httpx.Response(200, json={"data": {"metadataScan": "job1"}})
 
         if "findJob" in query:
+            if job_status == "UNKNOWN":
+                return httpx.Response(200, json={"data": {"findJob": None}})
             return httpx.Response(
                 200,
                 json={
@@ -558,6 +560,70 @@ def test_scan_timeout(
     with pytest.raises(stash.SaveError) as exc:
         target.save(post, [])
     assert exc.value.code == "scan_timeout"
+
+
+def _library_files(root: Path) -> list[Path]:
+    return [p for p in root.rglob("*") if p.is_file()]
+
+
+def _ticking_clock() -> Callable[[], float]:
+    state = [0.0]
+
+    def clock() -> float:
+        state[0] += 1.0
+        return state[0]
+
+    return clock
+
+
+def test_scan_job_gone_resolved_by_lookup(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(job_status="UNKNOWN", clock=_ticking_clock())
+    result = target.save(make_post(), [])
+    assert result.status == "saved"
+    assert result.image_id == "7"
+
+
+def test_scan_job_gone_not_indexed_is_image_not_found(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(job_status="UNKNOWN", path_ids=(), clock=_ticking_clock())
+    with pytest.raises(stash.SaveError) as exc:
+        target.save(make_post(), [])
+    assert exc.value.code == "image_not_found"
+    assert _library_files(settings.stash_default_dir) == []
+
+
+def test_lookup_miss_removes_orphan_file(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(path_ids=())
+    with pytest.raises(stash.SaveError):
+        target.save(make_post(), [])
+    assert _library_files(settings.stash_default_dir) == []
+
+
+def test_scan_failed_removes_orphan_file(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(job_status="FAILED")
+    with pytest.raises(stash.SaveError):
+        target.save(make_post(), [])
+    assert _library_files(settings.stash_default_dir) == []
 
 
 def test_image_not_found(

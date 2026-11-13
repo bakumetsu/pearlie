@@ -385,19 +385,23 @@ class StashTarget:
         )
 
         try:
-            job = self._client.metadata_scan(stash_path)
-            self._scan(job)
-        except StashError as e:
-            self._fail_log("scan", e.code, error=e.message)
-            raise
+            try:
+                job = self._client.metadata_scan(stash_path)
+                self._scan(job)
+            except StashError as e:
+                self._fail_log("scan", e.code, error=e.message)
+                raise
 
-        image_id = self._client.find_image_by_path(stash_path)
-        logger.info(
-            "%sstep=lookup path=%s result=%s", logs.ctx(), stash_path, image_id or "none"
-        )
-        if image_id is None:
-            self._lookup_miss(dest, stash_path, md5)
-            raise SaveError("image_not_found", "Stash did not index the file", 502)
+            image_id = self._client.find_image_by_path(stash_path)
+            logger.info(
+                "%sstep=lookup path=%s result=%s", logs.ctx(), stash_path, image_id or "none"
+            )
+            if image_id is None:
+                self._lookup_miss(dest, stash_path, md5)
+                raise SaveError("image_not_found", "Stash did not index the file", 502)
+        except (SaveError, StashError):
+            self._discard_orphan(dest, resumed)
+            raise
 
         created: list[str] = []
         try:
@@ -441,6 +445,23 @@ class StashTarget:
             dest_path=stash_path,
             notices=notices,
         )
+
+    def _discard_orphan(self, dest: Path, resumed: bool) -> None:
+        """Remove a file this save put in the library when Stash never took it.
+
+        Nothing tracks it (no saved_items row), so a retry would only add a
+        numbered copy. A file that was already there (resumed) is left alone.
+        """
+        if resumed:
+            return
+        try:
+            dest.unlink(missing_ok=True)
+            logger.info("%sstep=cleanup removed=%s", logs.ctx(), dest.as_posix())
+        except OSError as e:
+            logger.warning(
+                "%sstep=cleanup failed path=%s error=%s",
+                logs.ctx(), dest.as_posix(), type(e).__name__,
+            )
 
     def _lookup_miss(self, dest: Path, stash_path: str, md5: str) -> None:
         """Evidence for a lookup miss (read-only; every failure here is swallowed)."""
@@ -540,6 +561,14 @@ class StashTarget:
                 logger.info(
                     "%sstep=scan scan_job=%s status=%s polls=%d ms=%d",
                     logs.ctx(), job_id, status, polls, ms,
+                )
+                return
+            if status == "UNKNOWN":
+                # Stash dropped the finished job from its queue; the lookup
+                # after the scan decides whether the file was indexed.
+                logger.info(
+                    "%sstep=scan scan_job=%s status=gone polls=%d ms=%d",
+                    logs.ctx(), job_id, polls, ms,
                 )
                 return
             if status in ("FAILED", "CANCELLED"):
