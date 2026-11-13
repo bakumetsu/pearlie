@@ -206,8 +206,7 @@
       const loader = async (p: number, signal: AbortSignal) => {
         const r = await api.search({ q: qq, sources: [src], page: p, page_size: pp, order: ord || undefined, rating: rat.length ? rat : undefined }, signal);
         const s = r.sections?.find((x: { id: string }) => x.id === src);
-        // the section notice is in the T-134 contract, not yet in schema.gen.ts
-        notice = (s as { notice?: { message?: string } | null } | undefined)?.notice?.message ?? null;
+        notice = s?.notice?.message ?? null;
         return {
           items: s?.items ?? [],
           total: s?.total ?? null,
