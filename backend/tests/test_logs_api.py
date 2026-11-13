@@ -98,7 +98,7 @@ def test_list(client: Any, settings: Any, tmp_path: Path) -> None:
     # non-log file that must NOT appear
     (ld / "notes.txt").write_text("ignore me", encoding="utf-8")
 
-    # file older than keep_days (8 days) – should be purged by listing
+    # file older than keep_days (8 days) – should not be listed
     old = day_file(
         ld, "2026-11-01", [_line("2026-11-01 10:00:00.000", "INFO", "pearlie.app", "old")]
     )
@@ -124,8 +124,8 @@ def test_list(client: Any, settings: Any, tmp_path: Path) -> None:
     assert f0["size_bytes"] > 0
     assert f0["lines"] == 2
 
-    # old file purged
-    assert not old.exists()
+    # old file hidden from the listing; the handler purges it, a GET never deletes
+    assert old.exists()
 
 
 # ---------------------------------------------------------------------------

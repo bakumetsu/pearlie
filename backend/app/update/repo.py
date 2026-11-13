@@ -10,8 +10,8 @@ LATEST_RELEASE_URL = API_BASE + "/releases/latest"
 TAGS_URL = API_BASE + "/tags"
 DEV_HEAD_URL = API_BASE + "/commits/dev"
 
-TAG_RE = re.compile(r"^v\d+\.\d+\.\d+$")
-SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+TAG_RE = re.compile(r"^v\d+\.\d+\.\d+\Z")
+SHA_RE = re.compile(r"^[0-9a-f]{40}\Z")
 
 
 def tag_download_url(tag: str) -> str:
