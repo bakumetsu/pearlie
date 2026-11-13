@@ -167,12 +167,13 @@ def search(
             else:
                 items: list[LibraryItem | WebItem] = []
                 hidden = 0
-                remember(request.app, page_result.posts)
+                visible: list[Post] = []
                 for post in page_result.posts:
                     verdict = evaluate(post.tags, rules)
                     if verdict is not None and verdict.decision != "warn":
                         hidden += 1
                         continue
+                    visible.append(post)
                     items.append(
                         WebItem(
                             source=typing.cast(WebSource, post.source),
@@ -202,6 +203,7 @@ def search(
                             blur=Blur(tag=verdict.tag) if verdict else None,
                         )
                     )
+                remember(request.app, visible, rules.version)
                 if multi:
                     items = items[:18]
                 notes = [*page_result.notices]

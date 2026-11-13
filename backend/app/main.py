@@ -61,6 +61,7 @@ from app.sources.throttle import DEFAULT_PACE, Throttle
 from app.targets.komga import KomgaTarget
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
+from app.thumbcache import ThumbCache
 from app.update import runner
 from app.update.changelog import Changelog, FakeChangelog
 from app.update.check import FakeChecker, UpdateChecker
@@ -197,6 +198,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         worker: JobWorker | None = getattr(app_.state, "worker", None)
         if worker is not None and worker_enabled:
             worker.start()
+        cache: ThumbCache | None = getattr(app_.state, "thumb_cache", None)
+        if cache is not None:
+            cache.start()
         daily: asyncio.Task[None] | None = None
         if app_.state.settings.mode == "real":
             daily = asyncio.create_task(_daily_update_check(app_))
@@ -263,6 +267,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     }
     app.state.sources = sources
     options.apply_pace(app)
+    app.state.thumb_cache = (
+        ThumbCache(
+            settings.thumb_cache_root,
+            forbidden=[settings.stash_temp_dir, settings.komga_temp_dir],
+        )
+        if settings.mode == "real"
+        else None
+    )
 
     if settings.mode == "fixture":
         real = {n.strip() for n in settings.real.split(",") if n.strip()}

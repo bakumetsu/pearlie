@@ -37,15 +37,23 @@ class Throttle:
         self._sleep = sleep
         self._lock = threading.Lock()
 
-    def wait(self) -> None:
-        """Block until the next slot, then advance."""
+    def reserve(self, floor: float = 0.0) -> float:
+        """Take the next slot and return the seconds to wait (the caller sleeps).
+
+        `floor` spaces the slot at least that far from the previous one.
+        """
         with self._lock:
             now = self._clock()
             start = max(now, self._next_at)
-            self._next_at = start + self._current
-        if start > now:
-            logger.debug("THROTTLE site=%s wait=%.1fs", self._site, start - now)
-            self._sleep(start - now)
+            self._next_at = start + max(self._current, floor)
+        return max(0.0, start - now)
+
+    def wait(self) -> None:
+        """Block until the next slot, then advance."""
+        delay = self.reserve()
+        if delay > 0:
+            logger.debug("THROTTLE site=%s wait=%.1fs", self._site, delay)
+            self._sleep(delay)
 
     def report(self, status: int, retry_after: float | None = None) -> None:
         """Record a response; raise pace on 429/503, ease on success."""

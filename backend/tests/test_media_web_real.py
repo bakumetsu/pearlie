@@ -121,7 +121,11 @@ def test_upstream_429_backs_off_throttle(tmp_path):
     app = _app(tmp_path, _handler([], 429))
     client = TestClient(app)
     r = client.get("/api/media/web/danbooru/7/thumb")
-    assert r.status_code == 502 and r.json()["code"] == "rate_limited"
+    assert r.status_code == 503 and r.json()["code"] == "rate_limited"
+    assert r.headers["retry-after"]
+    assert app.state.sources["danbooru"]._throttle.backing_off
+    full = client.get("/api/media/web/danbooru/7/full")
+    assert full.status_code == 502 and full.json()["code"] == "rate_limited"
     assert app.state.web_media_throttles["danbooru"].backing_off
 
 
