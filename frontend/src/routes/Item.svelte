@@ -97,7 +97,7 @@
     const cancelled = () => !alive || key !== from;
     void stepInList(grid, key, 1, { cross: true, cancelled }).then((t) => {
       if (t && !cancelled()) router.navigate(itemHref(t), { replace: true });
-    });
+    }).catch(() => {});
   }
 
   function goPrev(): void {
@@ -110,7 +110,7 @@
     const cancelled = () => !alive || key !== from;
     void stepInList(grid, key, -1, { cross: true, cancelled }).then((t) => {
       if (t && !cancelled()) router.navigate(itemHref(t), { replace: true });
-    });
+    }).catch(() => {});
   }
 
   function back(): void {
