@@ -22,7 +22,7 @@ LOG_KEEP_DAYS = 7
 MAX_LINE = 2000
 DAY_CAP = 20 * 1024 * 1024
 ERROR_CAP = 22 * 1024 * 1024
-MIN_SECRET_LEN = 6
+MIN_SECRET_LEN = 4
 CUT_MARK = "...[cut]"
 CAP_LINE = "log cap reached for today, dropping lines"
 FILE_RE = re.compile(r"pearlie-(\d{4})-(\d{2})-(\d{2})\.log")
@@ -159,7 +159,8 @@ _KEYWORDS = (
     r"api[_-]?key|apikey|key|token|password|passwd|secret|cookie|session|auth|authorization"
 )
 _KEYWORD_RE = re.compile(
-    rf"(?<![A-Za-z0-9])({_KEYWORDS})(?![A-Za-z0-9])(\s*[=:]\s*)[\"']?[^\s&;,\"']+",
+    rf"(?<![A-Za-z0-9])({_KEYWORDS})(?![A-Za-z0-9])[\"']?(\s*[=:]\s*)"
+    rf"(?:\"[^\"]*\"|'[^']*'|[^\s&;,\"']+)",
     re.IGNORECASE,
 )
 _HEADER_RE = re.compile(
