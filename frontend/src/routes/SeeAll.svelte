@@ -55,8 +55,9 @@
   const q = $derived(match.query.get("q") ?? "");
   const sort = $derived(match.query.get("sort") ?? "");
   const favorite = $derived(match.query.get("favorite") === "true");
-  const order = $derived(parseOrder(match.query.get("order")));
-  const rating = $derived(parseRating(match.query.get("rating")));
+  const caps = $derived(filterCaps[source]);
+  const rawOrder = $derived(parseOrder(match.query.get("order"), caps?.order ?? undefined));
+  const rating = $derived(parseRating(match.query.get("rating"), caps?.rating ?? undefined));
   const seed = $derived(match.query.get("seed") ?? undefined);
   const page = $derived(pageOf(match.query.get("page")));
   const vs = $derived(viewSettings.get(source));
@@ -155,15 +156,17 @@
     };
   });
 
-  const caps = $derived(filterCaps[source]);
   const orderOptions = $derived(caps?.order ?? []);
   const ratingOptions = $derived(caps?.rating ?? []);
   const blockedAt = $derived(caps?.order_blocked_when ?? null);
   const orderBlocked = $derived(blockedAt !== null && q.trim().split(/\s+/).filter(Boolean).length >= blockedAt);
+  const ratingKey = $derived(rating.join(","));
+  // A blocked Order is off for the request and the chip; the URL keeps the pick for when the words shrink.
+  const order = $derived(orderBlocked ? "" : rawOrder);
   const showFilters = $derived(!isLibrary && caps !== undefined && ((caps.order?.length ?? 0) > 1 || (caps.rating?.length ?? 0) > 0));
 
   const listKey = $derived(
-    [source, q, sort, favorite ? "1" : "0", order, rating.join(","), seed ?? "", String(vs.per_page), infinite ? "inf" : "pg"].join("|"),
+    [source, q, sort, favorite ? "1" : "0", order, ratingKey, seed ?? "", String(vs.per_page), infinite ? "inf" : "pg"].join("|"),
   );
 
   $effect(() => {
@@ -177,7 +180,7 @@
     const fav = favorite;
     const sd = seed;
     const ord = order;
-    const rat = rating;
+    const rat = ratingKey ? ratingKey.split(",") : [];
     const pp = vs.per_page;
     const adopt = untrack(() => grid.listKey === listKey && grid.status === "done" && grid.takeCrossed());
     // Infinite mode has no pager: it always starts at page 1 (the URL sync below drops ?page=)
@@ -206,7 +209,11 @@
       const loader = async (p: number, signal: AbortSignal) => {
         const r = await api.search({ q: qq, sources: [src], page: p, page_size: pp, order: ord || undefined, rating: rat.length ? rat : undefined }, signal);
         const s = r.sections?.find((x: { id: string }) => x.id === src);
-        notice = s?.notice?.message ?? null;
+        const err = s?.error;
+        // A source failure has no usable page: let the grid show its error and Retry. filter_dropped
+        // still comes with results, so it rides along as a notice.
+        if (err && err.code !== "filter_dropped") throw new Error(err.message);
+        notice = [err?.message, s?.notice?.message].filter(Boolean).join(". ") || null;
         return {
           items: s?.items ?? [],
           total: s?.total ?? null,
@@ -473,6 +480,7 @@
     {:else if grid.status === "error"}
       <div class="error-box">
         <p>Could not load this list.</p>
+        {#if !isLibrary && grid.error?.message}<p class="muted">{grid.error.message}</p>{/if}
         <button class="retry-btn" onclick={() => grid.retry()}>Retry</button>
       </div>
     {:else if grid.items.length === 0}
@@ -526,6 +534,7 @@
   .f-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
   .f-chip { min-height: 44px; display: inline-flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-4); background: none; color: var(--text); cursor: pointer; font: inherit; }
   .fav-toggle { min-height: 44px; display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: none; color: var(--text); cursor: pointer; }
+  .muted { color: var(--muted); }
   .error-box { padding: var(--s-4); text-align: center; color: var(--text); }
   .more-box { min-height: 44px; padding: var(--s-4); text-align: center; color: var(--text); }
   .more-box p { margin: 0; }

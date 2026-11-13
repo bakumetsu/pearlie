@@ -9,17 +9,18 @@ export const RATING_LABELS: Record<string, string> = {
   e: "Explicit",
 };
 
-// Used until /api/search/filters answers (or when it fails): the contract's web-site defaults.
+// Fallback lists while /api/search/filters has not answered (or failed): the contract's web-site defaults.
 export const DEFAULT_ORDERS = ["newest", "score"];
 export const DEFAULT_RATINGS = ["g", "s", "q", "e"];
 
-export function parseOrder(v: string | null): string {
-  return v === "score" ? "score" : "";
+// A non-default order the site lists; "" (newest) is the default and stays out of the URL.
+export function parseOrder(v: string | null, allowed: string[] = DEFAULT_ORDERS): string {
+  return v && v !== "newest" && allowed.includes(v) ? v : "";
 }
 
-// Known values only, in canonical order, no duplicates.
-export function parseRating(v: string | null): string[] {
+// Values the site lists only, in the site's order, no duplicates.
+export function parseRating(v: string | null, allowed: string[] = DEFAULT_RATINGS): string[] {
   if (!v) return [];
   const set = new Set(v.split(","));
-  return DEFAULT_RATINGS.filter((r) => set.has(r));
+  return allowed.filter((r) => set.has(r));
 }

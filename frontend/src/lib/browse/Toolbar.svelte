@@ -22,6 +22,8 @@
   let vw = $state(1024);
   let sheet = $state(false);
   let ratingOpen = $state(false);
+  let wrapEl: HTMLDivElement | undefined = $state();
+  let ratingBtn: HTMLButtonElement | undefined = $state();
 
   const phone = $derived(vw < 640);
   const count = $derived((order ? 1 : 0) + (rating.length ? 1 : 0));
@@ -32,7 +34,11 @@
   }
 </script>
 
-<svelte:window bind:innerWidth={vw} />
+<svelte:window
+  bind:innerWidth={vw}
+  onpointerdown={(e) => { if (ratingOpen && wrapEl && !wrapEl.contains(e.target as Node)) ratingOpen = false; }}
+  onkeydown={(e) => { if (ratingOpen && e.key === "Escape") { ratingOpen = false; ratingBtn?.focus(); } }}
+/>
 
 {#if phone}
   <button type="button" class="tbtn" aria-label="Filters" aria-haspopup="dialog" onclick={() => (sheet = true)}>
@@ -54,8 +60,8 @@
     </label>
   {/if}
   {#if ratings.length > 0}
-    <div class="dd-wrap">
-      <button type="button" class="dd" aria-label="Rating" aria-haspopup="true" aria-expanded={ratingOpen} onclick={() => (ratingOpen = !ratingOpen)}>
+    <div class="dd-wrap" bind:this={wrapEl}>
+      <button type="button" class="dd" bind:this={ratingBtn} aria-label="Rating" aria-haspopup="true" aria-expanded={ratingOpen} onclick={() => (ratingOpen = !ratingOpen)}>
         <Icon name="shield" size={16} />
         <span>{rating.length ? rating.map((r) => RATING_LABELS[r] ?? r).join(", ") : "Rating"}</span>
       </button>
