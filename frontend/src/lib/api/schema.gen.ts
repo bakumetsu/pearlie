@@ -1366,6 +1366,8 @@ export interface components {
             /** Error Code */
             error_code?: string | null;
             library_ref?: components["schemas"]["SavedRef"] | null;
+            /** Dest Path */
+            dest_path?: string | null;
             /** Notices */
             notices?: components["schemas"]["Problem"][];
             /** Created At */

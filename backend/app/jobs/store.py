@@ -32,6 +32,7 @@ def _to_job(row: sqlite3.Row) -> Job:
         "progress": 1.0 if row["status"] == "done" else 0.0,
         "eta_s": None,
         "error": row["error"],
+        "dest_path": row["dest_path"],
         "error_code": row["error_code"],
         "library_ref": None,
         "created_at": _utc_iso(row["created_at"]),
@@ -139,7 +140,7 @@ class JobStore:
             try:
                 cur = conn.execute(
                     "UPDATE jobs SET status='queued', error=NULL, error_code=NULL, "
-                    "notices='[]', post_json=NULL, library_ref_id=NULL, "
+                    "notices='[]', post_json=NULL, library_ref_id=NULL, dest_path=NULL, "
                     "started_at=NULL, finished_at=NULL, attempts=attempts+1, restarts=0, "
                     "updated_at=CURRENT_TIMESTAMP "
                     "WHERE id=? AND status IN ('failed', 'needs_click')",
@@ -260,6 +261,7 @@ class JobStore:
         error_code: str | None = None,
         notices: list[Problem] | None = None,
         library_ref_id: str | None = None,
+        dest_path: str | None = None,
     ) -> None:
         if notices is not None:
             notices_json = json.dumps([n.model_dump() for n in notices])
@@ -269,9 +271,9 @@ class JobStore:
         try:
             conn.execute(
                 "UPDATE jobs SET status=?, error=?, error_code=?, notices=?, "
-                "library_ref_id=?, finished_at=CURRENT_TIMESTAMP, "
+                "library_ref_id=?, dest_path=?, finished_at=CURRENT_TIMESTAMP, "
                 "updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                (state, error, error_code, notices_json, library_ref_id, job_id),
+                (state, error, error_code, notices_json, library_ref_id, dest_path, job_id),
             )
             conn.commit()
         finally:

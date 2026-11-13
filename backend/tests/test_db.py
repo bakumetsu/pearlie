@@ -32,7 +32,35 @@ SNAPSHOTS = {
         "saved_items": ["id", "source", "post_id", "md5", "target", "image_id", "created_at"],
         "settings": ["key", "value"],
         "site_icons": ["site", "data", "mime", "fetched_at"],
-    }
+    },
+    2: {
+        "destinations": ["site", "folder", "created_at"],
+        "jobs": [
+            "id",
+            "source",
+            "post_id",
+            "status",
+            "error",
+            "error_code",
+            "target",
+            "title",
+            "thumb_url",
+            "post_json",
+            "notices",
+            "library_ref_id",
+            "dest_path",
+            "attempts",
+            "restarts",
+            "started_at",
+            "finished_at",
+            "created_at",
+            "updated_at",
+        ],
+        "rules": ["id", "list", "pattern", "scope", "enabled", "created_at", "target"],
+        "saved_items": ["id", "source", "post_id", "md5", "target", "image_id", "created_at"],
+        "settings": ["key", "value"],
+        "site_icons": ["site", "data", "mime", "fetched_at"],
+    },
 }
 
 
@@ -99,3 +127,23 @@ def test_schema_snapshot_needs_version_bump(tmp_path: Path) -> None:
     conn.close()
     expected = SNAPSHOTS[SCHEMA_VERSION]
     assert snapshot == expected, "schema changed: bump SCHEMA_VERSION and add a snapshot"
+
+
+def test_v1_jobs_table_gains_dest_path(tmp_path: Path) -> None:
+    db_path = tmp_path / "old.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, "
+        "post_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', error TEXT, "
+        "library_ref_id TEXT)"
+    )
+    conn.execute("INSERT INTO jobs (source, post_id) VALUES ('nhentai', '1')")
+    conn.execute("PRAGMA user_version = 1")
+    conn.commit()
+    conn.close()
+    init_db(db_path)
+    conn = connect(db_path)
+    row = conn.execute("SELECT dest_path FROM jobs").fetchone()
+    conn.close()
+    assert row["dest_path"] is None
+    assert schema_version(db_path) == SCHEMA_VERSION
