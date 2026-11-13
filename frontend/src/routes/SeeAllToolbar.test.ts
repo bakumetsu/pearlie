@@ -4,6 +4,7 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/svelte";
 import App from "../App.svelte";
 import toolbarSrc from "../lib/browse/Toolbar.svelte?raw";
 import sheetSrc from "../lib/browse/FilterSheet.svelte?raw";
+import seeAllSrc from "./SeeAll.svelte?raw";
 
 function web(id: string) {
   return { source: "danbooru", post_id: id, title: `post ${id}`, thumb_url: `/t/${id}`, preview_url: `/p/${id}`, width: 100, height: 100, tags: [] };
@@ -299,5 +300,10 @@ describe("SeeAll toolbar", () => {
   it("touch targets are at least 44px", () => {
     expect(toolbarSrc).toContain("min-height: 44px");
     expect(sheetSrc.match(/min-height: 44px/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("phone keeps a wrapping toolbar row; nowrap only from 640px", () => {
+    expect(seeAllSrc).toMatch(/\.controls \{[^}]*flex-wrap: wrap;/);
+    expect(seeAllSrc).toMatch(/@media \(min-width: 640px\) \{ \.controls \{ flex-wrap: nowrap; \} \}/);
   });
 });

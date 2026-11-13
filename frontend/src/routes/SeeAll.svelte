@@ -542,7 +542,8 @@
   .sticky-header { transition: transform 0.2s ease; }
   .sticky-header.hidden { transform: translateY(-100%); }
   @media (prefers-reduced-motion: reduce) { .sticky-header { transition: none; } }
-  .controls { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--s-2); margin-top: var(--s-4); }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: var(--s-4); }
+  @media (min-width: 640px) { .controls { flex-wrap: nowrap; } }
   .sort-select { min-height: 44px; padding: var(--s-2) var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: var(--surface); color: var(--text); }
   .shown { font-size: 0.875rem; color: var(--muted); }
   .f-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
