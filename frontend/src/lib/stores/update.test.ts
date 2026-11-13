@@ -46,7 +46,7 @@ describe("createUpdate", () => {
   it("a failed load retries on its own and recovers; Restarting shows while health fails", async () => {
     const s = makeStatus();
     const api = {
-      getUpdateStatus: vi.fn().mockRejectedValueOnce(new ApiError(403, "forbidden")).mockResolvedValue(s),
+      getUpdateStatus: vi.fn().mockRejectedValueOnce(new ApiError(403, "forbidden", "Forbidden")).mockResolvedValue(s),
       health: vi.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue({ status: "ok" }),
     } as unknown as Api;
 
@@ -64,7 +64,7 @@ describe("createUpdate", () => {
   it("retry() reloads at once and stops the timer on success", async () => {
     const s = makeStatus();
     const api = {
-      getUpdateStatus: vi.fn().mockRejectedValueOnce(new ApiError(500, "boom")).mockResolvedValue(s),
+      getUpdateStatus: vi.fn().mockRejectedValueOnce(new ApiError(500, "boom", "Boom")).mockResolvedValue(s),
       health: vi.fn().mockResolvedValue({ status: "ok" }),
     } as unknown as Api;
 
