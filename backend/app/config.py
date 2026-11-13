@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     trusted_network: bool = False
+    allowed_hosts: str = ""
     secret_key: SecretStr = SecretStr("")
     stash_url: str = ""
     stash_api_key: SecretStr = SecretStr("")
@@ -51,6 +52,10 @@ class Settings(BaseSettings):
     @classmethod
     def _blank_log_dir(cls, v: Any) -> Any:
         return None if isinstance(v, str) and not v.strip() else v
+
+    @property
+    def allowed_host_set(self) -> frozenset[str]:
+        return frozenset(h.strip().lower() for h in self.allowed_hosts.split(",") if h.strip())
 
     def safe_summary(self) -> dict[str, str]:
         result: dict[str, str] = {}

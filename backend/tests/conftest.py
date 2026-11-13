@@ -24,6 +24,19 @@ def client(settings: Settings) -> TestClient:
 
 
 @pytest.fixture(autouse=True)
+def _allowed_test_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Starlette's default Host 'localhost' is not on the Host allowlist; use localhost."""
+    original_init = TestClient.__init__
+
+    def _patched_init(self: TestClient, *args: Any, **kwargs: Any) -> None:
+        if len(args) < 2:
+            kwargs.setdefault("base_url", "http://localhost")
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(TestClient, "__init__", _patched_init)
+
+
+@pytest.fixture(autouse=True)
 def _same_origin_header(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
     """Mutating /api routes require Origin; browsers always send it."""
     if request.node.get_closest_marker("no_default_origin"):
