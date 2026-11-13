@@ -565,9 +565,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
     border: none;
     background: none;
     cursor: pointer;

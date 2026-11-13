@@ -331,8 +331,8 @@
   .bar-btn {
     display: grid;
     place-items: center;
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: var(--s-1);
     background: transparent;

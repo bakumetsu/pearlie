@@ -82,7 +82,7 @@
 <style>
   .tbtn, .dd { position: relative; min-height: 44px; display: inline-flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
   .tbtn { min-width: 44px; justify-content: center; padding: 0; }
-  .dd select { min-height: 42px; border: none; background: transparent; color: inherit; font: inherit; }
+  .dd select { min-height: 44px; border: none; background: transparent; color: inherit; font: inherit; }
   .dd.disabled { opacity: 0.5; cursor: not-allowed; }
   .badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--text); color: var(--surface); font-size: 0.75rem; display: grid; place-items: center; }
   .dd-wrap { position: relative; }
