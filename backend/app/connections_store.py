@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from cryptography.fernet import Fernet, InvalidToken
 from pydantic import SecretStr
 
+from app import logs
 from app.config import Settings
 from app.db import connect
 
@@ -358,4 +359,5 @@ class ConnectionStore:
             secret_changed = True
 
         if secret_changed:
+            logs.register_connection_secrets(self.field_values(name))
             logger.info("key for %s changed", name)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import posixpath
 import re
@@ -16,6 +17,7 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import BaseModel, Field
 
+from app import logs
 from app.config import Settings
 from app.db import connect
 from app.models import Problem
@@ -23,6 +25,8 @@ from app.sources.base import Post, Source
 from app.sources.throttle import Throttle
 from app.targets import destinations
 from app.targets.stash_client import StashClient, StashError
+
+logger = logging.getLogger("pearlie.save")
 
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".webm"}
 TEMP_PREFIX = "pearlie-"
@@ -130,6 +134,26 @@ class StashTarget:
             name += ".part"
         return temp_dir / name
 
+    @staticmethod
+    def _fail_log(
+        step: str,
+        code: str,
+        url: str = "",
+        status: int | None = None,
+        error: str = "",
+        detail: str = "",
+    ) -> None:
+        parts = [f"step={step}", f"code={code}"]
+        if url:
+            parts.append(logs.safe_url(url))
+        if status is not None:
+            parts.append(f"status={status}")
+        if error:
+            parts.append(f"error={error}")
+        if detail:
+            parts.append(detail)
+        logger.error("%s%s", logs.ctx(), " ".join(parts))
+
     def _download(self, url: str, post: Post, ext: str) -> tuple[Path, str]:
         """Stream the file to a temp .part file and verify size/MD5."""
         md5_placeholder = post.md5 or "unknown"
@@ -142,11 +166,15 @@ class StashTarget:
         if throttle:
             throttle.wait()
 
+        started = self._clock()
+        status: int | None = None
         try:
             with self._http.stream("GET", url, follow_redirects=False) as response:
+                status = response.status_code
                 if throttle:
                     throttle.report(response.status_code, _retry_after(response))
                 if response.status_code != 200:
+                    self._fail_log("download", "download_failed", url, status=status)
                     raise SaveError(
                         "download_failed",
                         f"download returned {response.status_code}",
@@ -158,8 +186,9 @@ class StashTarget:
                         f.write(chunk)
                         h.update(chunk)
                         bytes_written += len(chunk)
-        except httpx.HTTPError:
+        except httpx.HTTPError as e:
             part_path.unlink(missing_ok=True)
+            self._fail_log("download", "download_failed", url, error=type(e).__name__)
             raise SaveError("download_failed", "download failed", 502) from None
         except SaveError:
             raise
@@ -168,16 +197,24 @@ class StashTarget:
             raise
 
         digest = h.hexdigest()
+        ms = int((self._clock() - started) * 1000)
+        info = f"status={status} bytes={bytes_written} content_length={content_length} ms={ms}"
+        info += f" md5_expected={post.md5 or 'none'} md5_got={digest}"
 
         if bytes_written == 0:
             part_path.unlink(missing_ok=True)
+            self._fail_log("download", "size_mismatch", url, detail=info)
             raise SaveError("size_mismatch", "downloaded file is empty", 502)
         if content_length is not None and int(content_length) != bytes_written:
             part_path.unlink(missing_ok=True)
+            self._fail_log("download", "size_mismatch", url, detail=info)
             raise SaveError("size_mismatch", "downloaded size differs from Content-Length", 502)
         if post.md5 and post.md5.lower() != digest:
             part_path.unlink(missing_ok=True)
+            self._fail_log("download", "md5_mismatch", url, detail=info)
             raise SaveError("md5_mismatch", "downloaded file does not match the post MD5", 502)
+        match = "yes" if post.md5 else "n/a"
+        logger.info("%sstep=download %s %s match=%s", logs.ctx(), logs.safe_url(url), info, match)
 
         final_path = self._temp_path(post, digest, ext, part=False)
         os.replace(part_path, final_path)
@@ -255,6 +292,8 @@ class StashTarget:
         finally:
             conn.close()
 
+        if deleted:
+            logger.info("step=cleanup_temp removed=%d files=%s", len(deleted), ",".join(deleted))
         return deleted
 
     def save(self, post: Post, tags: list[str]) -> SaveResult:
@@ -267,6 +306,7 @@ class StashTarget:
         dup = self._dedupe(post.source, post.post_id, post.md5)
         if dup is not None:
             img, via = dup
+            logger.info("%sstep=dedupe duplicate via=%s image=%s", logs.ctx(), via, img or "none")
             return SaveResult(
                 status="duplicate",
                 image_id=img or None,
@@ -306,6 +346,9 @@ class StashTarget:
             if dup is not None:
                 temp.unlink(missing_ok=True)
                 img, via = dup
+                logger.info(
+                    "%sstep=dedupe duplicate via=%s image=%s", logs.ctx(), via, img or "none"
+                )
                 return SaveResult(
                     status="duplicate",
                     image_id=img or None,
@@ -318,21 +361,42 @@ class StashTarget:
                     ],
                 )
 
-        dest, _resumed = self._move(
+        dest, resumed = self._move(
             temp,
             folder,
             f"{_safe(post.source)}_{_safe(post.post_id)}{ext}",
             md5,
             notices,
         )
+        clash = next((n.message for n in notices if n.code == "name_clash"), "no")
+        logger.info(
+            "%sstep=move temp=%s dest=%s resumed=%s clash=%s",
+            logs.ctx(),
+            temp.name,
+            dest.as_posix(),
+            "yes" if resumed else "no",
+            clash,
+        )
 
         stash_path = destinations.to_stash_path(dest.as_posix(), pp, ps)
+        logger.info("%sstep=path_sent disk=%s stash=%s", logs.ctx(), dest.as_posix(), stash_path)
+        logger.debug(
+            "%sstep=path_mapping pearlie_prefix=%s stash_prefix=%s", logs.ctx(), pp, ps
+        )
 
-        job = self._client.metadata_scan(stash_path)
-        self._scan(job)
+        try:
+            job = self._client.metadata_scan(stash_path)
+            self._scan(job)
+        except StashError as e:
+            self._fail_log("scan", e.code, error=e.message)
+            raise
 
         image_id = self._client.find_image_by_path(stash_path)
+        logger.info(
+            "%sstep=lookup path=%s result=%s", logs.ctx(), stash_path, image_id or "none"
+        )
         if image_id is None:
+            self._lookup_miss(dest, stash_path, md5)
             raise SaveError("image_not_found", "Stash did not index the file", 502)
 
         created: list[str] = []
@@ -343,7 +407,14 @@ class StashTarget:
                 tag_ids,
                 [post.source_url] if post.source_url else [],
             )
-        except StashError:
+            logger.info(
+                "%sstep=tags applied=%d created=%s imageUpdate=ok",
+                logs.ctx(),
+                len(tag_ids),
+                ",".join(created) or "none",
+            )
+        except StashError as e:
+            logger.warning("%sstep=tags code=%s imageUpdate=failed", logs.ctx(), e.code)
             msg = "tags and url could not be applied in Stash"
             notices.append(Problem(code="tags_not_applied", message=msg))
         if created:
@@ -355,12 +426,56 @@ class StashTarget:
             )
 
         self._record(post, md5, image_id)
+        logger.info(
+            "%sstep=record source=%s post=%s md5=%s image=%s",
+            logs.ctx(),
+            post.source,
+            post.post_id,
+            md5,
+            image_id,
+        )
 
         return SaveResult(
             status="saved",
             image_id=image_id,
             dest_path=stash_path,
             notices=notices,
+        )
+
+    def _lookup_miss(self, dest: Path, stash_path: str, md5: str) -> None:
+        """Evidence for a lookup miss (read-only; every failure here is swallowed)."""
+        try:
+            size = dest.stat().st_size if dest.exists() else None
+        except OSError:
+            size = None
+        logger.warning(
+            "%sstep=lookup_miss path=%s exists_on_disk=%s size=%s",
+            logs.ctx(),
+            stash_path,
+            "yes" if size is not None else "no",
+            size if size is not None else "n/a",
+        )
+        try:
+            roots = self._client.library_paths()
+            logger.warning("%sstep=lookup_miss stash_library_paths=%s", logs.ctx(), roots)
+        except Exception as e:
+            logger.warning(
+                "%sstep=lookup_miss library_paths failed error=%s", logs.ctx(), type(e).__name__
+            )
+        try:
+            other = self._client.find_image_by_checksum(md5)
+            logger.warning(
+                "%sstep=lookup_miss checksum=%s found_elsewhere=%s",
+                logs.ctx(),
+                md5,
+                other or "no",
+            )
+        except Exception as e:
+            logger.warning(
+                "%sstep=lookup_miss checksum query failed error=%s", logs.ctx(), type(e).__name__
+            )
+        logger.error(
+            "%sstep=lookup code=image_not_found path=%s md5=%s", logs.ctx(), stash_path, md5
         )
 
     def _dedupe(
@@ -413,15 +528,33 @@ class StashTarget:
             conn.close()
 
     def _scan(self, job_id: str) -> None:
-        deadline = self._clock() + self._settings.stash_scan_timeout_s
+        started = self._clock()
+        deadline = started + self._settings.stash_scan_timeout_s
+        polls = 0
         while True:
             job = self._client.find_job(job_id)
+            polls += 1
             status = job["status"]
+            ms = int((self._clock() - started) * 1000)
             if status == "FINISHED":
+                logger.info(
+                    "%sstep=scan scan_job=%s status=%s polls=%d ms=%d",
+                    logs.ctx(), job_id, status, polls, ms,
+                )
                 return
             if status in ("FAILED", "CANCELLED"):
+                self._fail_log(
+                    "scan",
+                    "scan_failed",
+                    detail=f"scan_job={job_id} status={status} polls={polls} ms={ms}",
+                )
                 raise SaveError("scan_failed", "Stash scan failed", 502)
             if self._clock() >= deadline:
+                self._fail_log(
+                    "scan",
+                    "scan_timeout",
+                    detail=f"scan_job={job_id} status={status} polls={polls} ms={ms}",
+                )
                 raise SaveError("scan_timeout", "Stash scan timed out", 504)
             self._sleep(1.0)
 

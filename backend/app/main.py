@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import SecretStr
 
+from app import logs
 from app.api import (
     connections,
     destinations,
@@ -163,6 +164,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # httpx logs full request URLs at INFO, and some Test calls carry api_key in the query.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logs.register_settings_secrets(settings)
+    logs.setup_logging(
+        settings.log_dir or settings.db_path.parent / "logs",
+        debug=logs.read_debug_setting(settings.db_path),
+        keep_days=settings.log_keep_days,
+    )
     logger.info(settings.safe_summary())
     worker_enabled = settings.worker_enabled
 
@@ -210,6 +217,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Built on the original settings on purpose: the store needs the .env view,
     # while app.state.settings below may be replaced by a stored-values copy.
     app.state.connection_store = ConnectionStore(settings, app.state.connections_mem)
+    logs.register_stored_connections(app.state.connection_store)
     app.state.connection_transport = None
     throttles: dict[str, Throttle] = {site: Throttle(DEFAULT_PACE[site]) for site in DEFAULT_PACE}
     app.state.throttles = throttles

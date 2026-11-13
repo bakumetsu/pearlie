@@ -9,6 +9,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Protocol
 
+from app import logs
 from app.jobs.store import JobStore
 from app.sources.base import Post, Source, SourceError
 from app.targets.stash import SaveError, SaveResult
@@ -125,14 +126,30 @@ class JobWorker:
                 self._busy.discard(source_id)
                 self._next_at[source_id] = self._clock() + self._interval
 
+    def _end(
+        self, job_id: str, state: str, code: str = "", message: str = "", level: int = logging.INFO
+    ) -> None:
+        extra = f" code={code} message={message}" if code else ""
+        logger.log(level, "job=%s end state=%s%s", job_id, state, extra)
+
     def _run(self, job_id: str, source_id: str) -> None:
+        job = self._store.get(job_id)
+        token = logs.set_job(job_id, source_id, job.post_id if job else "")
+        try:
+            target = job.target if job is not None else "?"
+            logger.info("job=%s start source=%s target=%s", job_id, source_id, target)
+            self._run_job(job_id, source_id)
+        finally:
+            logs.reset_job(token)
+
+    def _run_job(self, job_id: str, source_id: str) -> None:
         try:
             src = self._sources.get(source_id)
             if src is None:
                 self._store.finish(
                     job_id, "failed", error="source is not configured", error_code="no_source"
                 )
-                logger.info("job %s failed", job_id)
+                self._end(job_id, "failed", "no_source", "source is not configured", logging.ERROR)
                 return
 
             target_id, post_json = self._store.load_post(job_id)
@@ -144,7 +161,9 @@ class JobWorker:
                     error=f"no save target for {target_id} yet",
                     error_code="no_target",
                 )
-                logger.info("job %s failed", job_id)
+                self._end(
+                    job_id, "failed", "no_target", f"no save target for {target_id}", logging.ERROR
+                )
                 return
 
             if post_json is None:
@@ -153,7 +172,7 @@ class JobWorker:
                     self._store.finish(
                         job_id, "failed", error="job not found", error_code="unexpected_error"
                     )
-                    logger.info("job %s failed", job_id)
+                    self._end(job_id, "failed", "unexpected_error", "job not found", logging.ERROR)
                     return
                 post = src.get_post(job.post_id)
                 self._store.set_post(job_id, post)
@@ -167,7 +186,7 @@ class JobWorker:
                 self._store.finish(
                     job_id, "done", notices=result.notices, library_ref_id=result.image_id
                 )
-                logger.info("job %s done", job_id)
+                self._end(job_id, "done", message=f"image={result.image_id}")
             elif result.status == "duplicate":
                 error = result.notices[0].message if result.notices else "already saved"
                 self._store.finish(
@@ -178,7 +197,7 @@ class JobWorker:
                     notices=result.notices,
                     library_ref_id=result.image_id,
                 )
-                logger.info("job %s skipped", job_id)
+                self._end(job_id, "skipped", "duplicate", error)
             else:
                 self._store.finish(
                     job_id,
@@ -186,17 +205,21 @@ class JobWorker:
                     error="unexpected save result",
                     error_code="unexpected_error",
                 )
-                logger.info("job %s failed", job_id)
+                self._end(
+                    job_id, "failed", "unexpected_error", "unexpected save result", logging.ERROR
+                )
 
         except (SaveError, SourceError) as e:
             self._store.finish(job_id, "failed", error=e.message, error_code=e.code)
-            logger.info("job %s failed", job_id)
+            self._end(job_id, "failed", e.code, e.message, logging.ERROR)
         except Exception as e:
-            logger.error("job %s failed: %s", job_id, type(e).__name__)
+            logger.error("job %s failed: %s", job_id, type(e).__name__, exc_info=True)
             self._store.finish(
                 job_id,
                 "failed",
                 error=f"unexpected error ({type(e).__name__})",
                 error_code="unexpected_error",
             )
-            logger.info("job %s failed", job_id)
+            self._end(
+                job_id, "failed", "unexpected_error", type(e).__name__, logging.ERROR
+            )
