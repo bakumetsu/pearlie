@@ -11,6 +11,7 @@ export type SectionId =
   | 'save-folders'
   | 'trash'
   | 'update'
+  | 'changelog'
   | 'logs'
   | 'about'
 
@@ -193,6 +194,22 @@ export const SECTIONS: Section[] = [
     cards: [{ title: 'Update', rows: [{ label: 'Installed', hint: 'version and channel' }, { label: 'Latest', hint: 'newest release' }, { label: 'Channel', hint: 'main or dev' }, { label: 'Automatic check', hint: 'check for updates automatically' }] }],
   },
   {
+    id: 'changelog',
+    title: 'Changelog',
+    group: 'System',
+    later: false,
+    cards: [
+      {
+        title: 'Changelog',
+        rows: [
+          { label: 'Latest changes', hint: 'release notes, newest first' },
+          { label: "What's new since your version", hint: 'changes you have not installed yet' },
+          { label: 'Main or Dev', hint: 'which channel to read' },
+        ],
+      },
+    ],
+  },
+  {
     id: 'logs',
     title: 'Logs',
     group: 'System',
@@ -309,6 +326,7 @@ export const SECTION_ICONS: Record<SectionId, IconName> = {
   'save-folders': 'bookmark',
   trash: 'trash',
   update: 'refresh',
+  changelog: 'history',
   logs: 'list',
   about: 'info',
 }

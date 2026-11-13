@@ -72,6 +72,7 @@ class ChangeBlockOut(BaseModel):
     title: str
     range: str | None
     version: str | None
+    date: str | None
     groups: list[ChangeGroupOut]
     total: int
     more: int
@@ -86,6 +87,7 @@ class ChangelogOut(BaseModel):
     stale: bool
     whats_new: ChangeBlockOut | None
     history: list[ChangeBlockOut]
+    has_more: bool
 
 
 class ApplyOut(BaseModel):
@@ -206,6 +208,8 @@ def get_changelog(
     request: Request,
     channel: Literal["main", "dev"] | None = Query(None),
     refresh: bool = Query(False),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=10),
 ) -> ChangelogOut:
     app_state = request.app.state
     db_path: Path = app_state.settings.db_path
@@ -232,6 +236,8 @@ def get_changelog(
         latest_ref=latest_ref,
         enabled=enabled,
         force=refresh,
+        offset=offset,
+        limit=limit,
     )
     return ChangelogOut.model_validate(data)
 

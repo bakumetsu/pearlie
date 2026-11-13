@@ -1096,6 +1096,8 @@ export interface components {
             range: string | null;
             /** Version */
             version: string | null;
+            /** Date */
+            date: string | null;
             /** Groups */
             groups: components["schemas"]["ChangeGroupOut"][];
             /** Total */
@@ -1129,6 +1131,8 @@ export interface components {
             whats_new: components["schemas"]["ChangeBlockOut"] | null;
             /** History */
             history: components["schemas"]["ChangeBlockOut"][];
+            /** Has More */
+            has_more: boolean;
         };
         /** ConnectionIn */
         ConnectionIn: {
@@ -4058,6 +4062,8 @@ export interface operations {
             query?: {
                 channel?: ("main" | "dev") | null;
                 refresh?: boolean;
+                offset?: number;
+                limit?: number;
             };
             header?: never;
             path?: never;

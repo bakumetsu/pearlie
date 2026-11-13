@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 
 from app.db import init_db
-from app.update.changelog import Changelog, build_block, parse_subject
+from app.update.changelog import Changelog, build_block, commit_date, parse_subject
 from app.update.repo import API_BASE, TAGS_URL
 
 SHA_A = "a" * 40
@@ -275,6 +275,7 @@ def test_api_check_off_no_fetch(client: Any) -> None:
                 "stale": False,
                 "whats_new": None,
                 "history": [],
+                "has_more": False,
             }
 
     app.state.update_changelog = _Spy()
@@ -285,3 +286,142 @@ def test_api_check_off_no_fetch(client: Any) -> None:
     client.get("/api/update/changelog?refresh=1&channel=dev")
     assert calls[-1]["force"] is True
 
+
+
+def _dc(msg: str, date: str) -> dict[str, Any]:
+    return {**_c(msg), "commit": {"message": msg, "committer": {"date": date}}}
+
+
+def _many(n: int) -> dict[str, Any]:
+    """Tags v0.1.0 .. v0.<n>.0 with one feat commit per release (newest commit first)."""
+    names = [f"v0.{i}.0" for i in range(1, n + 1)]
+    routes: dict[str, Any] = {TAGS_URL: _tags(*names)}
+    for prev, tag in zip(names, names[1:], strict=False):
+        routes[_cmp(prev, tag)] = {"commits": [_dc(f"feat: {tag}", "2026-11-13T10:00:00Z")]}
+    routes[f"{API_BASE}/commits?sha=v0.1.0&per_page=100"] = [_dc("feat: first", "2026-01-02T00:00:00Z")]
+    return routes
+
+
+def test_commit_date_reads_newest_commit() -> None:
+    assert commit_date([_dc("x", "2026-11-13T23:59:59Z"), _dc("y", "2026-01-01T00:00:00Z")]) == "2026-11-13"
+    assert commit_date([_c("x")]) is None
+    assert commit_date([]) is None
+
+
+def test_release_block_has_date_and_dev_block_has_none(tmp_path: Path) -> None:
+    routes = {
+        **_DEV,
+        _cmp("v0.4.0", "v0.5.0"): {"commits": [_c("docs: w"), _dc("feat: b", "2026-05-06T08:00:00Z")]},
+    }
+    out = _get(_mk(tmp_path, routes), "dev", latest_ref=SHA_B, installed_commit=SHA_A)
+    assert out["history"][0]["date"] is None
+    assert out["history"][1]["date"] == "2026-05-06"
+    assert out["whats_new"]["date"] is None
+
+
+def test_paging_offset_limit_and_has_more(tmp_path: Path) -> None:
+    cl = _mk(tmp_path, _many(25))
+    p0 = _get(cl, latest_ref="0.25.0", limit=10)
+    assert [b["title"] for b in p0["history"]][0] == "v0.25.0"
+    assert len(p0["history"]) == 10 and p0["has_more"] is True
+    p1 = _get(cl, latest_ref="0.25.0", offset=10, limit=10)
+    assert [b["title"] for b in p1["history"]][0] == "v0.15.0"
+    assert p1["has_more"] is True and p1["whats_new"] is None
+    p2 = _get(cl, latest_ref="0.25.0", offset=20, limit=10)
+    assert len(p2["history"]) == 5 and p2["has_more"] is False
+    assert p2["history"][-1]["title"] == "v0.1.0"
+    assert p2["history"][-1]["date"] == "2026-01-02"
+
+
+def test_limit_is_capped_at_ten(tmp_path: Path) -> None:
+    out = _get(_mk(tmp_path, _many(15)), latest_ref="0.15.0", limit=99)
+    assert len(out["history"]) == 10
+
+
+def test_old_releases_entry_dropped_and_release_blocks_written(tmp_path: Path) -> None:
+    cl = _mk(tmp_path, _REL)
+    old = {"releases": {"key": "v0.5.0", "data": [{"title": "v0.5.0", "version": "0.5.0", "groups": []}]}}
+    cl._save(old)
+    out = _get(cl)
+    assert out["history"][0]["groups"]  # refetched, not the stale empty entry
+    stored = cl._load()
+    assert "releases" not in stored
+    assert stored["release_blocks"]["version"] == 2
+    assert set(stored["release_blocks"]["blocks"]) == {"v0.5.0", "v0.4.0", "v0.3.0"}
+
+
+def test_cache_without_version_is_refetched(tmp_path: Path) -> None:
+    seen: list[str] = []
+    cl = _mk(tmp_path, _REL, seen)
+    cl._save({"release_blocks": {"tags": ["v0.5.0"], "blocks": {"v0.5.0": {"title": "x"}}}})
+    out = _get(cl)
+    assert out["history"][0]["title"] == "v0.5.0" and "date" in out["history"][0]
+    assert _cmp("v0.4.0", "v0.5.0") in seen
+
+
+def test_check_off_returns_only_cached_blocks(tmp_path: Path) -> None:
+    seen: list[str] = []
+    cl = _mk(tmp_path, _many(25), seen)
+    _get(cl, latest_ref="0.25.0", limit=10)
+    seen.clear()
+    p0 = _get(cl, latest_ref="0.25.0", enabled=False)
+    assert len(p0["history"]) == 10 and p0["has_more"] is False
+    p1 = _get(cl, latest_ref="0.25.0", enabled=False, offset=10)
+    assert p1["history"] == [] and p1["has_more"] is False
+    assert seen == []
+
+
+def test_check_off_has_more_when_next_page_cached(tmp_path: Path) -> None:
+    cl = _mk(tmp_path, _many(25))
+    _get(cl, latest_ref="0.25.0")
+    _get(cl, latest_ref="0.25.0", offset=10)
+    out = _get(cl, latest_ref="0.25.0", enabled=False)
+    assert out["has_more"] is True
+
+
+def test_refresh_with_offset_refetches_no_cached_block(tmp_path: Path) -> None:
+    seen: list[str] = []
+    cl = _mk(tmp_path, _many(25), seen)
+    _get(cl, latest_ref="0.25.0")
+    _get(cl, latest_ref="0.25.0", offset=10)
+    seen.clear()
+    out = _get(cl, latest_ref="0.25.0", offset=10, force=True)
+    assert seen == [TAGS_URL]
+    assert len(out["history"]) == 10
+
+
+def test_refresh_with_offset_fetches_uncached_page(tmp_path: Path) -> None:
+    seen: list[str] = []
+    cl = _mk(tmp_path, _many(25), seen)
+    _get(cl, latest_ref="0.25.0")
+    seen.clear()
+    out = _get(cl, latest_ref="0.25.0", offset=10, force=True)
+    assert TAGS_URL in seen and len(seen) == 11
+    assert len(out["history"]) == 10
+
+
+def test_api_passes_offset_and_limit(client: Any) -> None:
+    from typing import cast
+
+    from fastapi import FastAPI
+
+    app = cast(FastAPI, client.app)
+    calls: list[dict[str, Any]] = []
+
+    class _Spy:
+        def get(self, channel: str, **kw: Any) -> dict[str, Any]:
+            calls.append(kw)
+            return {
+                "channel": channel,
+                "unavailable": False,
+                "stale": False,
+                "whats_new": None,
+                "history": [],
+                "has_more": True,
+            }
+
+    app.state.update_changelog = _Spy()
+    r = client.get("/api/update/changelog?offset=10&limit=5")
+    assert r.status_code == 200 and r.json()["has_more"] is True
+    assert calls[-1]["offset"] == 10 and calls[-1]["limit"] == 5
+    assert client.get("/api/update/changelog?limit=11").status_code == 422

@@ -1,5 +1,5 @@
 import { isOffline, errorText, ApiError } from "../api/client";
-import type { Api, UpdateChangelog, UpdateStatus } from "../api/client";
+import type { Api, ChangeBlock, UpdateChangelog, UpdateStatus } from "../api/client";
 import { toasts } from "./toasts.svelte";
 
 export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: number; maxMs?: number; retryMs?: number; reload?: () => void } = {}) {
@@ -14,6 +14,13 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
   let step: string | null = $state(null);
   let applyError: string | null = $state(null);
   let changelog: UpdateChangelog | null = $state(null);
+  let releases: ChangeBlock[] = $state([]);
+  let hasMore = $state(false);
+  let loadingMore = $state(false);
+  let moreError = $state(false);
+  let changelogLoading = $state(false);
+  let changelogFailed = $state(false);
+  let changelogGen = 0;
   let viewOverride: "main" | "dev" | null = $state(null);
   let timer: ReturnType<typeof setTimeout> | null = null;
   let failureStart: number | null = null;
@@ -34,13 +41,62 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
 
   const viewChannel = $derived.by((): "main" | "dev" => viewOverride ?? status?.channel ?? "main");
 
+  const PAGE = 10;
+
+  function appendReleases(blocks: ChangeBlock[]) {
+    const seen = new Set(releases.map((r) => r.title));
+    const fresh = blocks.filter((b) => !seen.has(b.title));
+    releases = [...releases, ...fresh];
+  }
+
   async function loadChangelog(refresh = false) {
     const want = viewChannel;
+    const gen = ++changelogGen;
+    changelogLoading = true;
+    changelogFailed = false;
+    moreError = false;
+    loadingMore = false;
     try {
-      const c = await api.getUpdateChangelog({ channel: want, refresh });
-      if (want === viewChannel) changelog = c;
+      const c = await api.getUpdateChangelog({ channel: want, refresh, offset: 0, limit: PAGE });
+      if (gen !== changelogGen) return;
+      changelog = c;
+      releases = [];
+      appendReleases(c.history);
+      hasMore = c.has_more;
     } catch {
-      // the card just hides the changelog; the update status stays usable
+      if (gen !== changelogGen) return;
+      changelogFailed = true;
+    } finally {
+      if (gen === changelogGen) changelogLoading = false;
+    }
+  }
+
+  /** Status first (the view starts on the installed channel), then page 0. */
+  async function openChangelog() {
+    await load(false);
+    await loadChangelog(false);
+  }
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    const want = viewChannel;
+    const gen = changelogGen;
+    const offset = releases.filter((r) => r.version != null).length;
+    loadingMore = true;
+    moreError = false;
+    try {
+      const c = await api.getUpdateChangelog({ channel: want, offset, limit: PAGE });
+      if (gen !== changelogGen) return;
+      if (c.history.length === 0 && (c.unavailable || c.stale)) {
+        moreError = true;
+      } else {
+        appendReleases(c.history);
+        hasMore = c.has_more;
+      }
+    } catch {
+      if (gen === changelogGen) moreError = true;
+    } finally {
+      if (gen === changelogGen) loadingMore = false;
     }
   }
 
@@ -48,6 +104,8 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     if (viewChannel === ch) return;
     viewOverride = ch;
     changelog = null;
+    releases = [];
+    hasMore = false;
     await loadChangelog();
   }
 
@@ -232,7 +290,6 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
         loadRestart = false;
         if (phase === "restarting") phase = "idle";
       }
-      void loadChangelog(false);
       if (phase === "idle") resume();
     } catch (e) {
       if (isOffline(e)) {
@@ -254,7 +311,6 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
       if (result.latest) lastLatest = result.latest;
       offline = false;
       error = null;
-      await loadChangelog(true);
     } catch (e) {
       if (isOffline(e)) {
         offline = true;
@@ -304,6 +360,12 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     get latest() { return latest; },
     get latestState() { return latestState; },
     get changelog() { return changelog; },
+    get releases() { return releases; },
+    get hasMore() { return hasMore; },
+    get loadingMore() { return loadingMore; },
+    get moreError() { return moreError; },
+    get changelogLoading() { return changelogLoading; },
+    get changelogFailed() { return changelogFailed; },
     get viewChannel() { return viewChannel; },
     get phase() { return phase; },
     get step() { return step; },
@@ -316,6 +378,9 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     checkNow,
     setChannel,
     setView,
+    openChangelog,
+    loadMore,
+    loadChangelog,
     setCheckEnabled,
   };
 }

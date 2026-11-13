@@ -79,13 +79,13 @@ afterEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────
 
 describe("Options", () => {
-  it("renders all 12 sections in the list (desktop, no search)", () => {
+  it("renders all 13 sections in the list (desktop, no search)", () => {
     render(Options, {
       props: { match: makeMatch() },
     });
 
     const rows = document.querySelectorAll("button[data-section]");
-    expect(rows.length).toBe(12);
+    expect(rows.length).toBe(13);
 
     const labels = Array.from(rows).map((r) =>
       r.querySelector(".section-row-label")?.textContent?.trim(),
@@ -184,7 +184,7 @@ describe("Options", () => {
     // Search present
     expect(document.querySelector('input[aria-label="Search options"]')).toBeTruthy();
     // Section rows present
-    expect(document.querySelectorAll("button[data-section]").length).toBe(12);
+    expect(document.querySelectorAll("button[data-section]").length).toBe(13);
   });
 
   it("phone: /options/viewing shows section + back button", () => {
@@ -278,7 +278,7 @@ describe("Options", () => {
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await tick();
     expect(input.value).toBe("");
-    expect(document.querySelectorAll("button[data-section]").length).toBe(12);
+    expect(document.querySelectorAll("button[data-section]").length).toBe(13);
   });
 
   it("ArrowDown moves focus to the next section row", () => {
