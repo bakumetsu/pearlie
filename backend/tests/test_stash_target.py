@@ -48,6 +48,7 @@ def make_graphql_handler(
     tag_hits: Sequence[list[dict]] = (),
     tag_create_error: bool = False,
     image_update_error: bool = False,
+    missing_images: Sequence[str] = (),
 ) -> Callable[[httpx.Request], httpx.Response]:
     _tag_hit_idx: list[int] = [0]
 
@@ -75,6 +76,11 @@ def make_graphql_handler(
                     }
                 },
             )
+
+        if "findImage(" in query:
+            iid = str(variables.get("id", ""))
+            found = None if iid in missing_images else {"id": iid}
+            return httpx.Response(200, json={"data": {"findImage": found}})
 
         if "findImages" in query:
             if "checksum" in query:
@@ -206,6 +212,7 @@ def make_target(
         tag_hits: Sequence[list[dict]] = (),
         tag_create_error: bool = False,
         image_update_error: bool = False,
+        missing_images: Sequence[str] = (),
         api_key: str = "k",
         clock: Callable[[], float] | None = None,
     ) -> StashTarget:
@@ -218,6 +225,7 @@ def make_target(
                 tag_hits=tag_hits,
                 tag_create_error=tag_create_error,
                 image_update_error=image_update_error,
+                missing_images=missing_images,
             )
         )
         site = httpx.MockTransport(
@@ -381,6 +389,56 @@ def test_duplicate_saved_items_md5_other_post(
     assert len(result.notices) == 1
     assert result.notices[0].code == "duplicate"
     assert "saved_items by md5" in result.notices[0].message
+
+
+def test_stale_index_row_dropped_and_save_goes_on(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+    graphql_calls: list[tuple[str, dict]],
+    site_requests: list[httpx.Request],
+) -> None:
+    patch_folder(monkeypatch)
+    conn = connect(settings.db_path)
+    conn.execute(
+        "INSERT INTO saved_items "
+        "(source, post_id, md5, target, image_id) "
+        "VALUES (?, ?, ?, 'stash', ?)",
+        ("fake", "42", MD5, "7"),
+    )
+    conn.commit()
+    conn.close()
+
+    target = make_target(missing_images=("7",), path_ids=("9",))
+    result = target.save(make_post(), [])
+
+    assert result.status != "duplicate"
+    assert result.image_id == "9"
+    assert site_requests
+    lookups = [v for q, v in graphql_calls if "findImage(" in q]
+    assert lookups == [{"id": "7"}]
+
+
+def test_index_row_kept_when_stash_lookup_errors(
+    settings: Settings,
+    make_target,
+    site_requests: list[httpx.Request],
+) -> None:
+    # default handler answers findImage(id) with a 400: unknown, keep the row
+    conn = connect(settings.db_path)
+    conn.execute(
+        "INSERT INTO saved_items "
+        "(source, post_id, md5, target, image_id) "
+        "VALUES (?, ?, ?, 'stash', ?)",
+        ("fake", "42", MD5, "7"),
+    )
+    conn.commit()
+    conn.close()
+    target = make_target()
+    # simulate an error path by pointing at an image the handler cannot answer
+    result = target.save(make_post(), [])
+    assert result.status == "duplicate"
+    assert site_requests == []
 
 
 def test_duplicate_stash_checksum(

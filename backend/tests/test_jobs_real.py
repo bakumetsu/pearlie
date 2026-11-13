@@ -125,6 +125,33 @@ def test_save_already_saved(tmp_path: Path) -> None:
     assert resp.json()["library_ref"] == {"kind": "image", "id": "42"}
 
 
+def test_save_stale_index_row_allowed(tmp_path: Path) -> None:
+    client, _, db_path = make_client(tmp_path)
+    conn = connect(db_path)
+    conn.execute(
+        "INSERT INTO saved_items (source, post_id, md5, target, image_id) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("danbooru", "1", "abc", "stash", "42"),
+    )
+    conn.commit()
+    conn.close()
+    seen: list[str] = []
+
+    class Gone:
+        def get_image(self, id: str) -> None:
+            seen.append(id)
+            return None
+
+    client.app.state.stash_target._client = Gone()  # pyright: ignore[reportAttributeAccessIssue]
+    resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
+    assert resp.status_code == 202
+    assert seen == ["42"]
+    conn = connect(db_path)
+    n = conn.execute("SELECT COUNT(*) FROM saved_items").fetchone()[0]
+    conn.close()
+    assert n == 0
+
+
 def test_enqueue_race(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     client, _, db_path = make_client(tmp_path)
     store = JobStore(db_path)

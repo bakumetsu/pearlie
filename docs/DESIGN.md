@@ -91,7 +91,7 @@ The stub generates placeholder media by default. For realistic photos, clips and
 ### Stash (POST `/graphql`, header `ApiKey: <key>`)
 
 Save flow for one image:
-1. Dedupe: Pearlie's own `saved_items` table, then `findImages(image_filter: { checksum: { value: $md5, modifier: EQUALS } })`.
+1. Dedupe: Pearlie's own `saved_items` table, then `findImages(image_filter: { checksum: { value: $md5, modifier: EQUALS } })`. A `saved_items` hit with an image id is checked once with `findImage(id)`; if Stash no longer has it (deleted there), the stale row is dropped and the save goes on. A Stash error keeps the row. This applies to `/api/save` (409) and to the worker; no bulk reconcile.
 2. Write the file into `stash-incoming`.
 3. `metadataScan(input: { paths: [$path] })` returns a job id; poll `findJob(input: { id })` until done.
 4. `findImages(image_filter: { path: { value: $path, modifier: EQUALS } })` gives the new image id.
