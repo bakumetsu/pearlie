@@ -41,6 +41,11 @@ export type UpdateApplied = S["ApplyOut"];
 export type UpdateChangelog = S["ChangelogOut"];
 export type ChangeBlock = S["ChangeBlockOut"];
 export type Destinations = S["Destinations"];
+export type LogLevel = "error" | "warning" | "info" | "debug";
+export type LogFileInfo = { date: string; size_bytes: number; lines: number };
+export type LogFiles = { debug: boolean; keep_days: number; dir_name: string; files: LogFileInfo[]; cap_bytes: number };
+export type LogLine = { ts: string; level: LogLevel; logger: string; text: string };
+export type LogPage = { date: string; level: LogLevel; lines: LogLine[]; next_cursor: string | null };
 
 export type Kind = "images" | "videos" | "series" | "books";
 
@@ -137,6 +142,10 @@ export interface Api {
   putUpdateSettings(body: UpdateSettingsIn, signal?: AbortSignal): Promise<UpdateStatus>;
   applyUpdate(signal?: AbortSignal): Promise<UpdateApplied>;
   getUpdateChangelog(p?: { channel?: "main" | "dev"; refresh?: boolean }, signal?: AbortSignal): Promise<UpdateChangelog>;
+  getLogs(signal?: AbortSignal): Promise<LogFiles>;
+  getLogLines(date: string, p: { level: LogLevel; cursor?: string | null; limit?: number }, signal?: AbortSignal): Promise<LogPage>;
+  putLogDebug(debug: boolean, signal?: AbortSignal): Promise<{ debug: boolean }>;
+  logDownloadUrl(date: string, level: LogLevel): string;
   testRules(tags: string[], signal?: AbortSignal): Promise<RulesTestResult>;
   saveProgress(bookId: string, page: number, signal?: AbortSignal, opts?: { keepalive?: boolean }): Promise<ProgressResult>;
 }
@@ -406,6 +415,30 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         },
         signal,
       );
+    },
+    getLogs(signal) {
+      return request<LogFiles>(baseUrl + "/api/logs", undefined, signal);
+    },
+    getLogLines(date, p, signal) {
+      return request<LogPage>(
+        buildUrl(`/api/logs/${encodeURIComponent(date)}`, {
+          level: p.level,
+          limit: p.limit ? String(p.limit) : undefined,
+          cursor: p.cursor ?? undefined,
+        }),
+        undefined,
+        signal,
+      );
+    },
+    putLogDebug(debug, signal) {
+      return request<{ debug: boolean }>(
+        baseUrl + "/api/logs/settings",
+        { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ debug }) },
+        signal,
+      );
+    },
+    logDownloadUrl(date, level) {
+      return buildUrl(`/api/logs/${encodeURIComponent(date)}/download`, { level });
     },
     getUpdateStatus(p, signal) {
       return request<UpdateStatus>(

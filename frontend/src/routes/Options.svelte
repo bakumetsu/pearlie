@@ -18,6 +18,7 @@
   import DownloadsCard from "../lib/options/DownloadsCard.svelte";
   import StatusCard from "../lib/options/StatusCard.svelte";
   import UpdateCard from "../lib/options/UpdateCard.svelte";
+  import LogsCard from "../lib/options/LogsCard.svelte";
   import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
   import SaveFoldersCard from "../lib/options/SaveFoldersCard.svelte";
   import ConnectionRows from "../lib/options/ConnectionRows.svelte";
@@ -293,6 +294,10 @@
             <StatusCard />
           {:else if activeSectionId === "update" && card.title === "Update"}
             <UpdateCard />
+          {:else if activeSectionId === "logs" && card.title === "Logging"}
+            <LogsCard />
+          {:else if activeSectionId === "logs" && card.title === "Log viewer"}
+            <!-- shown with Logging -->
           {:else}
             <section class="card">
               <h2 class="card-title">{card.title}</h2>
@@ -453,6 +458,10 @@
               <StatusCard />
             {:else if activeSectionId === "update" && card.title === "Update"}
               <UpdateCard />
+            {:else if activeSectionId === "logs" && card.title === "Logging"}
+              <LogsCard />
+            {:else if activeSectionId === "logs" && card.title === "Log viewer"}
+              <!-- shown with Logging -->
             {:else}
               <section class="card">
                 <h2 class="card-title">{card.title}</h2>

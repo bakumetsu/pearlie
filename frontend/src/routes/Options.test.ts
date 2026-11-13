@@ -205,7 +205,7 @@ describe("Options", () => {
   it("marks LATER sections with a LATER tag", () => {
     render(Options, { props: { match: makeMatch() } });
     const tags = document.querySelectorAll("button[data-section] .later-tag");
-    expect(tags.length).toBe(2);
+    expect(tags.length).toBe(1);
   });
 
   it("'/' focuses the search box", () => {
