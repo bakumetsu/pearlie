@@ -50,6 +50,7 @@ from app.connections_store import ConnectionStore
 from app.db import connect, init_db
 from app.jobs.worker import JobWorker
 from app.komga import Komga
+from app.logs import install_http_hooks
 from app.sources.base import Source
 from app.sources.danbooru import Danbooru
 from app.sources.dapi import Gelbooru, Rule34
@@ -205,7 +206,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.update_checker = FakeChecker()
         app.state.update_changelog = FakeChangelog()
     else:
-        http = httpx.Client(timeout=5.0)
+        http = install_http_hooks(httpx.Client(timeout=5.0), "update")
         app.state.update_http = http
         app.state.update_checker = UpdateChecker(
             http, settings.db_path, f"Pearlie/{current_version().version}"
@@ -219,7 +220,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.connection_store = ConnectionStore(settings, app.state.connections_mem)
     logs.register_stored_connections(app.state.connection_store)
     app.state.connection_transport = None
-    throttles: dict[str, Throttle] = {site: Throttle(DEFAULT_PACE[site]) for site in DEFAULT_PACE}
+    throttles: dict[str, Throttle] = {
+        site: Throttle(DEFAULT_PACE[site], site=site) for site in DEFAULT_PACE
+    }
     app.state.throttles = throttles
     danbooru = Danbooru(
         throttle=throttles["danbooru"],
@@ -267,7 +270,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     stash_on = stash_ok and app.state.stash is not None
     komga_on = komga_ok and app.state.komga is not None
     if "jobs" in real and (stash_on or komga_on):
-        http = httpx.Client()
+        http = install_http_hooks(httpx.Client(), "download", save=True)
         app.state.http = http
         targets: dict = {}
         hooks = []

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import httpx
 
+from app.logs import install_http_hooks
 from app.models import LibraryItem, LibraryItemDetail, Problem, Tag
 
 # Komga page numbers are 1-based with zero_based=false, same as Pearlie's reader; no conversion.
@@ -33,10 +34,13 @@ class Komga:
         using ``httpx.MockTransport`` in tests) is used as-is.
         """
         if client is None:
-            self._client: httpx.Client = httpx.Client(
-                base_url=base_url,
-                headers={"X-API-Key": api_key},
-                timeout=15.0,
+            self._client: httpx.Client = install_http_hooks(
+                httpx.Client(
+                    base_url=base_url,
+                    headers={"X-API-Key": api_key},
+                    timeout=15.0,
+                ),
+                "komga",
             )
         else:
             self._client = client

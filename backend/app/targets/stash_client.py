@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import httpx
 
+from app.logs import install_http_hooks
+
 # ---------------------------------------------------------------------------
 # Module-level GraphQL query / mutation constants
 # ---------------------------------------------------------------------------
@@ -101,10 +103,13 @@ class StashClient:
         using ``httpx.MockTransport`` in tests) is used as-is.
         """
         if client is None:
-            self._client: httpx.Client = httpx.Client(
-                base_url=base_url,
-                headers={"ApiKey": api_key},
-                timeout=15.0,
+            self._client: httpx.Client = install_http_hooks(
+                httpx.Client(
+                    base_url=base_url,
+                    headers={"ApiKey": api_key},
+                    timeout=15.0,
+                ),
+                "stash",
             )
         else:
             self._client = client

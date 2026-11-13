@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import posixpath
 import re
@@ -23,6 +24,8 @@ from app.sources.throttle import Throttle
 from app.targets import destinations
 from app.targets.comicinfo import build_cbz
 from app.targets.stash import SaveError, SaveResult, _md5_of, _retry_after
+
+logger = logging.getLogger("pearlie.komga")
 
 TEMP_PREFIX = "pearlie-"
 MAX_PAGES = 1000
@@ -144,9 +147,12 @@ class KomgaTarget:
     def save(self, post: Post, tags: list[str]) -> SaveResult:
         """Download the gallery, pack it as a CBZ, place it in Komga's folder, scan."""
         notices: list[Problem] = []
+        tag = f"source={post.source} post={post.post_id}"
         if self._saved(post):
+            logger.info("KOMGA %s duplicate via=saved_items", tag)
             return self._duplicate("saved_items by post")
         urls = self._urls(post)
+        logger.info("KOMGA %s save start pages=%d", tag, len(urls))
         dest_dir = self._check_writable(self._folder(post.source))
 
         work = self._settings.komga_temp_dir / f"{TEMP_PREFIX}{post.source}-{post.post_id}"
@@ -157,16 +163,24 @@ class KomgaTarget:
                 "destination_not_writable", f"Pearlie cannot write to {work.parent}", 422
             ) from None
         try:
-            pages = self._fetch(urls, work, post)
-            cbz = work / "gallery.cbz.part"
-            build_cbz(cbz, pages, post)
-            md5 = _md5_of(cbz)
-            target, same = self._place(cbz, dest_dir, _file_name(post), md5, notices)
+            try:
+                pages = self._fetch(urls, work, post)
+                logger.info("KOMGA %s downloaded pages=%d", tag, len(pages))
+                cbz = work / "gallery.cbz.part"
+                build_cbz(cbz, pages, post)
+                md5 = _md5_of(cbz)
+                logger.info("KOMGA %s cbz built md5=%s", tag, md5)
+                target, same = self._place(cbz, dest_dir, _file_name(post), md5, notices)
+            except SaveError as e:
+                logger.warning("KOMGA %s save failed code=%s", tag, e.code)
+                raise
         finally:
             shutil.rmtree(work, ignore_errors=True)
         self._insert(post, md5)
         if same:
+            logger.info("KOMGA %s duplicate via=same file md5=%s", tag, md5)
             return self._duplicate("same file already in the folder")
+        logger.info("KOMGA %s placed file=%s", tag, target.name)
 
         komga_path = destinations.to_stash_path(
             target.as_posix(),
@@ -174,6 +188,7 @@ class KomgaTarget:
             self._settings.komga_path_prefix_komga,
         )
         self._scan(komga_path, notices)
+        logger.info("KOMGA %s save done path=%s", tag, komga_path)
         return SaveResult(status="saved", image_id=None, dest_path=komga_path, notices=notices)
 
     def _scan(self, komga_path: str, notices: list[Problem]) -> None:
@@ -182,9 +197,11 @@ class KomgaTarget:
                 root = posixpath.normpath(str(lib.get("root", "")).replace("\\", "/"))
                 if komga_path == root or komga_path.startswith(root + "/"):
                     self._client.scan_library(str(lib["id"]))
+                    logger.info("KOMGA scan requested library=%s", lib.get("id"))
                     return
             raise KomgaError("not_found", "no library holds the folder", 404)
-        except KomgaError:
+        except KomgaError as e:
+            logger.warning("KOMGA scan failed code=%s status=%s", e.code, e.status)
             notices.append(
                 Problem(
                     code="scan_failed",
