@@ -46,7 +46,19 @@ def host_guard(request: Request) -> None:
     if host_allowed(host, request.app.state.settings.allowed_host_set):
         return
     log.warning("rejected unlisted host %r (see PEARLIE_ALLOWED_HOSTS)", host[:100])
-    raise ApiError(403, "forbidden", "host not allowed")
+    raise ApiError(403, "host_not_allowed", f"host not allowed: add {_hint_name(host)} to PEARLIE_ALLOWED_HOSTS")
+
+
+def _hint_name(host: str) -> str:
+    """Bare host name for the error hint; only plain name characters are echoed back."""
+    try:
+        name = urlparse(f"//{host}").hostname or ""
+    except ValueError:
+        name = ""
+    name = name[:100]
+    if not name or not all(c.isalnum() or c in ".-_" for c in name):
+        return "this host"
+    return name
 
 
 def origin_guard(request: Request) -> None:

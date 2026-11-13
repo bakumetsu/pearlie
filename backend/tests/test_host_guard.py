@@ -34,9 +34,19 @@ def test_rebinding_name_is_refused_even_with_matching_origin(
             json={},
             headers={"Host": host, "Origin": f"http://{host}"},
         )
-    assert get.status_code == 403 and get.json()["code"] == "forbidden"
-    assert put.status_code == 403 and put.json()["code"] == "forbidden"
+    for resp in (get, put):
+        assert resp.status_code == 403
+        assert resp.json() == {
+            "code": "host_not_allowed",
+            "message": "host not allowed: add rebind.evil.example to PEARLIE_ALLOWED_HOSTS",
+        }
     assert "rebind.evil.example" in caplog.text
+
+
+def test_unprintable_host_is_not_echoed(tmp_path: Path) -> None:
+    resp = _client(tmp_path).get("/api/logs/settings", headers={"X-Forwarded-Host": "a<b>.example"})
+    assert resp.status_code == 403
+    assert resp.json()["message"] == "host not allowed: add this host to PEARLIE_ALLOWED_HOSTS"
 
 
 @pytest.mark.parametrize(

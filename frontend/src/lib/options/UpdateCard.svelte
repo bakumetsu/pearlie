@@ -155,6 +155,7 @@
 		</li>
 	</ul>
 	{#if update.status}
+		<p class="muted">Behind a reverse proxy? Add its host name to PEARLIE_ALLOWED_HOSTS in .env before updating, or Pearlie will refuse requests from it.</p>
 		<div class="changelog" aria-label="Changelog">
 			<div class="cl-top">
 				<h3>Changelog</h3>

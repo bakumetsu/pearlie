@@ -14,6 +14,7 @@
   import { setApi, createApi } from "./lib/api/client";
   import Nav from "./lib/components/Nav.svelte";
   import Toast from "./lib/components/Toast.svelte";
+  import HostBlockBanner from "./lib/components/HostBlockBanner.svelte";
   import Search from "./routes/Search.svelte";
   import Library from "./routes/Library.svelte";
   import SeeAll from "./routes/SeeAll.svelte";
@@ -113,5 +114,6 @@
 
 <SfwToggle />
 <Toast />
+<HostBlockBanner />
 <PlayerHost />
 <MiniDock />
