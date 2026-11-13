@@ -35,6 +35,10 @@ describe("stringToTag", () => {
 });
 
 describe("parseTagInput", () => {
+  it("splits on whitespace", () => {
+    expect(parseTagInput("a b  c,a")).toEqual(["a", "b", "c"]);
+  });
+
   it("splits on commas, trims, drops empties and duplicates (case-insensitive)", () => {
     expect(parseTagInput("a, b,,a")).toEqual(["a", "b"]);
   });
