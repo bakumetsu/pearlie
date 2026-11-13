@@ -93,7 +93,6 @@
       <button class="nav next" aria-label="Next" onclick={onnext}><Icon name="chevron-right" size={24} /></button>
     {/if}
     {#if item.media_kind === "video"}
-      <!-- svelte-ignore a11y_media_has_caption -->
       <video src={item.preview_url} controls loop muted playsinline preload="metadata" style={mediaStyle}></video>
     {:else}
       <img src={item.preview_url} alt={item.title ?? ""} style={mediaStyle} />
