@@ -67,6 +67,10 @@ class KomgaTarget:
             raise SaveError("not_configured", "Komga is not configured", 503)
         return self._c
 
+    @_client.setter
+    def _client(self, client: Komga) -> None:
+        self._c = client
+
     def _folder(self, source_id: str) -> str:
         s = self._settings
         folder = destinations.resolve_site(s.db_path, source_id, s.komga_incoming_dir)

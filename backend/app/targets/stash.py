@@ -111,6 +111,10 @@ class StashTarget:
             raise SaveError("not_configured", "Stash is not configured", 503)
         return self._c
 
+    @_client.setter
+    def _client(self, client: StashClient) -> None:
+        self._c = client
+
     def _check_host(self, post: Post) -> str:
         """Validate that the file URL host is allowed for the post's source."""
         url = post.file_url

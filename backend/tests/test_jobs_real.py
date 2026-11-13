@@ -292,7 +292,8 @@ def test_create_app_no_stash_url_answers_503(tmp_path: Path) -> None:
         )
     )
     assert TestClient(app).get("/api/jobs").status_code == 503
-    assert app.state.worker is None
+    assert app.state.worker is not None
+    assert app.state.stash is None
 
 
 def test_worker_wake(tmp_path: Path) -> None:
@@ -314,7 +315,7 @@ def test_save_komga_source_queues_with_title(tmp_path: Path) -> None:
     client, sources, _ = make_client(tmp_path)
     sources["danbooru"].target = "komga"
     sources["danbooru"].posts["1"].title = "Some Gallery"
-    client.app.state.komga_target = object()  # type: ignore[attr-defined]
+    client.app.state.komga = object()  # type: ignore[attr-defined]
     resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
     assert resp.status_code == 202
     job = client.get(f"/api/jobs/{resp.json()['job_id']}").json()
