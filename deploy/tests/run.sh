@@ -74,6 +74,7 @@ echo "npm $*" >> "$STUB_LOG"
 if [[ "${1:-}" == "ci" ]]; then
   exit 0
 elif [[ "${1:-}" == "run" && "${2:-}" == "build" ]]; then
+  for i in $(seq 1 100); do echo "npm-out line $i"; done
   if [[ -e "$STUB_STATE/npm_fail" ]]; then
     exit 1
   fi
@@ -444,6 +445,7 @@ case_success() {
   else
     bad "success: npm ci" "missing"
   fi
+  expect "success: log keeps 30 npm lines" "$(grep -c 'npm-out line' "$ROOT/update.log")" 30
   if grep -q 'npm run build' "$STUB_LOG"; then
     ok "success: npm run build"
   else
@@ -523,6 +525,9 @@ case_build_fail() {
   esac
   expect "bf_npm: stub_calls systemctl" "$(stub_calls systemctl)" 0
   expect "bf_npm: state_hash" "$(state_hash)" "$H"
+  check "bf_npm: log has trim note" grep -q 'npm output trimmed to last 80 lines' "$ROOT/update.log"
+  check "bf_npm: log keeps last line" grep -qx 'npm-out line 100' "$ROOT/update.log"
+  expect "bf_npm: log keeps 80 lines" "$(grep -c 'npm-out line' "$ROOT/update.log")" 80
   no_bad_args "bf_npm: stub args"
 }
 
