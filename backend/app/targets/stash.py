@@ -544,12 +544,16 @@ class StashTarget:
                 return
             if status in ("FAILED", "CANCELLED"):
                 self._fail_log(
-                    "scan", "scan_failed", detail=f"scan_job={job_id} status={status} polls={polls} ms={ms}"
+                    "scan",
+                    "scan_failed",
+                    detail=f"scan_job={job_id} status={status} polls={polls} ms={ms}",
                 )
                 raise SaveError("scan_failed", "Stash scan failed", 502)
             if self._clock() >= deadline:
                 self._fail_log(
-                    "scan", "scan_timeout", detail=f"scan_job={job_id} status={status} polls={polls} ms={ms}"
+                    "scan",
+                    "scan_timeout",
+                    detail=f"scan_job={job_id} status={status} polls={polls} ms={ms}",
                 )
                 raise SaveError("scan_timeout", "Stash scan timed out", 504)
             self._sleep(1.0)

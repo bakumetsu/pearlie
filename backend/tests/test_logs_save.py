@@ -5,9 +5,6 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-
-from app import logs
-from app.targets.stash import SaveError
 from test_stash_target import (  # noqa: F401  (pytest fixtures)
     MD5,
     graphql_calls,
@@ -18,6 +15,9 @@ from test_stash_target import (  # noqa: F401  (pytest fixtures)
     settings,
     site_requests,
 )
+
+from app import logs
+from app.targets.stash import SaveError
 
 SENTINEL = "SENTINEL-KEY-5d2e88b1"
 
@@ -33,6 +33,19 @@ def log_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     h.close()
     logs._handler = None
     logs.clear_secrets()
+
+
+def checksum_after_dedupe(target, answers: list) -> None:
+    """First checksum query is the dedupe check (miss); later ones answer from `answers`."""
+    calls = iter(answers)
+
+    def find(_md5: str) -> str | None:
+        item = next(calls)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    target._client.find_image_by_checksum = find
 
 
 def text(d: Path) -> str:
@@ -54,7 +67,8 @@ def test_save_writes_every_step(make_target, log_dir: Path) -> None:  # noqa: F8
 
 
 def test_lookup_miss_writes_evidence(make_target, log_dir: Path) -> None:  # noqa: F811
-    target = make_target(path_ids=(), checksum_ids=("99",))
+    target = make_target(path_ids=())
+    checksum_after_dedupe(target, [None, "99"])
     with pytest.raises(SaveError) as exc:
         target.save(make_post(), [])
     assert exc.value.code == "image_not_found"
@@ -67,15 +81,11 @@ def test_lookup_miss_writes_evidence(make_target, log_dir: Path) -> None:  # noq
     assert "code=image_not_found" in out
 
 
-def test_lookup_miss_survives_failing_checksum_query(  # noqa: F811
-    make_target, log_dir: Path, monkeypatch: pytest.MonkeyPatch
+def test_lookup_miss_survives_failing_checksum_query(
+    make_target, log_dir: Path  # noqa: F811
 ) -> None:
     target = make_target(path_ids=())
-
-    def boom(_md5: str) -> str:
-        raise RuntimeError("down")
-
-    monkeypatch.setattr(target._client, "find_image_by_checksum", boom)
+    checksum_after_dedupe(target, [None, RuntimeError("down")])
     with pytest.raises(SaveError) as exc:
         target.save(make_post(), [])
     assert exc.value.code == "image_not_found"
@@ -98,9 +108,9 @@ def test_tag_failure_logged_as_warning(make_target, log_dir: Path) -> None:  # n
 
 def test_no_sentinel_on_any_pipeline_path(make_target, log_dir: Path) -> None:  # noqa: F811
     log = logging.getLogger("pearlie.jobs")
-    make_target(api_key=SENTINEL).save(make_post(), ["x"])
     with pytest.raises(SaveError):
         make_target(path_ids=()).save(make_post(), [])
+    make_target(api_key=SENTINEL).save(make_post(), ["x"])
     try:
         raise RuntimeError(f"failed api_key={SENTINEL} cookie=zz")
     except RuntimeError:

@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from app import logs
 from app.db import init_db
 from app.jobs.store import JobStore
 from app.jobs.worker import JobWorker
@@ -229,6 +230,7 @@ def test_unexpected_error_text_has_no_secret(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level("INFO")
+    caplog.handler.addFilter(logs.ScrubFilter())
     worker, store, target, sources, clock = make(tmp_path)
     target.results.append(RuntimeError("https://x/?api_key=SECRET"))
     jid = enqueue(store, sources, "danbooru", "1")

@@ -161,7 +161,9 @@ class JobWorker:
                     error=f"no save target for {target_id} yet",
                     error_code="no_target",
                 )
-                self._end(job_id, "failed", "no_target", f"no save target for {target_id}", logging.ERROR)
+                self._end(
+                    job_id, "failed", "no_target", f"no save target for {target_id}", logging.ERROR
+                )
                 return
 
             if post_json is None:
@@ -203,7 +205,9 @@ class JobWorker:
                     error="unexpected save result",
                     error_code="unexpected_error",
                 )
-                self._end(job_id, "failed", "unexpected_error", "unexpected save result", logging.ERROR)
+                self._end(
+                    job_id, "failed", "unexpected_error", "unexpected save result", logging.ERROR
+                )
 
         except (SaveError, SourceError) as e:
             self._store.finish(job_id, "failed", error=e.message, error_code=e.code)

@@ -83,7 +83,8 @@ def register_settings_secrets(settings: object) -> None:
         "nhentai_cookies",
     ):
         val = getattr(settings, name, None)
-        text = val.get_secret_value() if hasattr(val, "get_secret_value") else val
+        getter = getattr(val, "get_secret_value", None)
+        text = getter() if getter is not None else val
         if not isinstance(text, str) or not text:
             continue
         register_secret(text)
@@ -250,7 +251,9 @@ def format_line(record: logging.LogRecord, when: datetime | None = None) -> str:
 # -- handler -----------------------------------------------------------------
 
 
-def purge_old(directory: Path, keep_days: int = LOG_KEEP_DAYS, today: date | None = None) -> list[str]:
+def purge_old(
+    directory: Path, keep_days: int = LOG_KEEP_DAYS, today: date | None = None
+) -> list[str]:
     """Delete pearlie-YYYY-MM-DD.log files older than today minus keep_days; touch nothing else."""
     cutoff = (today or date.today()) - timedelta(days=keep_days)
     removed: list[str] = []
@@ -338,7 +341,8 @@ class DailyFileHandler(logging.Handler):
             if size > cap:
                 if not self._cap_noted:
                     self._cap_noted = True
-                    note = f"{when:%Y-%m-%d %H:%M:%S}.{when.microsecond // 1000:03d} ERROR pearlie.logs  {CAP_LINE}"
+                    stamp = f"{when:%Y-%m-%d %H:%M:%S}.{when.microsecond // 1000:03d}"
+                    note = f"{stamp} ERROR pearlie.logs  {CAP_LINE}"
                     self._append(day, note)
                 return
             self._append(day, line)
@@ -369,7 +373,9 @@ def read_debug_setting(db_path: Path) -> bool:
         from app.db import connect
 
         with connect(db_path) as conn:
-            row = conn.execute("SELECT value FROM settings WHERE key = ?", (SETTING_KEY,)).fetchone()
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (SETTING_KEY,)
+            ).fetchone()
         return bool(row) and row[0] == "1"
     except Exception:
         return False
@@ -407,7 +413,7 @@ def setup_logging(
     _handler = handler
     for name in (*_ROOT_NAMES, *_EXTRA_NAMES):
         logging.getLogger(name).setLevel(logging.DEBUG)
-    # With a root handler present the stdlib last-resort stderr output stops, so keep warnings visible.
+    # A root handler stops the stdlib last-resort stderr output, so keep warnings visible.
     if _console is None and not [h for h in root.handlers if h is not handler]:
         _console = logging.StreamHandler()
         _console.setLevel(logging.WARNING)

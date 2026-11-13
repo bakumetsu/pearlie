@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import SecretStr
 
+from app import logs
 from app.api import (
     connections,
     destinations,
@@ -46,7 +47,6 @@ from app.config import ConfigError, Settings, load_settings
 from app.connections_store import ConnectionStore
 from app.db import connect, init_db
 from app.jobs.worker import JobWorker
-from app import logs
 from app.komga import Komga
 from app.sources.base import Source
 from app.sources.danbooru import Danbooru
