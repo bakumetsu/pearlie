@@ -41,6 +41,12 @@ def tile_url(post: Post) -> str | None:
     return post.preview_url
 
 
+def media_kind(post: Post) -> Literal["image", "video"]:
+    """What the preview URL serves, from the file extension (query string ignored)."""
+    url = pick_url(post, "preview") or ""
+    return "video" if url.lower().split("?", 1)[0].endswith(VIDEO_EXTS) else "image"
+
+
 def pick_url(post: Post, kind: Kind) -> str | None:
     if kind == "thumb":
         return tile_url(post)

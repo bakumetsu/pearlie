@@ -2137,6 +2137,12 @@ export interface components {
             thumb_url: string;
             /** Preview Url */
             preview_url: string;
+            /**
+             * Media Kind
+             * @default image
+             * @enum {string}
+             */
+            media_kind: "image" | "video";
             /** Title */
             title?: string | null;
             /** Tags */

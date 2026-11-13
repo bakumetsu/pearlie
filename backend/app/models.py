@@ -127,6 +127,7 @@ class WebItem(BaseModel):
     post_id: str
     thumb_url: str
     preview_url: str
+    media_kind: Literal["image", "video"] = "image"  # what preview_url serves; set by the backend
     title: str | None = None
     tags: list[Tag] = Field(default_factory=list)
     width: int
