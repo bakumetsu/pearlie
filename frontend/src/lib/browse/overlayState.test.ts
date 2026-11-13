@@ -1,7 +1,8 @@
+// @vitest-environment jsdom
 // overlayState tests
 
 import { describe, it, expect } from "vitest";
-import { parseOpen, openKey, withOpen } from "./overlayState";
+import { parseOpen, openKey, withOpen, findTile } from "./overlayState";
 
 describe("parseOpen", () => {
   it("returns id for valid image key", () => {
@@ -66,5 +67,16 @@ describe("withOpen", () => {
       const result = withOpen(new URLSearchParams("open=image:old&page=2"), key);
       expect(result).toBe("page=2");
     }
+  });
+});
+
+describe("findTile", () => {
+  it("finds a tile whose id has quotes or brackets without throwing", () => {
+    document.body.innerHTML = `<div data-key="image:a">x</div><div id="t"></div>`;
+    const t = document.getElementById("t")!;
+    t.setAttribute("data-key", 'image:a"b]c');
+    const id = parseOpen(new URLSearchParams({ open: 'image:a"b]c' }))!;
+    expect(findTile(document, openKey(id))).toBe(t);
+    expect(findTile(document, "image:missing")).toBeNull();
   });
 });

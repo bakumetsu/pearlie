@@ -31,6 +31,11 @@
 
   const zoom = createZoom();
   let lastNav = 0;
+  // Cleared on unmount so a pending stepInList cannot move the user to another item.
+  let alive = true;
+  $effect(() => () => {
+    alive = false;
+  });
 
   let vw = $state(window.innerWidth);
   const phone = $derived(vw < PHONE_MAX);
@@ -88,9 +93,11 @@
       router.navigate(itemHref(next), { replace: true });
       return;
     }
-    void stepInList(grid, key, 1, { cross: true }).then((t) => {
-      if (t) router.navigate(itemHref(t), { replace: true });
-    });
+    const from = key;
+    const cancelled = () => !alive || key !== from;
+    void stepInList(grid, key, 1, { cross: true, cancelled }).then((t) => {
+      if (t && !cancelled()) router.navigate(itemHref(t), { replace: true });
+    }).catch(() => {});
   }
 
   function goPrev(): void {
@@ -99,9 +106,11 @@
       router.navigate(itemHref(prev), { replace: true });
       return;
     }
-    void stepInList(grid, key, -1, { cross: true }).then((t) => {
-      if (t) router.navigate(itemHref(t), { replace: true });
-    });
+    const from = key;
+    const cancelled = () => !alive || key !== from;
+    void stepInList(grid, key, -1, { cross: true, cancelled }).then((t) => {
+      if (t && !cancelled()) router.navigate(itemHref(t), { replace: true });
+    }).catch(() => {});
   }
 
   function back(): void {
