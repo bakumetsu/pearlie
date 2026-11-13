@@ -111,16 +111,23 @@ describe("ConnectionRows", () => {
     expect(screen.queryByText("Address")).toBeNull();
   });
 
-  it("key input is empty with placeholder Leave empty to keep", async () => {
+  it("key input is empty; a set key shows a fixed 8-dot placeholder", async () => {
     await renderRows();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Stash" }));
     await screen.findByRole("dialog");
+    const missing = document.getElementById("conn-key") as HTMLInputElement;
+    expect(missing.value).toBe("");
+    expect(missing.placeholder).toBe("");
 
-    const keyInput = document.getElementById("conn-key") as HTMLInputElement;
-    expect(keyInput).not.toBeNull();
-    expect(keyInput.value).toBe("");
-    expect(keyInput.placeholder).toBe("Leave empty to keep");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Edit Komga" }));
+    await screen.findByRole("dialog");
+    const set = document.getElementById("conn-key") as HTMLInputElement;
+    expect(set.value).toBe("");
+    expect(set.placeholder).toBe("•".repeat(8));
+    expect(screen.queryByRole("button", { name: "Clear key" })).toBeNull();
   });
 
   it("can_store false: key input disabled, env note shown, Address still editable", async () => {
@@ -192,26 +199,34 @@ describe("ConnectionRows", () => {
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("Clear key asks for confirm first, then sends {clear_secret: true}", async () => {
+  it("touching a set key and leaving it empty removes it on Save", async () => {
     const { putConnection } = await renderRows();
 
-    // Open komga which has a key set
     fireEvent.click(screen.getByRole("button", { name: "Edit Komga" }));
     await screen.findByRole("dialog");
+    expect(screen.queryByText("Key will be removed")).toBeNull();
 
-    // Click "Clear key"
-    fireEvent.click(screen.getByRole("button", { name: "Clear key" }));
-    // Confirm screen appears, putConnection NOT called yet
+    const keyInput = document.getElementById("conn-key") as HTMLInputElement;
+    fireEvent.input(keyInput, { target: { value: "x" } });
+    fireEvent.input(keyInput, { target: { value: "" } });
+    expect(await screen.findByText("Key will be removed")).toBeDefined();
     expect(putConnection).not.toHaveBeenCalled();
-    expect(await screen.findByText("Clear the stored key?")).toBeDefined();
 
-    // Click "Clear" to confirm
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await vi.waitFor(() =>
       expect(putConnection).toHaveBeenCalledWith("komga", { clear_secret: true }),
     );
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("an untouched set key sends nothing and the DOM never holds a key", async () => {
+    const { putConnection } = await renderRows();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Komga" }));
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(putConnection).not.toHaveBeenCalled();
   });
 
   it("Escape closes the dialog", async () => {

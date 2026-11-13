@@ -95,10 +95,22 @@ describe("per-site credential fields", () => {
     expect(document.body.innerHTML).not.toContain("alice");
   });
 
-  it("clearing one field asks first and sends clear_fields for that field only", async () => {
+  it("a set field shows a fixed 8-dot placeholder and has no clear button", async () => {
+    await open("Danbooru");
+    const key = document.getElementById("conn-f-api_key") as HTMLInputElement;
+    expect(key.placeholder).toBe("•".repeat(8));
+    expect(key.value).toBe("");
+    expect((document.getElementById("conn-f-login") as HTMLInputElement).placeholder).toBe("");
+    expect(screen.queryByRole("button", { name: "Clear API key" })).toBeNull();
+  });
+
+  it("touching a set field and leaving it empty sends clear_fields for it only", async () => {
     const { putConnection } = await open("Danbooru");
-    fireEvent.click(screen.getByRole("button", { name: "Clear API key" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Confirm clear API key" }));
+    const key = document.getElementById("conn-f-api_key") as HTMLInputElement;
+    fireEvent.input(key, { target: { value: "z" } });
+    fireEvent.input(key, { target: { value: "" } });
+    expect(await screen.findByText("API key will be removed")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await vi.waitFor(() =>
       expect(putConnection).toHaveBeenCalledWith("danbooru", { clear_fields: ["api_key"] }),
     );
