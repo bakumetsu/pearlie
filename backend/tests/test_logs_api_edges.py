@@ -13,7 +13,10 @@ DATE = "2026-11-13"
 
 
 def _lines(n: int) -> list[str]:
-    return [_line(f"{DATE} 10:00:{i:02d}.000", "INFO", "pearlie.app", f"line-{i:02d}") for i in range(n)]
+    return [
+        _line(f"{DATE} 10:00:{i:02d}.000", "INFO", "pearlie.app", f"line-{i:02d}")
+        for i in range(n)
+    ]
 
 
 def test_listing_does_not_delete_old_files(client: Any) -> None:
