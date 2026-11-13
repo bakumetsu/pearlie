@@ -84,11 +84,22 @@ export type ListParams = {
   seed?: number;
 };
 
+// GET /api/search/filters: what each source supports (design D-16 section 5).
+export type SourceFilters = {
+  order?: string[];
+  rating?: string[];
+  per_page_options?: number[];
+  per_page_max?: number;
+  order_blocked_when?: unknown;
+};
+export type SearchFilters = Record<string, SourceFilters>;
+
 export interface Api {
   search(
-    p: { q: string; sources?: string[]; page?: number; page_size?: number },
+    p: { q: string; sources?: string[]; page?: number; page_size?: number; order?: string; rating?: string[] },
     signal?: AbortSignal,
   ): Promise<SearchResponse>;
+  searchFilters(signal?: AbortSignal): Promise<SearchFilters>;
   list(kind: Kind, p: ListParams, signal?: AbortSignal): Promise<LibraryPage>;
   save(body: SaveBody, signal?: AbortSignal): Promise<SaveAccepted>;
   health(signal?: AbortSignal): Promise<Health>;
@@ -203,10 +214,16 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
           sources: p.sources?.length ? p.sources.join(",") : undefined,
           page: p.page !== undefined ? String(p.page) : undefined,
           page_size: p.page_size !== undefined ? String(p.page_size) : undefined,
+          order: p.order,
+          rating: p.rating?.length ? p.rating.join(",") : undefined,
         }),
         undefined,
         signal,
       );
+    },
+    async searchFilters(signal) {
+      const r = await request<{ sources?: SearchFilters } & SearchFilters>(baseUrl + "/api/search/filters", undefined, signal);
+      return r.sources ?? r;
     },
     list(kind, p, signal) {
       return request<LibraryPage>(

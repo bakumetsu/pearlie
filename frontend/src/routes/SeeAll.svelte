@@ -20,6 +20,9 @@
   import ViewBar from "../lib/browse/ViewBar.svelte";
   import WallOverlay from "../lib/browse/WallOverlay.svelte";
   import Lightbox from "../lib/components/Lightbox.svelte";
+  import Toolbar from "../lib/browse/Toolbar.svelte";
+  import { parseOrder, parseRating, ORDER_LABELS, RATING_LABELS, DEFAULT_ORDERS, DEFAULT_RATINGS } from "../lib/browse/filters";
+  import type { SourceFilters } from "../lib/api/client";
   import { parseOpen, openKey, withOpen } from "../lib/browse/overlayState";
 
   let { match }: { match: Match } = $props();
@@ -33,7 +36,11 @@
   onMount(() => {
     h1?.focus();
     viewSettings.load(api);
+    // Capability list for the toolbar; the built-in defaults stand in until it answers or if it fails.
+    api.searchFilters().then((f) => { filterCaps = f; }).catch(() => {});
   });
+
+  let filterCaps = $state<Record<string, SourceFilters>>({});
 
   const source = $derived.by(() => {
     switch (match.name) {
@@ -48,6 +55,8 @@
   const q = $derived(match.query.get("q") ?? "");
   const sort = $derived(match.query.get("sort") ?? "");
   const favorite = $derived(match.query.get("favorite") === "true");
+  const order = $derived(parseOrder(match.query.get("order")));
+  const rating = $derived(parseRating(match.query.get("rating")));
   const seed = $derived(match.query.get("seed") ?? undefined);
   const page = $derived(pageOf(match.query.get("page")));
   const vs = $derived(viewSettings.get(source));
@@ -146,8 +155,13 @@
     };
   });
 
+  const caps = $derived(filterCaps[source]);
+  const orderOptions = $derived(caps?.order ?? DEFAULT_ORDERS);
+  const ratingOptions = $derived(caps?.rating ?? DEFAULT_RATINGS);
+  const showFilters = $derived(!isLibrary && source !== "nhentai" && (caps ? (caps.order?.length ?? 0) > 1 || (caps.rating?.length ?? 0) > 0 : true));
+
   const listKey = $derived(
-    [source, q, sort, favorite ? "1" : "0", seed ?? "", String(vs.per_page), infinite ? "inf" : "pg"].join("|"),
+    [source, q, sort, favorite ? "1" : "0", order, rating.join(","), seed ?? "", String(vs.per_page), infinite ? "inf" : "pg"].join("|"),
   );
 
   $effect(() => {
@@ -160,6 +174,8 @@
     const srt = sort;
     const fav = favorite;
     const sd = seed;
+    const ord = order;
+    const rat = rating;
     const pp = vs.per_page;
     const adopt = untrack(() => grid.listKey === listKey && grid.status === "done" && grid.takeCrossed());
     // Infinite mode has no pager: it always starts at page 1 (the URL sync below drops ?page=)
@@ -186,7 +202,7 @@
     } else {
       notice = null;
       const loader = async (p: number, signal: AbortSignal) => {
-        const r = await api.search({ q: qq, sources: [src], page: p, page_size: pp }, signal);
+        const r = await api.search({ q: qq, sources: [src], page: p, page_size: pp, order: ord || undefined, rating: rat.length ? rat : undefined }, signal);
         const s = r.sections?.find((x: { id: string }) => x.id === src);
         return {
           items: s?.items ?? [],
@@ -312,6 +328,18 @@
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   }
 
+  // One filter change (or one sheet Apply) is one navigation, so one request.
+  function onFilters(next: { order: string; rating: string[] }) {
+    const qs = new SvelteURLSearchParams(match.query);
+    qs.delete("page");
+    if (next.order) qs.set("order", next.order);
+    else qs.delete("order");
+    if (next.rating.length) qs.set("rating", next.rating.join(","));
+    else qs.delete("rating");
+    const search = qs.toString();
+    router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
+  }
+
   function onFavToggle() {
     const qs = new SvelteURLSearchParams(match.query);
     qs.delete("page");
@@ -383,11 +411,23 @@
         <Icon name="arrow-left" size={20} />
       </button>
       <h2 class="header-title">{title}{grid.total != null ? ` (${grid.total})` : ""}</h2>
+      {#if !isLibrary && grid.total == null && grid.status === "done"}<span class="shown" data-testid="shown">{grid.items.length} shown</span>{/if}
     </div>
 
     {#if q}
       <div class="q-chips">
         <span class="q-chip">{q}</span>
+      </div>
+    {/if}
+
+    {#if showFilters && (order || rating.length)}
+      <div class="f-chips">
+        {#if order}
+          <button type="button" class="f-chip" aria-label={`Remove ${ORDER_LABELS[order] ?? order}`} onclick={() => onFilters({ order: "", rating })}>{ORDER_LABELS[order] ?? order}<Icon name="x" size={14} /></button>
+        {/if}
+        {#each rating as r (r)}
+          <button type="button" class="f-chip" aria-label={`Remove ${RATING_LABELS[r] ?? r}`} onclick={() => onFilters({ order, rating: rating.filter((x) => x !== r) })}>{RATING_LABELS[r] ?? r}<Icon name="x" size={14} /></button>
+        {/each}
       </div>
     {/if}
 
@@ -406,6 +446,11 @@
           <Icon name={favorite ? "heart-filled" : "heart"} size={16} />
           Favorites
         </button>
+      </div>
+    {/if}
+    {#if showFilters}
+      <div class="controls">
+        <Toolbar {order} {rating} orders={orderOptions} ratings={ratingOptions} onapply={onFilters} />
       </div>
     {/if}
     {#if viewSettings.ready}
@@ -474,6 +519,9 @@
   .header-title { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text); }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); margin-top: var(--s-4); }
   .sort-select { padding: var(--s-2) var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: var(--surface); color: var(--text); }
+  .shown { font-size: 0.875rem; color: var(--muted); }
+  .f-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
+  .f-chip { min-height: 44px; display: inline-flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-4); background: none; color: var(--text); cursor: pointer; font: inherit; }
   .fav-toggle { min-height: 44px; display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: none; color: var(--text); cursor: pointer; }
   .error-box { padding: var(--s-4); text-align: center; color: var(--text); }
   .more-box { min-height: 44px; padding: var(--s-4); text-align: center; color: var(--text); }
