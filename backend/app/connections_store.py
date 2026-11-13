@@ -186,8 +186,21 @@ class ConnectionStore:
 
     # -- env lock detection --
 
+    def _env_set(self, attr: str) -> bool:
+        if attr not in self._settings.model_fields_set:
+            return False
+        val: object = getattr(self._settings, attr)
+        if isinstance(val, SecretStr):
+            return bool(val.get_secret_value())
+        return bool(val)
+
     def field_locked(self, name: str, fid: str) -> bool:
         attr: str = self._field_def(name, fid).env_attr
+        # An env key belongs to the env address: once the address is user-set
+        # (no env address), the env key is not used, so it never reaches that host.
+        addr_attr, _ = ENV_FIELDS.get(name, ("", ""))
+        if addr_attr and PRIMARY.get(name) == fid and not self._env_set(addr_attr):
+            return False
         if attr and attr in self._settings.model_fields_set:
             val: object = getattr(self._settings, attr)
             if isinstance(val, SecretStr):

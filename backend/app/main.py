@@ -96,11 +96,16 @@ def _with_stored_connections(settings: Settings, store: ConnectionStore) -> Sett
     updates: dict[str, object] = {}
     if stash_url and stash_url != settings.stash_url:
         updates["stash_url"] = stash_url
-    if stash_key and stash_key != settings.stash_api_key.get_secret_value():
+    # A changed address drops the env key; only the key typed for it may go there.
+    if (stash_key or "stash_url" in updates) and (
+        stash_key != settings.stash_api_key.get_secret_value()
+    ):
         updates["stash_api_key"] = SecretStr(stash_key)
     if komga_url and komga_url != settings.komga_url:
         updates["komga_url"] = komga_url
-    if komga_key and komga_key != settings.komga_api_key.get_secret_value():
+    if (komga_key or "komga_url" in updates) and (
+        komga_key != settings.komga_api_key.get_secret_value()
+    ):
         updates["komga_api_key"] = SecretStr(komga_key)
     if updates:
         return settings.model_copy(update=updates)
