@@ -47,15 +47,25 @@
     <button
       type="button"
       class="rail-toggle"
-      aria-expanded={!rail.collapsed}
-      aria-label={rail.collapsed ? "Expand navigation" : "Collapse navigation"}
-      title={rail.collapsed ? "Expand navigation" : "Collapse navigation"}
+      aria-label="Hide navigation"
+      title="Hide navigation"
       onclick={() => rail?.toggle()}
     >
-      <Icon name={rail.collapsed ? "chevrons-right" : "chevrons-left"} size={20} />
+      <Icon name="chevrons-left" size={20} />
     </button>
   {/if}
 </nav>
+{#if variant === "rail" && rail?.collapsed}
+  <button
+    type="button"
+    class="rail-reopen"
+    aria-label="Show navigation"
+    title="Show navigation"
+    onclick={() => rail?.toggle()}
+  >
+    <Icon name="chevrons-right" size={20} />
+  </button>
+{/if}
 
 <style>
   .nav {
@@ -75,7 +85,7 @@
     border-right: 1px solid var(--line);
     z-index: 900;
     overflow-x: hidden;
-    transition: width 250ms ease;
+    transition: width 250ms ease, transform 250ms ease;
   }
 
   .nav.rail .nav-item {
@@ -109,7 +119,7 @@
     background: var(--surface);
   }
 
-  /* Short screens (landscape phone) and the collapsed rail: slim icons, no labels. Short screens scroll if it still does not fit. */
+  /* Short screens (landscape phone) slim icons, no labels. Short screens scroll if it still does not fit. */
   @media (max-height: 500px) {
     .nav.rail {
       overflow-y: auto;
@@ -127,14 +137,34 @@
     }
   }
 
-  :global(:root[data-rail="slim"]) .nav.rail .nav-item {
-    height: 44px;
-    min-height: 44px;
-    padding: 0;
+  /* Hidden rail: off screen and out of the tab order; the re-open button takes over. */
+  :global(:root[data-rail="hidden"]) .nav.rail {
+    transform: translateX(-100%);
+    visibility: hidden;
+    border-right-color: transparent;
   }
 
-  :global(:root[data-rail="slim"]) .nav.rail .nav-label {
-    display: none;
+  .rail-reopen {
+    position: fixed;
+    top: var(--s-2);
+    left: var(--s-2);
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--rail);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    color: var(--muted);
+    cursor: pointer;
+    z-index: 900;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .rail-reopen:hover {
+    color: var(--text);
+    background: var(--surface);
   }
 
   @media (prefers-reduced-motion: reduce) {
