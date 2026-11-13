@@ -339,7 +339,9 @@ def test_status_rollback_schema_verdicts(client: TestClient, tmp_path: Path) -> 
     assert data["rollback"]["backup_at"] is not None
 
     (tmp_path / "previous" / "app" / "VERSION.json").write_text(
-        json.dumps({"version": "0.9.2", "channel": "main", "commit": None, "schema": SCHEMA_VERSION}),
+        json.dumps(
+            {"version": "0.9.2", "channel": "main", "commit": None, "schema": SCHEMA_VERSION}
+        ),
         encoding="utf-8",
     )
     assert client.get("/api/update/status").json()["rollback"]["schema"] == "same"
@@ -366,7 +368,8 @@ def test_restart_starts_transient_unit(client: TestClient, tmp_path: Path) -> No
     assert resp.status_code == 202
     assert resp.json() == {"state": "restarting"}
     assert any(
-        argv[:2] == ["systemd-run", "--unit=pearlie-restart"] and argv[-3:] == ["systemctl", "restart", "pearlie"]
+        argv[:2] == ["systemd-run", "--unit=pearlie-restart"]
+        and argv[-3:] == ["systemctl", "restart", "pearlie"]
         for argv in fake_run.calls
     )
 
@@ -459,6 +462,8 @@ def test_read_previous_reads_version_schema_backup(tmp_path: Path) -> None:
     assert runner.read_previous(tmp_path) is None
     (tmp_path / "current").mkdir()
     _add_previous(tmp_path, 3, version="0.9.2+abc")
-    version, schema, backup_at = cast(tuple[str, int | None, str | None], runner.read_previous(tmp_path))
+    version, schema, backup_at = cast(
+        tuple[str, int | None, str | None], runner.read_previous(tmp_path)
+    )
     assert (version, schema) == ("0.9.2", 3)
     assert backup_at is not None

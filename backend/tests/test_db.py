@@ -9,9 +9,24 @@ SNAPSHOTS = {
     1: {
         "destinations": ["site", "folder", "created_at"],
         "jobs": [
-            "id", "source", "post_id", "status", "error", "error_code", "target", "title",
-            "thumb_url", "post_json", "notices", "library_ref_id", "attempts", "restarts",
-            "started_at", "finished_at", "created_at", "updated_at",
+            "id",
+            "source",
+            "post_id",
+            "status",
+            "error",
+            "error_code",
+            "target",
+            "title",
+            "thumb_url",
+            "post_json",
+            "notices",
+            "library_ref_id",
+            "attempts",
+            "restarts",
+            "started_at",
+            "finished_at",
+            "created_at",
+            "updated_at",
         ],
         "rules": ["id", "list", "pattern", "scope", "enabled", "created_at", "target"],
         "saved_items": ["id", "source", "post_id", "md5", "target", "image_id", "created_at"],
@@ -80,9 +95,7 @@ def test_schema_snapshot_needs_version_bump(tmp_path: Path) -> None:
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
         )
     )
-    snapshot = {
-        t: [row[1] for row in conn.execute(f"PRAGMA table_info({t})")] for t in tables
-    }
+    snapshot = {t: [row[1] for row in conn.execute(f"PRAGMA table_info({t})")] for t in tables}
     conn.close()
     expected = SNAPSHOTS[SCHEMA_VERSION]
     assert snapshot == expected, "schema changed: bump SCHEMA_VERSION and add a snapshot"
