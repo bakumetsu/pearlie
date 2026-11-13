@@ -660,6 +660,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/search/filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Filters
+         * @description Per source: which filters its toolbar offers. No site call.
+         */
+        get: operations["search_filters_api_search_filters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/destinations": {
         parameters: {
             query?: never;
@@ -1132,6 +1152,13 @@ export interface components {
             locked: boolean;
             /** Primary */
             primary: boolean;
+        };
+        /** FiltersResponse */
+        FiltersResponse: {
+            /** Sources */
+            sources: {
+                [key: string]: components["schemas"]["SourceFilters"];
+            };
         };
         /** FolderBody */
         FolderBody: {
@@ -1689,6 +1716,7 @@ export interface components {
             /** Next Page */
             next_page?: number | null;
             error?: components["schemas"]["Problem"] | null;
+            notice?: components["schemas"]["Problem"] | null;
         };
         /** SettingsIn */
         SettingsIn: {
@@ -1717,6 +1745,29 @@ export interface components {
             locked: boolean;
             /** Backing Off */
             backing_off: boolean;
+        };
+        /**
+         * SourceFilters
+         * @description What the order/rating/per-page toolbar may offer for one source.
+         */
+        SourceFilters: {
+            /** Order */
+            order?: string[];
+            /** Rating */
+            rating?: string[];
+            /** Sort */
+            sort?: string[];
+            /**
+             * Favorite
+             * @default false
+             */
+            favorite: boolean;
+            /** Per Page Options */
+            per_page_options?: number[];
+            /** Per Page Max */
+            per_page_max: number;
+            /** Order Blocked When */
+            order_blocked_when?: number | null;
         };
         /** StashHealth */
         StashHealth: {
@@ -1915,6 +1966,8 @@ export interface operations {
                 sources?: string;
                 page?: number;
                 page_size?: number;
+                order?: string;
+                rating?: string;
             };
             header?: never;
             path?: never;
@@ -3161,6 +3214,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_filters_api_search_filters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FiltersResponse"];
                 };
             };
         };

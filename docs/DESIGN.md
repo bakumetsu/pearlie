@@ -147,7 +147,8 @@ Notes:
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/search?q=&sources=&page=&page_size=` | one search across library and sites; results grouped per section |
+| GET | `/api/search?q=&sources=&page=&page_size=&order=&rating=` | one search across library and sites; results grouped per section; `order` newest\|score and `rating` csv g,s,q,e apply to web sites (a section `notice` says when a filter is local or dropped) |
+| GET | `/api/search/filters` | per source: the order, rating, sort, per-page options the toolbar may offer; no site call |
 | GET | `/api/library/stash/images` · `/videos` · `/api/library/komga/series` · `/books` | the "See all" views |
 | GET / PUT | `/api/view-settings`, `/api/view-settings/{source}` | per-source grid view (`mode` grid, wall, masonry or list; `per_page`; `zoom` 1-5), stored as `view.<source>` in the settings table (in memory in fixture mode). GET fills defaults (grid, 60, 3; nhentai 25) and returns `per_page_options` and `per_page_max`; PUT answers 422 `invalid` for an unknown source, mode, zoom, or a `per_page` outside 1 to the source cap |
 | GET / PUT | `/api/player-settings` | the player's Autoplay user setting, body and answer `{"autoplay": bool}`, stored as `player.autoplay` ('1' or '0') in the settings table (in memory in fixture mode). GET answers `false` until set; PUT answers 422 for a body that is not a boolean |

@@ -10,6 +10,7 @@ from app.paging import clamp_page_size
 from app.sources.auth import SiteAuth, build_auth
 from app.sources.base import Post, Rating, SearchPage, SourceError
 from app.sources.danbooru import _retry_after
+from app.sources.filters import dapi_filter_tags
 from app.sources.throttle import DEFAULT_PACE, Throttle
 
 # The API key travels in the query string, and httpx logs request URLs at INFO.
@@ -104,18 +105,31 @@ class DapiSource:
             raise SourceError("upstream_error", f"{self.name} sent invalid JSON")
         return [d for d in data if isinstance(d, dict) and "id" in d]
 
-    def search(self, tags: list[str], page: int = 1, page_size: int | None = None) -> SearchPage:
-        """Search posts by tags; rating:x tags are filtered here, the rest go to the site."""
+    def search(
+        self,
+        tags: list[str],
+        page: int = 1,
+        page_size: int | None = None,
+        order: str | None = None,
+        rating: list[str] | None = None,
+    ) -> SearchPage:
+        """Search posts by tags; typed rating:x tags are filtered here, the rest go to the site.
+
+        The order and rating filters are sent to the site as tags and checked here too.
+        """
         size = clamp_page_size(self.id, page_size or self._page_size)
         cleaned = [t.strip() for t in tags if t.strip()]
         ratings = [t for t in cleaned if rating_filter(t) is not None]
         server_tags = [t for t in cleaned if t not in ratings]
+        filter_tags, notices = dapi_filter_tags(self.id, order, rating or [])
+        server_tags += filter_tags
+        ratings += [t for t in filter_tags if rating_filter(t) is not None]
         data = self._get(
             {"tags": " ".join(server_tags), "pid": max(page, 1) - 1, "limit": size}
         )
         posts = [p for p in map(self._to_post, data) if self._rating_ok(p, ratings)]
         next_page = page + 1 if len(data) == size else None
-        return SearchPage(posts=posts, page=page, next_page=next_page)
+        return SearchPage(posts=posts, page=page, next_page=next_page, notices=notices)
 
     @staticmethod
     def _rating_ok(post: Post, rating_tags: list[str]) -> bool:

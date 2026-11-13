@@ -367,8 +367,15 @@ class Store:
 
     # ── web ────────────────────────────────────────────────────────
 
-    def web_items(self, source: str) -> list[WebItem]:
-        return [self._build_web_item(r) for r in self.web.get(source, []) if not r.get("_rejected")]
+    def web_items(
+        self, source: str, order: str | None = None, rating: list[str] | None = None
+    ) -> list[WebItem]:
+        rows = [r for r in self.web.get(source, []) if not r.get("_rejected")]
+        if rating:
+            rows = [r for r in rows if r.get("_rating") in rating]
+        if order == "score":
+            rows = sorted(rows, key=lambda r: -r.get("_score", 0))
+        return [self._build_web_item(r) for r in rows]
 
     def web_hidden(self, source: str) -> int:
         return sum(1 for r in self.web.get(source, []) if r.get("_rejected"))
