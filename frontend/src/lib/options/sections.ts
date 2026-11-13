@@ -238,6 +238,13 @@ export interface SearchHit {
   cards: OptionCard[]
 }
 
+/** True when a row's label or hint contains the (lower-cased) query. */
+export function rowMatches(row: OptionRow, q: string): boolean {
+  return (
+    row.label.toLowerCase().includes(q) || row.hint.toLowerCase().includes(q)
+  )
+}
+
 /**
  * Filter sections by a case-insensitive substring match on card title,
  * row label, or row hint.  Empty / whitespace-only query returns every

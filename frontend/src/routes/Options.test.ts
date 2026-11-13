@@ -9,6 +9,13 @@ const hoisted = vi.hoisted(() => ({ router: null as unknown }));
 
 vi.mock("../lib/ctx", () => ({ getRouter: () => hoisted.router }));
 
+// Search results mount the real cards; every API call stays pending.
+vi.mock("../lib/api/client", async (orig) => ({
+  ...((await orig()) as Record<string, unknown>),
+  getApi: () =>
+    new Proxy({}, { get: () => () => new Promise(() => {}) }),
+}));
+
 // ── Mocks ─────────────────────────────────────────────────────────
 
 function makeMatch(overrides: Partial<Match> = {}): Match {
@@ -113,6 +120,27 @@ describe("Options", () => {
 
     const noResults = document.querySelector(".no-results");
     expect(noResults?.textContent?.trim()).toBe("Nothing found");
+  });
+
+  it("search renders the real setting cards and marks the matching row", async () => {
+    render(Options, { props: { match: makeMatch() } });
+    const input = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Search options"]',
+    )!;
+    const nativeSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!;
+    nativeSetter.call(input, "version info");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    await tick();
+
+    const pane = document.querySelector(".pane")!;
+    expect(pane.querySelectorAll("[data-hit]").length).toBeGreaterThan(0);
+    // generic card: the matching row carries the highlight
+    const marked = pane.querySelectorAll("[data-row-hit]");
+    expect(marked.length).toBeGreaterThan(0);
   });
 
   it("search keeps focus while typing several characters", async () => {
