@@ -364,15 +364,4 @@
 		justify-content: flex-end;
 		margin-top: var(--pad, 16px);
 	}
-
-	@media (max-width: 768px) {
-		.overlay {
-			align-items: flex-end;
-		}
-		.dialog {
-			width: 100%;
-			max-width: none;
-			border-radius: var(--radius, 8px) var(--radius, 8px) 0 0;
-		}
-	}
 </style>

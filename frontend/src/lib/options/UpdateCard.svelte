@@ -395,14 +395,15 @@
 		inset: 0;
 		background: rgba(0, 0, 0, 0.5);
 		display: flex;
-		align-items: flex-end;
+		align-items: center;
 		justify-content: center;
+		padding: var(--s-2);
 		z-index: 100;
 	}
 	.sheet {
 		background: var(--surface);
 		border: 1px solid var(--line);
-		border-radius: var(--r-md) var(--r-md) 0 0;
+		border-radius: var(--r-md);
 		padding: var(--s-3);
 		width: 100%;
 		max-width: 480px;
