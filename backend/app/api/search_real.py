@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query, Request
 from app.api.errors import ApiError
 from app.api.library_komga_real import fetch_komga_page
 from app.api.library_stash_real import fetch_stash_page
+from app.api.media_web_real import pick_url, proxy_path, remember, tile_url
 from app.api.search_filters import parse_order, parse_rating, unsupported_notice
 from app.filters.rules import evaluate, load_rules
 from app.komga import Komga, KomgaError, book_item
@@ -50,15 +51,10 @@ _LIBRARY = {"stash_images", "stash_videos", "komga_books"}
 # Targets a save job can reach today; T-131b adds "komga".
 _SAVE_TARGETS = {"stash", "komga"}
 
-VIDEO_EXTS = (".mp4", ".webm", ".mov", ".m4v", ".mkv")
-
 
 def _web_thumb(post: Post) -> str:
     """Pick the tile image: the ~850 px sample, else the preview (video samples fall back)."""
-    sample = post.sample_url
-    if sample and not sample.lower().split("?", 1)[0].endswith(VIDEO_EXTS):
-        return sample
-    return post.preview_url or ""
+    return tile_url(post) or ""
 
 
 def _library_section(request: Request, sid: str, q: str, page: int, page_size: int, multi: bool):
@@ -171,6 +167,7 @@ def search(
             else:
                 items: list[LibraryItem | WebItem] = []
                 hidden = 0
+                remember(request.app, page_result.posts)
                 for post in page_result.posts:
                     verdict = evaluate(post.tags, rules)
                     if verdict is not None and verdict.decision != "warn":
@@ -180,8 +177,16 @@ def search(
                         WebItem(
                             source=typing.cast(WebSource, post.source),
                             post_id=post.post_id,
-                            thumb_url=_web_thumb(post),
-                            preview_url=post.file_url or post.preview_url or "",
+                            thumb_url=(
+                                proxy_path(post.source, post.post_id, "thumb")
+                                if _web_thumb(post)
+                                else ""
+                            ),
+                            preview_url=(
+                                proxy_path(post.source, post.post_id, "preview")
+                                if pick_url(post, "preview")
+                                else ""
+                            ),
                             title=post.title,
                             tags=[
                                 Tag(name=n, scope=kind)

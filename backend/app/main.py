@@ -27,6 +27,7 @@ from app.api import (
     media_komga_real,
     media_stash,
     media_stash_real,
+    media_web_real,
     options,
     player_settings,
     rules,
@@ -81,6 +82,7 @@ REAL_ROUTERS: dict[str, APIRouter] = {
     "media_stash": media_stash_real.router,
     "library_stash": library_stash_real.router,
     "media_komga": media_komga_real.router,
+    "media_web": media_web_real.router,
     "jobs": jobs_real.router,
     "rules": rules_real.router,
 }
