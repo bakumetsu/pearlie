@@ -151,7 +151,9 @@ class Changelog:
             )
             ok = ok and page_ok
             has_more = (
-                more_tags and page_ok and (force or enabled or next_cached)
+                more_tags
+                and page_ok
+                and (force or enabled or next_cached)
                 and len(releases) == len(names[offset : offset + limit])
             )
             dev: Block | None = None

@@ -44,8 +44,8 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
   const PAGE = 10;
 
   function appendReleases(blocks: ChangeBlock[]) {
-    const seen = new Set(releases.map((r) => r.title));
-    const fresh = blocks.filter((b) => !seen.has(b.title));
+    const seen = releases.map((r) => r.title);
+    const fresh = blocks.filter((b) => !seen.includes(b.title));
     releases = [...releases, ...fresh];
   }
 

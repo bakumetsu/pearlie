@@ -21,9 +21,7 @@ def _tags(*names: str) -> list[dict[str, Any]]:
     return [{"name": n, "commit": {"sha": "0" * 40}} for n in names]
 
 
-def _mk(
-    tmp_path: Path, routes: dict[str, Any], seen: list[str] | None = None
-) -> Changelog:
+def _mk(tmp_path: Path, routes: dict[str, Any], seen: list[str] | None = None) -> Changelog:
     db = tmp_path / "p.db"
     init_db(db)
 
@@ -287,7 +285,6 @@ def test_api_check_off_no_fetch(client: Any) -> None:
     assert calls[-1]["force"] is True
 
 
-
 def _dc(msg: str, date: str) -> dict[str, Any]:
     return {**_c(msg), "commit": {"message": msg, "committer": {"date": date}}}
 
@@ -298,12 +295,17 @@ def _many(n: int) -> dict[str, Any]:
     routes: dict[str, Any] = {TAGS_URL: _tags(*names)}
     for prev, tag in zip(names, names[1:], strict=False):
         routes[_cmp(prev, tag)] = {"commits": [_dc(f"feat: {tag}", "2026-11-13T10:00:00Z")]}
-    routes[f"{API_BASE}/commits?sha=v0.1.0&per_page=100"] = [_dc("feat: first", "2026-01-02T00:00:00Z")]
+    routes[f"{API_BASE}/commits?sha=v0.1.0&per_page=100"] = [
+        _dc("feat: first", "2026-01-02T00:00:00Z")
+    ]
     return routes
 
 
 def test_commit_date_reads_newest_commit() -> None:
-    assert commit_date([_dc("x", "2026-11-13T23:59:59Z"), _dc("y", "2026-01-01T00:00:00Z")]) == "2026-11-13"
+    assert (
+        commit_date([_dc("x", "2026-11-13T23:59:59Z"), _dc("y", "2026-01-01T00:00:00Z")])
+        == "2026-11-13"
+    )
     assert commit_date([_c("x")]) is None
     assert commit_date([]) is None
 
@@ -311,7 +313,9 @@ def test_commit_date_reads_newest_commit() -> None:
 def test_release_block_has_date_and_dev_block_has_none(tmp_path: Path) -> None:
     routes = {
         **_DEV,
-        _cmp("v0.4.0", "v0.5.0"): {"commits": [_c("docs: w"), _dc("feat: b", "2026-05-06T08:00:00Z")]},
+        _cmp("v0.4.0", "v0.5.0"): {
+            "commits": [_c("docs: w"), _dc("feat: b", "2026-05-06T08:00:00Z")]
+        },
     }
     out = _get(_mk(tmp_path, routes), "dev", latest_ref=SHA_B, installed_commit=SHA_A)
     assert out["history"][0]["date"] is None
@@ -340,7 +344,12 @@ def test_limit_is_capped_at_ten(tmp_path: Path) -> None:
 
 def test_old_releases_entry_dropped_and_release_blocks_written(tmp_path: Path) -> None:
     cl = _mk(tmp_path, _REL)
-    old = {"releases": {"key": "v0.5.0", "data": [{"title": "v0.5.0", "version": "0.5.0", "groups": []}]}}
+    old = {
+        "releases": {
+            "key": "v0.5.0",
+            "data": [{"title": "v0.5.0", "version": "0.5.0", "groups": []}],
+        }
+    }
     cl._save(old)
     out = _get(cl)
     assert out["history"][0]["groups"]  # refetched, not the stale empty entry
