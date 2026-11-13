@@ -1613,6 +1613,8 @@ export interface components {
             allow_blurred_tags?: boolean | null;
             /** Trash Retention Days */
             trash_retention_days?: number | null;
+            /** Confirm Purge */
+            confirm_purge?: boolean | null;
             /** Infinite Scroll */
             infinite_scroll?: boolean | null;
             /** Source Pace */

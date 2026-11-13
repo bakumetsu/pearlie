@@ -115,7 +115,7 @@ export function createOptions(deps: {
 
   function applyPatch(base: Options, patch: OptionsUpdate): Options {
     const defined = Object.fromEntries(
-      Object.entries(patch).filter(([k, v]) => v !== null && v !== undefined && k !== "source_pace")
+      Object.entries(patch).filter(([k, v]) => v !== null && v !== undefined && k !== "source_pace" && k !== "confirm_purge")
     );
     let result: Options = { ...base, ...defined };
     if (patch.source_pace && result.source_pace) {
