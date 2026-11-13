@@ -66,6 +66,7 @@ class OptionsUpdate(BaseModel):
     backdrop_lightbox: StrictBool | None = None
     allow_blurred_tags: StrictBool | None = None
     trash_retention_days: StrictInt | None = Field(default=None, ge=1, le=365)
+    confirm_purge: StrictBool | None = None
     infinite_scroll: StrictBool | None = None
     source_pace: dict[str, float] | None = None
     hidden_sites: list[str] | None = None
@@ -210,7 +211,8 @@ def get_options(request: Request) -> Options:
     abt_raw = read("options.global.allow_blurred_tags")
     allow_blurred_tags: bool = abt_raw == "1" if abt_raw is not None else False
 
-    trd_raw = read("options.global.trash_retention_days")
+    # Fixture mode: the store owns retention, so options and trash cannot disagree.
+    trd_raw = str(store.retention_days) if fixture else read("options.global.trash_retention_days")
     trash_retention_days: int = min(365, max(1, int(_num(trd_raw, 7))))
 
     is_raw = read("options.global.infinite_scroll")
@@ -288,7 +290,7 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
     if body.trash_retention_days is not None:
         write("options.global.trash_retention_days", str(body.trash_retention_days))
         if fixture:
-            store.set_retention(body.trash_retention_days)
+            store.set_retention(body.trash_retention_days, purge=body.confirm_purge is True)
 
     if body.hidden_sites is not None:
         for site in body.hidden_sites:

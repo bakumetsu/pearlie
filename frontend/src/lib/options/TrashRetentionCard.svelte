@@ -78,7 +78,7 @@
 	}
 
 	function confirmDelete() {
-		store.set({ trash_retention_days: dialogDays });
+		store.set({ trash_retention_days: dialogDays, confirm_purge: true });
 		dialogOpen = false;
 		if (previouslyFocused) previouslyFocused.focus();
 	}

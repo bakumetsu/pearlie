@@ -324,10 +324,10 @@ class Store:
             self.trash.clear()
         return TrashEmptied(removed=count)
 
-    def set_retention(self, days: int) -> int:
-        """Set retention, recompute every entry's expires = trashed_at + days*86400,
-        drop entries whose expires < time.time(), return the count dropped.
-        Idempotent."""
+    def set_retention(self, days: int, purge: bool = False) -> int:
+        """Set retention for new deletes. Existing entries only ever get a later expiry
+        (never an earlier one) unless purge is True, which recomputes every expiry as
+        trashed_at + days*86400 and drops entries already past it. Return the count dropped."""
         with self._lock:
             now = time.time()
             self.retention_days = days
@@ -335,10 +335,14 @@ class Store:
             for token in list(self.trash):
                 entry = self.trash[token]
                 trashed_at = entry.get("trashed_at", entry["expires"] - 7 * 86400)
-                entry["expires"] = trashed_at + days * 86400
-                if entry["expires"] < now:
+                new_expires = trashed_at + days * 86400
+                if not purge:
+                    entry["expires"] = max(entry["expires"], new_expires)
+                elif new_expires < now:
                     del self.trash[token]
                     dropped += 1
+                else:
+                    entry["expires"] = new_expires
             return dropped
 
     def purge_preview(self, days: int) -> int:
