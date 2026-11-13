@@ -81,7 +81,7 @@
 
 <Nav current={match.name} queueBadge={jobs.badge} onnavigate={(e) => linkClick(e, router)} />
 
-<main style="margin-left: var(--rail-w)">
+<main class="main" style="margin-left: var(--rail-w)">
   {#key match.name}
     {#if match.name === "discover"}
       <Search {match} />
@@ -117,3 +117,15 @@
 <HostBlockBanner />
 <PlayerHost />
 <MiniDock />
+
+<style>
+  .main {
+    transition: margin-left 250ms ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .main {
+      transition: none;
+    }
+  }
+</style>
