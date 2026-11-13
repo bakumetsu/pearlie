@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
+  import { rail } from "../stores/rail.svelte";
 
   interface Props {
     current: string;
@@ -42,6 +43,18 @@
       {/if}
     </a>
   {/each}
+  {#if variant === "rail" && rail}
+    <button
+      type="button"
+      class="rail-toggle"
+      aria-expanded={!rail.collapsed}
+      aria-label={rail.collapsed ? "Expand navigation" : "Collapse navigation"}
+      title={rail.collapsed ? "Expand navigation" : "Collapse navigation"}
+      onclick={() => rail?.toggle()}
+    >
+      <Icon name={rail.collapsed ? "chevrons-right" : "chevrons-left"} size={20} />
+    </button>
+  {/if}
 </nav>
 
 <style>
@@ -61,6 +74,8 @@
     background: var(--rail);
     border-right: 1px solid var(--line);
     z-index: 900;
+    overflow-x: hidden;
+    transition: width 250ms ease;
   }
 
   .nav.rail .nav-item {
@@ -70,6 +85,62 @@
     flex-direction: column;
     gap: var(--s-1);
     padding: var(--s-2) 0;
+  }
+
+  .rail-toggle {
+    margin-top: auto;
+    flex: none;
+    width: 100%;
+    height: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .rail-toggle:hover {
+    color: var(--text);
+    background: var(--surface);
+  }
+
+  /* Short screens (landscape phone) and the collapsed rail: slim icons, no labels. Short screens scroll if it still does not fit. */
+  @media (max-height: 500px) {
+    .nav.rail {
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+
+    .nav.rail .nav-item {
+      height: 44px;
+      min-height: 44px;
+      padding: 0;
+    }
+
+    .nav.rail .nav-label {
+      display: none;
+    }
+  }
+
+  :global(:root[data-rail="slim"]) .nav.rail .nav-item {
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+
+  :global(:root[data-rail="slim"]) .nav.rail .nav-label {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nav.rail {
+      transition: none;
+    }
   }
 
   /* --- bar variant --- */

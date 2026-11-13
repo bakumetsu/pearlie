@@ -1,5 +1,6 @@
 <script lang="ts">
 
+  import type { Snippet } from "svelte";
   import type { Chip } from "../query";
   import { commitText, removeLastChip } from "../query";
   import Icon from "./Icon.svelte";
@@ -8,10 +9,14 @@
     chips,
     onchange,
     label,
+    onsubmit,
+    trailing,
   }: {
     chips: Chip[];
     onchange: (chips: Chip[]) => void;
     label?: string;
+    onsubmit?: () => void;
+    trailing?: Snippet;
   } = $props();
 
   let text = $state("");
@@ -45,10 +50,13 @@
     placeholder={chips.length === 0 ? "Search tags, e.g. cat -dog artist:x" : ""}
     autocomplete="off"
     onkeydown={(e) => {
-      if ((e.key === " " || e.key === "Enter" || e.key === ",") && text.trim()) {
+      if ((e.key === "Enter" || e.key === ",") && text.trim()) {
         e.preventDefault();
         onchange(commitText(chips, text));
         text = "";
+      } else if (e.key === "Enter" && !text.trim()) {
+        e.preventDefault();
+        onsubmit?.();
       } else if (e.key === "Backspace" && text === "") {
         onchange(removeLastChip(chips));
       }
@@ -65,6 +73,7 @@
       }
     }}
   />
+  {@render trailing?.()}
 </div>
 
 <style>
@@ -108,7 +117,7 @@
     display: inline-flex;
     align-items: center;
     gap: 2px;
-    padding: 2px var(--s-1);
+    padding: 2px 18px 2px var(--s-1);
     border-radius: var(--r-sm);
     background: var(--accent-bg);
     color: var(--accent);

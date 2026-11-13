@@ -125,6 +125,33 @@ def test_save_already_saved(tmp_path: Path) -> None:
     assert resp.json()["library_ref"] == {"kind": "image", "id": "42"}
 
 
+def test_save_stale_index_row_allowed(tmp_path: Path) -> None:
+    client, _, db_path = make_client(tmp_path)
+    conn = connect(db_path)
+    conn.execute(
+        "INSERT INTO saved_items (source, post_id, md5, target, image_id) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("danbooru", "1", "abc", "stash", "42"),
+    )
+    conn.commit()
+    conn.close()
+    seen: list[str] = []
+
+    class Gone:
+        def get_image(self, id: str) -> None:
+            seen.append(id)
+            return None
+
+    client.app.state.stash_target._client = Gone()  # pyright: ignore[reportAttributeAccessIssue]
+    resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
+    assert resp.status_code == 202
+    assert seen == ["42"]
+    conn = connect(db_path)
+    n = conn.execute("SELECT COUNT(*) FROM saved_items").fetchone()[0]
+    conn.close()
+    assert n == 0
+
+
 def test_enqueue_race(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     client, _, db_path = make_client(tmp_path)
     store = JobStore(db_path)
@@ -265,7 +292,8 @@ def test_create_app_no_stash_url_answers_503(tmp_path: Path) -> None:
         )
     )
     assert TestClient(app).get("/api/jobs").status_code == 503
-    assert app.state.worker is None
+    assert app.state.worker is not None
+    assert app.state.stash is None
 
 
 def test_worker_wake(tmp_path: Path) -> None:
@@ -273,3 +301,23 @@ def test_worker_wake(tmp_path: Path) -> None:
     assert isinstance(cast(FastAPI, client.app).state.worker, JobWorker)
     resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
     assert resp.status_code == 202
+
+
+def test_save_komga_source_without_komga_target(tmp_path: Path) -> None:
+    client, sources, _ = make_client(tmp_path)
+    sources["danbooru"].target = "komga"
+    resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "no_target"
+
+
+def test_save_komga_source_queues_with_title(tmp_path: Path) -> None:
+    client, sources, _ = make_client(tmp_path)
+    sources["danbooru"].target = "komga"
+    sources["danbooru"].posts["1"].title = "Some Gallery"
+    client.app.state.komga = object()  # type: ignore[attr-defined]
+    resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
+    assert resp.status_code == 202
+    job = client.get(f"/api/jobs/{resp.json()['job_id']}").json()
+    assert job["target"] == "komga"
+    assert job["title"] == "Some Gallery"

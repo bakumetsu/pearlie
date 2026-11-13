@@ -8,11 +8,12 @@ from pathlib import Path
 
 import httpx
 import uvicorn
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import SecretStr
 
+from app import logs
 from app.api import (
     connections,
     destinations,
@@ -31,14 +32,18 @@ from app.api import (
     rules,
     rules_real,
     search,
+    search_filters,
     search_real,
+    site_icons,
+    tabs,
     trash,
     update,
     view_settings,
 )
 from app.api import fixture as fixture_api
+from app.api import logs as logs_api
+from app.api.errors import ApiError, stub_router
 from app.api.errors import install as install_errors
-from app.api.errors import stub_router
 from app.api.guard import mutation_guard
 from app.api.health import router as health_router
 from app.config import ConfigError, Settings, load_settings
@@ -46,12 +51,17 @@ from app.connections_store import ConnectionStore
 from app.db import connect, init_db
 from app.jobs.worker import JobWorker
 from app.komga import Komga
+from app.logs import install_http_hooks
 from app.sources.base import Source
 from app.sources.danbooru import Danbooru
+from app.sources.dapi import Gelbooru, Rule34
+from app.sources.nhentai import NHentai
 from app.sources.throttle import DEFAULT_PACE, Throttle
+from app.targets.komga import KomgaTarget
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
 from app.update import runner
+from app.update.changelog import Changelog, FakeChangelog
 from app.update.check import FakeChecker, UpdateChecker
 from app.update.version import current_version
 
@@ -86,11 +96,16 @@ def _with_stored_connections(settings: Settings, store: ConnectionStore) -> Sett
     updates: dict[str, object] = {}
     if stash_url and stash_url != settings.stash_url:
         updates["stash_url"] = stash_url
-    if stash_key and stash_key != settings.stash_api_key.get_secret_value():
+    # A changed address drops the env key; only the key typed for it may go there.
+    if (stash_key or "stash_url" in updates) and (
+        stash_key != settings.stash_api_key.get_secret_value()
+    ):
         updates["stash_api_key"] = SecretStr(stash_key)
     if komga_url and komga_url != settings.komga_url:
         updates["komga_url"] = komga_url
-    if komga_key and komga_key != settings.komga_api_key.get_secret_value():
+    if (komga_key or "komga_url" in updates) and (
+        komga_key != settings.komga_api_key.get_secret_value()
+    ):
         updates["komga_api_key"] = SecretStr(komga_key)
     if updates:
         return settings.model_copy(update=updates)
@@ -119,6 +134,46 @@ async def _daily_update_check(app_: FastAPI) -> None:
         await asyncio.sleep(86400)
 
 
+def _build_stash(settings: Settings) -> StashClient | None:
+    if not settings.stash_url:
+        return None
+    return StashClient(settings.stash_url, settings.stash_api_key.get_secret_value())
+
+
+def _build_komga(settings: Settings) -> Komga | None:
+    if not settings.komga_url:
+        return None
+    return Komga(settings.komga_url, settings.komga_api_key.get_secret_value())
+
+
+def _require_configured(name: str, clients: tuple[str, ...]):
+    """Per-request guard: 503 until at least one of *clients* is connected."""
+
+    def check(request: Request) -> None:
+        state = request.app.state
+        if all(getattr(state, c, None) is None for c in clients):
+            raise ApiError(503, "not_configured", f"{name} is not configured")
+
+    return check
+
+
+def rebuild_client(app: FastAPI, name: str) -> None:
+    if app.state.settings.mode == "fixture":
+        return
+    settings = _with_stored_connections(app.state.settings, app.state.connection_store)
+    app.state.settings = settings
+    if name == "komga":
+        app.state.komga = _build_komga(settings)
+        komga_target = getattr(app.state, "komga_target", None)
+        if komga_target is not None:
+            komga_target.set_client(app.state.komga)
+    elif name == "stash":
+        app.state.stash = _build_stash(settings)
+        stash_target = getattr(app.state, "stash_target", None)
+        if stash_target is not None:
+            stash_target.set_client(app.state.stash)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     if settings is None:
         settings = load_settings()
@@ -126,6 +181,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # httpx logs full request URLs at INFO, and some Test calls carry api_key in the query.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logs.register_settings_secrets(settings)
+    logs.setup_logging(
+        settings.log_dir or settings.db_path.parent / "logs",
+        debug=logs.read_debug_setting(settings.db_path),
+        keep_days=settings.log_keep_days,
+    )
     logger.info(settings.safe_summary())
     worker_enabled = settings.worker_enabled
 
@@ -159,20 +220,45 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.update_http = None
     if settings.mode == "fixture":
         app.state.update_checker = FakeChecker()
+        app.state.update_changelog = FakeChangelog()
     else:
-        http = httpx.Client(timeout=5.0)
+        http = install_http_hooks(httpx.Client(timeout=5.0), "update")
         app.state.update_http = http
         app.state.update_checker = UpdateChecker(
+            http, settings.db_path, f"Pearlie/{current_version().version}"
+        )
+        app.state.update_changelog = Changelog(
             http, settings.db_path, f"Pearlie/{current_version().version}"
         )
     app.state.connections_mem = {}
     # Built on the original settings on purpose: the store needs the .env view,
     # while app.state.settings below may be replaced by a stored-values copy.
     app.state.connection_store = ConnectionStore(settings, app.state.connections_mem)
+    logs.register_stored_connections(app.state.connection_store)
     app.state.connection_transport = None
-    throttles: dict[str, Throttle] = {site: Throttle(DEFAULT_PACE[site]) for site in DEFAULT_PACE}
+    throttles: dict[str, Throttle] = {
+        site: Throttle(DEFAULT_PACE[site], site=site) for site in DEFAULT_PACE
+    }
     app.state.throttles = throttles
-    sources: dict[str, Source] = {"danbooru": Danbooru(throttle=throttles["danbooru"])}
+    danbooru = Danbooru(
+        throttle=throttles["danbooru"],
+        credentials=lambda: app.state.connection_store.field_values("danbooru"),
+    )
+    sources: dict[str, Source] = {
+        "danbooru": danbooru,
+        "rule34": Rule34(
+            throttle=throttles["rule34"],
+            credentials=lambda: app.state.connection_store.field_values("rule34"),
+        ),
+        "gelbooru": Gelbooru(
+            throttle=throttles["gelbooru"],
+            credentials=lambda: app.state.connection_store.field_values("gelbooru"),
+        ),
+        "nhentai": NHentai(
+            throttle=throttles["nhentai"],
+            credentials=lambda: app.state.connection_store.field_values("nhentai"),
+        ),
+    }
     app.state.sources = sources
     options.apply_pace(app)
 
@@ -188,49 +274,42 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings.mode == "real":
         settings = _with_stored_connections(settings, app.state.connection_store)
         app.state.settings = settings
-    komga_ok = bool(settings.komga_url)
-    stash_ok = bool(settings.stash_url)
-    app.state.komga = (
-        Komga(settings.komga_url, settings.komga_api_key.get_secret_value())
-        if komga_ok and settings.mode != "fixture"
-        else None
-    )
-
-    app.state.stash = (
-        StashClient(settings.stash_url, settings.stash_api_key.get_secret_value())
-        if settings.stash_url and settings.mode != "fixture"
-        else None
-    )
+    app.state.komga = _build_komga(settings) if settings.mode != "fixture" else None
+    app.state.stash = _build_stash(settings) if settings.mode != "fixture" else None
 
     app.state.worker = None
     app.state.http = None
-    if "jobs" in real and stash_ok and app.state.stash is not None:
-        http = httpx.Client()
+    app.state.stash_target = None
+    app.state.komga_target = None
+    if "jobs" in real:
+        http = install_http_hooks(httpx.Client(), "download", save=True)
         app.state.http = http
         stash_target = StashTarget(
             settings, app.state.stash, http, app.state.sources, throttles=throttles
         )
+        komga_target = KomgaTarget(
+            settings, app.state.komga, http, app.state.sources, throttles=throttles
+        )
+        app.state.stash_target = stash_target
+        app.state.komga_target = komga_target
         app.state.worker = JobWorker(
             settings.db_path,
             app.state.sources,
-            {"stash": stash_target},
+            {"stash": stash_target, "komga": komga_target},
             interval_s=settings.download_interval_s,
-            startup_hooks=[stash_target.cleanup_temp],
+            startup_hooks=[stash_target.cleanup_temp, komga_target.cleanup_temp],
         )
 
-    komga_names = {"library_komga", "media_komga"}
-    stash_names = {"library_stash", "media_stash", "jobs"}
-    stubbed: set[str] = set()
+    needs = {
+        "library_komga": ("komga",),
+        "media_komga": ("komga",),
+        "library_stash": ("stash",),
+        "media_stash": ("stash",),
+        "jobs": ("stash", "komga"),
+    }
     for name in real:
-        if (name in komga_names and not komga_ok) or (name in stash_names and not stash_ok):
-            app.include_router(
-                stub_router(REAL_ROUTERS[name], 503, "not_configured", f"{name} is not configured")
-            )
-            stubbed.add(name)
-        else:
-            app.include_router(REAL_ROUTERS[name])
-    if stubbed:
-        logger.warning("not configured, answering 503: %s", ", ".join(sorted(stubbed)))
+        deps = [Depends(_require_configured(name, needs[name]))] if name in needs else []
+        app.include_router(REAL_ROUTERS[name], dependencies=deps)
     if settings.mode == "real":
         for name, router in FIXTURE_ROUTERS.items():
             if name not in REAL_ROUTERS:
@@ -251,11 +330,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.include_router(fixture_api.router)
     app.state.fixture_routers = mounted_fixture
 
+    app.include_router(search_filters.router)
     app.include_router(destinations.router)
     app.include_router(view_settings.router)
+    app.include_router(tabs.router)
+    app.include_router(logs_api.router)
     app.include_router(player_settings.router)
     app.include_router(options.router)
     app.include_router(connections.router)
+    app.include_router(site_icons.router)
     app.include_router(update.router)
     app.include_router(health_router)
 

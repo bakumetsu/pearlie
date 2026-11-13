@@ -1,11 +1,15 @@
 """Danbooru source adapter."""
 
+from collections.abc import Callable
 from urllib.parse import urlparse
 
 import httpx
 
+from app.logs import install_http_hooks
 from app.paging import clamp_page_size
+from app.sources.auth import SiteAuth, build_auth
 from app.sources.base import Post, Rating, SearchPage, SourceError
+from app.sources.filters import danbooru_plan
 from app.sources.throttle import DEFAULT_PACE, Throttle
 
 RATING_MAP: dict[str, Rating] = {
@@ -57,21 +61,30 @@ class Danbooru:
         base_url: str = "https://danbooru.donmai.us",
         tag_limit: int = 2,  # anonymous search cap
         page_size: int = 60,
+        credentials: Callable[[], dict[str, str]] | None = None,
     ) -> None:
-        self._client = client or httpx.Client(
-            timeout=15.0, headers={"User-Agent": "Pearlie/0.1"}
+        self._client = client or install_http_hooks(
+            httpx.Client(timeout=15.0, headers={"User-Agent": "Pearlie/0.1"}), "danbooru"
         )
-        self._throttle = throttle or Throttle(DEFAULT_PACE["danbooru"])
+        self._throttle = throttle or Throttle(DEFAULT_PACE["danbooru"], site="danbooru")
         self._base_url = base_url
         self.file_hosts = (urlparse(base_url).hostname or "", "cdn.donmai.us")
         self._tag_limit = tag_limit
         self._page_size = page_size
+        self._credentials = credentials
+
+    def _auth(self) -> SiteAuth:
+        """Login + API key when both are stored; anonymous otherwise."""
+        return build_auth("danbooru", self._credentials() if self._credentials else {})
 
     def _get(self, path: str, params: dict | None = None) -> dict | list:
         """Fetch a JSON resource from Danbooru."""
         self._throttle.wait()
         try:
-            resp = self._client.get(self._base_url + path, params=params)
+            auth = self._auth()
+            resp = self._client.get(
+                self._base_url + path, params=params, headers=auth.headers, auth=auth.basic
+            )
         except httpx.HTTPError:
             raise SourceError("upstream_error", "Danbooru is unreachable") from None
         self._throttle.report(resp.status_code, _retry_after(resp))
@@ -89,12 +102,25 @@ class Danbooru:
         except Exception:
             raise SourceError("upstream_error", "Danbooru sent invalid JSON") from None
 
-    def search(self, tags: list[str], page: int = 1, page_size: int | None = None) -> SearchPage:
-        """Search posts by a list of tags."""
+    @property
+    def tag_limit(self) -> int:
+        """Search words the server takes."""
+        return self._tag_limit
+
+    def search(
+        self,
+        tags: list[str],
+        page: int = 1,
+        page_size: int | None = None,
+        order: str | None = None,
+        rating: list[str] | None = None,
+    ) -> SearchPage:
+        """Search posts by a list of tags; order and rating take free tag slots."""
         size = clamp_page_size("danbooru", page_size or self._page_size)
         cleaned = [t.strip() for t in tags if t.strip()]
-        server_tags = cleaned[: self._tag_limit]
-        local_tags = cleaned[self._tag_limit :]
+        server_tags, local_tags, notices = danbooru_plan(
+            cleaned, order, rating or [], self._tag_limit
+        )
         query = " ".join(server_tags)
         data = self._get(
             "/posts.json",
@@ -112,7 +138,9 @@ class Danbooru:
             if self._matches(post, local_tags):
                 posts.append(post)
         next_page = page + 1 if raw_count == size else None
-        return SearchPage(posts=posts, page=page, next_page=next_page, dropped=dropped)
+        return SearchPage(
+            posts=posts, page=page, next_page=next_page, dropped=dropped, notices=notices
+        )
 
     def _matches(self, post: Post, local_tags: list[str]) -> bool:
         """Return True if the post passes all local tag filters."""
@@ -162,6 +190,7 @@ class Danbooru:
             md5=d.get("md5"),
             file_url=d.get("file_url") or d.get("large_file_url"),
             preview_url=d.get("preview_file_url"),
+            sample_url=d.get("large_file_url"),
             width=d.get("image_width") or 0,
             height=d.get("image_height") or 0,
             rating=RATING_MAP.get(d.get("rating") or ""),

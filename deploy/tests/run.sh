@@ -74,6 +74,7 @@ echo "npm $*" >> "$STUB_LOG"
 if [[ "${1:-}" == "ci" ]]; then
   exit 0
 elif [[ "${1:-}" == "run" && "${2:-}" == "build" ]]; then
+  for i in $(seq 1 100); do echo "npm-out line $i"; done
   if [[ -e "$STUB_STATE/npm_fail" ]]; then
     exit 1
   fi
@@ -255,13 +256,14 @@ from mkfixture import make_tarball
 dest = Path(sys.argv[1])
 version = sys.argv[2]
 repo = Path(sys.argv[3])
+sha = sys.argv[4]
 extra = []
-for a in sys.argv[4:]:
+for a in sys.argv[5:]:
     parts = a.split(":", 2)
     if len(parts) == 3:
         extra.append((parts[0], parts[1], parts[2]))
-make_tarball(dest, "pearlie-" + version, version, repo, extra)
-' "$dest" "$version" "$(mp "$REPO")" "$@"
+make_tarball(dest, "pearlie-" + version, version, repo, extra, commit=sha)
+' "$dest" "$version" "$(mp "$REPO")" "$sha" "$@"
 }
 
 add_dev_release() {
@@ -279,8 +281,8 @@ from pathlib import Path
 from mkfixture import make_tarball
 dest = Path(sys.argv[1])
 repo = Path(sys.argv[2])
-make_tarball(dest, "pearlie-0.1.0", "0.1.0", repo)
-' "$dest" "$(mp "$REPO")"
+make_tarball(dest, "pearlie-0.1.0", "0.1.0", repo, commit=sys.argv[3])
+' "$dest" "$(mp "$REPO")" "$sha"
 }
 
 # ---- test helpers ------------------------------------------------------------
@@ -443,6 +445,7 @@ case_success() {
   else
     bad "success: npm ci" "missing"
   fi
+  expect "success: log keeps 30 npm lines" "$(grep -c 'npm-out line' "$ROOT/update.log")" 30
   if grep -q 'npm run build' "$STUB_LOG"; then
     ok "success: npm run build"
   else
@@ -522,6 +525,9 @@ case_build_fail() {
   esac
   expect "bf_npm: stub_calls systemctl" "$(stub_calls systemctl)" 0
   expect "bf_npm: state_hash" "$(state_hash)" "$H"
+  check "bf_npm: log has trim note" grep -q 'npm output trimmed to last 80 lines' "$ROOT/update.log"
+  check "bf_npm: log keeps last line" grep -qx 'npm-out line 100' "$ROOT/update.log"
+  expect "bf_npm: log keeps 80 lines" "$(grep -c 'npm-out line' "$ROOT/update.log")" 80
   no_bad_args "bf_npm: stub args"
 }
 
@@ -626,7 +632,7 @@ case_dev() {
   expect "dev: state" "$(status_get state)" done
   local T
   T=$(current_target)
-  if grep -q '0\.1\.0-dev+bbbbbbb' "$T/app/VERSION.json"; then
+  if grep -q '"version":"0\.1\.0-dev"' "$T/app/VERSION.json"; then
     ok "dev: version in VERSION.json"
   else
     bad "dev: version in VERSION.json" "missing"
@@ -748,6 +754,48 @@ case_host_auto() {
   expect "host_autox: step" "$(status_get step)" config
 }
 
+case_integrity() {
+  new_case integrity_mismatch
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  printf '{"sha":"%s"}
+' "$SHA_A" > "$FIX/gh/commits/v1.1.0"
+  run_update
+  expect "integrity_mismatch: RC" "$RC" 1
+  expect "integrity_mismatch: state" "$(status_get state)" failed
+  expect "integrity_mismatch: release_dirs" "$(release_dirs)" 0
+  expect "integrity_mismatch: pip not run" "$(stub_calls pip)" 0
+  expect "integrity_mismatch: npm not run" "$(stub_calls npm)" 0
+
+  new_case integrity_no_commit
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  rm -f "$FIX/gh/commits/v1.1.0"
+  run_update
+  expect "integrity_no_commit: RC" "$RC" 1
+  expect "integrity_no_commit: release_dirs" "$(release_dirs)" 0
+  expect "integrity_no_commit: npm not run" "$(stub_calls npm)" 0
+
+  new_case integrity_dev_mismatch
+  seed_install 1.0.0 "$SHA_A" dev
+  add_dev_release "$SHA_B"
+  cp "$FIX/dl/tar.gz/$SHA_B" "$FIX/dl/tar.gz/cccccccccccccccccccccccccccccccccccccccc"
+  printf '{"sha":"cccccccccccccccccccccccccccccccccccccccc"}
+' > "$FIX/gh/commits/dev"
+  run_update --channel dev
+  expect "integrity_dev_mismatch: RC" "$RC" 1
+  expect "integrity_dev_mismatch: release_dirs" "$(release_dirs)" 0
+
+  new_case size_cap
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  PEARLIE_MAX_EXTRACTED_BYTES=10 run_update
+  expect "size_cap: RC" "$RC" 1
+  expect "size_cap: state" "$(status_get state)" failed
+  expect "size_cap: release_dirs" "$(release_dirs)" 0
+  expect "size_cap: npm not run" "$(stub_calls npm)" 0
+}
+
 case_unit_sync() {
   local heredoc
   heredoc="$(sed -n "/^cat <<'UNIT'/,/^UNIT\$/p" "$REPO/install/pearlie-install.sh" | sed '1d;$d')"
@@ -771,7 +819,117 @@ case_installer_defaults() {
   expect "installer_defaults: host=auto appears once in installer" "$(grep -c '^host=auto' "$REPO/install/pearlie-install.sh" || true)" 1
 }
 
-CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_unit_sync case_installer_defaults)
+# ---- rollback ----------------------------------------------------------------
+
+# current = releases/newer (1.1.0), previous = releases/seed (1.0.0), backup of the old database
+seed_rollback() {
+  seed_install 1.0.0
+  local dir="$ROOT/releases/newer/app"
+  mkdir -p "$dir"
+  printf '{"version":"1.1.0","channel":"main","commit":null,"built_at":"x"}\n' > "$dir/VERSION.json"
+  ln -sfn "$(mp "$ROOT/releases/newer")" "$ROOT/current"
+  ln -sfn "$(mp "$ROOT/releases/seed")" "$ROOT/previous"
+  mkdir -p "$ROOT/backups/newer"
+  printf 'db-backup\n' > "$ROOT/backups/newer/pearlie.db"
+  printf 'db-live\n' > "$ROOT/data/pearlie.db"
+  : > "$STUB_LOG"
+}
+
+case_previous_and_schema() {
+  new_case previous_schema
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B" "file:pearlie-1.1.0/backend/app/db.py:SCHEMA_VERSION = 3"
+  run_update
+  expect "previous_schema: RC" "$RC" 0
+  case "$(readlink "$ROOT/previous")" in
+    *releases/seed*) ok "previous_schema: previous is seed" ;;
+    *) bad "previous_schema: previous is seed" "got $(readlink "$ROOT/previous" || true)" ;;
+  esac
+  if grep -q '"schema":3' "$(current_target)/app/VERSION.json"; then
+    ok "previous_schema: schema 3 in VERSION.json"
+  else
+    bad "previous_schema: schema 3 in VERSION.json" "$(cat "$(current_target)/app/VERSION.json")"
+  fi
+  new_case previous_noschema
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  run_update
+  if grep -q 'schema' "$(current_target)/app/VERSION.json"; then
+    bad "previous_schema: no key when unknown" "$(cat "$(current_target)/app/VERSION.json")"
+  else
+    ok "previous_schema: no key when unknown"
+  fi
+}
+
+case_rollback_code_only() {
+  new_case rollback_code
+  seed_rollback
+  run_update --rollback --from-ui
+  expect "rollback_code: RC" "$RC" 0
+  expect "rollback_code: state" "$(status_get state)" reverted
+  case "$(current_target)" in
+    *releases/seed*) ok "rollback_code: current is seed" ;;
+    *) bad "rollback_code: current is seed" "got $(current_target)" ;;
+  esac
+  expect "rollback_code: db kept" "$(cat "$ROOT/data/pearlie.db")" "db-live"
+  if [ -e "$ROOT/previous" ] || [ -L "$ROOT/previous" ]; then
+    bad "rollback_code: previous link removed" "still there"
+  else
+    ok "rollback_code: previous link removed"
+  fi
+  if [ -e "$ROOT/backups/newer-pre-rollback" ]; then
+    bad "rollback_code: no pre-rollback copy" "exists"
+  else
+    ok "rollback_code: no pre-rollback copy"
+  fi
+  no_bad_args "rollback_code: stub args"
+}
+
+case_rollback_restore() {
+  new_case rollback_restore
+  seed_rollback
+  run_update --rollback --restore-db --from-ui
+  expect "rollback_restore: RC" "$RC" 0
+  expect "rollback_restore: state" "$(status_get state)" reverted
+  expect "rollback_restore: db restored" "$(cat "$ROOT/data/pearlie.db")" "db-backup"
+  expect "rollback_restore: live copy kept" "$(cat "$ROOT/backups/newer-pre-rollback/pearlie.db")" "db-live"
+}
+
+case_rollback_fail() {
+  new_case rollback_fail
+  seed_rollback
+  printf '1.0.0\n' > "$STATE/bad_versions"
+  run_update --rollback --restore-db --from-ui
+  expect "rollback_fail: RC" "$RC" 1
+  expect "rollback_fail: state" "$(status_get state)" failed
+  case "$(current_target)" in
+    *releases/newer*) ok "rollback_fail: current is newer again" ;;
+    *) bad "rollback_fail: current is newer again" "got $(current_target)" ;;
+  esac
+  expect "rollback_fail: db put back" "$(cat "$ROOT/data/pearlie.db")" "db-live"
+  if grep -q 'kept 1.1.0' "$ROOT/update-status.json"; then
+    ok "rollback_fail: error names kept version"
+  else
+    bad "rollback_fail: error names kept version" "$(cat "$ROOT/update-status.json")"
+  fi
+}
+
+case_rollback_none() {
+  new_case rollback_none
+  seed_install 1.0.0
+  run_update --rollback --from-ui
+  expect "rollback_none: RC" "$RC" 1
+  expect "rollback_none: state" "$(status_get state)" failed
+  expect "rollback_none: no systemctl stop" "$(stub_calls 'systemctl stop')" 0
+  new_case rollback_nobackup
+  seed_rollback
+  rm -rf "$ROOT/backups/newer"
+  run_update --rollback --restore-db --from-ui
+  expect "rollback_nobackup: RC" "$RC" 1
+  expect "rollback_nobackup: no systemctl stop" "$(stub_calls 'systemctl stop')" 0
+}
+
+CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_integrity case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_unit_sync case_installer_defaults case_previous_and_schema case_rollback_code_only case_rollback_restore case_rollback_fail case_rollback_none)
 
 for c in "${CASES[@]}"; do
   "$c"

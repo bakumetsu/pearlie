@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import httpx
 
+from app.logs import install_http_hooks
 from app.models import LibraryItem, LibraryItemDetail, Problem, Tag
 
 # Komga page numbers are 1-based with zero_based=false, same as Pearlie's reader; no conversion.
@@ -33,10 +34,13 @@ class Komga:
         using ``httpx.MockTransport`` in tests) is used as-is.
         """
         if client is None:
-            self._client: httpx.Client = httpx.Client(
-                base_url=base_url,
-                headers={"X-API-Key": api_key},
-                timeout=15.0,
+            self._client: httpx.Client = install_http_hooks(
+                httpx.Client(
+                    base_url=base_url,
+                    headers={"X-API-Key": api_key},
+                    timeout=15.0,
+                ),
+                "komga",
             )
         else:
             self._client = client
@@ -47,6 +51,24 @@ class Komga:
             raise KomgaError("not_found", "Not found", 404)
         if resp.status_code >= 400:
             raise KomgaError("upstream_error", f"Komga returned {resp.status_code}", 502)
+
+    def list_libraries(self) -> list[dict]:
+        """Return every Komga library (id, name, root)."""
+        try:
+            resp = self._client.get("/api/v1/libraries")
+        except httpx.HTTPError:
+            raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+        self._check(resp)
+        data = resp.json()
+        return data if isinstance(data, list) else []
+
+    def scan_library(self, library_id: str) -> None:
+        """Ask Komga to scan one library for new files."""
+        try:
+            resp = self._client.post(f"/api/v1/libraries/{library_id}/scan")
+        except httpx.HTTPError:
+            raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+        self._check(resp)
 
     def list_series(self, page: int, size: int, q: str, sort: str) -> dict:
         """Return one page of series matching *q* (full-text search).

@@ -27,6 +27,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     items: [] as T[],
     total: null as number | null,
     page: 1 as number,
+    lastPage: 1 as number,
     requested: 1 as number,
     pages: null as number | null,
     perPage: null as number | null,
@@ -34,6 +35,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     hidden: 0 as number,
     hasNext: false as boolean,
     status: "idle" as Status,
+    more: "idle" as "idle" | "loading" | "error",
     error: null as Error | null,
     listKey: "" as string,
     scrollY: 0 as number,
@@ -43,6 +45,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
   let crossed = false;
   let controller: AbortController | null = null;
   let currentLoader: Loader<T> | null = null;
+  let accumulate = false;
 
   function abortInFlight() {
     if (controller) {
@@ -58,6 +61,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     state.items = [];
     state.total = null;
     state.page = 1;
+    state.lastPage = 1;
     state.requested = 1;
     state.pages = null;
     state.perPage = null;
@@ -65,6 +69,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     state.hidden = 0;
     state.hasNext = false;
     state.status = "idle";
+    state.more = "idle";
     state.error = null;
     state.listKey = "";
     state.scrollY = 0;
@@ -79,6 +84,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     const abortController = new AbortController();
     controller = abortController;
     state.requested = page;
+    state.more = "idle";
     state.status = "loading";
     state.error = null;
 
@@ -88,6 +94,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
       state.items = result.items;
       state.total = result.total;
       state.page = result.page ?? page;
+      state.lastPage = state.page;
       state.pages = result.pages ?? null;
       state.perPage = result.page_size ?? null;
       state.stats = result.stats ?? null;
@@ -114,6 +121,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     state.listKey = listKey;
     state.items = [];
     state.page = page;
+    state.lastPage = page;
     state.total = null;
     state.pages = null;
     state.perPage = null;
@@ -125,9 +133,49 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     await fetchPage(page);
   }
 
+  // Infinite scroll: fetch the page after the last loaded one and append it. One request at a
+  // time, never past the last page, and a failure waits for an explicit retry.
+  async function loadMore(force = false) {
+    const loader = currentLoader;
+    if (!loader || !accumulate) return;
+    if (state.status !== "done" || !state.hasNext || state.more === "loading") return;
+    if (state.more === "error" && !force) return;
+    const token = requestToken;
+    const abortController = new AbortController();
+    controller = abortController;
+    const next = state.lastPage + 1;
+    state.more = "loading";
+    try {
+      const result = await loader(next, abortController.signal);
+      if (token !== requestToken) return;
+      const seen: Record<string, true> = {};
+      for (const t of state.items) seen[keyOf(t)] = true;
+      state.items = [...state.items, ...result.items.filter((t) => !seen[keyOf(t)])];
+      state.total = result.total;
+      state.lastPage = result.page ?? next;
+      state.pages = result.pages ?? state.pages;
+      state.perPage = result.page_size ?? state.perPage;
+      state.hidden += result.hidden ?? 0;
+      state.hasNext = result.next_page != null;
+      state.more = "idle";
+    } catch (err) {
+      if (token !== requestToken) return;
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      state.more = "error";
+    } finally {
+      if (controller === abortController) {
+        controller = null;
+      }
+    }
+  }
+
   async function goTo(page: number) {
     if (!currentLoader) return;
     const p = Math.max(1, Math.floor(page));
+    if (accumulate && p === state.lastPage + 1 && state.status === "done") {
+      await loadMore(true);
+      return;
+    }
     requestToken++;
     abortInFlight();
     state.items = [];
@@ -137,6 +185,10 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
   async function retry() {
     if (!currentLoader) return;
     await fetchPage(state.requested);
+  }
+
+  function setAccumulate(on: boolean) {
+    accumulate = on;
   }
 
   function setScrollY(y: number) {
@@ -229,6 +281,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
   function restoreSnapshot(snap: GridSnapshot<T>) {
     state.items = [...snap.items];
     state.page = snap.page;
+    state.lastPage = snap.page;
     state.requested = snap.page;
     state.pages = snap.pages;
     state.hasNext = snap.pages != null && snap.page < snap.pages;
@@ -245,6 +298,9 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     get items() { return shown(); },
     get total() { return state.total; },
     get page() { return state.page; },
+    get lastPage() { return state.lastPage; },
+    get nextPage() { return state.lastPage + 1; },
+    get more() { return state.more; },
     get requested() { return state.requested; },
     get pages() { return state.pages; },
     get perPage() { return state.perPage; },
@@ -258,6 +314,8 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     get ids() { return shown().map(keyOf); },
     open,
     goTo,
+    loadMore,
+    setAccumulate,
     retry,
     setScrollY,
     markCrossed,

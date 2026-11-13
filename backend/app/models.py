@@ -133,6 +133,7 @@ class WebItem(BaseModel):
     height: int
     page_count: int | None = None
     target: Target
+    saveable: bool = True  # false while the source's target has no save path (no Save button)
     saved: SavedRef | None = None
     blur: Blur | None = None
 
@@ -175,6 +176,23 @@ class Section(BaseModel):
     hidden: int = 0
     next_page: int | None = None
     error: Problem | None = None
+    notice: Problem | None = None  # a filter was applied locally or dropped; results still valid
+
+
+class SourceFilters(BaseModel):
+    """What the order/rating/per-page toolbar may offer for one source."""
+
+    order: list[str] = Field(default_factory=list)
+    rating: list[str] = Field(default_factory=list)
+    sort: list[str] = Field(default_factory=list)  # library sources only
+    favorite: bool = False  # library sources only
+    per_page_options: list[int] = Field(default_factory=list)
+    per_page_max: int
+    order_blocked_when: int | None = None  # Order is off when this many search words are set
+
+
+class FiltersResponse(BaseModel):
+    sources: dict[str, SourceFilters]
 
 
 T = TypeVar("T")
@@ -208,6 +226,7 @@ class Job(BaseModel):
     progress: float = 0.0
     eta_s: float | None = None
     error: str | None = None
+    error_code: str | None = None
     library_ref: SavedRef | None = None
     notices: list[Problem] = Field(default_factory=list)
     created_at: str
@@ -353,6 +372,20 @@ class DestinationItem(BaseModel):
 class Destinations(BaseModel):
     default_folder: str
     items: list[DestinationItem]
+    sites: list[str] = Field(default_factory=list)
+    library_paths: list[str] = Field(default_factory=list)
+    library_error: str | None = None
+    prefix_pearlie: str = ""
+    prefix_stash: str = ""
+    prefix_from_env: bool = True
+    komga_sites: list[str] = Field(default_factory=list)
+    komga_library_paths: list[str] = Field(default_factory=list)
+    komga_library_error: str | None = None
+
+
+class MappingBody(BaseModel):
+    prefix_pearlie: str = ""
+    prefix_stash: str = ""
 
 
 class FolderBody(BaseModel):

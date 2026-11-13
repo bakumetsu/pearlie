@@ -14,12 +14,14 @@ from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
 from app.config import Settings
+from app.komga import Komga
 from app.main import create_app
+from app.targets.stash_client import StashClient
 
 pytestmark = pytest.mark.no_default_origin
 
 HDR: dict[str, str] = {
-    "Origin": "http://testserver",
+    "Origin": "http://localhost",
     "Content-Type": "application/json",
 }
 
@@ -48,7 +50,7 @@ def make_client(
     app = create_app(settings)
     if transport is not None:
         app.state.connection_transport = transport
-    return TestClient(app, base_url="http://testserver")
+    return TestClient(app, base_url="http://localhost")
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +243,7 @@ def test_write_guard_origin(tmp_path: Path) -> None:
     r3 = c.put(
         "/api/connections/stash",
         json=body,
-        headers={"Referer": "http://testserver", "Content-Type": "application/json"},
+        headers={"Referer": "http://localhost", "Content-Type": "application/json"},
     )
     assert r3.status_code == 200
 
@@ -259,7 +261,7 @@ def test_write_guard_content_type(tmp_path: Path) -> None:
     r = c.put(
         "/api/connections/stash",
         content='{"secret": "x"}',
-        headers={"Origin": "http://testserver", "Content-Type": "text/plain"},
+        headers={"Origin": "http://localhost", "Content-Type": "text/plain"},
     )
     assert r.status_code == 415
 
@@ -278,7 +280,7 @@ def test_no_cors(tmp_path: Path) -> None:
     }
     settings = Settings(**kwargs, _env_file=None)  # pyright: ignore[reportCallIssue]
     app = create_app(settings)
-    c = TestClient(app, base_url="http://testserver")
+    c = TestClient(app, base_url="http://localhost")
 
     r = c.options(
         "/api/connections/stash",
@@ -553,13 +555,13 @@ def test_stored_key_without_master_key_no_500(tmp_path: Path) -> None:
 def test_write_guard_forwarded_host(tmp_path: Path) -> None:
     c = make_client(tmp_path, secret_key=master_key())
     body: dict[str, Any] = {"secret": "x"}
-    ok = {"Origin": "http://pearlie.example", "Content-Type": "application/json"}
+    ok = {"Origin": "http://pearlie.tail1.ts.net", "Content-Type": "application/json"}
 
     # Proxy rewrote Host, browser-facing host in X-Forwarded-Host
     r = c.put(
         "/api/connections/stash",
         json=body,
-        headers={**ok, "X-Forwarded-Host": "pearlie.example"},
+        headers={**ok, "X-Forwarded-Host": "pearlie.tail1.ts.net"},
     )
     assert r.status_code == 200
 
@@ -567,7 +569,7 @@ def test_write_guard_forwarded_host(tmp_path: Path) -> None:
     r2 = c.put(
         "/api/connections/stash",
         json=body,
-        headers={**ok, "X-Forwarded-Host": "pearlie.example, inner.local"},
+        headers={**ok, "X-Forwarded-Host": "pearlie.tail1.ts.net, inner.local"},
     )
     assert r2.status_code == 200
 
@@ -575,7 +577,7 @@ def test_write_guard_forwarded_host(tmp_path: Path) -> None:
     r3 = c.put(
         "/api/connections/stash",
         json=body,
-        headers={**HDR, "X-Forwarded-Host": "pearlie.example"},
+        headers={**HDR, "X-Forwarded-Host": "pearlie.tail1.ts.net"},
     )
     assert r3.status_code == 403
     r4 = c.put("/api/connections/stash", json=body, headers=ok)
@@ -587,27 +589,10 @@ def test_write_guard_forwarded_host(tmp_path: Path) -> None:
         json=body,
         headers={
             "Content-Type": "application/json",
-            "X-Forwarded-Host": "pearlie.example",
+            "X-Forwarded-Host": "pearlie.tail1.ts.net",
         },
     )
     assert r5.status_code == 403
-
-
-# ---------------------------------------------------------------------------
-# 14. restart_needed after saving stash or komga
-# ---------------------------------------------------------------------------
-
-
-def test_restart_needed_flag(tmp_path: Path) -> None:
-    c = make_client(tmp_path, secret_key=master_key())
-    r = c.put("/api/connections/stash", json={"secret": "k"}, headers=HDR)
-    assert r.json()["restart_needed"] is True
-    r2 = c.put("/api/connections/komga", json={"secret": "k"}, headers=HDR)
-    assert r2.json()["restart_needed"] is True
-    r3 = c.put("/api/connections/gelbooru", json={"secret": "k"}, headers=HDR)
-    assert r3.json()["restart_needed"] is False
-    listed = c.get("/api/connections").json()["connections"]
-    assert all(x["restart_needed"] is False for x in listed)
 
 
 # ---------------------------------------------------------------------------
@@ -660,3 +645,194 @@ def test_tampered_token_gives_empty_and_warns(
     caplog.set_level(logging.WARNING, logger="pearlie")
     assert store.effective_secret("stash") == ""
     assert "cannot be decrypted" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# 16. Client swap on address change (real mode with urls set)
+# ---------------------------------------------------------------------------
+
+
+def _seed(c: TestClient, name: str) -> None:
+    r = c.put(
+        f"/api/connections/{name}",
+        json={"address": f"http://{name}.local:9999", "secret": "firstkey"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+
+
+def test_put_stash_swaps_client(tmp_path: Path) -> None:
+    c = make_client(
+        tmp_path, mode="real", secret_key=master_key(), env={"real": "search"}
+    )
+    _seed(c, "stash")
+    old = c.app.state.stash  # pyright: ignore[reportAttributeAccessIssue]
+    assert old is not None
+    r = c.put(
+        "/api/connections/stash",
+        json={"address": "http://stash2.local:9999", "secret": "newkey"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    assert c.app.state.stash is not old  # pyright: ignore[reportAttributeAccessIssue]
+    assert isinstance(c.app.state.stash, StashClient)  # pyright: ignore[reportAttributeAccessIssue]
+    assert callable(old.library_paths)
+
+
+def test_put_komga_swaps_client(tmp_path: Path) -> None:
+    c = make_client(
+        tmp_path, mode="real", secret_key=master_key(), env={"real": "search"}
+    )
+    _seed(c, "komga")
+    old = c.app.state.komga  # pyright: ignore[reportAttributeAccessIssue]
+    assert old is not None
+    r = c.put(
+        "/api/connections/komga",
+        json={"address": "http://komga2.local:8888", "secret": "newkey"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    assert c.app.state.komga is not old  # pyright: ignore[reportAttributeAccessIssue]
+    assert isinstance(c.app.state.komga, Komga)  # pyright: ignore[reportAttributeAccessIssue]
+
+
+def test_env_key_dropped_when_user_sets_address(tmp_path: Path) -> None:
+    c = make_client(
+        tmp_path,
+        mode="real",
+        secret_key=master_key(),
+        env={"real": "search", "stash_api_key": "envsecret"},
+    )
+    r = c.put(
+        "/api/connections/stash",
+        json={"address": "http://stash2.local:9999"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    assert r.json()["key"] == "missing"
+    assert r.json()["key_locked"] is False
+    assert "envsecret" not in r.text
+    s = c.app.state.settings  # pyright: ignore[reportAttributeAccessIssue]
+    assert s.stash_url == "http://stash2.local:9999"
+    assert s.stash_api_key.get_secret_value() == ""
+
+
+def _recording_transport(seen: list[httpx.Request]) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"data": {}})
+
+    return httpx.MockTransport(handler)
+
+
+def test_connection_test_does_not_send_env_key_to_user_address(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+    c = make_client(
+        tmp_path,
+        secret_key=master_key(),
+        env={"stash_api_key": "envsecret"},
+        transport=_recording_transport(seen),
+    )
+    r = c.put(
+        "/api/connections/stash",
+        json={"address": "http://other.local:9999"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    t = c.post("/api/connections/stash/test", headers=HDR)
+    assert t.status_code == 200
+    assert len(seen) == 1
+    assert seen[0].url.host == "other.local"
+    assert "ApiKey" not in seen[0].headers
+    assert "envsecret" not in t.text
+
+
+def test_connection_test_env_key_with_env_address_unchanged(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+    c = make_client(
+        tmp_path,
+        secret_key=master_key(),
+        env={"stash_api_key": "envsecret", "stash_url": "http://stash.local:9999"},
+        transport=_recording_transport(seen),
+    )
+    assert c.post("/api/connections/stash/test", headers=HDR).status_code == 200
+    assert seen[0].url.host == "stash.local"
+    assert seen[0].headers["ApiKey"] == "envsecret"
+
+
+def test_connection_test_user_key_with_user_address_sent(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+    c = make_client(
+        tmp_path,
+        secret_key=master_key(),
+        env={"stash_api_key": "envsecret"},
+        transport=_recording_transport(seen),
+    )
+    r = c.put(
+        "/api/connections/stash",
+        json={"address": "http://other.local:9999", "secret": "typedkey"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    assert c.post("/api/connections/stash/test", headers=HDR).status_code == 200
+    assert seen[0].headers["ApiKey"] == "typedkey"
+
+
+def test_fixture_mode_keeps_none_clients(tmp_path: Path) -> None:
+    c = make_client(tmp_path, secret_key=master_key())
+    c.put(
+        "/api/connections/stash",
+        json={"address": "http://stash2.local:9999", "secret": "newkey"},
+        headers=HDR,
+    )
+    assert c.app.state.stash is None  # pyright: ignore[reportAttributeAccessIssue]
+    assert c.app.state.komga is None  # pyright: ignore[reportAttributeAccessIssue]
+
+
+def test_swap_does_not_log_secret(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger="pearlie")
+    c = make_client(
+        tmp_path, mode="real", secret_key=master_key(), env={"real": "search"}
+    )
+    _seed(c, "stash")
+    r = c.put(
+        "/api/connections/stash",
+        json={"address": "http://stash2.local:9999", "secret": "topsecretvalue"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    assert "topsecretvalue" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# 17. First-time connect works without a restart
+# ---------------------------------------------------------------------------
+
+
+def test_save_then_use_without_restart(tmp_path: Path) -> None:
+    c = make_client(
+        tmp_path, mode="real", secret_key=master_key(), env={"real": "search"}
+    )
+    app = c.app
+    assert app.state.stash is None  # pyright: ignore[reportAttributeAccessIssue]
+    assert app.state.worker is not None  # pyright: ignore[reportAttributeAccessIssue]
+    stash_target = app.state.stash_target  # pyright: ignore[reportAttributeAccessIssue]
+    komga_target = app.state.komga_target  # pyright: ignore[reportAttributeAccessIssue]
+    assert stash_target is not None and komga_target is not None
+    before = c.get("/api/library/stash/images")
+    assert before.status_code == 503
+    assert before.json()["code"] == "not_configured"
+    assert c.get("/api/jobs").status_code == 503
+
+    _seed(c, "stash")
+    assert app.state.stash is not None  # pyright: ignore[reportAttributeAccessIssue]
+    assert stash_target._c is app.state.stash  # pyright: ignore[reportAttributeAccessIssue]
+    assert c.get("/api/jobs").status_code != 503
+    assert c.get("/api/library/stash/images").status_code != 503
+
+    assert c.get("/api/library/komga/series").status_code == 503
+    _seed(c, "komga")
+    assert komga_target._c is app.state.komga  # pyright: ignore[reportAttributeAccessIssue]
+    assert c.get("/api/library/komga/series").status_code != 503

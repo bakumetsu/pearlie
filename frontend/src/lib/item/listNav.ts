@@ -8,13 +8,15 @@ export interface ListGrid {
   pages: number | null;
   hasNext: boolean;
   status: string;
+  nextPage?: number;
+  more?: string;
   goTo(page: number): Promise<void>;
   markCrossed(): void;
 }
 
 export type Dir = 1 | -1;
 
-export type StepOpts = { kind?: SingularKind | null; cross: boolean; maxPages?: number };
+export type StepOpts = { kind?: SingularKind | null; cross: boolean; maxPages?: number; cancelled?: () => boolean };
 
 export function nearestInList(
   items: (LibraryItem | WebItem)[],
@@ -38,8 +40,21 @@ export function nearestInList(
   return null;
 }
 
+// Index to search from after stepping onto another page: an appended page (infinite scroll) keeps
+// the old items in front, so the search starts at the old end instead of at the list edge.
+export function arrivalIdx(grid: ListGrid, dir: Dir, firstKey: string | null, prevLen: number): number {
+  const first = grid.items[0];
+  const appended = dir === 1 && firstKey !== null && first !== undefined && keyOf(first) === firstKey && grid.items.length > prevLen;
+  if (appended) return prevLen - 1;
+  return dir === 1 ? -1 : grid.items.length;
+}
+
+export function stepTarget(grid: ListGrid, dir: Dir): number {
+  return dir === 1 ? (grid.nextPage ?? grid.page + 1) : grid.page - 1;
+}
+
 export function pageEdge(grid: ListGrid, dir: Dir): boolean {
-  if (dir === 1) return grid.hasNext || (grid.pages !== null && grid.page < grid.pages);
+  if (dir === 1) return grid.hasNext || (grid.pages !== null && (grid.nextPage ?? grid.page + 1) <= grid.pages);
   return grid.page > 1;
 }
 
@@ -71,16 +86,19 @@ export async function stepInList(
     const maxPages = opts.maxPages ?? 3;
     for (let i = 0; i < maxPages; i++) {
       if (!pageEdge(grid, dir)) break;
-      await grid.goTo(grid.page + dir);
-      if (grid.status === "error") break;
+      const firstKey = grid.items[0] ? keyOf(grid.items[0]) : null;
+      const prevLen = grid.items.length;
+      await grid.goTo(stepTarget(grid, dir));
+      if (opts.cancelled?.()) return null;
+      if (grid.status === "error" || grid.more === "error") break;
       const items = grid.items;
-      const result = nearestInList(items, dir === 1 ? -1 : items.length, dir, opts.kind);
+      const result = nearestInList(items, arrivalIdx(grid, dir, firstKey, prevLen), dir, opts.kind);
       if (result) {
         grid.markCrossed();
         return result;
       }
     }
-    if (grid.page !== origPage) {
+    if (grid.page !== origPage && grid.more !== "error") {
       await grid.goTo(origPage);
     }
     return null;

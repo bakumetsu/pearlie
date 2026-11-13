@@ -1,5 +1,6 @@
 import { getContext, setContext } from "svelte";
 import type { components } from "./schema.gen";
+import { hostBlock } from "../stores/hostBlock.svelte";
 
 type S = components["schemas"];
 
@@ -38,6 +39,17 @@ export type ConnectionTest = S["TestOut"];
 export type UpdateStatus = S["StatusOut"];
 export type UpdateSettingsIn = S["SettingsIn"];
 export type UpdateApplied = S["ApplyOut"];
+export type UpdateRestartIn = S["RestartIn"];
+export type UpdateRestarted = S["RestartOut"];
+export type UpdateRollbackIn = S["RollbackIn"];
+export type UpdateChangelog = S["ChangelogOut"];
+export type ChangeBlock = S["ChangeBlockOut"];
+export type Destinations = S["Destinations"];
+export type LogLevel = "error" | "warning" | "info" | "debug";
+export type LogFileInfo = { date: string; size_bytes: number; lines: number };
+export type LogFiles = { debug: boolean; keep_days: number; dir_name: string; files: LogFileInfo[]; cap_bytes: number };
+export type LogLine = { ts: string; level: LogLevel; logger: string; text: string };
+export type LogPage = { date: string; level: LogLevel; lines: LogLine[]; next_cursor: string | null };
 
 export type Kind = "images" | "videos" | "series" | "books";
 
@@ -81,11 +93,25 @@ export type ListParams = {
   seed?: number;
 };
 
+// GET /api/search/filters: what each source supports (design D-16 section 5).
+export type SourceFilters = {
+  order?: string[];
+  rating?: string[];
+  per_page_options?: number[];
+  per_page_max?: number;
+  sort?: string[];
+  favorite?: boolean;
+  // Order is off when the search has at least this many words (Danbooru tag cap); null = never.
+  order_blocked_when?: number | null;
+};
+export type SearchFilters = Record<string, SourceFilters>;
+
 export interface Api {
   search(
-    p: { q: string; sources?: string[]; page?: number; page_size?: number },
+    p: { q: string; sources?: string[]; page?: number; page_size?: number; order?: string; rating?: string[] },
     signal?: AbortSignal,
   ): Promise<SearchResponse>;
+  searchFilters(signal?: AbortSignal): Promise<SearchFilters>;
   list(kind: Kind, p: ListParams, signal?: AbortSignal): Promise<LibraryPage>;
   save(body: SaveBody, signal?: AbortSignal): Promise<SaveAccepted>;
   health(signal?: AbortSignal): Promise<Health>;
@@ -110,9 +136,22 @@ export interface Api {
   putConnection(name: string, body: Partial<ConnectionIn>, signal?: AbortSignal): Promise<ConnectionOut>;
   testConnection(name: string, signal?: AbortSignal): Promise<ConnectionTest>;
   removeJob(id: string, signal?: AbortSignal): Promise<void>;
+  getDestinations(signal?: AbortSignal): Promise<Destinations>;
+  putDefaultFolder(folder: string, signal?: AbortSignal): Promise<Destinations>;
+  putSiteFolder(site: string, folder: string, signal?: AbortSignal): Promise<Destinations>;
+  deleteSiteFolder(site: string, signal?: AbortSignal): Promise<Destinations>;
+  putPathMapping(prefixPearlie: string, prefixStash: string, signal?: AbortSignal): Promise<Destinations>;
+  resetPathMapping(signal?: AbortSignal): Promise<Destinations>;
   getUpdateStatus(p?: { refresh?: boolean; manual?: boolean }, signal?: AbortSignal): Promise<UpdateStatus>;
   putUpdateSettings(body: UpdateSettingsIn, signal?: AbortSignal): Promise<UpdateStatus>;
   applyUpdate(signal?: AbortSignal): Promise<UpdateApplied>;
+  restartServer(body: UpdateRestartIn, signal?: AbortSignal): Promise<UpdateRestarted>;
+  rollbackUpdate(body: UpdateRollbackIn, signal?: AbortSignal): Promise<UpdateApplied>;
+  getUpdateChangelog(p?: { channel?: "main" | "dev"; refresh?: boolean; offset?: number; limit?: number }, signal?: AbortSignal): Promise<UpdateChangelog>;
+  getLogs(signal?: AbortSignal): Promise<LogFiles>;
+  getLogLines(date: string, p: { level: LogLevel; cursor?: string | null; limit?: number }, signal?: AbortSignal): Promise<LogPage>;
+  putLogDebug(debug: boolean, signal?: AbortSignal): Promise<{ debug: boolean }>;
+  logDownloadUrl(date: string, level: LogLevel): string;
   testRules(tags: string[], signal?: AbortSignal): Promise<RulesTestResult>;
   saveProgress(bookId: string, page: number, signal?: AbortSignal, opts?: { keepalive?: boolean }): Promise<ProgressResult>;
 }
@@ -167,6 +206,7 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
       } catch {
         // non-JSON or empty error body – keep defaults
       }
+      if (res.status === 403 && code === "host_not_allowed") hostBlock.set(message);
       throw new ApiError(res.status, code, message, libraryRef);
     }
 
@@ -193,10 +233,16 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
           sources: p.sources?.length ? p.sources.join(",") : undefined,
           page: p.page !== undefined ? String(p.page) : undefined,
           page_size: p.page_size !== undefined ? String(p.page_size) : undefined,
+          order: p.order,
+          rating: p.rating?.length ? p.rating.join(",") : undefined,
         }),
         undefined,
         signal,
       );
+    },
+    async searchFilters(signal) {
+      const r = await request<{ sources: SearchFilters }>(baseUrl + "/api/search/filters", undefined, signal);
+      return r.sources ?? {};
     },
     list(kind, p, signal) {
       return request<LibraryPage>(
@@ -377,11 +423,47 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         signal,
       );
     },
+    getLogs(signal) {
+      return request<LogFiles>(baseUrl + "/api/logs", undefined, signal);
+    },
+    getLogLines(date, p, signal) {
+      return request<LogPage>(
+        buildUrl(`/api/logs/${encodeURIComponent(date)}`, {
+          level: p.level,
+          limit: p.limit ? String(p.limit) : undefined,
+          cursor: p.cursor ?? undefined,
+        }),
+        undefined,
+        signal,
+      );
+    },
+    putLogDebug(debug, signal) {
+      return request<{ debug: boolean }>(
+        baseUrl + "/api/logs/settings",
+        { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ debug }) },
+        signal,
+      );
+    },
+    logDownloadUrl(date, level) {
+      return buildUrl(`/api/logs/${encodeURIComponent(date)}/download`, { level });
+    },
     getUpdateStatus(p, signal) {
       return request<UpdateStatus>(
         buildUrl("/api/update/status", {
           refresh: p?.refresh ? "1" : undefined,
           manual: p?.manual ? "1" : undefined,
+        }),
+        undefined,
+        signal,
+      );
+    },
+    getUpdateChangelog(p, signal) {
+      return request<UpdateChangelog>(
+        buildUrl("/api/update/changelog", {
+          channel: p?.channel,
+          refresh: p?.refresh ? "1" : undefined,
+          offset: p?.offset ? String(p.offset) : undefined,
+          limit: p?.limit ? String(p.limit) : undefined,
         }),
         undefined,
         signal,
@@ -409,9 +491,69 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         signal,
       );
     },
+    restartServer(body, signal) {
+      return request<UpdateRestarted>(
+        baseUrl + "/api/update/restart",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        signal,
+      );
+    },
+    rollbackUpdate(body, signal) {
+      return request<UpdateApplied>(
+        baseUrl + "/api/update/rollback",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        signal,
+      );
+    },
     removeJob(id, signal) {
       return request<void>(
         baseUrl + "/api/jobs/" + encodeURIComponent(id),
+        { method: "DELETE" },
+        signal,
+      );
+    },
+    getDestinations(signal) {
+      return request<Destinations>(baseUrl + "/api/destinations", undefined, signal);
+    },
+    putDefaultFolder(folder, signal) {
+      return request<Destinations>(
+        baseUrl + "/api/destinations/default",
+        { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ folder }) },
+        signal,
+      );
+    },
+    putSiteFolder(site, folder, signal) {
+      return request<Destinations>(
+        baseUrl + "/api/destinations/" + encodeURIComponent(site),
+        { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ folder }) },
+        signal,
+      );
+    },
+    putPathMapping(prefixPearlie, prefixStash, signal) {
+      return request<Destinations>(
+        baseUrl + "/api/destinations/mapping",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prefix_pearlie: prefixPearlie, prefix_stash: prefixStash }),
+        },
+        signal,
+      );
+    },
+    resetPathMapping(signal) {
+      return request<Destinations>(baseUrl + "/api/destinations/mapping", { method: "DELETE" }, signal);
+    },
+    deleteSiteFolder(site, signal) {
+      return request<Destinations>(
+        baseUrl + "/api/destinations/" + encodeURIComponent(site),
         { method: "DELETE" },
         signal,
       );

@@ -1,6 +1,9 @@
 import sqlite3
 from pathlib import Path
 
+# Bump on every new column or table (test_db.py snapshot guard fails otherwise).
+SCHEMA_VERSION = 1
+
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16,6 +19,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     notices TEXT NOT NULL DEFAULT '[]',
     library_ref_id TEXT,
     attempts INTEGER NOT NULL DEFAULT 0,
+    restarts INTEGER NOT NULL DEFAULT 0,
     started_at TEXT,
     finished_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -46,6 +50,12 @@ CREATE TABLE IF NOT EXISTS destinations (
     site TEXT PRIMARY KEY,
     folder TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS site_icons (
+    site TEXT PRIMARY KEY,
+    data BLOB,
+    mime TEXT NOT NULL DEFAULT '',
+    fetched_at REAL NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -80,6 +90,7 @@ def init_db(path: Path) -> None:
         "notices": "notices TEXT NOT NULL DEFAULT '[]'",
         "library_ref_id": "library_ref_id TEXT",
         "attempts": "attempts INTEGER NOT NULL DEFAULT 0",
+        "restarts": "restarts INTEGER NOT NULL DEFAULT 0",
         "started_at": "started_at TEXT",
         "finished_at": "finished_at TEXT",
     }
@@ -89,8 +100,17 @@ def init_db(path: Path) -> None:
     rules_cols = {row[1] for row in conn.execute("PRAGMA table_info(rules)")}
     if "target" not in rules_cols:
         conn.execute("ALTER TABLE rules ADD COLUMN target TEXT")
+    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
     conn.close()
+
+
+def schema_version(path: Path) -> int:
+    conn = sqlite3.connect(str(path))
+    try:
+        return int(conn.execute("PRAGMA user_version").fetchone()[0])
+    finally:
+        conn.close()
 
 
 def db_reachable(path: Path) -> bool:

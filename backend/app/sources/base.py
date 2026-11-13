@@ -13,11 +13,15 @@ class Post(BaseModel):
     md5: str | None = None
     file_url: str | None = None
     preview_url: str | None = None
+    sample_url: str | None = None
     width: int = 0
     height: int = 0
     rating: Rating | None = None
     tags: dict[str, list[str]] = Field(default_factory=dict)
     source_url: str | None = None
+    title: str | None = None
+    page_count: int | None = None
+    extra: dict[str, object] = Field(default_factory=dict)  # source-specific, e.g. gallery pages
 
 
 class SearchPage(BaseModel):
@@ -27,6 +31,7 @@ class SearchPage(BaseModel):
     total: int | None = None
     pages: int | None = None
     dropped: list[str] = Field(default_factory=list)  # tags past the cap that cannot be applied
+    notices: list[str] = Field(default_factory=list)  # filters applied locally or not at all
 
 
 class SourceError(Exception):
@@ -43,6 +48,11 @@ class Source(Protocol):
     file_hosts: tuple[str, ...]  # hosts a post's file_url may point to
 
     def search(
-        self, tags: list[str], page: int = 1, page_size: int | None = None
+        self,
+        tags: list[str],
+        page: int = 1,
+        page_size: int | None = None,
+        order: str | None = None,
+        rating: list[str] | None = None,
     ) -> SearchPage: ...
     def get_post(self, post_id: str) -> Post: ...

@@ -25,12 +25,36 @@
 	const addressLocked = $derived(!!conn?.address_locked);
 	const keyLocked = $derived(!!conn?.key_locked);
 	const keySet = $derived(conn?.key === "set");
+	// Sites with more than one credential field (login + key, cookie + User-Agent, ...)
+	const fields = $derived(conn?.fields ?? []);
+	const multi = $derived(fields.length > 1);
+	const canEditKeys = $derived(store.canStore);
+	// Fixed length: neither the real key nor its length reaches the DOM
+	const MASK = "•".repeat(8);
 
 	let address = $state(untrack(() => store.byName(name)?.address ?? ""));
 	let key = $state("");
+	let values = $state<Record<string, string>>({});
 	let busy = $state(false);
 	let error = $state<string | null>(null);
-	let confirmingClear = $state(false);
+	// Fields the user edited; a touched, empty secret field means "remove"
+	let touched = $state<Record<string, boolean>>({});
+
+	const clearKey = $derived(
+		keySet && !keyLocked && canEditKeys && !!touched.key && !key.trim()
+	);
+	const clearFieldIds = $derived(
+		fields
+			.filter(
+				(f) =>
+					f.state === "set" &&
+					!f.locked &&
+					canEditKeys &&
+					touched[f.id] &&
+					!(values[f.id] ?? "").trim()
+			)
+			.map((f) => f.id)
+	);
 
 	const normalizedAddress = $derived(address.trim().replace(/\/$/, ""));
 	const originalAddress = $derived(
@@ -97,23 +121,6 @@
 		}
 	}
 
-	async function handleClearKey() {
-		busy = true;
-		error = null;
-		try {
-			await store.save(api, name, { clear_secret: true });
-			onclose();
-		} catch (e) {
-			if (e instanceof ApiError) {
-				error = errorText(e);
-			} else {
-				throw e;
-			}
-		} finally {
-			busy = false;
-		}
-	}
-
 	async function handleSaveAndTest() {
 		busy = true;
 		error = null;
@@ -124,6 +131,19 @@
 		}
 		if (key.trim()) {
 			body.secret = key.trim();
+		} else if (clearKey && !multi) {
+			body.clear_secret = true;
+		}
+		const typed = Object.fromEntries(
+			Object.entries(values)
+				.map(([id, v]) => [id, v.trim()])
+				.filter(([, v]) => v)
+		);
+		if (Object.keys(typed).length > 0) {
+			body.fields = typed;
+		}
+		if (multi && clearFieldIds.length > 0) {
+			body.clear_fields = clearFieldIds;
 		}
 
 		try {
@@ -131,6 +151,8 @@
 				await store.save(api, name, body);
 			}
 			key = "";
+			values = {};
+			touched = {};
 			await store.test(api, name);
 			onclose();
 		} catch (e) {
@@ -175,6 +197,36 @@
 			</div>
 		{/if}
 
+		{#if multi}
+			{#each fields as f (f.id)}
+				<div class="row">
+					<label for={`conn-f-${f.id}`}>{f.label}</label>
+					<input
+						id={`conn-f-${f.id}`}
+						type={f.primary ? "password" : "text"}
+						autocomplete="off"
+						value={values[f.id] ?? ""}
+						on:input={(e) => {
+							values = { ...values, [f.id]: e.currentTarget.value };
+							touched = { ...touched, [f.id]: true };
+						}}
+						placeholder={f.state === "set" && !touched[f.id] ? MASK : ""}
+						disabled={f.locked || !canEditKeys}
+					/>
+					{#if f.locked}
+						<span class="chip">set in .env</span>
+					{:else}
+						<span class="chip">{f.state}</span>
+					{/if}
+					{#if clearFieldIds.includes(f.id)}
+						<p class="hint">{f.label} will be removed</p>
+					{/if}
+				</div>
+			{/each}
+			{#if !store.canStore}
+				<p class="note" role="note">Keys can't be saved here: Pearlie could not create its encryption key file. Check that the data folder is writable, or set PEARLIE_SECRET_KEY in .env.</p>
+			{/if}
+		{:else}
 		<div class="row">
 			<label for="conn-key">Key</label>
 			<input
@@ -183,7 +235,8 @@
 				autocomplete="off"
 				bind:this={keyInput}
 				bind:value={key}
-				placeholder="Leave empty to keep"
+				on:input={() => (touched = { ...touched, key: true })}
+				placeholder={(keySet || keyLocked) && !touched.key ? MASK : ""}
 				disabled={keyLocked || !store.canStore}
 			/>
 			{#if keyLocked}
@@ -196,18 +249,10 @@
 			{/if}
 		</div>
 
-		{#if keySet && !keyLocked && store.canStore}
-			{#if confirmingClear}
-				<div class="row">
-					<span class="row-label">Clear the stored key?</span>
-					<button class="btn" disabled={busy} on:click={handleClearKey}>Clear</button>
-					<button class="btn" disabled={busy} on:click={() => (confirmingClear = false)}>Keep</button>
-				</div>
-			{:else}
-				<div class="row">
-					<button class="btn" disabled={busy} on:click={() => (confirmingClear = true)}>Clear key</button>
-				</div>
-			{/if}
+		{#if clearKey}
+			<p class="hint">Key will be removed</p>
+		{/if}
+
 		{/if}
 
 		{#if error}

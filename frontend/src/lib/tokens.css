@@ -8,6 +8,7 @@
   --muted: #A3A3AD;
   --accent: #7FB0FF;
   --accent-bg: #22324F;
+  --on-accent: #0D1420;
   --danger-bg: #4A2A2A;
   --danger-fg: #FFD2D2;
   --danger-hot: #FF6B6B;
@@ -37,6 +38,10 @@
   --content-max: 1280px;
   --player-bottom-offset: 0px;
   --font: "Inter Variable", system-ui, sans-serif;
+}
+
+:root[data-rail="slim"] {
+  --rail-w: 56px;
 }
 
 * {

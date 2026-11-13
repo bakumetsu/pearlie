@@ -97,6 +97,10 @@ export function attentionText(job: Job): string {
   return "";
 }
 
+export function needsFolderFix(job: Job): boolean {
+  return job.state === "failed" && job.error_code === "outside_library";
+}
+
 export function routeFor(job: Job): string | null {
   const ref = job.library_ref;
   if (!ref) return null;

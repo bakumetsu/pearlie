@@ -77,7 +77,7 @@ describe("TrashRetentionCard", () => {
     expect(putOptions).not.toHaveBeenCalled();
     await fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(screen.queryByRole("dialog")).toBeNull();
-    await waitFor(() => expect(putOptions).toHaveBeenCalledWith({ trash_retention_days: 3 }));
+    await waitFor(() => expect(putOptions).toHaveBeenCalledWith({ trash_retention_days: 3, confirm_purge: true }));
   });
 
   it("count 1: singular wording", async () => {

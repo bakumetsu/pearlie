@@ -22,6 +22,9 @@ function makeOptions(overrides: Partial<Options> = {}): Options {
     backdrop_lightbox: true,
     allow_blurred_tags: false,
     trash_retention_days: 7,
+    infinite_scroll: false,
+    hidden_sites: [],
+    site_order: [],
     source_pace: {},
     ...overrides,
   };

@@ -2,17 +2,46 @@
 	import { onDestroy, onMount } from "svelte";
 	import { getApi } from "../api/client";
 	import { createUpdate } from "../stores/update.svelte";
+	import { getRouter } from "../ctx";
+	import { linkClick } from "../router";
 	import Icon from "../components/Icon.svelte";
 	import Switch from "../components/Switch.svelte";
 
+	let router: ReturnType<typeof getRouter> | null = null;
+	try { router = getRouter(); } catch { /* no router context: the link does a normal page load */ }
 	const update = createUpdate(getApi());
 	onMount(() => {
 		void update.load(true).then(() => update.resume());
 	});
 
 	let confirming = $state(false);
+	let sheet: "restart" | "rollback" | null = $state(null);
+	let restoreDb = $state(false);
 	onDestroy(() => update.dispose());
 	function confirm() { confirming = false; void update.apply(); }
+	function closeSheets() { confirming = false; sheet = null; }
+	function openSheet(kind: "restart" | "rollback") { restoreDb = false; sheet = kind; }
+	function runSheet() {
+		const kind = sheet;
+		const force = jobs > 0;
+		const restore = restoreDb;
+		sheet = null;
+		if (kind === "restart") void update.restart(force);
+		else if (kind === "rollback") void update.rollback({ restoreDb: restore, force });
+	}
+	const rb = $derived(update.status?.rollback ?? null);
+	const canRestart = $derived(!!update.status?.can_restart);
+	const jobs = $derived(update.status?.jobs_running ?? 0);
+	const plural = (n: number) => `${n} ${n === 1 ? "job is" : "jobs are"} running`;
+	const askRestore = $derived(!!rb && rb.schema !== "same" && !!rb.backup_at);
+	function when(iso: string | null | undefined): string {
+		if (!iso) return "";
+		const d = new Date(iso);
+		if (Number.isNaN(d.getTime())) return iso;
+		const p = (n: number) => String(n).padStart(2, "0");
+		return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+	}
+	const actionOff = $derived(update.phase !== "idle" || update.busy || update.checking);
 	const updateLabel = $derived(
 		update.status && update.status.channel !== update.status.installed.channel && update.status.available
 			? `Switch to ${update.latest?.version}`
@@ -24,12 +53,6 @@
 
 <section class="card">
 	<h2>Update</h2>
-	{#if update.phase === "running" || update.phase === "restarting"}
-		<div class="strip" role="status">
-			<span class="spin"><Icon name="refresh" size={16} /></span>
-			{update.phase === "restarting" ? "Restarting…" : (update.step ?? "Starting…")}
-		</div>
-	{/if}
 	{#if update.phase === "failed_rollback"}
 		<div class="banner" role="alert">
 			<p>Update failed and could not be rolled back. Run pearlie-update in the Pearlie console to repair.</p>
@@ -44,7 +67,7 @@
 			<span class="row-label">Installed</span>
 			<span class="row-value">
 				{#if update.status}
-					{update.status.installed.version}
+					<span title={update.status.installed.commit ? update.status.installed.commit.slice(0, 7) : undefined}>{update.status.installed.version}</span>
 					<span class="pill">{update.status.installed.channel}</span>
 				{:else if update.offline || update.error}
 					<span class="muted">Update status unavailable.</span>
@@ -109,10 +132,12 @@
 					/>
 				</span>
 			</li>
+		{/if}
 
-			<!-- Actions -->
-			<li class="row">
-				<span class="row-value actions">
+		<!-- Actions -->
+		<li class="row">
+			<span class="row-value actions">
+				{#if update.status}
 					<button
 						class="iconbtn"
 						class:spin={update.checking}
@@ -131,7 +156,6 @@
 						onclick={() => (confirming = true)}
 					>
 						<Icon name="download" />
-						<span class="btn-label">{updateLabel}</span>
 					</button>
 					{#if update.latest?.url}
 						<a
@@ -144,24 +168,105 @@
 							<Icon name="external-link" />
 						</a>
 					{/if}
-				</span>
-			</li>
-		{/if}
+					<span class="sep"></span>
+					<button
+						class="iconbtn"
+						aria-label={rb ? `Roll back to ${rb.version}` : "Roll back"}
+						title={rb ? `Roll back to ${rb.version}` : "No earlier version is kept"}
+						disabled={!rb || !canRestart || actionOff}
+						onclick={() => openSheet("rollback")}
+					>
+						<Icon name="rotate-ccw" />
+					</button>
+					<button
+						class="iconbtn"
+						aria-label="Restart server"
+						title={canRestart ? "Restart server" : "Restarting is not available here"}
+						disabled={!canRestart || actionOff}
+						onclick={() => openSheet("restart")}
+					>
+						<Icon name="power" />
+					</button>
+				{:else if update.offline || update.error}
+					<button class="iconbtn" aria-label="Retry" title="Retry" onclick={() => update.retry()}>
+						<Icon name="refresh" />
+					</button>
+				{/if}
+				{#if update.phase === "running" || update.phase === "restarting"}
+					<div class="strip" role="status">
+						<span class="spin"><Icon name="refresh" size={16} /></span>
+						{update.phase === "restarting" ? "Restarting…" : (update.step ?? "Starting…")}
+					</div>
+				{/if}
+			</span>
+		</li>
 	</ul>
+	{#if update.status}
+		{#if canRestart && !rb}
+			<p class="muted">Roll back is off: no earlier version is kept.</p>
+		{/if}
+		{#if update.note}
+			<p class="muted" role="status">{update.note}</p>
+		{/if}
+		<a class="cl-link" href="/options/changelog" onclick={(e) => { if (router) linkClick(e, router); }}>
+			<Icon name="history" size={18} />
+			{update.status.available ? "See what's new" : "See changelog"}
+		</a>
+	{/if}
 </section>
-<svelte:window onkeydown={(e) => { if (confirming && e.key === "Escape") confirming = false; }} />
-	{#if confirming}
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<div class="scrim" role="presentation" onclick={() => (confirming = false)}>
-			<div class="sheet" role="dialog" aria-modal="true" aria-label="Confirm update" tabindex="-1" onclick={(e) => e.stopPropagation()}>
-				<p>Pearlie restarts for about a minute. Your settings and library are not changed.</p>
-				<div class="sheet-actions">
-					<button class="sheetbtn" onclick={() => (confirming = false)}>Cancel</button>
-					<button class="sheetbtn primary" onclick={confirm}>Confirm</button>
-				</div>
+
+<svelte:window onkeydown={(e) => { if ((confirming || sheet) && e.key === "Escape") closeSheets(); }} />
+{#if confirming}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="scrim" role="presentation" onclick={closeSheets}>
+		<div class="sheet" role="dialog" aria-modal="true" aria-label="Confirm update" tabindex="-1" onclick={(e) => e.stopPropagation()}>
+			<p>Pearlie restarts for about a minute. Your settings and library are not changed.</p>
+			<div class="sheet-actions">
+				<button class="sheetbtn" onclick={closeSheets}>Cancel</button>
+				<button class="sheetbtn primary" onclick={confirm}>Confirm</button>
 			</div>
 		</div>
-	{/if}
+	</div>
+{/if}
+{#if sheet}
+	{@const heading = sheet === "restart" ? "Restart server" : `Roll back to ${rb?.version ?? ""}`}
+	{@const restoring = sheet === "rollback" && askRestore && restoreDb}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="scrim" role="presentation" onclick={closeSheets}>
+		<div class="sheet" role="dialog" aria-modal="true" aria-label={heading} tabindex="-1" onclick={(e) => e.stopPropagation()}>
+			<h3>{heading}</h3>
+			{#if jobs > 0}
+				<p class="jobs">{plural(jobs)}. They go back to the queue and restart from the beginning.</p>
+			{/if}
+			{#if sheet === "restart"}
+				<p>Pearlie restarts for about a minute.{jobs > 0 ? "" : " Running jobs restart from the beginning."}</p>
+			{:else}
+				<p>Go back to {rb?.version}. {rb?.schema === "same" ? "Your database and library are not changed. " : ""}Pearlie restarts for about a minute.</p>
+				{#if rb && rb.schema !== "same"}
+					<p>The database layout may have changed since {rb.version}. If Pearlie does not start, restore the backup.</p>
+				{/if}
+				{#if askRestore}
+					<label class="check">
+						<input type="checkbox" bind:checked={restoreDb} />
+						<span>Also restore the database backup from {when(rb?.backup_at)} (loses changes since the update)</span>
+					</label>
+				{/if}
+			{/if}
+			<div class="sheet-actions">
+				<button class="sheetbtn" onclick={closeSheets}>Cancel</button>
+				<button class="sheetbtn primary" class:warn={restoring} onclick={runSheet}>
+					{#if sheet === "restart"}
+						{jobs > 0 ? "Restart anyway" : "Restart"}
+					{:else if restoring}
+						Roll back and restore
+					{:else}
+						{jobs > 0 ? "Roll back anyway" : "Roll back"}
+					{/if}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.rows {
@@ -178,6 +283,19 @@
 
 	.actions {
 		gap: var(--s-1);
+		width: 100%;
+	}
+
+	.actions .strip {
+		margin-left: auto;
+	}
+
+	.cl-link {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--s-2);
+		min-height: 44px;
+		color: var(--accent);
 	}
 
 	.pill {
@@ -255,10 +373,6 @@
 		}
 	}
 
-	.btn-label {
-		font-size: var(--t-13);
-	}
-
 	.strip {
 		display: flex;
 		flex-direction: row;
@@ -312,10 +426,36 @@
 		background: var(--accent);
 		color: var(--surface);
 	}
+	.sheetbtn.warn {
+		background: var(--danger-bg);
+		color: var(--danger-fg);
+		border-color: var(--danger-hot);
+	}
+	.sheet h3 {
+		margin: 0 0 var(--s-2);
+		font-size: var(--t-15);
+	}
+	.jobs {
+		color: var(--danger-fg);
+	}
+	.check {
+		display: flex;
+		align-items: center;
+		gap: var(--s-2);
+		min-height: 44px;
+		margin-bottom: var(--s-2);
+	}
+	.check input {
+		width: 22px;
+		height: 22px;
+		flex: none;
+	}
+	.sep {
+		display: inline-block;
+		width: 12px;
+		flex: none;
+	}
 	@media (max-width: 640px) {
-		.btn-label {
-			display: none;
-		}
 		.row {
 			flex-wrap: wrap;
 		}

@@ -19,7 +19,7 @@ class FakeSource:
     def __init__(self, posts: list[Post]) -> None:
         self.posts = posts
 
-    def search(self, tags, page, page_size):
+    def search(self, tags, page, page_size, order=None, rating=None):
         return SearchPage(posts=self.posts, page=1, total=len(self.posts), pages=1)
 
 
@@ -192,11 +192,12 @@ def test_multi_source_unconfigured_error(tmp_path: Path) -> None:
     ]
     client = _client(tmp_path, posts)
     _put_rules(client, reject=["bad_tag"])
-    r = client.get("/api/search?q=bad&sources=danbooru,gelbooru")
+    client.app.state.sources.pop("nhentai")  # pyright: ignore[reportAttributeAccessIssue]
+    r = client.get("/api/search?q=bad&sources=danbooru,nhentai")
     assert r.status_code == 200
     danbooru = _section(r, "danbooru")
     assert danbooru["hidden"] == 1
     assert len(danbooru["items"]) == 1
-    gelbooru = _section(r, "gelbooru")
-    assert gelbooru["error"]["code"] == "not_configured"
-    assert gelbooru["hidden"] == 0
+    nhentai = _section(r, "nhentai")
+    assert nhentai["error"]["code"] == "not_configured"
+    assert nhentai["hidden"] == 0

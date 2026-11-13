@@ -10,12 +10,14 @@ from typing import Any
 
 import pytest
 
+from app import logs
 from app.db import init_db
 from app.jobs.store import JobStore
 from app.jobs.worker import JobWorker
 from app.models import Problem
 from app.sources.base import Post, SourceError
 from app.targets.stash import SaveError, SaveResult
+from app.targets.stash_client import StashError
 
 
 class FakeClock:
@@ -151,6 +153,18 @@ def test_unknown_save_status_fails_job(tmp_path: Path) -> None:
     assert job.error == "unexpected save result"
 
 
+def test_stash_error_keeps_its_code(tmp_path: Path) -> None:
+    worker, store, target, sources, clock = make(tmp_path)
+    target.results.append(StashError("upstream_auth", "Stash refused the API key", 502))
+    jid = enqueue(store, sources, "danbooru", "1")
+    assert worker.run_once() is True
+    job = store.get(jid)
+    assert job is not None
+    assert job.state == "failed"
+    assert job.error == "Stash refused the API key"
+    assert job.error_code == "upstream_auth"
+
+
 def test_tags_are_flattened_sorted(tmp_path: Path) -> None:
     worker, store, target, sources, clock = make(tmp_path)
     enqueue(store, sources, "danbooru", "1")
@@ -229,6 +243,7 @@ def test_unexpected_error_text_has_no_secret(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level("INFO")
+    caplog.handler.addFilter(logs.ScrubFilter())
     worker, store, target, sources, clock = make(tmp_path)
     target.results.append(RuntimeError("https://x/?api_key=SECRET"))
     jid = enqueue(store, sources, "danbooru", "1")
@@ -450,3 +465,28 @@ def test_thread_lifecycle(tmp_path: Path) -> None:
     worker.stop()
     remaining = [t for t in threading.enumerate() if t.name.startswith("pearlie-job")]
     assert remaining == []
+
+
+def test_failed_finish_does_not_leave_job_running(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    worker, store, target, sources, clock = make(tmp_path)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    real_finish = store.finish
+    worker_store = worker._store
+    calls: list[str] = []
+
+    def flaky(job_id: str, state: str, *args: Any, **kwargs: Any) -> None:
+        calls.append(state)
+        if len(calls) <= 2:
+            raise RuntimeError("db locked")
+        real_finish(job_id, state, *args, **kwargs)
+
+    monkeypatch.setattr(worker_store, "finish", flaky)
+    jid = enqueue(store, sources, "danbooru", "1")
+    assert worker.run_once() is True
+    job = store.get(jid)
+    assert job is not None
+    assert job.state == "failed"
+    assert job.error_code == "unexpected_error"
+    assert calls == ["done", "failed", "failed"]

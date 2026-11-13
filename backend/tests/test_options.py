@@ -60,8 +60,29 @@ def test_defaults(any_client: TestClient) -> None:
         "backdrop_lightbox": True,
         "allow_blurred_tags": False,
         "trash_retention_days": 7,
+        "infinite_scroll": False,
         "source_pace": expected_pace,
+        "hidden_sites": [],
+        "site_order": ["danbooru", "gelbooru", "rule34", "nhentai"],
     }
+
+
+def test_infinite_scroll_off_then_saved(any_client: TestClient) -> None:
+    assert any_client.get("/api/options").json()["infinite_scroll"] is False
+    r = any_client.put("/api/options", json={"infinite_scroll": True})
+    assert r.status_code == 200
+    assert r.json()["infinite_scroll"] is True
+    assert any_client.get("/api/options").json()["infinite_scroll"] is True
+    # Global: the touch profile sees the same value
+    touch = any_client.get("/api/options", headers={"X-Pearlie-Device": "touch"})
+    assert touch.json()["infinite_scroll"] is True
+    r = any_client.put("/api/options", json={"infinite_scroll": False})
+    assert r.json()["infinite_scroll"] is False
+
+
+def test_infinite_scroll_rejects_non_bool(any_client: TestClient) -> None:
+    r = any_client.put("/api/options", json={"infinite_scroll": "yes"})
+    assert r.status_code == 422
 
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@
   import { options } from "../stores/options.svelte";
   import { sfw } from "../stores/sfw.svelte";
   import { backdropStrength } from "../options/backdrop";
+  import { swipeDir } from "../browse/swipe";
 
   let {
     item,
@@ -15,6 +16,8 @@
     onsave,
     onreject,
     onclose,
+    onprev,
+    onnext,
   }: {
     item: WebItem;
     saveState?: "idle" | "queued" | "in_library" | "blocked";
@@ -22,6 +25,8 @@
     onsave: () => void;
     onreject?: (tag: string) => void;
     onclose: () => void;
+    onprev?: () => void;
+    onnext?: () => void;
   } = $props();
 
   let dialogEl: HTMLDialogElement;
@@ -36,21 +41,55 @@
     };
   });
 
+  function onKey(e: KeyboardEvent) {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    if (e.key === "ArrowLeft" && onprev) {
+      e.preventDefault();
+      onprev();
+    } else if (e.key === "ArrowRight" && onnext) {
+      e.preventDefault();
+      onnext();
+    }
+  }
+
+  let swipeStart: { id: number; x: number; y: number } | null = null;
+
+  function swipeDown(e: PointerEvent) {
+    swipeStart = e.pointerType === "mouse" ? null : { id: e.pointerId, x: e.clientX, y: e.clientY };
+  }
+
+  function swipeUp(e: PointerEvent) {
+    const s = swipeStart;
+    swipeStart = null;
+    if (!s || s.id !== e.pointerId) return;
+    const dir = swipeDir(e.clientX - s.x, e.clientY - s.y);
+    if (dir === 1) onnext?.();
+    else if (dir === -1) onprev?.();
+  }
+
   const title = $derived(item.title ?? `${item.source} #${item.post_id}`);
+  const sized = $derived(item.width > 0 && item.height > 0);
   const backdrop = $derived(backdropStrength(options.values, "lightbox", sfw?.on ?? false));
 </script>
 
 <dialog
   bind:this={dialogEl}
   onclose={() => onclose()}
+  onkeydown={onKey}
   onclick={(e) => {
     if (e.target === dialogEl) dialogEl.close();
   }}
 >
   <Backdrop src={item.preview_url} strength={backdrop} />
   <SfwToggle />
-  <div class="stage">
-    <img src={item.preview_url} alt={item.title ?? ""} />
+  <div class="stage" role="presentation" onpointerdown={swipeDown} onpointerup={swipeUp} onpointercancel={() => (swipeStart = null)}>
+    {#if onprev}
+      <button class="nav prev" aria-label="Previous" onclick={onprev}><Icon name="chevron-left" size={24} /></button>
+    {/if}
+    {#if onnext}
+      <button class="nav next" aria-label="Next" onclick={onnext}><Icon name="chevron-right" size={24} /></button>
+    {/if}
+    <img src={item.preview_url} alt={item.title ?? ""} style={sized ? `aspect-ratio: ${item.width} / ${item.height}; --ratio: ${item.width / item.height};` : undefined} />
   </div>
 
   <div class="panel">
@@ -96,26 +135,28 @@
       </section>
     {/if}
 
-    {#if saveState === "in_library"}
-      <a class="save-btn in-library" href={savedHref}>
-        <Icon name="check" size={18} />
-        In library
-      </a>
-    {:else if saveState === "queued"}
-      <button class="save-btn" disabled>
-        <Icon name="loader" size={18} />
-        Queued
-      </button>
-    {:else if saveState === "blocked"}
-      <button class="save-btn blocked" disabled>
-        <Icon name="alert" size={18} />
-        Blocked by a rule
-      </button>
-    {:else}
-      <button class="save-btn" onclick={onsave}>
-        <Icon name="download" size={18} />
-        Save
-      </button>
+    {#if item.saveable !== false}
+      {#if saveState === "in_library"}
+        <a class="save-btn in-library" href={savedHref}>
+          <Icon name="check" size={18} />
+          In library
+        </a>
+      {:else if saveState === "queued"}
+        <button class="save-btn" disabled>
+          <Icon name="loader" size={18} />
+          Queued
+        </button>
+      {:else if saveState === "blocked"}
+        <button class="save-btn blocked" disabled>
+          <Icon name="alert" size={18} />
+          Blocked by a rule
+        </button>
+      {:else}
+        <button class="save-btn" onclick={onsave}>
+          <Icon name="download" size={18} />
+          Save
+        </button>
+      {/if}
     {/if}
 
     <p class="meta">Source: {item.source} · Post {item.post_id}</p>
@@ -154,11 +195,47 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    container-type: size;
+  }
+
+  .stage {
+    position: relative;
+    touch-action: pan-y;
+  }
+
+  .nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    background: rgb(0 0 0 / 0.5);
+    cursor: pointer;
+  }
+
+  .nav:hover {
+    background: rgb(0 0 0 / 0.7);
+  }
+
+  .prev {
+    left: var(--s-3);
+  }
+
+  .next {
+    right: var(--s-3);
   }
 
   .stage img {
-    width: 100%;
-    height: 100%;
+    width: min(100cqw, calc(100cqh * var(--ratio)));
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
   }
 

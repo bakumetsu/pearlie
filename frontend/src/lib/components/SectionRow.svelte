@@ -3,7 +3,7 @@
   import type { Snippet } from "svelte";
   import { onMount } from "svelte";
 
-  let { title, count, seeAllHref, onnavigate, hidden, rulesHref, error, onretry, children }: {
+  let { title, count, seeAllHref, onnavigate, hidden, rulesHref, error, onretry, wide, children }: {
     title: string;
     count?: number | null;
     seeAllHref?: string;
@@ -12,6 +12,7 @@
     rulesHref?: string;
     error?: string | null;
     onretry?: () => void;
+    wide?: boolean;
     children: Snippet;
   } = $props();
 
@@ -74,7 +75,7 @@
       >
         <Icon name="chevron-left" size={20} />
       </button>
-      <div class="strip no-scrollbar" bind:this={strip} onscroll={updateMetrics}>
+      <div class="strip no-scrollbar" class:wide bind:this={strip} onscroll={updateMetrics}>
         {@render children()}
       </div>
       <button
@@ -143,6 +144,10 @@
     scrollbar-width: none;
     padding: var(--s-1) 0;
     min-width: 0;
+    align-items: flex-start;
+  }
+  .strip.wide > :global(*) {
+    flex-basis: max(200px, calc((100% - 4 * var(--s-2)) / 5));
   }
   .strip::-webkit-scrollbar {
     display: none;

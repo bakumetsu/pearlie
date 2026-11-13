@@ -42,7 +42,10 @@ class Options(BaseModel):
     backdrop_lightbox: StrictBool = True
     allow_blurred_tags: StrictBool = False
     trash_retention_days: StrictInt = Field(default=7, ge=1, le=365)
+    infinite_scroll: StrictBool = False
     source_pace: dict[str, SitePace] = {}
+    hidden_sites: list[str] = []
+    site_order: list[str] = []
 
     @field_validator("player_rate")
     @classmethod
@@ -63,7 +66,11 @@ class OptionsUpdate(BaseModel):
     backdrop_lightbox: StrictBool | None = None
     allow_blurred_tags: StrictBool | None = None
     trash_retention_days: StrictInt | None = Field(default=None, ge=1, le=365)
+    confirm_purge: StrictBool | None = None
+    infinite_scroll: StrictBool | None = None
     source_pace: dict[str, float] | None = None
+    hidden_sites: list[str] | None = None
+    site_order: list[str] | None = None
 
     @field_validator("player_rate")
     @classmethod
@@ -204,8 +211,12 @@ def get_options(request: Request) -> Options:
     abt_raw = read("options.global.allow_blurred_tags")
     allow_blurred_tags: bool = abt_raw == "1" if abt_raw is not None else False
 
-    trd_raw = read("options.global.trash_retention_days")
+    # Fixture mode: the store owns retention, so options and trash cannot disagree.
+    trd_raw = str(store.retention_days) if fixture else read("options.global.trash_retention_days")
     trash_retention_days: int = min(365, max(1, int(_num(trd_raw, 7))))
+
+    is_raw = read("options.global.infinite_scroll")
+    infinite_scroll: bool = is_raw == "1"
 
     # Source pace
     source_pace: dict[str, SitePace] = {}
@@ -221,6 +232,13 @@ def get_options(request: Request) -> Options:
             backing_off=backing,
         )
 
+    hs_raw = read("options.global.hidden_sites")
+    hidden_sites = [s for s in DEFAULT_PACE if s in (hs_raw or "").split(",")]
+
+    so_raw = (read("options.global.site_order") or "").split(",")
+    site_order = list(dict.fromkeys(s for s in so_raw if s in DEFAULT_PACE))
+    site_order += [s for s in DEFAULT_PACE if s not in site_order]
+
     return Options(
         sfw=sfw_val,
         sfw_set=sfw_set,
@@ -233,7 +251,10 @@ def get_options(request: Request) -> Options:
         backdrop_lightbox=backdrop_lightbox,
         allow_blurred_tags=allow_blurred_tags,
         trash_retention_days=trash_retention_days,
+        infinite_scroll=infinite_scroll,
         source_pace=source_pace,
+        hidden_sites=hidden_sites,
+        site_order=site_order,
     )
 
 
@@ -264,10 +285,26 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
         write("options.global.backdrop_lightbox", "1" if body.backdrop_lightbox else "0")
     if body.allow_blurred_tags is not None:
         write("options.global.allow_blurred_tags", "1" if body.allow_blurred_tags else "0")
+    if body.infinite_scroll is not None:
+        write("options.global.infinite_scroll", "1" if body.infinite_scroll else "0")
     if body.trash_retention_days is not None:
         write("options.global.trash_retention_days", str(body.trash_retention_days))
         if fixture:
-            store.set_retention(body.trash_retention_days)
+            store.set_retention(body.trash_retention_days, purge=body.confirm_purge is True)
+
+    if body.hidden_sites is not None:
+        for site in body.hidden_sites:
+            if site not in DEFAULT_PACE:
+                raise ApiError(422, "invalid", f"unknown site: {site}", field="hidden_sites")
+        if set(DEFAULT_PACE) <= set(body.hidden_sites):
+            raise ApiError(422, "invalid", "keep at least one site visible", field="hidden_sites")
+        write("options.global.hidden_sites", ",".join(sorted(set(body.hidden_sites))))
+
+    if body.site_order is not None:
+        for site in body.site_order:
+            if site not in DEFAULT_PACE:
+                raise ApiError(422, "invalid", f"unknown site: {site}", field="site_order")
+        write("options.global.site_order", ",".join(dict.fromkeys(body.site_order)))
 
     if body.source_pace is not None:
         settings = request.app.state.settings

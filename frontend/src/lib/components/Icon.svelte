@@ -6,12 +6,13 @@
     | "trash" | "star" | "play" | "pause" | "external-link"
     | "refresh" | "alert" | "loader" | "bookmark" | "image" | "film" | "book"
     | "star-filled" | "volume" | "volume-x" | "pip" | "maximize" | "minimize" | "undo"
-    | "clock" | "minus" | "upload" | "columns" | "settings" | "arrow-left-right" | "rotate-ccw"
+    | "clock" | "minus" | "upload" | "columns" | "settings" | "arrow-left-right" | "rotate-ccw" | "power"
     | "help" | "chevron-up" | "list" | "fit-width" | "fit-height" | "fit-both" | "fit-actual" | "mode-single" | "mode-spread" | "mode-scroll"
     | "home" | "wrench" | "eye" | "eye-off"
     | "grid" | "wall" | "masonry" | "sliders" | "chevrons-left" | "chevrons-right"
     | "skip-back" | "skip-forward" | "rewind" | "fast-forward" | "replay-10" | "forward-10"
-    | "zoom-in" | "zoom-out" | "info";
+    | "zoom-in" | "zoom-out" | "info" | "order" | "shield"
+    | "octagon-x" | "triangle-alert" | "bug" | "copy" | "history";
 
   const paths: Record<IconName, string[]> = {
     "search": [
@@ -173,6 +174,11 @@
       "M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z",
       "M12 7v5l3 2",
     ],
+    "history": [
+      "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8",
+      "M3 3v5h5",
+      "M12 7v5l4 2",
+    ],
     "minus": [
       "M5 12h14",
     ],
@@ -201,6 +207,10 @@
       "M4 7h16",
       "M16 21l4-4-4-4",
       "M20 17H4",
+    ],
+    "power": [
+      "M12 2v10",
+      "M18.4 6.6a9 9 0 1 1-12.77.04",
     ],
     "rotate-ccw": [
       "M1 4v6h6",
@@ -353,6 +363,43 @@
       "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z",
       "M12 16v-4",
       "M12 8h.01",
+    ],
+    "order": [
+      "m3 16 4 4 4-4",
+      "M7 20V4",
+      "M11 4h4",
+      "M11 8h7",
+      "M11 12h10",
+    ],
+    "shield": [
+      "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
+    ],
+    "octagon-x": [
+      "m15 9-6 6",
+      "M2.586 16.726A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2h6.624a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586z",
+      "m9 9 6 6",
+    ],
+    "triangle-alert": [
+      "m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3",
+      "M12 9v4",
+      "M12 17h.01",
+    ],
+    "bug": [
+      "M12 20v-9",
+      "M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4z",
+      "M14.12 3.88 16 2",
+      "M21 21a4 4 0 0 0-3.81-4",
+      "M21 5a4 4 0 0 1-3.55 3.97",
+      "M22 13h-4",
+      "M3 21a4 4 0 0 1 3.81-4",
+      "M3 5a4 4 0 0 0 3.55 3.97",
+      "M6 13H2",
+      "m8 2 1.88 1.88",
+      "M9 7.13V6a3 3 0 1 1 6 0v1.13",
+    ],
+    "copy": [
+      "M20 8h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2z",
+      "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
     ],
   };
 </script>

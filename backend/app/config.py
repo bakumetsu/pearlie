@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import SecretStr, ValidationError
+from pydantic import SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     trusted_network: bool = False
+    allowed_hosts: str = ""
     secret_key: SecretStr = SecretStr("")
     stash_url: str = ""
     stash_api_key: SecretStr = SecretStr("")
@@ -38,8 +39,23 @@ class Settings(BaseSettings):
     stash_path_prefix_pearlie: str = ""
     stash_path_prefix_stash: str = ""
     stash_scan_timeout_s: float = 120.0
+    komga_incoming_dir: str = ""
+    komga_temp_dir: Path = Path("/mnt/media/komga/.pearlie-tmp")
+    komga_path_prefix_pearlie: str = ""
+    komga_path_prefix_komga: str = ""
     download_interval_s: float = 2.0
     worker_enabled: bool = True
+    log_dir: Path | None = None
+    log_keep_days: int = 7
+
+    @field_validator("log_dir", mode="before")
+    @classmethod
+    def _blank_log_dir(cls, v: Any) -> Any:
+        return None if isinstance(v, str) and not v.strip() else v
+
+    @property
+    def allowed_host_set(self) -> frozenset[str]:
+        return frozenset(h.strip().lower() for h in self.allowed_hosts.split(",") if h.strip())
 
     def safe_summary(self) -> dict[str, str]:
         result: dict[str, str] = {}

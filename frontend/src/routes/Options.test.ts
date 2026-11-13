@@ -9,6 +9,13 @@ const hoisted = vi.hoisted(() => ({ router: null as unknown }));
 
 vi.mock("../lib/ctx", () => ({ getRouter: () => hoisted.router }));
 
+// Search results mount the real cards; every API call stays pending.
+vi.mock("../lib/api/client", async (orig) => ({
+  ...((await orig()) as Record<string, unknown>),
+  getApi: () =>
+    new Proxy({}, { get: () => () => new Promise(() => {}) }),
+}));
+
 // ── Mocks ─────────────────────────────────────────────────────────
 
 function makeMatch(overrides: Partial<Match> = {}): Match {
@@ -72,13 +79,13 @@ afterEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────
 
 describe("Options", () => {
-  it("renders all 10 sections in the list (desktop, no search)", () => {
+  it("renders all 13 sections in the list (desktop, no search)", () => {
     render(Options, {
       props: { match: makeMatch() },
     });
 
     const rows = document.querySelectorAll("button[data-section]");
-    expect(rows.length).toBe(10);
+    expect(rows.length).toBe(13);
 
     const labels = Array.from(rows).map((r) =>
       r.querySelector(".section-row-label")?.textContent?.trim(),
@@ -115,6 +122,53 @@ describe("Options", () => {
     expect(noResults?.textContent?.trim()).toBe("Nothing found");
   });
 
+  it("search renders the real setting cards and marks the matching row", async () => {
+    render(Options, { props: { match: makeMatch() } });
+    const input = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Search options"]',
+    )!;
+    const nativeSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!;
+    nativeSetter.call(input, "version info");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    await tick();
+
+    const pane = document.querySelector(".pane")!;
+    expect(pane.querySelectorAll("[data-hit]").length).toBeGreaterThan(0);
+    // generic card: the matching row carries the highlight
+    const marked = pane.querySelectorAll("[data-row-hit]");
+    expect(marked.length).toBeGreaterThan(0);
+  });
+
+  it("search keeps focus while typing several characters", async () => {
+    render(Options, { props: { match: makeMatch() } });
+
+    const inputs = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[aria-label="Search options"]'),
+    );
+    const input = inputs[inputs.length - 1];
+    const nativeSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!;
+    input.focus();
+    for (const v of ["a", "ab"]) {
+      nativeSetter.call(input, v);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await tick();
+      expect(document.activeElement).toBe(input);
+    }
+  });
+
+  it("every section row has an icon", () => {
+    render(Options, { props: { match: makeMatch() } });
+    const rows = document.querySelectorAll("button[data-section]");
+    for (const r of Array.from(rows)) expect(r.querySelector("svg")).toBeTruthy();
+  });
+
   it("phone: /options shows list only (no pane)", () => {
     mockMatchMedia(true);
 
@@ -130,7 +184,7 @@ describe("Options", () => {
     // Search present
     expect(document.querySelector('input[aria-label="Search options"]')).toBeTruthy();
     // Section rows present
-    expect(document.querySelectorAll("button[data-section]").length).toBe(10);
+    expect(document.querySelectorAll("button[data-section]").length).toBe(13);
   });
 
   it("phone: /options/viewing shows section + back button", () => {
@@ -205,7 +259,7 @@ describe("Options", () => {
   it("marks LATER sections with a LATER tag", () => {
     render(Options, { props: { match: makeMatch() } });
     const tags = document.querySelectorAll("button[data-section] .later-tag");
-    expect(tags.length).toBe(2);
+    expect(tags.length).toBe(1);
   });
 
   it("'/' focuses the search box", () => {
@@ -224,7 +278,7 @@ describe("Options", () => {
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await tick();
     expect(input.value).toBe("");
-    expect(document.querySelectorAll("button[data-section]").length).toBe(10);
+    expect(document.querySelectorAll("button[data-section]").length).toBe(13);
   });
 
   it("ArrowDown moves focus to the next section row", () => {

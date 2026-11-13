@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/svelte";
 import App from "../App.svelte";
+import seeAllSrc from "./SeeAll.svelte?raw";
 
 function tile(id: string) {
   return {
@@ -14,6 +15,12 @@ function tile(id: string) {
   };
 }
 
+describe("SeeAll title", () => {
+  it("hides an unknown total", () => {
+    expect(seeAllSrc).toContain("grid.total != null");
+    expect(seeAllSrc).not.toContain('?? "…"');
+  });
+});
 describe("SeeAll paging", () => {
   let pages: number[];
   let sizes: number[];

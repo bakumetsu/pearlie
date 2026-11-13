@@ -88,6 +88,10 @@ describe("addTag / removeTag", () => {
     expect(addTag(["a"], "   ")).toEqual(["a"]);
   });
 
+  it("splits on whitespace and commas, normalizes, dedupes", () => {
+    expect(addTag(["a"], "B c,d  a, b")).toEqual(["a", "b", "c", "d"]);
+  });
+
   it("removeTag removes by value", () => {
     expect(removeTag(["a", "b", "c"], "b")).toEqual(["a", "c"]);
   });

@@ -177,6 +177,27 @@ def test_requeue_running(tmp_path: Path) -> None:
     assert j2.state == "queued"
 
 
+def test_requeue_running_caps_restarts(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    store.enqueue(post("1"), "stash", "t", "u")
+    for _ in range(3):
+        store.mark_running("1")
+        assert store.requeue_running(max_restarts=3) == 1
+        job = store.get("1")
+        assert job is not None
+        assert job.state == "queued"
+    store.mark_running("1")
+    assert store.requeue_running(max_restarts=3) == 0
+    job = store.get("1")
+    assert job is not None
+    assert job.state == "failed"
+    assert job.error_code == "restart_limit"
+    assert job.error
+    assert store.retry("1") == "ok"
+    store.mark_running("1")
+    assert store.requeue_running(max_restarts=3) == 1
+
+
 def test_queued_order(tmp_path: Path) -> None:
     store = make(tmp_path)
     store.enqueue(post("1"), "stash", "t", "u")

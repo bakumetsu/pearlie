@@ -1,12 +1,17 @@
+import type { IconName } from '../components/Icon.svelte'
+
 export type SectionId =
   | 'general'
   | 'viewing'
   | 'content-filter'
+  | 'discover'
   | 'rules'
   | 'sources'
   | 'library'
+  | 'save-folders'
   | 'trash'
   | 'update'
+  | 'changelog'
   | 'logs'
   | 'about'
 
@@ -60,6 +65,10 @@ export const SECTIONS: Section[] = [
           { label: 'Default speed', hint: 'playback rate' },
         ],
       },
+      {
+        title: 'Lists',
+        rows: [{ label: 'Infinite scroll', hint: 'next page loads near the end' }],
+      },
     ],
   },
   {
@@ -75,6 +84,18 @@ export const SECTIONS: Section[] = [
           { label: 'Allow blurred tags in safe mode', hint: 'warn-list posts stay blurred, never hidden' },
           { label: 'Reveal delay', hint: 'seconds before revealing' },
         ],
+      },
+    ],
+  },
+  {
+    id: 'discover',
+    title: 'Discover',
+    group: 'Personal',
+    later: false,
+    cards: [
+      {
+        title: 'Sites in the rail',
+        rows: [{ label: 'Show in rail', hint: 'per-site on/off' }],
       },
     ],
   },
@@ -139,6 +160,21 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'save-folders',
+    title: 'Save folders',
+    group: 'Library',
+    later: false,
+    cards: [
+      {
+        title: 'Save folders',
+        rows: [
+          { label: 'Default folder', hint: 'Stash folder for saved posts' },
+          { label: 'Per-site folder', hint: 'optional override per site' },
+        ],
+      },
+    ],
+  },
+  {
     id: 'trash',
     title: 'Trash',
     group: 'Library',
@@ -158,11 +194,42 @@ export const SECTIONS: Section[] = [
     cards: [{ title: 'Update', rows: [{ label: 'Installed', hint: 'version and channel' }, { label: 'Latest', hint: 'newest release' }, { label: 'Channel', hint: 'main or dev' }, { label: 'Automatic check', hint: 'check for updates automatically' }] }],
   },
   {
+    id: 'changelog',
+    title: 'Changelog',
+    group: 'System',
+    later: false,
+    cards: [
+      {
+        title: 'Changelog',
+        rows: [
+          { label: 'Latest changes', hint: 'release notes, newest first' },
+          { label: "What's new since your version", hint: 'changes you have not installed yet' },
+          { label: 'Main or Dev', hint: 'which channel to read' },
+        ],
+      },
+    ],
+  },
+  {
     id: 'logs',
     title: 'Logs',
     group: 'System',
-    later: true,
-    cards: [{ title: 'Coming later', rows: [] }],
+    later: false,
+    cards: [
+      {
+        title: 'Logging',
+        rows: [
+          { label: 'Debug', hint: 'Adds detail. Off by default. Turn off when done.' },
+          { label: 'Kept', hint: '7 days, one file per day' },
+        ],
+      },
+      {
+        title: 'Log viewer',
+        rows: [
+          { label: 'Day', hint: 'pick a day' },
+          { label: 'Level', hint: 'error, warning, info, debug' },
+        ],
+      },
+    ],
   },
   {
     id: 'about',
@@ -186,6 +253,13 @@ export interface SearchHit {
   section: Section
   count: number
   cards: OptionCard[]
+}
+
+/** True when a row's label or hint contains the (lower-cased) query. */
+export function rowMatches(row: OptionRow, q: string): boolean {
+  return (
+    row.label.toLowerCase().includes(q) || row.hint.toLowerCase().includes(q)
+  )
 }
 
 /**
@@ -239,4 +313,20 @@ const SECTION_IDS: ReadonlySet<string> = new Set(SECTIONS.map((s) => s.id))
 
 export function isSectionId(s: string): s is SectionId {
   return SECTION_IDS.has(s)
+}
+
+export const SECTION_ICONS: Record<SectionId, IconName> = {
+  general: 'sliders',
+  viewing: 'eye',
+  'content-filter': 'eye-off',
+  discover: 'star',
+  rules: 'rules',
+  sources: 'download',
+  library: 'library',
+  'save-folders': 'bookmark',
+  trash: 'trash',
+  update: 'refresh',
+  changelog: 'history',
+  logs: 'list',
+  about: 'info',
 }

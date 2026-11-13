@@ -12,13 +12,18 @@
   import { onMount } from "svelte";
   import { SvelteURLSearchParams } from "svelte/reactivity";
   import { viewSettings } from "../lib/stores/viewSettings.svelte";
+  import { options } from "../lib/stores/options.svelte";
   import { pageOf, remapPage } from "../lib/browse/pager";
   import type { Mode } from "../lib/browse/layout";
   import ResultsGrid from "../lib/browse/ResultsGrid.svelte";
   import Pager from "../lib/browse/Pager.svelte";
   import ViewBar from "../lib/browse/ViewBar.svelte";
   import WallOverlay from "../lib/browse/WallOverlay.svelte";
-  import { parseOpen, openKey, withOpen } from "../lib/browse/overlayState";
+  import Lightbox from "../lib/components/Lightbox.svelte";
+  import Toolbar from "../lib/browse/Toolbar.svelte";
+  import { parseOrder, parseRating, ORDER_LABELS, RATING_LABELS } from "../lib/browse/filters";
+  import type { SourceFilters } from "../lib/api/client";
+  import { parseOpen, openKey, withOpen, findTile } from "../lib/browse/overlayState";
 
   let { match }: { match: Match } = $props();
 
@@ -31,7 +36,11 @@
   onMount(() => {
     h1?.focus();
     viewSettings.load(api);
+    // Capability list for the toolbar. No answer yet or a failed call: no Order/Rating controls, plain list.
+    api.searchFilters().then((f) => { filterCaps = f; }).catch(() => {});
   });
+
+  let filterCaps = $state<Record<string, SourceFilters>>({});
 
   const source = $derived.by(() => {
     switch (match.name) {
@@ -46,9 +55,14 @@
   const q = $derived(match.query.get("q") ?? "");
   const sort = $derived(match.query.get("sort") ?? "");
   const favorite = $derived(match.query.get("favorite") === "true");
+  const caps = $derived(filterCaps[source]);
+  const rawOrder = $derived(parseOrder(match.query.get("order"), caps?.order ?? undefined));
+  const rating = $derived(parseRating(match.query.get("rating"), caps?.rating ?? undefined));
   const seed = $derived(match.query.get("seed") ?? undefined);
   const page = $derived(pageOf(match.query.get("page")));
   const vs = $derived(viewSettings.get(source));
+  const infinite = $derived(options.values?.infinite_scroll ?? false);
+  let sentinelEl = $state<HTMLElement | null>(null);
   let pagerEl = $state<HTMLSelectElement | HTMLInputElement | null>(null);
 
   function sourceToKind(s: string): Kind | null {
@@ -138,26 +152,39 @@
       document.documentElement.style.overflow = "";
       window.scrollTo(0, y);
       const id = lastOpenId;
-      tick().then(() => { const tile = document.querySelector<HTMLElement>(`[data-key="${openKey(id)}"]`); tile?.scrollIntoView?.({ block: "nearest" }); tile?.focus(); });
+      tick().then(() => { const tile = findTile(document, openKey(id)); tile?.scrollIntoView?.({ block: "nearest" }); tile?.focus(); });
     };
   });
 
+  const orderOptions = $derived(caps?.order ?? []);
+  const ratingOptions = $derived(caps?.rating ?? []);
+  const blockedAt = $derived(caps?.order_blocked_when ?? null);
+  const orderBlocked = $derived(blockedAt !== null && q.trim().split(/\s+/).filter(Boolean).length >= blockedAt);
+  const ratingKey = $derived(rating.join(","));
+  // A blocked Order is off for the request and the chip; the URL keeps the pick for when the words shrink.
+  const order = $derived(orderBlocked ? "" : rawOrder);
+  const showFilters = $derived(!isLibrary && caps !== undefined && ((caps.order?.length ?? 0) > 1 || (caps.rating?.length ?? 0) > 0));
+
   const listKey = $derived(
-    [source, q, sort, favorite ? "1" : "0", seed ?? "", String(vs.per_page)].join("|"),
+    [source, q, sort, favorite ? "1" : "0", order, ratingKey, seed ?? "", String(vs.per_page), infinite ? "inf" : "pg"].join("|"),
   );
 
   $effect(() => {
-    if (!viewSettings.ready) return;
+    if (!viewSettings.ready || !options.ready) return;
     if (pendingCloseQuery !== null) return;
+    const inf = infinite;
     const k = sourceToKind(source);
     const src = source;
     const qq = q;
     const srt = sort;
     const fav = favorite;
     const sd = seed;
+    const ord = order;
+    const rat = ratingKey ? ratingKey.split(",") : [];
     const pp = vs.per_page;
     const adopt = untrack(() => grid.listKey === listKey && grid.status === "done" && grid.takeCrossed());
-    const pg = adopt ? untrack(() => grid.page) : page;
+    // Infinite mode has no pager: it always starts at page 1 (the URL sync below drops ?page=)
+    const pg = inf ? 1 : adopt ? untrack(() => grid.page) : page;
 
     if (k) {
       const loader = async (p: number, signal: AbortSignal) => {
@@ -176,12 +203,17 @@
         notice = r.notice?.message ?? null;
         return { items: r.items, total: r.total ?? null, next_page: r.next_page ?? null, page: r.page ?? null, pages: r.pages ?? null, page_size: r.page_size ?? null, stats: r.stats ?? null };
       };
-      untrack(() => grid.open(listKey, loader, pg));
+      untrack(() => { grid.setAccumulate(inf); grid.open(listKey, loader, pg); });
     } else {
       notice = null;
       const loader = async (p: number, signal: AbortSignal) => {
-        const r = await api.search({ q: qq, sources: [src], page: p, page_size: pp }, signal);
+        const r = await api.search({ q: qq, sources: [src], page: p, page_size: pp, order: ord || undefined, rating: rat.length ? rat : undefined }, signal);
         const s = r.sections?.find((x: { id: string }) => x.id === src);
+        const err = s?.error;
+        // A source failure has no usable page: let the grid show its error and Retry. filter_dropped
+        // still comes with results, so it rides along as a notice.
+        if (err && err.code !== "filter_dropped") throw new Error(err.message);
+        notice = [err?.message, s?.notice?.message].filter(Boolean).join(". ") || null;
         return {
           items: s?.items ?? [],
           total: s?.total ?? null,
@@ -192,8 +224,24 @@
           hidden: s?.hidden ?? null,
         };
       };
-      untrack(() => grid.open(listKey, loader, pg));
+      untrack(() => { grid.setAccumulate(inf); grid.open(listKey, loader, pg); });
     }
+  });
+
+  // Infinite scroll: ask for the next page once the end marker comes near. One page ahead only;
+  // loadMore ignores the call while a request runs, after the last page and after an error.
+  $effect(() => {
+    const el = sentinelEl;
+    void grid.lastPage; // re-observe after each page: a short page leaves the marker in view
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void grid.loadMore();
+      },
+      { rootMargin: "400px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
   });
 
   // Sync URL page param to served page
@@ -251,6 +299,18 @@
     }
   }
 
+  // --- web lightbox ---
+  let lightboxKey = $state<string | null>(null);
+  const webKey = (w: WebItem) => w.source + ":" + w.post_id;
+  const webItems = $derived(grid.items.filter((i): i is WebItem => "post_id" in i));
+  const lightboxIdx = $derived(lightboxKey ? webItems.findIndex((w) => webKey(w) === lightboxKey) : -1);
+  const lightboxItem = $derived(lightboxIdx >= 0 ? webItems[lightboxIdx] : null);
+
+  function stepLightbox(d: 1 | -1) {
+    const next = webItems[lightboxIdx + d];
+    if (next) lightboxKey = webKey(next);
+  }
+
   // --- URL query updates ---
   function setPage(p: number) {
     const qs = new SvelteURLSearchParams(match.query);
@@ -274,6 +334,18 @@
       qs.delete("sort");
       qs.delete("seed");
     }
+    const search = qs.toString();
+    router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
+  }
+
+  // One filter change (or one sheet Apply) is one navigation, so one request.
+  function onFilters(next: { order: string; rating: string[] }) {
+    const qs = new SvelteURLSearchParams(match.query);
+    qs.delete("page");
+    if (next.order) qs.set("order", next.order);
+    else qs.delete("order");
+    if (next.rating.length) qs.set("rating", next.rating.join(","));
+    else qs.delete("rating");
     const search = qs.toString();
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   }
@@ -313,7 +385,7 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (openId !== null) return;
+    if (openId !== null || lightboxKey !== null || e.defaultPrevented) return;
     const t = e.target as HTMLElement | null;
     if (t) {
       const tag = t.tagName;
@@ -321,6 +393,7 @@
       if (t.isContentEditable) return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    if (infinite) return;
     if (e.key === "ArrowLeft") {
       const gp = grid.page;
       if (gp > 1) setPage(gp - 1);
@@ -347,12 +420,24 @@
       <button class="back-btn" aria-label="Back" onclick={() => history.back()}>
         <Icon name="arrow-left" size={20} />
       </button>
-      <h2 class="header-title">{title} ({grid.total ?? "…"})</h2>
+      <h2 class="header-title">{title}{grid.total != null ? ` (${grid.total})` : ""}</h2>
+      {#if !isLibrary && grid.total == null && grid.status === "done"}<span class="shown" data-testid="shown">{grid.items.length} shown</span>{/if}
     </div>
 
     {#if q}
       <div class="q-chips">
         <span class="q-chip">{q}</span>
+      </div>
+    {/if}
+
+    {#if showFilters && (order || rating.length)}
+      <div class="f-chips">
+        {#if order}
+          <button type="button" class="f-chip" aria-label={`Remove ${ORDER_LABELS[order] ?? order}`} onclick={() => onFilters({ order: "", rating })}>{ORDER_LABELS[order] ?? order}<Icon name="x" size={14} /></button>
+        {/if}
+        {#each rating as r (r)}
+          <button type="button" class="f-chip" aria-label={`Remove ${RATING_LABELS[r] ?? r}`} onclick={() => onFilters({ order, rating: rating.filter((x) => x !== r) })}>{RATING_LABELS[r] ?? r}<Icon name="x" size={14} /></button>
+        {/each}
       </div>
     {/if}
 
@@ -373,6 +458,11 @@
         </button>
       </div>
     {/if}
+    {#if showFilters}
+      <div class="controls">
+        <Toolbar {order} {rating} orders={orderOptions} ratings={ratingOptions} {orderBlocked} onapply={onFilters} />
+      </div>
+    {/if}
     {#if viewSettings.ready}
       <ViewBar modes={vs.modes as Mode[]} mode={vs.mode as Mode} perPage={vs.per_page} zoom={vs.zoom} options={vs.per_page_options} max={vs.per_page_max} onmode={onMode} onperpage={onPerPage} onzoom={onZoom} onzoompreview={onZoomPreview} />
     {/if}
@@ -381,7 +471,7 @@
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
   {#if viewSettings.ready}
-    {#if grid.status !== "error" && grid.status !== "idle"}
+    {#if !infinite && grid.status !== "error" && grid.status !== "idle"}
       <Pager page={grid.page} pages={grid.pages} hasNext={grid.hasNext} perPage={vs.per_page} shown={grid.items.length} total={grid.total} stats={grid.stats ? { megapixels: grid.stats.megapixels ?? null, size_bytes: grid.stats.size_bytes ?? null } : null} onpage={setPage} spaced bind:selectEl={pagerEl} />
     {/if}
 
@@ -390,15 +480,27 @@
     {:else if grid.status === "error"}
       <div class="error-box">
         <p>Could not load this list.</p>
+        {#if !isLibrary && grid.error?.message}<p class="muted">{grid.error.message}</p>{/if}
         <button class="retry-btn" onclick={() => grid.retry()}>Retry</button>
       </div>
     {:else if grid.items.length === 0}
       <div class="empty">Nothing here.</div>
     {:else}
-      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} />
+      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => (lightboxKey = webKey(w))} landscape={source === "stash_videos"} />
     {/if}
 
-    {#if grid.status !== "error" && grid.status !== "idle"}
+    {#if infinite && grid.status === "done"}
+      {#if grid.more === "error"}
+        <div class="more-box">
+          <p>Could not load more.</p>
+          <button class="retry-btn" onclick={() => grid.loadMore(true)}>Retry</button>
+        </div>
+      {:else if grid.hasNext}
+        <div class="more-box" data-testid="more-sentinel" bind:this={sentinelEl}>
+          <span class="sr-only" role="status">{grid.more === "loading" ? "Loading more" : ""}</span>
+        </div>
+      {/if}
+    {:else if !infinite && grid.status !== "error" && grid.status !== "idle"}
       <Pager page={grid.page} pages={grid.pages} hasNext={grid.hasNext} perPage={vs.per_page} shown={grid.items.length} total={grid.total} stats={grid.stats ? { megapixels: grid.stats.megapixels ?? null, size_bytes: grid.stats.size_bytes ?? null } : null} onpage={setPage} showStats={false} spaced />
     {/if}
   {/if}
@@ -406,6 +508,17 @@
 
 {#if openId !== null}
   <WallOverlay id={openId} grid={grid} perPage={vs.per_page} api={api} toasts={toasts} onstep={onStep} onclose={closeOverlay} />
+{/if}
+
+{#if lightboxItem}
+  <Lightbox
+    item={lightboxItem}
+    saveState={saveStates[webKey(lightboxItem)] ?? (lightboxItem.saved ? "in_library" : "idle")}
+    onsave={() => { if (lightboxItem) handleSave(lightboxItem); }}
+    onprev={lightboxIdx > 0 ? () => stepLightbox(-1) : undefined}
+    onnext={lightboxIdx < webItems.length - 1 ? () => stepLightbox(1) : undefined}
+    onclose={() => (lightboxKey = null)}
+  />
 {/if}
 
 <style>
@@ -416,10 +529,16 @@
   .back-btn { min-width: 44px; min-height: 44px; display: grid; place-items: center; border: none; background: none; cursor: pointer; color: var(--text); }
   .header-title { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text); }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); margin-top: var(--s-4); }
-  .sort-select { padding: var(--s-2) var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: var(--surface); color: var(--text); }
+  .sort-select { min-height: 44px; padding: var(--s-2) var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: var(--surface); color: var(--text); }
+  .shown { font-size: 0.875rem; color: var(--muted); }
+  .f-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
+  .f-chip { min-height: 44px; display: inline-flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-4); background: none; color: var(--text); cursor: pointer; font: inherit; }
   .fav-toggle { min-height: 44px; display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: none; color: var(--text); cursor: pointer; }
+  .muted { color: var(--muted); }
   .error-box { padding: var(--s-4); text-align: center; color: var(--text); }
-  .retry-btn { margin-top: var(--s-4); padding: var(--s-2) var(--s-4); border: none; border-radius: var(--s-2); background: var(--text); color: var(--surface); cursor: pointer; }
+  .more-box { min-height: 44px; padding: var(--s-4); text-align: center; color: var(--text); }
+  .more-box p { margin: 0; }
+  .retry-btn { min-height: 44px; margin-top: var(--s-4); padding: var(--s-2) var(--s-4); border: none; border-radius: var(--s-2); background: var(--text); color: var(--surface); cursor: pointer; }
   .empty { text-align: center; padding: var(--s-8); color: var(--text); }
   .notice { margin: 0; font-size: 0.875rem; color: var(--muted); }
 </style>

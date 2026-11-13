@@ -10,6 +10,15 @@ from app.db import connect
 from app.models import Job, Problem, SavedRef
 from app.sources.base import Post
 
+MAX_RESTARTS = 3
+
+
+def _utc_iso(value: str | None) -> str | None:
+    """SQLite CURRENT_TIMESTAMP is naive UTC text; the API sends it as ISO with Z."""
+    if not value or value.endswith("Z") or "+" in value[10:]:
+        return value
+    return value.replace(" ", "T", 1) + "Z"
+
 
 def _to_job(row: sqlite3.Row) -> Job:
     data: dict[str, object] = {
@@ -23,9 +32,10 @@ def _to_job(row: sqlite3.Row) -> Job:
         "progress": 1.0 if row["status"] == "done" else 0.0,
         "eta_s": None,
         "error": row["error"],
+        "error_code": row["error_code"],
         "library_ref": None,
-        "created_at": row["created_at"],
-        "finished_at": row["finished_at"],
+        "created_at": _utc_iso(row["created_at"]),
+        "finished_at": _utc_iso(row["finished_at"]),
     }
     if row["library_ref_id"] is not None:
         kind = "image" if row["target"] == "stash" else "book"
@@ -130,7 +140,7 @@ class JobStore:
                 cur = conn.execute(
                     "UPDATE jobs SET status='queued', error=NULL, error_code=NULL, "
                     "notices='[]', post_json=NULL, library_ref_id=NULL, "
-                    "started_at=NULL, finished_at=NULL, attempts=attempts+1, "
+                    "started_at=NULL, finished_at=NULL, attempts=attempts+1, restarts=0, "
                     "updated_at=CURRENT_TIMESTAMP "
                     "WHERE id=? AND status IN ('failed', 'needs_click')",
                     (job_id,),
@@ -165,15 +175,34 @@ class JobStore:
         finally:
             conn.close()
 
-    def requeue_running(self) -> int:
+    def requeue_running(self, max_restarts: int = MAX_RESTARTS) -> int:
+        """Requeue jobs left running by a crash; a job that already restarted
+        max_restarts times ends failed (restart_limit) so it cannot loop."""
         conn = connect(self._path)
         try:
+            conn.execute(
+                "UPDATE jobs SET status='failed', error=?, error_code='restart_limit', "
+                "finished_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP "
+                "WHERE status='running' AND restarts >= ?",
+                (
+                    f"interrupted by {max_restarts} restarts in a row; retry it by hand",
+                    max_restarts,
+                ),
+            )
             cur = conn.execute(
-                "UPDATE jobs SET status='queued', started_at=NULL, "
+                "UPDATE jobs SET status='queued', started_at=NULL, restarts=restarts+1, "
                 "updated_at=CURRENT_TIMESTAMP WHERE status='running'"
             )
             conn.commit()
             return cur.rowcount
+        finally:
+            conn.close()
+
+    def count_running(self) -> int:
+        conn = connect(self._path)
+        try:
+            row = conn.execute("SELECT COUNT(*) FROM jobs WHERE status='running'").fetchone()
+            return int(row[0])
         finally:
             conn.close()
 

@@ -8,7 +8,6 @@ export function createConnections() {
   let loading = $state(false);
   let testing: Record<string, boolean> = $state({});
   let results: Record<string, ConnectionTest | undefined> = $state({});
-  let restartNeeded: Record<string, boolean> = $state({});
   let inflight: Promise<void> | null = null;
 
   function byName(name: string): ConnectionOut | undefined {
@@ -44,7 +43,6 @@ export function createConnections() {
         data = { ...data, connections: [...data.connections, updated] };
       }
     }
-    if (updated.restart_needed) restartNeeded = { ...restartNeeded, [name]: true };
     results = { ...results, [name]: undefined };
   }
 
@@ -69,7 +67,6 @@ export function createConnections() {
     get loading(): boolean { return loading; },
     get canStore(): boolean { return data?.can_store ?? false; },
     get results(): Record<string, ConnectionTest | undefined> { return results; },
-    get restartNeeded(): Record<string, boolean> { return restartNeeded; },
     get testing(): Record<string, boolean> { return testing; },
     byName,
     load,

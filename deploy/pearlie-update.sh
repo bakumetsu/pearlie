@@ -18,6 +18,8 @@ PORT="8000"
 CHECK_ONLY=0
 INSTALL=0
 FROM_UI=0
+ROLLBACK=0
+RESTORE_DB=0
 DRY_RUN=0
 CONTINUE_ID=""
 STEP="start"
@@ -370,6 +372,8 @@ check_only() {
   exit 0
 }
 
+MAX_EXTRACTED_BYTES="${PEARLIE_MAX_EXTRACTED_BYTES:-524288000}"
+
 download_and_extract() {
   STEP="download"
   rm -rf "$ROOT/staging"
@@ -386,6 +390,18 @@ download_and_extract() {
   file_size=$((file_size))
   if [ "$file_size" -gt 104857600 ]; then
     die "download too large"
+  fi
+
+  # git archive stamps the commit sha into the pax global header (first block);
+  # the download must carry exactly the commit we resolved through the API
+  if ! printf '%s' "$TARGET_COMMIT" | grep -qE '^[0-9a-f]{40}$'; then
+    die "cannot verify download: no resolved commit"
+  fi
+  local archive_commit
+  archive_commit=$(gzip -dc "$tarball" 2>/dev/null | head -c 4096 | grep -a -o 'comment=[0-9a-f]\{40\}' | head -n1) || true
+  archive_commit="${archive_commit#comment=}"
+  if [ "$archive_commit" != "$TARGET_COMMIT" ]; then
+    die "download does not match the resolved commit"
   fi
 
   local list
@@ -417,11 +433,19 @@ download_and_extract() {
     die "unsafe archive: multiple top-level directories"
   fi
 
-  local verbose_line
+  local verbose_line f_mode f_owner f_size total_size=0
   while IFS= read -r verbose_line; do
     case "$verbose_line" in
       l*|h*) die "unsafe archive: symlink or hardlink" ;;
     esac
+    read -r f_mode f_owner f_size _ <<< "$verbose_line"
+    case "$f_size" in
+      ''|*[!0-9]*) die "unsafe archive: unreadable entry size" ;;
+    esac
+    total_size=$((total_size + f_size))
+    if [ "$total_size" -gt "$MAX_EXTRACTED_BYTES" ]; then
+      die "unsafe archive: extracted size too large"
+    fi
   done < <(tar --force-local -tvzf "$tarball")
 
   local short
@@ -456,7 +480,7 @@ download_and_extract() {
   if [ "$CHANNEL" = "dev" ]; then
     local base
     base=$(grep -m1 '^version[[:space:]]*=' "$REL/app/backend/pyproject.toml" | sed 's/.*"\(.*\)".*/\1/')
-    TARGET_VERSION="${base}-dev+${TARGET_COMMIT:0:7}"
+    TARGET_VERSION="${base}-dev"
   fi
 
   write_version_json
@@ -469,8 +493,13 @@ write_version_json() {
   else
     commit_json="null"
   fi
-  printf '{"version":"%s","channel":"%s","commit":%s,"built_at":"%s"}\n' \
-    "$TARGET_VERSION" "$CHANNEL" "$commit_json" "$(now_iso)" > "$REL/app/VERSION.json"
+  local schema schema_json=""
+  schema="$(grep -m1 '^SCHEMA_VERSION[[:space:]]*=' "$REL/app/backend/app/db.py" 2>/dev/null | sed 's/.*=[[:space:]]*\([0-9]*\).*/\1/' || true)"
+  if [[ "$schema" =~ ^[0-9]+$ ]]; then
+    schema_json=",\"schema\":$schema"
+  fi
+  printf '{"version":"%s","channel":"%s","commit":%s,"built_at":"%s"%s}\n' \
+    "$TARGET_VERSION" "$CHANNEL" "$commit_json" "$(now_iso)" "$schema_json" > "$REL/app/VERSION.json"
 }
 self_refresh() {
   STEP="self-refresh"
@@ -506,20 +535,20 @@ swap_on() {
   [[ "$memtotal" -lt 1572864 ]] || return 0
   mkdir -p "$ROOT/staging"
   log "adding 1G swap for build"
-  if ! fallocate -l 1G "$ROOT/staging/swap"; then
-    log "swap: fallocate failed, skipping"
+  if ! fallocate -l 1G "$ROOT/staging/swap" >/dev/null 2>&1; then
+    log "swap: not available here (fallocate), skipping"
     return
   fi
-  if ! chmod 600 "$ROOT/staging/swap"; then
-    log "swap: chmod failed, skipping"
+  if ! chmod 600 "$ROOT/staging/swap" >/dev/null 2>&1; then
+    log "swap: not available here (chmod), skipping"
     return
   fi
-  if ! mkswap "$ROOT/staging/swap"; then
-    log "swap: mkswap failed, skipping"
+  if ! mkswap "$ROOT/staging/swap" >/dev/null 2>&1; then
+    log "swap: not available here (mkswap), skipping"
     return
   fi
-  if ! swapon "$ROOT/staging/swap"; then
-    log "swap: swapon failed, skipping"
+  if ! swapon "$ROOT/staging/swap" >/dev/null 2>&1; then
+    log "swap: not available here (swapon), skipping"
     return
   fi
 }
@@ -532,7 +561,21 @@ build_release() {
     local name="$1"
     shift
     log "build step: $name"
-    if ! "$@" >>"$ROOT/update.log" 2>&1; then
+    if [[ "$name" == npm-ci || "$name" == npm-build ]]; then
+      local tmp
+      tmp=$(mktemp)
+      if ! "$@" >"$tmp" 2>&1; then
+        {
+          echo "npm output trimmed to last 80 lines"
+          tail -n 80 "$tmp"
+        } >>"$ROOT/update.log"
+        rm -f "$tmp"
+        rm -rf "$REL"
+        die "$name failed, see update.log"
+      fi
+      tail -n 30 "$tmp" >>"$ROOT/update.log"
+      rm -f "$tmp"
+    elif ! "$@" >>"$ROOT/update.log" 2>&1; then
       rm -rf "$REL"
       die "$name failed, see update.log"
     fi
@@ -553,7 +596,7 @@ build_release() {
 }
 
 parse_args() {
-  local usage="usage: pearlie-update [--check|--install|--from-ui|--dry-run|--channel main|dev]"
+  local usage="usage: pearlie-update [--check|--install|--from-ui|--rollback [--restore-db]|--dry-run|--channel main|dev]"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --check)
@@ -566,6 +609,14 @@ parse_args() {
         ;;
       --from-ui)
         FROM_UI=1
+        shift
+        ;;
+      --rollback)
+        ROLLBACK=1
+        shift
+        ;;
+      --restore-db)
+        RESTORE_DB=1
         shift
         ;;
       --dry-run)
@@ -757,6 +808,9 @@ switch_and_verify() {
   STEP="health"
   write_status running health ""
   if wait_healthy "$TARGET_VERSION"; then
+    if [[ -n "$prev" ]]; then
+      ln -sfn "$prev" "$ROOT/previous"
+    fi
     prune_old "$REL" "$prev"
     write_status done health ""
     FINAL_WRITTEN=1
@@ -766,6 +820,66 @@ switch_and_verify() {
     rollback "$prev" "health check failed for $TARGET_VERSION"
     return 1
   fi
+}
+
+rollback_manual() {
+  local cur prev cur_id bk
+  STEP="check"
+  cur="$(readlink "$ROOT/current" 2>/dev/null || true)"
+  prev="$(readlink "$ROOT/previous" 2>/dev/null || true)"
+  if [[ -z "$cur" || -z "$prev" || ! -f "$prev/app/VERSION.json" ]]; then
+    die "no previous release"
+  fi
+  cur_id="${cur##*/}"
+  bk="$ROOT/backups/$cur_id"
+  if [[ "$RESTORE_DB" == "1" && ! -f "$bk/pearlie.db" ]]; then
+    die "no database backup to restore"
+  fi
+  TO_V="$("$JSON_PY" -c 'import json,sys;print(json.load(open(sys.argv[1]))["version"])' "$prev/app/VERSION.json")" \
+    || die "previous release is unreadable"
+  log "manual rollback $FROM_V -> $TO_V"
+  STEP="stop"
+  write_status running stop ""
+  "$SYSTEMCTL" stop pearlie || log "warning: failed to stop pearlie, continuing"
+  # stopped but not yet switched: any abort here must bring the current release back up
+  PRE_SWITCH=1
+  if [[ "$RESTORE_DB" == "1" ]]; then
+    STEP="restore"
+    write_status running restore ""
+    RELEASE_ID="$cur_id-pre-rollback"
+    backup_state
+    RELEASE_ID="$cur_id"
+    restore_db
+  fi
+  STEP="switch"
+  write_status running switch ""
+  set_current "$prev"
+  PRE_SWITCH=0
+  STEP="health"
+  if "$SYSTEMCTL" start pearlie && write_status running health "" && wait_healthy "$TO_V"; then
+    rm -f "$ROOT/previous"
+    write_status reverted health ""
+    FINAL_WRITTEN=1
+    echo "Pearlie rolled back to $TO_V"
+    return 0
+  fi
+  log "previous version did not start, switching back to $FROM_V"
+  STEP="rollback"
+  "$SYSTEMCTL" stop pearlie 2>/dev/null || true
+  set_current "$cur"
+  if [[ "$RESTORE_DB" == "1" ]]; then
+    RELEASE_ID="$cur_id-pre-rollback"
+    restore_db
+    RELEASE_ID="$cur_id"
+  fi
+  "$SYSTEMCTL" start pearlie || true
+  if wait_healthy "$FROM_V"; then
+    write_status failed health "previous version did not start; kept $FROM_V"
+  else
+    write_status failed_rollback rollback "rollback also failed, manual repair needed"
+  fi
+  FINAL_WRITTEN=1
+  return 1
 }
 
 main() {
@@ -798,6 +912,10 @@ main() {
   fi
   read_installed
   FROM_V="$INST_VERSION"
+  if [[ "$ROLLBACK" == "1" ]]; then
+    rollback_manual
+    exit $?
+  fi
   if [[ -n "$CONTINUE_ID" ]]; then
     load_continue
     TO_V="$TARGET_VERSION"

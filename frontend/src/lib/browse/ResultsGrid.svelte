@@ -17,6 +17,8 @@
     onsave,
     onnavigate,
     onopenitem,
+    onopenweb,
+    landscape = false,
   }: {
     items: (LibraryItem | WebItem)[];
     mode: Mode;
@@ -27,11 +29,14 @@
     onsave: (item: WebItem) => void;
     onnavigate: (e: MouseEvent) => void;
     onopenitem?: (item: LibraryItem) => void;
+    onopenweb?: (item: WebItem) => void;
+    landscape?: boolean;
   } = $props();
 
   let width = $state(0);
 
-  const size = $derived(zoomSize(mode, zoom));
+  // 16:9 video cells are wider, so a row holds 4-5.
+  const size = $derived(zoomSize(mode, zoom) * (landscape && mode === "grid" ? 1.6 : 1));
   const aspects = $derived(items.map(itemAspect));
 
   const WALL_GAP = 2;
@@ -106,12 +111,14 @@
       aspect={aspect}
       saveState={saveStates[(item as WebItem).source + ":" + (item as WebItem).post_id] ?? "idle"}
       onsave={() => onsave(item as WebItem)}
+      onopen={onopenweb ? () => onopenweb(item as WebItem) : undefined}
     />
   {:else}
     <Tile
       item={item as LibraryItem}
       variant={variant}
       aspect={aspect}
+      landscape={landscape}
       href={itemHref(item as LibraryItem)}
       onnavigate={onnavigate}
       onopenitem={onopenitem}

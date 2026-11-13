@@ -28,6 +28,19 @@ describe("createSearch", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
+  it("a reorder of the sites moves the rows and runs no search", async () => {
+    const api = makeApi();
+    api.search.mockResolvedValue({ sections: [] });
+    const s = createSearch(api);
+    s.run(state({ sites: ["danbooru", "gelbooru"] }));
+    await vi.advanceTimersByTimeAsync(300);
+    expect(api.search).toHaveBeenCalledTimes(1);
+    s.run(state({ sites: ["gelbooru", "danbooru"] }));
+    await vi.advanceTimersByTimeAsync(600);
+    expect(api.search).toHaveBeenCalledTimes(1);
+    expect(Object.keys(s.sections)).toEqual(["stash_images", "stash_videos", "komga_books", "gelbooru", "danbooru"]);
+  });
+
   it("debounces and calls search once", async () => {
     const api = makeApi();
     api.search.mockResolvedValue({ sections: [] });
@@ -108,12 +121,21 @@ describe("createSearch", () => {
     expect(s.banner).toBe("Search failed");
   });
 
-  it("web sections omitted when no chips", () => {
+  it("no chips: site rows first, library rows below, sent once", () => {
     const api = makeApi();
     api.search.mockResolvedValue({ sections: [] });
     const s = createSearch(api);
-    s.run({ chips: [], pill: "all", sites: ["danbooru"] }, { immediate: true });
-    expect(api.search.mock.calls[0][0].sources).toEqual(["stash_images", "stash_videos", "komga_books"]);
+    const st: SearchState = { chips: [], pill: "all", sites: ["danbooru", "gelbooru"] };
+    s.run(st, { immediate: true });
+    s.run(st, { immediate: true });
+    expect(api.search).toHaveBeenCalledTimes(1);
+    expect(api.search.mock.calls[0][0].q).toBe("");
+    expect(api.search.mock.calls[0][0].sources).toEqual([
+      "danbooru", "gelbooru", "stash_images", "stash_videos", "komga_books",
+    ]);
+    expect(Object.keys(s.sections)).toEqual([
+      "danbooru", "gelbooru", "stash_images", "stash_videos", "komga_books",
+    ]);
   });
 
   it("retrySection requests only that id", async () => {

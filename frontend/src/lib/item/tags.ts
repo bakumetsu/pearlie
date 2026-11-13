@@ -13,7 +13,7 @@ export function stringToTag(s: string): TagObj {
 }
 
 export function parseTagInput(text: string): string[] {
-  const parts = text.split(/[,\n]/).map((s) => s.trim());
+  const parts = text.split(/[\s,]+/).map((s) => s.trim());
   const seen = new Set<string>();
   const result: string[] = [];
   for (const part of parts) {

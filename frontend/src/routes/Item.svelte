@@ -31,6 +31,11 @@
 
   const zoom = createZoom();
   let lastNav = 0;
+  // Cleared on unmount so a pending stepInList cannot move the user to another item.
+  let alive = true;
+  $effect(() => () => {
+    alive = false;
+  });
 
   let vw = $state(window.innerWidth);
   const phone = $derived(vw < PHONE_MAX);
@@ -88,9 +93,11 @@
       router.navigate(itemHref(next), { replace: true });
       return;
     }
-    void stepInList(grid, key, 1, { cross: true }).then((t) => {
-      if (t) router.navigate(itemHref(t), { replace: true });
-    });
+    const from = key;
+    const cancelled = () => !alive || key !== from;
+    void stepInList(grid, key, 1, { cross: true, cancelled }).then((t) => {
+      if (t && !cancelled()) router.navigate(itemHref(t), { replace: true });
+    }).catch(() => {});
   }
 
   function goPrev(): void {
@@ -99,9 +106,11 @@
       router.navigate(itemHref(prev), { replace: true });
       return;
     }
-    void stepInList(grid, key, -1, { cross: true }).then((t) => {
-      if (t) router.navigate(itemHref(t), { replace: true });
-    });
+    const from = key;
+    const cancelled = () => !alive || key !== from;
+    void stepInList(grid, key, -1, { cross: true, cancelled }).then((t) => {
+      if (t && !cancelled()) router.navigate(itemHref(t), { replace: true });
+    }).catch(() => {});
   }
 
   function back(): void {
@@ -331,8 +340,8 @@
   .bar-btn {
     display: grid;
     place-items: center;
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: var(--s-1);
     background: transparent;
@@ -407,16 +416,13 @@
     padding: var(--s-4);
     border-left: 1px solid var(--line);
     background: var(--surface);
-    min-width: 0;
+    width: 360px;
+    min-width: 360px;
     transition: visibility 0s linear 0s;
   }
 
   .body.collapsed:not(.phone) .panel {
     visibility: hidden;
-    padding-left: 0;
-    padding-right: 0;
-    border-left-width: 0;
-    overflow: hidden;
     transition: visibility 0s linear 250ms;
   }
 
@@ -426,6 +432,7 @@
     right: 0;
     bottom: 0;
     width: min(360px, calc(100% - 16px));
+    min-width: 0;
     z-index: 5;
     transform: translateX(0);
     transition: transform 250ms ease, visibility 0s linear 0s;

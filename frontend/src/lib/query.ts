@@ -86,10 +86,13 @@ export const LIBRARY_SECTIONS: SectionId[] = [
 ];
 
 /** Resolve the active section ids for a pill and site selection. */
-export function sectionsFor(pill: Pill, sites: SiteId[]): SectionId[] {
+export function sectionsFor(pill: Pill, sites: SiteId[], chips: Chip[]): SectionId[] {
   switch (pill) {
     case "all":
-      return [...LIBRARY_SECTIONS, ...sites];
+      // Discover with no chips shows the newest from each site first, library rows below.
+      return chips.length === 0
+        ? [...sites, ...LIBRARY_SECTIONS]
+        : [...LIBRARY_SECTIONS, ...sites];
     case "images":
       return ["stash_images"];
     case "videos":
@@ -152,4 +155,78 @@ export function buildSearchParams(s: SearchState): string {
 /** True when the web pill has no query chips. */
 export function webNeedsQuery(s: SearchState): boolean {
   return s.chips.length === 0;
+}
+
+export const PILLS: { id: Pill; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "images", label: "Images" },
+  { id: "videos", label: "Videos" },
+  { id: "books", label: "Books" },
+  { id: "web", label: "Web" },
+];
+
+export const SITE_ORDER: { id: SiteId; label: string }[] = [
+  { id: "danbooru", label: "Danbooru" },
+  { id: "gelbooru", label: "Gelbooru" },
+  { id: "rule34", label: "Rule34" },
+  { id: "nhentai", label: "nhentai" },
+];
+
+/** The sites in the saved order; a site the order lacks goes last in the default order. */
+export function orderedSites(order: readonly string[] | undefined): SiteId[] {
+  const all = SITE_ORDER.map((d) => d.id);
+  const known = (order ?? []).filter((id): id is SiteId => (all as string[]).includes(id));
+  const first = [...new Set(known)];
+  return [...first, ...all.filter((id) => !first.includes(id))];
+}
+
+/** Move one site to where another sits; sites that are not shown keep their place. */
+export function moveSite(order: readonly SiteId[], id: SiteId, target: SiteId): SiteId[] {
+  const from = order.indexOf(id);
+  const to = order.indexOf(target);
+  if (from < 0 || to < 0 || from === to) return [...order];
+  const next = order.filter((x) => x !== id);
+  next.splice(to, 0, id);
+  return next;
+}
+
+export type FilterChip = { key: string; label: string; remove: Partial<SearchState> };
+
+function isDefaultSites(sites: SiteId[]): boolean {
+  return sites.length === DEFAULT_SITES.length && sites.every((v, i) => v === DEFAULT_SITES[i]);
+}
+
+/** Filters that differ from the defaults, each with the state change that clears it. */
+export function filterChips(s: SearchState): FilterChip[] {
+  const out: FilterChip[] = [];
+  if (s.pill !== "all") {
+    out.push({ key: "pill", label: PILLS.find((p) => p.id === s.pill)?.label ?? s.pill, remove: { pill: "all" } });
+  }
+  if (!isDefaultSites(s.sites)) {
+    if (s.sites.length === 0) {
+      out.push({ key: "sites", label: "No sites", remove: { sites: DEFAULT_SITES } });
+    }
+    for (const id of s.sites) {
+      out.push({
+        key: "site:" + id,
+        label: SITE_ORDER.find((d) => d.id === id)?.label ?? id,
+        remove: { sites: s.sites.filter((x) => x !== id) },
+      });
+    }
+  }
+  return out;
+}
+
+/** Toggle one site, keeping the canonical site order. */
+export function toggleSiteIn(sites: SiteId[], id: SiteId): SiteId[] {
+  const next = sites.includes(id) ? sites.filter((s) => s !== id) : [...sites, id];
+  return SITE_ORDER.map((d) => d.id).filter((x) => next.includes(x));
+}
+
+/** Sites to show: hidden ones drop out; a selection that was only hidden sites falls back to the first visible one. */
+export function effectiveSites(sites: SiteId[], hidden: readonly string[]): SiteId[] {
+  const shown = sites.filter((id) => !hidden.includes(id));
+  if (shown.length > 0 || sites.length === 0) return shown;
+  const first = SITE_ORDER.find((d) => !hidden.includes(d.id));
+  return first ? [first.id] : [];
 }

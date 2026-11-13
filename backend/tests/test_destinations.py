@@ -188,7 +188,7 @@ def test_api_put_rejects_dotdot(client) -> None:
 
 
 def test_api_put_rejects_unknown_site(client) -> None:
-    resp = client.put("/api/destinations/nhentai", json={"folder": "/mnt/media/stash/rule34"})
+    resp = client.put("/api/destinations/nosuchsite", json={"folder": "/mnt/media/stash/rule34"})
     assert resp.status_code == 422
     assert resp.json()["code"] == "invalid"
 
@@ -210,6 +210,109 @@ def test_api_delete_destination(client) -> None:
     assert resp2.status_code == 404
 
 
+def test_api_get_destinations_lists_hints(client) -> None:
+    body = client.get("/api/destinations").json()
+    assert body["library_paths"] == [
+        "/mnt/media/stash/rule34",
+        "/mnt/media/stash/rule34video",
+        "/mnt/media/stash/Other",
+    ]
+    assert body["library_error"] is None
+    assert body["sites"]
+    assert "danbooru" in body["sites"]
+    assert body["prefix_pearlie"] == ""
+
+
+def test_api_get_destinations_survives_missing_stash(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    cfg = Settings(
+        mode="real",
+        db_path=tmp_path / "p.db",
+        static_dir=tmp_path / "nostatic",
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+    )
+    with TestClient(create_app(cfg)) as c:
+        resp = c.get("/api/destinations")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["library_paths"] == []
+    assert body["library_error"]
+
+
+def test_api_put_applies_prefix_map(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    cfg = Settings(
+        mode="fixture",
+        db_path=tmp_path / "p.db",
+        static_dir=tmp_path / "nostatic",
+        stash_path_prefix_pearlie="/data",
+        stash_path_prefix_stash="/mnt/media/stash",
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+    )
+    c = TestClient(create_app(cfg))
+    ok = c.put("/api/destinations/default", json={"folder": "/data/rule34"})
+    assert ok.status_code == 200
+    body = ok.json()
+    assert body["default_folder"] == "/data/rule34"
+    assert body["prefix_pearlie"] == "/data"
+    assert body["prefix_stash"] == "/mnt/media/stash"
+    bad = c.put("/api/destinations/default", json={"folder": "/mnt/media/stash/rule34"})
+    assert bad.status_code == 400
+    assert bad.json()["code"] == "outside_library"
+
+
+def test_mapping_override_wins_and_reset_falls_back(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    cfg = Settings(
+        mode="fixture",
+        db_path=tmp_path / "p.db",
+        static_dir=tmp_path / "nostatic",
+        stash_path_prefix_pearlie="/env",
+        stash_path_prefix_stash="/mnt/media/stash",
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+    )
+    c = TestClient(create_app(cfg))
+    first = c.get("/api/destinations").json()
+    assert first["prefix_pearlie"] == "/env"
+    assert first["prefix_from_env"] is True
+    saved = c.put(
+        "/api/destinations/mapping",
+        json={"prefix_pearlie": "/data/", "prefix_stash": "/mnt/media/stash"},
+    )
+    assert saved.status_code == 200
+    assert saved.json()["prefix_pearlie"] == "/data"
+    assert saved.json()["prefix_from_env"] is False
+    assert c.put("/api/destinations/default", json={"folder": "/data/rule34"}).status_code == 200
+    assert c.put("/api/destinations/default", json={"folder": "/env/rule34"}).status_code == 400
+    back = c.delete("/api/destinations/mapping").json()
+    assert back["prefix_pearlie"] == "/env"
+    assert back["prefix_from_env"] is True
+
+
+def test_mapping_validation(client) -> None:
+    url = "/api/destinations/mapping"
+    one = client.put(url, json={"prefix_pearlie": "/data", "prefix_stash": ""})
+    assert one.status_code == 422
+    rel = client.put(url, json={"prefix_pearlie": "data", "prefix_stash": "/x"})
+    assert rel.status_code == 422
+    empty = client.put(url, json={"prefix_pearlie": "", "prefix_stash": ""})
+    assert empty.status_code == 200
+    assert empty.json()["prefix_pearlie"] == ""
+    assert empty.json()["prefix_from_env"] is False
+
+
 # --- Danbooru source ---
 
 
@@ -218,3 +321,34 @@ def test_danbooru_source() -> None:
     assert d.target == "stash"
     assert "cdn.donmai.us" in d.file_hosts
     assert "danbooru.donmai.us" in d.file_hosts
+
+
+def test_api_komga_site_validates_against_komga_roots(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    class FakeKomga:
+        def list_libraries(self) -> list[dict]:
+            return [{"id": "L1", "root": "/mnt/komga/doujin"}]
+
+    cfg = Settings(
+        mode="real",
+        db_path=tmp_path / "p.db",
+        static_dir=tmp_path / "nostatic",
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+    )
+    app = create_app(cfg)
+    app.state.komga = FakeKomga()
+    with TestClient(app) as c:
+        body = c.get("/api/destinations").json()
+        assert body["komga_sites"] == ["nhentai"]
+        assert body["komga_library_paths"] == ["/mnt/komga/doujin"]
+        bad = c.put("/api/destinations/nhentai", json={"folder": "/mnt/stash/x"})
+        assert bad.status_code == 400
+        assert "Komga" in bad.json()["message"]
+        ok = c.put("/api/destinations/nhentai", json={"folder": "/mnt/komga/doujin/in"})
+        assert ok.status_code == 200
+        assert ok.json()["items"] == [{"site": "nhentai", "folder": "/mnt/komga/doujin/in"}]
+        assert c.delete("/api/destinations/nhentai").status_code == 200

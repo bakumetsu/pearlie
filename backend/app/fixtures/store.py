@@ -324,10 +324,10 @@ class Store:
             self.trash.clear()
         return TrashEmptied(removed=count)
 
-    def set_retention(self, days: int) -> int:
-        """Set retention, recompute every entry's expires = trashed_at + days*86400,
-        drop entries whose expires < time.time(), return the count dropped.
-        Idempotent."""
+    def set_retention(self, days: int, purge: bool = False) -> int:
+        """Set retention for new deletes. Existing entries only ever get a later expiry
+        (never an earlier one) unless purge is True, which recomputes every expiry as
+        trashed_at + days*86400 and drops entries already past it. Return the count dropped."""
         with self._lock:
             now = time.time()
             self.retention_days = days
@@ -335,10 +335,14 @@ class Store:
             for token in list(self.trash):
                 entry = self.trash[token]
                 trashed_at = entry.get("trashed_at", entry["expires"] - 7 * 86400)
-                entry["expires"] = trashed_at + days * 86400
-                if entry["expires"] < now:
+                new_expires = trashed_at + days * 86400
+                if not purge:
+                    entry["expires"] = max(entry["expires"], new_expires)
+                elif new_expires < now:
                     del self.trash[token]
                     dropped += 1
+                else:
+                    entry["expires"] = new_expires
             return dropped
 
     def purge_preview(self, days: int) -> int:
@@ -367,8 +371,15 @@ class Store:
 
     # ── web ────────────────────────────────────────────────────────
 
-    def web_items(self, source: str) -> list[WebItem]:
-        return [self._build_web_item(r) for r in self.web.get(source, []) if not r.get("_rejected")]
+    def web_items(
+        self, source: str, order: str | None = None, rating: list[str] | None = None
+    ) -> list[WebItem]:
+        rows = [r for r in self.web.get(source, []) if not r.get("_rejected")]
+        if rating:
+            rows = [r for r in rows if r.get("_rating") in rating]
+        if order == "score":
+            rows = sorted(rows, key=lambda r: -r.get("_score", 0))
+        return [self._build_web_item(r) for r in rows]
 
     def web_hidden(self, source: str) -> int:
         return sum(1 for r in self.web.get(source, []) if r.get("_rejected"))

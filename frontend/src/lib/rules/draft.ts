@@ -32,15 +32,21 @@ export function draftFrom(body: RulesBody): Draft {
 export function normalizeTag(raw: string): string {
   const trimmed = raw.trim();
   if (trimmed.startsWith("scope:")) {
-    return "scope:" + trimmed.slice(6).toLowerCase().replace(/\s+/g, "_");
+    return "scope:" + trimmed.slice(6).toLowerCase().replace(/[\s_-]+/g, "_");
   }
-  return trimmed.toLowerCase().replace(/\s+/g, "_");
+  return trimmed.toLowerCase().replace(/[\s_-]+/g, "_");
 }
 
 export function addTag(list: string[], raw: string): string[] {
-  const tag = normalizeTag(raw);
-  if (!tag || list.includes(tag)) return [...list];
-  return [...list, tag];
+  const seen = new Set(list);
+  const added: string[] = [];
+  for (const part of raw.split(/[\s,]+/)) {
+    const tag = normalizeTag(part);
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    added.push(tag);
+  }
+  return [...list, ...added];
 }
 
 export function removeTag(list: string[], tag: string): string[] {

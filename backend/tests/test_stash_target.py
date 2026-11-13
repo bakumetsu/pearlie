@@ -26,7 +26,14 @@ class FakeSource:
     target: str = "stash"
     file_hosts: tuple[str, ...] = ("img.example",)
 
-    def search(self, tags: list[str], page: int = 1, page_size: int | None = None) -> SearchPage:
+    def search(
+        self,
+        tags: list[str],
+        page: int = 1,
+        page_size: int | None = None,
+        order: str | None = None,
+        rating: list[str] | None = None,
+    ) -> SearchPage:
         raise NotImplementedError
 
     def get_post(self, post_id: str) -> Post:
@@ -41,6 +48,7 @@ def make_graphql_handler(
     tag_hits: Sequence[list[dict]] = (),
     tag_create_error: bool = False,
     image_update_error: bool = False,
+    missing_images: Sequence[str] = (),
 ) -> Callable[[httpx.Request], httpx.Response]:
     _tag_hit_idx: list[int] = [0]
 
@@ -54,6 +62,8 @@ def make_graphql_handler(
             return httpx.Response(200, json={"data": {"metadataScan": "job1"}})
 
         if "findJob" in query:
+            if job_status == "UNKNOWN":
+                return httpx.Response(200, json={"data": {"findJob": None}})
             return httpx.Response(
                 200,
                 json={
@@ -66,6 +76,11 @@ def make_graphql_handler(
                     }
                 },
             )
+
+        if "findImage(" in query:
+            iid = str(variables.get("id", ""))
+            found = None if iid in missing_images else {"id": iid}
+            return httpx.Response(200, json={"data": {"findImage": found}})
 
         if "findImages" in query:
             if "checksum" in query:
@@ -197,6 +212,7 @@ def make_target(
         tag_hits: Sequence[list[dict]] = (),
         tag_create_error: bool = False,
         image_update_error: bool = False,
+        missing_images: Sequence[str] = (),
         api_key: str = "k",
         clock: Callable[[], float] | None = None,
     ) -> StashTarget:
@@ -209,6 +225,7 @@ def make_target(
                 tag_hits=tag_hits,
                 tag_create_error=tag_create_error,
                 image_update_error=image_update_error,
+                missing_images=missing_images,
             )
         )
         site = httpx.MockTransport(
@@ -372,6 +389,56 @@ def test_duplicate_saved_items_md5_other_post(
     assert len(result.notices) == 1
     assert result.notices[0].code == "duplicate"
     assert "saved_items by md5" in result.notices[0].message
+
+
+def test_stale_index_row_dropped_and_save_goes_on(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+    graphql_calls: list[tuple[str, dict]],
+    site_requests: list[httpx.Request],
+) -> None:
+    patch_folder(monkeypatch)
+    conn = connect(settings.db_path)
+    conn.execute(
+        "INSERT INTO saved_items "
+        "(source, post_id, md5, target, image_id) "
+        "VALUES (?, ?, ?, 'stash', ?)",
+        ("fake", "42", MD5, "7"),
+    )
+    conn.commit()
+    conn.close()
+
+    target = make_target(missing_images=("7",), path_ids=("9",))
+    result = target.save(make_post(), [])
+
+    assert result.status != "duplicate"
+    assert result.image_id == "9"
+    assert site_requests
+    lookups = [v for q, v in graphql_calls if "findImage(" in q]
+    assert lookups == [{"id": "7"}]
+
+
+def test_index_row_kept_when_stash_lookup_errors(
+    settings: Settings,
+    make_target,
+    site_requests: list[httpx.Request],
+) -> None:
+    # default handler answers findImage(id) with a 400: unknown, keep the row
+    conn = connect(settings.db_path)
+    conn.execute(
+        "INSERT INTO saved_items "
+        "(source, post_id, md5, target, image_id) "
+        "VALUES (?, ?, ?, 'stash', ?)",
+        ("fake", "42", MD5, "7"),
+    )
+    conn.commit()
+    conn.close()
+    target = make_target()
+    # simulate an error path by pointing at an image the handler cannot answer
+    result = target.save(make_post(), [])
+    assert result.status == "duplicate"
+    assert site_requests == []
 
 
 def test_duplicate_stash_checksum(
@@ -551,6 +618,70 @@ def test_scan_timeout(
     with pytest.raises(stash.SaveError) as exc:
         target.save(post, [])
     assert exc.value.code == "scan_timeout"
+
+
+def _library_files(root: Path) -> list[Path]:
+    return [p for p in root.rglob("*") if p.is_file()]
+
+
+def _ticking_clock() -> Callable[[], float]:
+    state = [0.0]
+
+    def clock() -> float:
+        state[0] += 1.0
+        return state[0]
+
+    return clock
+
+
+def test_scan_job_gone_resolved_by_lookup(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(job_status="UNKNOWN", clock=_ticking_clock())
+    result = target.save(make_post(), [])
+    assert result.status == "saved"
+    assert result.image_id == "7"
+
+
+def test_scan_job_gone_not_indexed_is_image_not_found(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(job_status="UNKNOWN", path_ids=(), clock=_ticking_clock())
+    with pytest.raises(stash.SaveError) as exc:
+        target.save(make_post(), [])
+    assert exc.value.code == "image_not_found"
+    assert _library_files(settings.stash_default_dir) == []
+
+
+def test_lookup_miss_removes_orphan_file(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(path_ids=())
+    with pytest.raises(stash.SaveError):
+        target.save(make_post(), [])
+    assert _library_files(settings.stash_default_dir) == []
+
+
+def test_scan_failed_removes_orphan_file(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(job_status="FAILED")
+    with pytest.raises(stash.SaveError):
+        target.save(make_post(), [])
+    assert _library_files(settings.stash_default_dir) == []
 
 
 def test_image_not_found(
@@ -840,3 +971,107 @@ def test_download_429_slows_next_request(
     target._download(URL, make_post(), ".png")
 
     assert sleeps[-1] == pytest.approx(30.0)
+
+
+def test_save_uses_overridden_path_mapping(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+    graphql_calls: list[tuple[str, dict]],
+) -> None:
+    """A saved mapping wins over .env: folder is validated and the scan path translated with it."""
+    stash.destinations.set_mapping(settings.db_path, "/data", "/lib")
+    stash.destinations.set_default(settings.db_path, "/data/sub")
+    monkeypatch.setattr(
+        stash.StashTarget,
+        "_move",
+        lambda self, temp, folder, name, md5, notices: (Path(folder) / name, False),
+    )
+    result = make_target().save(make_post(), [])
+
+    assert result.status == "saved"
+    assert result.dest_path == "/lib/sub/fake_42.png"
+    assert graphql_calls[2][1] == {"p": ["/lib/sub/fake_42.png"]}
+
+
+def test_save_rejects_folder_outside_overridden_mapping(
+    settings: Settings,
+    make_target,
+) -> None:
+    stash.destinations.set_mapping(settings.db_path, "/data", "/lib")
+    stash.destinations.set_default(settings.db_path, "/elsewhere")
+    with pytest.raises(stash.SaveError) as exc:
+        make_target().save(make_post(), [])
+    assert exc.value.code == "outside_library"
+
+
+def test_gzip_response_is_not_a_size_mismatch(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    import gzip
+
+    patch_folder(monkeypatch)
+    target = make_target()
+    raw = b"pngbytes"
+    packed = gzip.compress(raw)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=packed,
+            headers={"content-encoding": "gzip", "content-length": str(len(packed))},
+        )
+
+    target._http = httpx.Client(base_url="http://site", transport=httpx.MockTransport(handler))
+    temp, md5 = target._download(URL, make_post(), ".png")
+    assert md5 == MD5
+    assert temp.read_bytes() == raw
+
+
+def test_cleanup_temp_dashed_source_and_post_id(
+    settings: Settings,
+    make_target: Callable[..., StashTarget],
+) -> None:
+    temp_dir = settings.stash_temp_dir
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    running = temp_dir / f"pearlie-my-site-ab-12-{MD5}.png"
+    orphan = temp_dir / f"pearlie-my-site-ab-13-{MD5}.png"
+    for path in (running, orphan):
+        path.write_text("x")
+    conn = connect(settings.db_path)
+    conn.execute(
+        "INSERT INTO jobs (source, post_id, status) VALUES (?, ?, ?)",
+        ("my-site", "ab-12", "running"),
+    )
+    conn.commit()
+    conn.close()
+
+    make_target().cleanup_temp()
+
+    assert running.exists()
+    assert not orphan.exists()
+
+
+def test_uppercase_post_md5_is_stored_lowercase(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target: Callable[..., StashTarget],
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(checksum_ids=())
+    target.save(make_post(md5=MD5.upper()), [])
+    conn = connect(settings.db_path)
+    row = conn.execute("SELECT md5 FROM saved_items WHERE post_id = '42'").fetchone()
+    conn.close()
+    assert row is not None and row["md5"] == MD5
+
+
+def test_dedupe_matches_uppercase_md5(
+    settings: Settings,
+    saved_item: None,
+    make_target: Callable[..., StashTarget],
+) -> None:
+    dup = make_target()._dedupe("fake", "other", MD5.upper())
+    assert dup is not None and dup[1] == "saved_items by md5"

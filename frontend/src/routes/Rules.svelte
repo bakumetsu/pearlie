@@ -14,9 +14,9 @@
   const TARGETS = ["stash_tag", "comicinfo:Tags", "comicinfo:Genre", "comicinfo:Writer", "comicinfo:Series"] as const;
 
   const SECTIONS: { key: ListKey; title: string; hint: string }[] = [
-    { key: "reject", title: "Reject", hint: "Posts with these tags are hidden and never saved." },
-    { key: "warn", title: "Warn", hint: "Posts with these tags are shown with a warning." },
-    { key: "require", title: "Require", hint: "Optional. When set, a post must carry at least one of these tags." },
+    { key: "reject", title: "Reject", hint: "Posts with these tags are hidden and never saved. Add several at once, separated by spaces or commas." },
+    { key: "warn", title: "Warn", hint: "Posts with these tags are shown with a warning. Add several at once, separated by spaces or commas." },
+    { key: "require", title: "Require", hint: "Optional. When set, a post must carry at least one of these tags. Add several at once, separated by spaces or commas." },
   ];
 
   let inputs = $state<Record<string, string>>({ reject: "", warn: "", require: "" });
@@ -65,11 +65,18 @@
   function onFile() {
     const file = fileInput?.files?.[0];
     if (!file) return;
-    file.text().then((text) => {
-      const result = rules.importText(text);
-      importError = result.ok ? null : result.error;
-      if (fileInput) fileInput.value = "";
-    });
+    file
+      .text()
+      .then((text) => {
+        const result = rules.importText(text);
+        importError = result.ok ? null : result.error;
+      })
+      .catch(() => {
+        importError = "Could not read the file.";
+      })
+      .finally(() => {
+        if (fileInput) fileInput.value = "";
+      });
   }
 
   // Unsaved-leave guard: intercept internal navigation clicks
@@ -182,7 +189,7 @@
           {/each}
         </ul>
         <form class="addrow" onsubmit={(e) => { e.preventDefault(); add(sec.key); }}>
-          <input type="text" aria-label="Add to {sec.title}" placeholder="Add a tag" bind:value={inputs[sec.key]} />
+          <input type="text" aria-label="Add to {sec.title}" placeholder="Add tags" bind:value={inputs[sec.key]} />
           <button class="btn icon" type="submit" aria-label="Add">
             <Icon name="plus" size={18} />
           </button>
@@ -347,8 +354,9 @@
   }
 
   .tagchip button {
-    width: 28px;
-    height: 28px;
+    width: 44px;
+    height: 44px;
+    margin: -8px -4px -8px 0;
     background: transparent;
     border: none;
     color: inherit;

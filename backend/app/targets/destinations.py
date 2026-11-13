@@ -49,6 +49,69 @@ def validate_folder(
     raise DestinationError("outside_library", "folder is not inside a Stash library path", 400)
 
 
+_PREFIX_KEYS = ("path_prefix_pearlie", "path_prefix_stash")
+
+
+def _clean_prefix(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return ""
+    if ".." in value.split("/"):
+        raise DestinationError("invalid", "path must not contain '..'", 422)
+    if not posixpath.isabs(value):
+        raise DestinationError("invalid", "path must be absolute", 422)
+    return posixpath.normpath(value)
+
+
+def validate_mapping(prefix_pearlie: str, prefix_stash: str) -> tuple[str, str]:
+    """Normalize a path mapping: both set or both empty, absolute paths."""
+    pp = _clean_prefix(prefix_pearlie)
+    ps = _clean_prefix(prefix_stash)
+    if bool(pp) != bool(ps):
+        raise DestinationError("invalid", "set both paths or leave both empty", 422)
+    return pp, ps
+
+
+def get_mapping(db_path: Path, env_pearlie: str, env_stash: str) -> tuple[str, str, bool]:
+    """Return the effective (pearlie, stash, from_env) mapping; a saved override wins."""
+    conn = connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT key, value FROM settings WHERE key IN (?, ?)", _PREFIX_KEYS
+        ).fetchall()
+    finally:
+        conn.close()
+    saved = {r["key"]: r["value"] for r in rows}
+    if all(k in saved for k in _PREFIX_KEYS):
+        return saved[_PREFIX_KEYS[0]], saved[_PREFIX_KEYS[1]], False
+    return env_pearlie, env_stash, True
+
+
+def set_mapping(db_path: Path, prefix_pearlie: str, prefix_stash: str) -> None:
+    """Save a mapping override (both empty means no mapping)."""
+    conn = connect(db_path)
+    try:
+        for key, value in zip(_PREFIX_KEYS, (prefix_pearlie, prefix_stash), strict=True):
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, value),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def reset_mapping(db_path: Path) -> None:
+    """Drop the override so the .env values apply again."""
+    conn = connect(db_path)
+    try:
+        conn.execute("DELETE FROM settings WHERE key IN (?, ?)", _PREFIX_KEYS)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def list_destinations(db_path: Path) -> list[dict[str, str]]:
     """Return all destinations ordered by site."""
     conn = connect(db_path)
@@ -122,3 +185,30 @@ def resolve(db_path: Path, site: str, fallback_default: str) -> str:
     finally:
         conn.close()
     return get_default(db_path, fallback_default)
+
+
+def resolve_site(db_path: Path, site: str, fallback: str) -> str:
+    """Return the site's folder if set, else the fallback (may be empty); no default row."""
+    conn = connect(db_path)
+    try:
+        row = conn.execute("SELECT folder FROM destinations WHERE site = ?", (site,)).fetchone()
+    finally:
+        conn.close()
+    return row["folder"] if row is not None else fallback
+
+
+def validate_komga_folder(
+    folder: str,
+    library_roots: list[str],
+    prefix_pearlie: str = "",
+    prefix_komga: str = "",
+) -> str:
+    """Like validate_folder, but against Komga library roots."""
+    try:
+        return validate_folder(folder, library_roots, prefix_pearlie, prefix_komga)
+    except DestinationError as err:
+        if err.code == "outside_library":
+            raise DestinationError(
+                "outside_library", "folder is not inside a Komga library root", 400
+            ) from None
+        raise

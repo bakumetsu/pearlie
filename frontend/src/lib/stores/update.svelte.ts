@@ -1,8 +1,8 @@
 import { isOffline, errorText, ApiError } from "../api/client";
-import type { Api, UpdateStatus } from "../api/client";
+import type { Api, ChangeBlock, UpdateChangelog, UpdateStatus } from "../api/client";
 import { toasts } from "./toasts.svelte";
 
-export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: number; maxMs?: number; reload?: () => void } = {}) {
+export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: number; maxMs?: number; retryMs?: number; restartMs?: number; reload?: () => void } = {}) {
   let status: UpdateStatus | null = $state(null);
   let loaded = $state(false);
   let offline = $state(false);
@@ -13,9 +13,24 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
   let phase: "idle" | "running" | "restarting" | "failed_rollback" = $state("idle");
   let step: string | null = $state(null);
   let applyError: string | null = $state(null);
+  let changelog: UpdateChangelog | null = $state(null);
+  let releases: ChangeBlock[] = $state([]);
+  let hasMore = $state(false);
+  let loadingMore = $state(false);
+  let moreError = $state(false);
+  let changelogLoading = $state(false);
+  let changelogFailed = $state(false);
+  let changelogGen = 0;
+  let viewOverride: "main" | "dev" | null = $state(null);
   let timer: ReturnType<typeof setTimeout> | null = null;
   let failureStart: number | null = null;
   let startedAt: number | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let loadRestart = false;
+  let disposed = false;
+  let pending: "restart" | "rollback" | null = $state(null);
+  let startedMark: string | null = null;
+  let note: string | null = $state(null);
 
   const latestState = $derived.by(() => {
     if (status?.available) return "available";
@@ -27,6 +42,76 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
 
   const latest = $derived.by(() => status?.latest ?? lastLatest);
 
+  const viewChannel = $derived.by((): "main" | "dev" => viewOverride ?? status?.channel ?? "main");
+
+  const PAGE = 10;
+
+  function appendReleases(blocks: ChangeBlock[]) {
+    const seen = releases.map((r) => r.title);
+    const fresh = blocks.filter((b) => !seen.includes(b.title));
+    releases = [...releases, ...fresh];
+  }
+
+  async function loadChangelog(refresh = false) {
+    const want = viewChannel;
+    const gen = ++changelogGen;
+    changelogLoading = true;
+    changelogFailed = false;
+    moreError = false;
+    loadingMore = false;
+    try {
+      const c = await api.getUpdateChangelog({ channel: want, refresh, offset: 0, limit: PAGE });
+      if (gen !== changelogGen) return;
+      changelog = c;
+      releases = [];
+      appendReleases(c.history);
+      hasMore = c.has_more;
+    } catch {
+      if (gen !== changelogGen) return;
+      changelogFailed = true;
+    } finally {
+      if (gen === changelogGen) changelogLoading = false;
+    }
+  }
+
+  /** Status first (the view starts on the installed channel), then page 0. */
+  async function openChangelog() {
+    await load(false);
+    await loadChangelog(false);
+  }
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    const want = viewChannel;
+    const gen = changelogGen;
+    const offset = releases.filter((r) => r.version != null).length;
+    loadingMore = true;
+    moreError = false;
+    try {
+      const c = await api.getUpdateChangelog({ channel: want, offset, limit: PAGE });
+      if (gen !== changelogGen) return;
+      if (c.history.length === 0 && (c.unavailable || c.stale)) {
+        moreError = true;
+      } else {
+        appendReleases(c.history);
+        hasMore = c.has_more;
+      }
+    } catch {
+      if (gen === changelogGen) moreError = true;
+    } finally {
+      if (gen === changelogGen) loadingMore = false;
+    }
+  }
+
+  async function setView(ch: "main" | "dev") {
+    if (viewChannel === ch) return;
+    viewOverride = ch;
+    changelog = null;
+    releases = [];
+    hasMore = false;
+    await loadChangelog();
+  }
+
   function stopPolling() {
     if (timer !== null) {
       clearTimeout(timer);
@@ -37,12 +122,18 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
   function giveUp(message: string) {
     stopPolling();
     phase = "idle";
+    pending = null;
     toasts.push({ kind: "error", message });
   }
 
   async function tick() {
-    if (startedAt !== null && Date.now() - startedAt > (opts.maxMs ?? 600_000)) {
-      giveUp("Update did not finish. Check /opt/pearlie/update.log.");
+    const limit = pending === "restart" ? (opts.restartMs ?? 90_000) : (opts.maxMs ?? 600_000);
+    if (startedAt !== null && Date.now() - startedAt > limit) {
+      giveUp(
+        pending !== null
+          ? "Pearlie did not come back. Check the console."
+          : "Update did not finish. Check /opt/pearlie/update.log.",
+      );
       return;
     }
     try {
@@ -64,7 +155,25 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
       const s = await api.getUpdateStatus();
       status = s;
       step = s.step;
+      if (pending === "restart") {
+        if (s.started_at === startedMark) {
+          phase = "restarting";
+          timer = setTimeout(tick, opts.intervalMs ?? 2000);
+          return;
+        }
+        await finishPending(null);
+        return;
+      }
+      if (pending === "rollback" && (s.state === "done" || s.state === "rolled_back")) {
+        // stale result of the last update: the rollback has not written its own yet
+        phase = "running";
+        timer = setTimeout(tick, opts.intervalMs ?? 2000);
+        return;
+      }
       switch (s.state) {
+        case "reverted":
+          await finishPending("Rolled back to " + s.installed.version);
+          return;
         case "running":
         case "idle":
           phase = "running";
@@ -82,6 +191,12 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
           return;
         case "rolled_back":
         case "failed":
+          if (pending === "rollback") {
+            await finishPending(null);
+            applyError = s.error;
+            toasts.push({ kind: "error", message: s.error ?? "Rollback failed. The current version was kept." });
+            return;
+          }
           stopPolling();
           phase = "idle";
           applyError = s.error;
@@ -93,6 +208,7 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
           });
           return;
         case "failed_rollback":
+          pending = null;
           stopPolling();
           phase = "failed_rollback";
           applyError = s.error;
@@ -109,6 +225,14 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     }
 
     timer = setTimeout(tick, opts.intervalMs ?? 2000);
+  }
+
+  async function finishPending(message: string | null) {
+    stopPolling();
+    pending = null;
+    phase = "idle";
+    note = message;
+    await load();
   }
 
   function startPolling() {
@@ -144,6 +268,50 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     }
   }
 
+  async function runAction(
+    kind: "restart" | "rollback",
+    call: () => Promise<unknown>,
+    failMessage: string,
+  ) {
+    if (phase !== "idle") return;
+    try {
+      await call();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        // jobs started or an update runs: show the fresh state in the card
+        toasts.push({
+          kind: "error",
+          message:
+            e.code === "already_running" ? "An update is already running." : "Could not start. Check the card and try again.",
+        });
+        await load();
+      } else if (e instanceof ApiError && e.status === 503) {
+        toasts.push({ kind: "error", message: "This is not available here." });
+      } else {
+        toasts.push({ kind: "error", message: failMessage });
+      }
+      return;
+    }
+    pending = kind;
+    note = null;
+    applyError = null;
+    startedMark = status?.started_at ?? null;
+    phase = kind === "restart" ? "restarting" : "running";
+    startPolling();
+  }
+
+  function restart(force = false) {
+    return runAction("restart", () => api.restartServer({ force }), "Could not restart the server. Try again.");
+  }
+
+  function rollback(p: { restoreDb?: boolean; force?: boolean } = {}) {
+    return runAction(
+      "rollback",
+      () => api.rollbackUpdate({ restore_db: p.restoreDb ?? false, force: p.force ?? false }),
+      "Could not start the rollback. Try again.",
+    );
+  }
+
   function resume() {
     if (status?.state === "running" && phase === "idle") {
       phase = "running";
@@ -151,8 +319,40 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     }
   }
 
+  function stopRetry() {
+    if (retryTimer !== null) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  }
+
   function dispose() {
+    disposed = true;
     stopPolling();
+    stopRetry();
+  }
+
+  // A failed status load is never a dead end: probe health (a restart shows
+  // "Restarting…") and keep retrying until the status arrives.
+  async function loadFailed(refresh: boolean) {
+    try {
+      await api.health();
+    } catch {
+      if (phase === "idle") {
+        phase = "restarting";
+        loadRestart = true;
+      }
+    }
+    if (disposed || retryTimer !== null) return;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      void load(refresh);
+    }, opts.retryMs ?? 5000);
+  }
+
+  async function retry() {
+    stopRetry();
+    await load(true);
   }
 
   async function load(refresh = false) {
@@ -171,12 +371,19 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
       if (result.latest) lastLatest = result.latest;
       offline = false;
       error = null;
+      stopRetry();
+      if (loadRestart) {
+        loadRestart = false;
+        if (phase === "restarting") phase = "idle";
+      }
+      if (phase === "idle") resume();
     } catch (e) {
       if (isOffline(e)) {
         offline = true;
       } else {
         error = errorText(e);
       }
+      await loadFailed(refresh);
     } finally {
       loaded = true;
     }
@@ -207,6 +414,7 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     try {
       const result = await api.putUpdateSettings({ channel: ch });
       status = result;
+      viewOverride = null;
       await checkNow();
     } catch {
       toasts.push({ kind: "error", message: "Could not switch channel. Try again." });
@@ -237,15 +445,32 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     get error() { return error; },
     get latest() { return latest; },
     get latestState() { return latestState; },
+    get changelog() { return changelog; },
+    get releases() { return releases; },
+    get hasMore() { return hasMore; },
+    get loadingMore() { return loadingMore; },
+    get moreError() { return moreError; },
+    get changelogLoading() { return changelogLoading; },
+    get changelogFailed() { return changelogFailed; },
+    get viewChannel() { return viewChannel; },
     get phase() { return phase; },
+    get pending() { return pending; },
+    get note() { return note; },
     get step() { return step; },
     get applyError() { return applyError; },
     load,
+    retry,
     apply,
+    restart,
+    rollback,
     resume,
     dispose,
     checkNow,
     setChannel,
+    setView,
+    openChangelog,
+    loadMore,
+    loadChangelog,
     setCheckEnabled,
   };
 }
