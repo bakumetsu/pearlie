@@ -46,7 +46,8 @@ def host_guard(request: Request) -> None:
     if host_allowed(host, request.app.state.settings.allowed_host_set):
         return
     log.warning("rejected unlisted host %r (see PEARLIE_ALLOWED_HOSTS)", host[:100])
-    raise ApiError(403, "host_not_allowed", f"host not allowed: add {_hint_name(host)} to PEARLIE_ALLOWED_HOSTS")
+    hint = f"host not allowed: add {_hint_name(host)} to PEARLIE_ALLOWED_HOSTS"
+    raise ApiError(403, "host_not_allowed", hint)
 
 
 def _hint_name(host: str) -> str:
