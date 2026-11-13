@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
 
 import pytest
@@ -9,13 +10,12 @@ import pytest
 from app.api import logs as logs_api
 from tests.test_logs_api import _line, _log_dir, day_file
 
-DATE = "2026-11-13"
+DATE = date.today().isoformat()
 
 
 def _lines(n: int) -> list[str]:
     return [
-        _line(f"{DATE} 10:00:{i:02d}.000", "INFO", "pearlie.app", f"line-{i:02d}")
-        for i in range(n)
+        _line(f"{DATE} 10:00:{i:02d}.000", "INFO", "pearlie.app", f"line-{i:02d}") for i in range(n)
     ]
 
 
@@ -23,7 +23,7 @@ def test_listing_does_not_delete_old_files(client: Any) -> None:
     ld = _log_dir(client)
     ld.mkdir(parents=True, exist_ok=True)
     day_file(ld, DATE, _lines(2))
-    old = day_file(ld, "2026-11-01", _lines(1))
+    old = day_file(ld, (date.today() - timedelta(days=12)).isoformat(), _lines(1))
     body = client.get("/api/logs").json()
     assert [f["date"] for f in body["files"]] == [DATE]
     assert old.exists()
