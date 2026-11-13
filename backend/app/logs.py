@@ -492,7 +492,9 @@ def install_http_hooks(client: httpx.Client, site: str, save: bool = False) -> h
         ok = 200 <= status < 300
         where = safe_url(str(req.url))
         line = f"OUT site={site} {req.method} {where} status={status} ms={_ms(req)}"
-        if site == "stash":
+        # Stash media is streamed (open_media): reading its body here would consume it.
+        streamed = site == "stash" and not req.url.path.endswith("/graphql")
+        if site == "stash" and not streamed:
             line += f" op={_gql_op(req)}"
             err = _gql_error(resp) if ok else ""
             if err:
@@ -501,7 +503,7 @@ def install_http_hooks(client: httpx.Client, site: str, save: bool = False) -> h
             hdrs = _header_line(resp)
             if hdrs:
                 line += " " + hdrs
-            if _out.isEnabledFor(logging.DEBUG):
+            if not streamed and _out.isEnabledFor(logging.DEBUG):
                 try:
                     resp.read()
                     body = resp.text[:_SNIPPET]
