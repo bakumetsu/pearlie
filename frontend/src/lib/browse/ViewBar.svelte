@@ -159,9 +159,20 @@
 <style>
   .viewbar {
     display: flex;
+    flex: 1;
+    min-width: 0;
     align-items: center;
-    gap: 12px;
-    padding: 8px 0;
+    gap: var(--s-2);
+  }
+
+  .viewbar .modes {
+    margin-left: auto;
+  }
+
+  .viewbar .zoom-wrap {
+    flex: none;
+    width: 120px;
+    min-width: 0;
   }
 
   .pp {
@@ -174,8 +185,8 @@
     height: 44px;
     min-width: 5.5em;
     padding: 0 8px;
-    border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
-    border-radius: var(--r-md, 6px);
+    border: 1px solid var(--text);
+    border-radius: var(--s-2);
     background: var(--surface, #1e1e1e);
     color: inherit;
     font-size: 0.9rem;
@@ -185,8 +196,8 @@
     width: 4.5em;
     height: 44px;
     padding: 0 8px;
-    border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
-    border-radius: var(--r-md, 6px);
+    border: 1px solid var(--text);
+    border-radius: var(--s-2);
     background: var(--surface, #1e1e1e);
     color: inherit;
     font-size: 0.9rem;
@@ -212,8 +223,8 @@
     justify-content: center;
     min-width: 44px;
     min-height: 44px;
-    border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
-    border-radius: var(--r-md, 6px);
+    border: 1px solid var(--text);
+    border-radius: var(--s-2);
     background: var(--surface, #1e1e1e);
     color: inherit;
     cursor: pointer;
@@ -242,8 +253,8 @@
     justify-content: center;
     min-width: 44px;
     min-height: 44px;
-    border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
-    border-radius: var(--r-md, 6px);
+    border: 1px solid var(--text);
+    border-radius: var(--s-2);
     background: var(--surface, #1e1e1e);
     color: inherit;
     cursor: pointer;
@@ -263,7 +274,7 @@
     left: 0;
     right: 0;
     background: var(--surface, #1e1e1e);
-    border-top: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+    border-top: 1px solid var(--text);
     padding: 16px;
     z-index: 1001;
     display: flex;
@@ -273,8 +284,8 @@
 
   .done {
     height: 44px;
-    border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
-    border-radius: var(--r-md, 6px);
+    border: 1px solid var(--text);
+    border-radius: var(--s-2);
     background: var(--surface, #1e1e1e);
     color: inherit;
     font-size: 1rem;

@@ -4,6 +4,7 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/svelte";
 import App from "../App.svelte";
 import toolbarSrc from "../lib/browse/Toolbar.svelte?raw";
 import sheetSrc from "../lib/browse/FilterSheet.svelte?raw";
+import seeAllSrc from "./SeeAll.svelte?raw";
 
 function web(id: string) {
   return { source: "danbooru", post_id: id, title: `post ${id}`, thumb_url: `/t/${id}`, preview_url: `/p/${id}`, width: 100, height: 100, tags: [] };
@@ -258,8 +259,51 @@ describe("SeeAll toolbar", () => {
     expect(last.get("rating")).toBe("g");
   });
 
+  it("desktop: Order, Rating, Per page, modes and Zoom share one row", async () => {
+    await ready();
+    const rows = document.querySelectorAll(".controls");
+    expect(rows.length).toBe(1);
+    const row = rows[0];
+    for (const name of ["Order", "Per page"]) expect(row.querySelector(`[aria-label="${name}"]`)).toBeTruthy();
+    for (const name of ["Rating", "Grid", "Zoom"]) expect(row.querySelector(`[aria-label="${name}"]`)).toBeTruthy();
+  });
+
+  it("header hides on scroll down, shows on scroll up and on focus", async () => {
+    await ready();
+    const header = document.querySelector(".sticky-header") as HTMLElement;
+    const scrollTo = async (y: number) => {
+      Object.defineProperty(window, "scrollY", { value: y, configurable: true, writable: true });
+      await fireEvent.scroll(window);
+    };
+    await scrollTo(600);
+    await scrollTo(700);
+    expect(header.classList.contains("hidden")).toBe(true);
+    await scrollTo(650);
+    expect(header.classList.contains("hidden")).toBe(false);
+    await scrollTo(800);
+    expect(header.classList.contains("hidden")).toBe(true);
+    await fireEvent.focusIn(header);
+    expect(header.classList.contains("hidden")).toBe(false);
+    await scrollTo(0);
+  });
+
+  it("header stays visible while the Rating menu is open", async () => {
+    await ready();
+    const header = document.querySelector(".sticky-header") as HTMLElement;
+    await fireEvent.click(screen.getByRole("button", { name: "Rating" }));
+    Object.defineProperty(window, "scrollY", { value: 900, configurable: true, writable: true });
+    await fireEvent.scroll(window);
+    expect(header.classList.contains("hidden")).toBe(false);
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true, writable: true });
+  });
+
   it("touch targets are at least 44px", () => {
     expect(toolbarSrc).toContain("min-height: 44px");
     expect(sheetSrc.match(/min-height: 44px/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("phone keeps a wrapping toolbar row; nowrap only from 640px", () => {
+    expect(seeAllSrc).toMatch(/\.controls \{[^}]*flex-wrap: wrap;/);
+    expect(seeAllSrc).toMatch(/@media \(min-width: 640px\) \{ \.controls \{ flex-wrap: nowrap; \} \}/);
   });
 });
