@@ -43,6 +43,40 @@ describe("createUpdate", () => {
     expect(store.offline).toBe(false);
   });
 
+  it("a failed load retries on its own and recovers; Restarting shows while health fails", async () => {
+    const s = makeStatus();
+    const api = {
+      getUpdateStatus: vi.fn().mockRejectedValueOnce(new ApiError(403, "forbidden")).mockResolvedValue(s),
+      health: vi.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue({ status: "ok" }),
+    } as unknown as Api;
+
+    const store = createUpdate(api, { retryMs: 10 });
+    await store.load();
+    expect(store.status).toBeNull();
+    expect(store.error).not.toBeNull();
+    expect(store.phase).toBe("restarting");
+    await vi.waitFor(() => expect(store.status).toEqual(s));
+    expect(store.error).toBeNull();
+    expect(store.phase).toBe("idle");
+    store.dispose();
+  });
+
+  it("retry() reloads at once and stops the timer on success", async () => {
+    const s = makeStatus();
+    const api = {
+      getUpdateStatus: vi.fn().mockRejectedValueOnce(new ApiError(500, "boom")).mockResolvedValue(s),
+      health: vi.fn().mockResolvedValue({ status: "ok" }),
+    } as unknown as Api;
+
+    const store = createUpdate(api, { retryMs: 60_000 });
+    await store.load();
+    expect(store.status).toBeNull();
+    await store.retry();
+    expect(store.status).toEqual(s);
+    expect(store.phase).toBe("idle");
+    store.dispose();
+  });
+
   it("lastLatest survives a later status with latest null + error rate_limited", async () => {
     const first = makeStatus({ latest: { version: "2.0.0", url: "https://example.test/r", commit: "def456" }, available: true });
     const second = makeStatus({ latest: null, available: false, error: "rate_limited" });
