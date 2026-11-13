@@ -717,7 +717,7 @@ def test_put_komga_swaps_client(tmp_path: Path) -> None:
     assert isinstance(c.app.state.komga, Komga)  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def test_env_locked_key_wins_after_save(tmp_path: Path) -> None:
+def test_env_key_dropped_when_user_sets_address(tmp_path: Path) -> None:
     c = make_client(
         tmp_path,
         mode="real",
@@ -730,8 +730,73 @@ def test_env_locked_key_wins_after_save(tmp_path: Path) -> None:
         headers=HDR,
     )
     assert r.status_code == 200
+    assert r.json()["key"] == "missing"
+    assert r.json()["key_locked"] is False
+    assert "envsecret" not in r.text
     s = c.app.state.settings  # pyright: ignore[reportAttributeAccessIssue]
-    assert s.stash_api_key.get_secret_value() == "envsecret"
+    assert s.stash_url == "http://stash2.local:9999"
+    assert s.stash_api_key.get_secret_value() == ""
+
+
+def _recording_transport(seen: list[httpx.Request]) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"data": {}})
+
+    return httpx.MockTransport(handler)
+
+
+def test_connection_test_does_not_send_env_key_to_user_address(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+    c = make_client(
+        tmp_path,
+        secret_key=master_key(),
+        env={"stash_api_key": "envsecret"},
+        transport=_recording_transport(seen),
+    )
+    r = c.put(
+        "/api/connections/stash",
+        json={"address": "http://other.local:9999"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    t = c.post("/api/connections/stash/test", headers=HDR)
+    assert t.status_code == 200
+    assert len(seen) == 1
+    assert seen[0].url.host == "other.local"
+    assert "ApiKey" not in seen[0].headers
+    assert "envsecret" not in t.text
+
+
+def test_connection_test_env_key_with_env_address_unchanged(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+    c = make_client(
+        tmp_path,
+        secret_key=master_key(),
+        env={"stash_api_key": "envsecret", "stash_url": "http://stash.local:9999"},
+        transport=_recording_transport(seen),
+    )
+    assert c.post("/api/connections/stash/test", headers=HDR).status_code == 200
+    assert seen[0].url.host == "stash.local"
+    assert seen[0].headers["ApiKey"] == "envsecret"
+
+
+def test_connection_test_user_key_with_user_address_sent(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+    c = make_client(
+        tmp_path,
+        secret_key=master_key(),
+        env={"stash_api_key": "envsecret"},
+        transport=_recording_transport(seen),
+    )
+    r = c.put(
+        "/api/connections/stash",
+        json={"address": "http://other.local:9999", "secret": "typedkey"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    assert c.post("/api/connections/stash/test", headers=HDR).status_code == 200
+    assert seen[0].headers["ApiKey"] == "typedkey"
 
 
 def test_fixture_mode_keeps_none_clients(tmp_path: Path) -> None:
