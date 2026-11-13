@@ -32,6 +32,9 @@ MAX_PAGES = 1000
 MAX_PAGE_BYTES = 8 * 1024 * 1024
 MAX_GALLERY_BYTES = 500 * 1024 * 1024
 STALE_S = 3600
+VERIFY_TRIES = 5
+VERIFY_DELAY_S = 2.0
+VERIFY_PAGE_SIZE = 50
 
 
 def _file_name(post: Post) -> str:
@@ -50,6 +53,7 @@ class KomgaTarget:
         sources: dict[str, Source],
         throttles: dict[str, Throttle] | None = None,
         clock: Callable[[], float] = time.time,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._settings = settings
         self._c = client
@@ -57,6 +61,7 @@ class KomgaTarget:
         self._sources = sources
         self._throttles = throttles or {}
         self._clock = clock
+        self._sleep = sleep
 
     def set_client(self, client: Komga) -> None:
         self._c = client
@@ -163,7 +168,16 @@ class KomgaTarget:
             return self._duplicate("saved_items by post")
         urls = self._urls(post)
         logger.info("KOMGA %s save start pages=%d", tag, len(urls))
-        dest_dir = self._check_writable(self._folder(post.source))
+        folder = self._folder(post.source)
+        existed = Path(folder).is_dir()
+        dest_dir = self._check_writable(folder)
+        if not existed:
+            logger.warning(
+                "KOMGA %s folder did not exist, created it folder=%s "
+                "(check the Pearlie/Komga path mapping and the mount)",
+                tag,
+                folder,
+            )
 
         work = self._settings.komga_temp_dir / f"{TEMP_PREFIX}{post.source}-{post.post_id}"
         try:
@@ -190,25 +204,33 @@ class KomgaTarget:
         if same:
             logger.info("KOMGA %s duplicate via=same file md5=%s", tag, md5)
             return self._duplicate("same file already in the folder")
-        logger.info("KOMGA %s placed file=%s", tag, target.name)
+        logger.info("KOMGA %s placed file=%s pearlie_path=%s", tag, target.name, target.as_posix())
 
         komga_path = destinations.to_stash_path(
             target.as_posix(),
             self._settings.komga_path_prefix_pearlie,
             self._settings.komga_path_prefix_komga,
         )
-        self._scan(komga_path, notices)
-        logger.info("KOMGA %s save done path=%s", tag, komga_path)
+        library_id = self._scan(komga_path, notices)
+        if library_id is not None:
+            self._verify(library_id, target.name, komga_path, tag, notices)
+        notices.append(Problem(code="saved_to", message=f"saved to {komga_path}"))
+        logger.info(
+            "KOMGA %s save done pearlie_path=%s komga_path=%s",
+            tag,
+            target.as_posix(),
+            komga_path,
+        )
         return SaveResult(status="saved", image_id=None, dest_path=komga_path, notices=notices)
 
-    def _scan(self, komga_path: str, notices: list[Problem]) -> None:
+    def _scan(self, komga_path: str, notices: list[Problem]) -> str | None:
         try:
             for lib in self._client.list_libraries():
                 root = posixpath.normpath(str(lib.get("root", "")).replace("\\", "/"))
                 if komga_path == root or komga_path.startswith(root + "/"):
                     self._client.scan_library(str(lib["id"]))
                     logger.info("KOMGA scan requested library=%s", lib.get("id"))
-                    return
+                    return str(lib["id"])
             raise KomgaError("not_found", "no library holds the folder", 404)
         except KomgaError as e:
             logger.warning("KOMGA scan failed code=%s status=%s", e.code, e.status)
@@ -218,6 +240,37 @@ class KomgaTarget:
                     message="file saved; Komga will pick it up on its next scan",
                 )
             )
+            return None
+
+    def _verify(
+        self, library_id: str, name: str, komga_path: str, tag: str, notices: list[Problem]
+    ) -> None:
+        """Poll Komga for the new book; add a notice when it does not show up."""
+        for attempt in range(VERIFY_TRIES):
+            if attempt:
+                self._sleep(VERIFY_DELAY_S)
+            try:
+                page = self._client.list_books(
+                    0, VERIFY_PAGE_SIZE, "", "createdDate,desc", library_id=library_id
+                )
+            except KomgaError as e:
+                logger.warning("KOMGA %s verify failed code=%s status=%s", tag, e.code, e.status)
+                return
+            for book in page.get("content", []):
+                url = str(book.get("url", "")).replace("\\", "/")
+                if url == komga_path or posixpath.basename(url) == name:
+                    logger.info("KOMGA %s verified book=%s", tag, book.get("id"))
+                    return
+        logger.warning("KOMGA %s book not found in Komga path=%s", tag, komga_path)
+        notices.append(
+            Problem(
+                code="waiting_for_komga",
+                message=(
+                    f"waiting for Komga: {komga_path} is not listed yet; "
+                    "check the Komga path mapping and the library folder"
+                ),
+            )
+        )
 
     @staticmethod
     def _place(

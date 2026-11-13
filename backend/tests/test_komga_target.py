@@ -24,6 +24,9 @@ class FakeKomga:
         self.root = root
         self.fail_scan = fail_scan
         self.scanned: list[str] = []
+        self.visible = True
+        self.list_calls = 0
+        self.dest: Path | None = None
 
     def list_libraries(self) -> list[dict]:
         return [{"id": "L1", "name": "Doujin", "root": self.root}]
@@ -32,6 +35,16 @@ class FakeKomga:
         if self.fail_scan:
             raise KomgaError("upstream_error", "down", 502)
         self.scanned.append(library_id)
+
+    def list_books(self, page, size, q, sort, series_id=None, library_id=None) -> dict:
+        self.list_calls += 1
+        if not self.visible or self.dest is None:
+            return {"content": []}
+        return {
+            "content": [
+                {"id": "B1", "url": f"{self.dest.as_posix()}/{f.name}"} for f in self.dest.iterdir()
+            ]
+        }
 
 
 def make_post(pages: int = 3, media_id: str = "123") -> Post:
@@ -68,8 +81,14 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     http = httpx.Client(transport=httpx.MockTransport(handler))
     src = NHentai(client=http, throttle=Throttle(0))
     komga = FakeKomga((tmp_path / "lib").as_posix())
+    komga.dest = dest
     target = KomgaTarget(
-        settings, cast(Komga, komga), http, {"nhentai": src}, throttles={"nhentai": Throttle(0)}
+        settings,
+        cast(Komga, komga),
+        http,
+        {"nhentai": src},
+        throttles={"nhentai": Throttle(0)},
+        sleep=lambda _s: None,
     )
     return target, komga, settings, dest, hits
 
@@ -123,8 +142,26 @@ def test_scan_failure_is_a_notice(env) -> None:
     komga.fail_scan = True
     res = target.save(make_post(), [])
     assert res.status == "saved"
-    assert [n.code for n in res.notices] == ["scan_failed"]
+    assert [n.code for n in res.notices] == ["scan_failed", "saved_to"]
     assert len(list(dest.iterdir())) == 1
+
+
+def test_verified_book_has_only_saved_to_notice(env) -> None:
+    target, komga, _s, dest, _h = env
+    res = target.save(make_post(), [])
+    assert [n.code for n in res.notices] == ["saved_to"]
+    assert res.notices[0].message.endswith(res.dest_path or "?")
+    assert komga.list_calls == 1
+
+
+def test_missing_book_is_waiting_for_komga(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.visible = False
+    res = target.save(make_post(), [])
+    assert res.status == "saved"
+    codes = [n.code for n in res.notices]
+    assert codes == ["waiting_for_komga", "saved_to"]
+    assert komga.list_calls == 5
 
 
 def test_cbz_is_deterministic(env) -> None:
