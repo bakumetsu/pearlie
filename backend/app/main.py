@@ -31,6 +31,7 @@ from app.api import (
     rules,
     rules_real,
     search,
+    search_filters,
     search_real,
     site_icons,
     tabs,
@@ -323,6 +324,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.include_router(fixture_api.router)
     app.state.fixture_routers = mounted_fixture
 
+    app.include_router(search_filters.router)
     app.include_router(destinations.router)
     app.include_router(view_settings.router)
     app.include_router(tabs.router)

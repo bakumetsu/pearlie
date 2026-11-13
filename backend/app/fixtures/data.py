@@ -261,6 +261,9 @@ def build_web(source: str) -> list[dict[str, Any]]:
             "target": "komga" if is_nhentai else "stash",
             "saved": saved,
             "created_at": _iso(i),
+            # hidden keys for the order/rating filters; no rng so the other fields stay stable
+            "_rating": "gsqe"[(i * 7 + i // 5) % 4],
+            "_score": (i * 37) % 101,
         }
         if _has_reject(tags):
             item["_rejected"] = True

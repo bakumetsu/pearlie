@@ -31,6 +31,7 @@ class SearchPage(BaseModel):
     total: int | None = None
     pages: int | None = None
     dropped: list[str] = Field(default_factory=list)  # tags past the cap that cannot be applied
+    notices: list[str] = Field(default_factory=list)  # filters applied locally or not at all
 
 
 class SourceError(Exception):
@@ -47,6 +48,11 @@ class Source(Protocol):
     file_hosts: tuple[str, ...]  # hosts a post's file_url may point to
 
     def search(
-        self, tags: list[str], page: int = 1, page_size: int | None = None
+        self,
+        tags: list[str],
+        page: int = 1,
+        page_size: int | None = None,
+        order: str | None = None,
+        rating: list[str] | None = None,
     ) -> SearchPage: ...
     def get_post(self, post_id: str) -> Post: ...
