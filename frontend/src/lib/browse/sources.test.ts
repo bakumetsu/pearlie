@@ -15,7 +15,7 @@ function lib(id: string, extra: object = {}): LibraryItem {
 }
 
 function web(id: string): WebItem {
-  return { source: "danbooru", post_id: id, thumb_url: "/t/" + id, preview_url: "/p/" + id, title: null, width: 100, height: 100, target: "stash", saveable: true };
+  return { source: "danbooru", post_id: id, thumb_url: "/t/" + id, preview_url: "/p/" + id, media_kind: "image", title: null, width: 100, height: 100, target: "stash", saveable: true };
 }
 
 describe("isWebSource", () => {
