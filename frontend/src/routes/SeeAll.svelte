@@ -158,7 +158,9 @@
   const caps = $derived(filterCaps[source]);
   const orderOptions = $derived(caps?.order ?? DEFAULT_ORDERS);
   const ratingOptions = $derived(caps?.rating ?? DEFAULT_RATINGS);
-  const showFilters = $derived(!isLibrary && source !== "nhentai" && (caps ? (caps.order?.length ?? 0) > 1 || (caps.rating?.length ?? 0) > 0 : true));
+  const blockedAt = $derived(caps?.order_blocked_when ?? null);
+  const orderBlocked = $derived(blockedAt !== null && q.trim().split(/\s+/).filter(Boolean).length >= blockedAt);
+  const showFilters = $derived(!isLibrary && (caps ? (caps.order?.length ?? 0) > 1 || (caps.rating?.length ?? 0) > 0 : true));
 
   const listKey = $derived(
     [source, q, sort, favorite ? "1" : "0", order, rating.join(","), seed ?? "", String(vs.per_page), infinite ? "inf" : "pg"].join("|"),
@@ -204,6 +206,8 @@
       const loader = async (p: number, signal: AbortSignal) => {
         const r = await api.search({ q: qq, sources: [src], page: p, page_size: pp, order: ord || undefined, rating: rat.length ? rat : undefined }, signal);
         const s = r.sections?.find((x: { id: string }) => x.id === src);
+        // the section notice is in the T-134 contract, not yet in schema.gen.ts
+        notice = (s as { notice?: { message?: string } | null } | undefined)?.notice?.message ?? null;
         return {
           items: s?.items ?? [],
           total: s?.total ?? null,
@@ -450,7 +454,7 @@
     {/if}
     {#if showFilters}
       <div class="controls">
-        <Toolbar {order} {rating} orders={orderOptions} ratings={ratingOptions} onapply={onFilters} />
+        <Toolbar {order} {rating} orders={orderOptions} ratings={ratingOptions} {orderBlocked} onapply={onFilters} />
       </div>
     {/if}
     {#if viewSettings.ready}

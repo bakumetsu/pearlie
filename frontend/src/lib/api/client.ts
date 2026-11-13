@@ -90,7 +90,10 @@ export type SourceFilters = {
   rating?: string[];
   per_page_options?: number[];
   per_page_max?: number;
-  order_blocked_when?: unknown;
+  sort?: string[];
+  favorite?: boolean;
+  // Order is off when the search has at least this many words (Danbooru tag cap); null = never.
+  order_blocked_when?: number | null;
 };
 export type SearchFilters = Record<string, SourceFilters>;
 
@@ -222,8 +225,8 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
       );
     },
     async searchFilters(signal) {
-      const r = await request<{ sources?: SearchFilters } & SearchFilters>(baseUrl + "/api/search/filters", undefined, signal);
-      return r.sources ?? r;
+      const r = await request<{ sources: SearchFilters }>(baseUrl + "/api/search/filters", undefined, signal);
+      return r.sources ?? {};
     },
     list(kind, p, signal) {
       return request<LibraryPage>(

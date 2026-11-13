@@ -14,6 +14,8 @@ let n = 0; // the grid store outlives a test: a fresh query per test avoids adop
 describe("SeeAll toolbar", () => {
   let searches: URLSearchParams[];
   let lists: URLSearchParams[];
+  let caps: Record<string, unknown> | null;
+  let sectionNotice: unknown;
 
   beforeEach(() => {
     vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {} });
@@ -30,15 +32,17 @@ describe("SeeAll toolbar", () => {
     history.replaceState({}, "", `/see-all?source=danbooru&q=cat${n}`);
     searches = [];
     lists = [];
+    caps = null;
+    sectionNotice = null;
     const json = (body: unknown, status = 200) =>
       Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
     globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, "http://localhost");
       if (url.pathname === "/api/view-settings") return json({}, 404);
-      if (url.pathname === "/api/search/filters") return json({}, 404);
+      if (url.pathname === "/api/search/filters") return caps ? json({ sources: caps }) : json({}, 404);
       if (url.pathname === "/api/search") {
         searches.push(url.searchParams);
-        return json({ sections: [{ id: "danbooru", items: [web("1"), web("2")], next_page: null, page_size: 60 }] });
+        return json({ sections: [{ id: "danbooru", items: [web("1"), web("2")], next_page: null, page_size: 60, notice: sectionNotice }] });
       }
       if (url.pathname.startsWith("/api/library/")) {
         lists.push(url.searchParams);
@@ -132,6 +136,45 @@ describe("SeeAll toolbar", () => {
     expect(screen.queryByRole("combobox", { name: "Order" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Rating" })).toBeNull();
     expect(lists[0].has("order")).toBe(false);
+  });
+
+  it("desktop: Order is disabled with a hint once the words reach order_blocked_when", async () => {
+    caps = { danbooru: { order: ["newest", "score"], rating: ["g", "s", "q", "e"], order_blocked_when: 2 } };
+    history.replaceState({}, "", `/see-all?source=danbooru&q=cat${n}+dog`);
+    await ready();
+    await vi.waitFor(() => expect((screen.getByRole("combobox", { name: "Order" }) as HTMLSelectElement).disabled).toBe(true));
+    expect(screen.getByRole("combobox", { name: "Order" }).closest("label")?.getAttribute("title")).toMatch(/tag limit/);
+  });
+
+  it("Order stays enabled below order_blocked_when", async () => {
+    caps = { danbooru: { order: ["newest", "score"], rating: ["g", "s", "q", "e"], order_blocked_when: 2 } };
+    await ready();
+    await vi.waitFor(() => expect(searches.length).toBe(1));
+    await new Promise((r) => setTimeout(r, 30));
+    expect((screen.getByRole("combobox", { name: "Order" }) as HTMLSelectElement).disabled).toBe(false);
+  });
+
+  it("rating options come from the site's list (no Sensitive)", async () => {
+    caps = { danbooru: { order: ["newest", "score"], rating: ["g", "q", "e"], order_blocked_when: null } };
+    await ready();
+    await vi.waitFor(async () => {
+      if (!screen.queryByRole("group", { name: "Rating" })) await fireEvent.click(screen.getByRole("button", { name: "Rating" }));
+      expect(screen.queryByRole("checkbox", { name: "Sensitive" })).toBeNull();
+      expect(screen.getByRole("checkbox", { name: "Questionable" })).toBeTruthy();
+    });
+  });
+
+  it("hides the toolbar when the site lists no order or rating", async () => {
+    caps = { danbooru: { order: [], rating: [] } };
+    await ready();
+    await vi.waitFor(() => expect(screen.queryByRole("combobox", { name: "Order" })).toBeNull());
+    expect(screen.queryByRole("button", { name: "Rating" })).toBeNull();
+  });
+
+  it("shows the section's filter_notice", async () => {
+    sectionNotice = { code: "filter_notice", message: "Rating filtered on this page only" };
+    const { container } = await ready();
+    expect(container.querySelector("p.notice")?.textContent).toBe("Rating filtered on this page only");
   });
 
   it("touch targets are at least 44px", () => {
