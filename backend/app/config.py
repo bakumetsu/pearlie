@@ -47,11 +47,16 @@ class Settings(BaseSettings):
     worker_enabled: bool = True
     log_dir: Path | None = None
     log_keep_days: int = 7
+    thumb_cache_dir: Path | None = None
 
-    @field_validator("log_dir", mode="before")
+    @field_validator("log_dir", "thumb_cache_dir", mode="before")
     @classmethod
     def _blank_log_dir(cls, v: Any) -> Any:
         return None if isinstance(v, str) and not v.strip() else v
+
+    @property
+    def thumb_cache_root(self) -> Path:
+        return self.thumb_cache_dir or self.db_path.parent / "thumbcache"
 
     @property
     def allowed_host_set(self) -> frozenset[str]:
