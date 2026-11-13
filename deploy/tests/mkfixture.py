@@ -13,6 +13,7 @@ def make_tarball(
     version: str,
     repo_root: Path,
     extra: list[tuple[str, str, str]] = (),
+    commit: str | None = None,
 ) -> None:
     omit_set: set[str] = set()
     file_extras: list[tuple[str, str]] = []
@@ -41,7 +42,8 @@ def make_tarball(
 
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    with tarfile.open(str(dest), "w:gz") as tf:
+    pax = {"comment": commit} if commit else None
+    with tarfile.open(str(dest), "w:gz", format=tarfile.PAX_FORMAT, pax_headers=pax) as tf:
         for rel, content in base_entries:
             if rel in omit_set:
                 continue
