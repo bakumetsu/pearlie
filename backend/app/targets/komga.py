@@ -214,7 +214,6 @@ class KomgaTarget:
         library_id = self._scan(komga_path, notices)
         if library_id is not None:
             self._verify(library_id, target.name, komga_path, tag, notices)
-        notices.append(Problem(code="saved_to", message=f"saved to {komga_path}"))
         logger.info(
             "KOMGA %s save done pearlie_path=%s komga_path=%s",
             tag,

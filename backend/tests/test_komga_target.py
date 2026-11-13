@@ -142,15 +142,15 @@ def test_scan_failure_is_a_notice(env) -> None:
     komga.fail_scan = True
     res = target.save(make_post(), [])
     assert res.status == "saved"
-    assert [n.code for n in res.notices] == ["scan_failed", "saved_to"]
+    assert [n.code for n in res.notices] == ["scan_failed"]
     assert len(list(dest.iterdir())) == 1
 
 
-def test_verified_book_has_only_saved_to_notice(env) -> None:
+def test_verified_book_has_no_notice(env) -> None:
     target, komga, _s, dest, _h = env
     res = target.save(make_post(), [])
-    assert [n.code for n in res.notices] == ["saved_to"]
-    assert res.notices[0].message.endswith(res.dest_path or "?")
+    assert res.notices == []
+    assert res.dest_path and res.dest_path.startswith(dest.as_posix())
     assert komga.list_calls == 1
 
 
@@ -160,7 +160,7 @@ def test_missing_book_is_waiting_for_komga(env) -> None:
     res = target.save(make_post(), [])
     assert res.status == "saved"
     codes = [n.code for n in res.notices]
-    assert codes == ["waiting_for_komga", "saved_to"]
+    assert codes == ["waiting_for_komga"]
     assert komga.list_calls == 5
 
 

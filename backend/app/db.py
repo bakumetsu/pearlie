@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 # Bump on every new column or table (test_db.py snapshot guard fails otherwise).
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS jobs (
@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     post_json TEXT,
     notices TEXT NOT NULL DEFAULT '[]',
     library_ref_id TEXT,
+    dest_path TEXT,
     attempts INTEGER NOT NULL DEFAULT 0,
     restarts INTEGER NOT NULL DEFAULT 0,
     started_at TEXT,
@@ -89,6 +90,7 @@ def init_db(path: Path) -> None:
         "post_json": "post_json TEXT",
         "notices": "notices TEXT NOT NULL DEFAULT '[]'",
         "library_ref_id": "library_ref_id TEXT",
+        "dest_path": "dest_path TEXT",
         "attempts": "attempts INTEGER NOT NULL DEFAULT 0",
         "restarts": "restarts INTEGER NOT NULL DEFAULT 0",
         "started_at": "started_at TEXT",

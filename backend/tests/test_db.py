@@ -32,7 +32,35 @@ SNAPSHOTS = {
         "saved_items": ["id", "source", "post_id", "md5", "target", "image_id", "created_at"],
         "settings": ["key", "value"],
         "site_icons": ["site", "data", "mime", "fetched_at"],
-    }
+    },
+    2: {
+        "destinations": ["site", "folder", "created_at"],
+        "jobs": [
+            "id",
+            "source",
+            "post_id",
+            "status",
+            "error",
+            "error_code",
+            "target",
+            "title",
+            "thumb_url",
+            "post_json",
+            "notices",
+            "library_ref_id",
+            "dest_path",
+            "attempts",
+            "restarts",
+            "started_at",
+            "finished_at",
+            "created_at",
+            "updated_at",
+        ],
+        "rules": ["id", "list", "pattern", "scope", "enabled", "created_at", "target"],
+        "saved_items": ["id", "source", "post_id", "md5", "target", "image_id", "created_at"],
+        "settings": ["key", "value"],
+        "site_icons": ["site", "data", "mime", "fetched_at"],
+    },
 }
 
 

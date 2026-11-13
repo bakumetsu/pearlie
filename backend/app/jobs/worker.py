@@ -150,9 +150,7 @@ class JobWorker:
                 self._store.finish(job_id, "failed", error=error, error_code=error_code)
                 return
             except Exception as e:
-                logger.error(
-                    "job=%s finish failed (try %d): %s", job_id, attempt, type(e).__name__
-                )
+                logger.error("job=%s finish failed (try %d): %s", job_id, attempt, type(e).__name__)
                 if attempt == 1:
                     time.sleep(0.2)
 
@@ -198,7 +196,11 @@ class JobWorker:
 
             if result.status == "saved":
                 self._store.finish(
-                    job_id, "done", notices=result.notices, library_ref_id=result.image_id
+                    job_id,
+                    "done",
+                    notices=result.notices,
+                    library_ref_id=result.image_id,
+                    dest_path=result.dest_path,
                 )
                 self._end(job_id, "done", message=f"image={result.image_id}")
             elif result.status == "duplicate":
@@ -231,6 +233,4 @@ class JobWorker:
             self._finish_failed(
                 job_id, f"unexpected error ({type(e).__name__})", "unexpected_error"
             )
-            self._end(
-                job_id, "failed", "unexpected_error", type(e).__name__, logging.ERROR
-            )
+            self._end(job_id, "failed", "unexpected_error", type(e).__name__, logging.ERROR)

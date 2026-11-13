@@ -228,6 +228,7 @@ class Job(BaseModel):
     error: str | None = None
     error_code: str | None = None
     library_ref: SavedRef | None = None
+    dest_path: str | None = None
     notices: list[Problem] = Field(default_factory=list)
     created_at: str
     finished_at: str | None = None
