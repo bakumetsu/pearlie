@@ -784,6 +784,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tabs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Tabs */
+        get: operations["get_tabs_api_tabs_get"];
+        /** Put Tabs */
+        put: operations["put_tabs_api_tabs_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/player-settings": {
         parameters: {
             query?: never;
@@ -1813,6 +1831,39 @@ export interface components {
             mime: string;
             /** Url */
             url: string;
+        };
+        /** Tab */
+        Tab: {
+            /** Id */
+            id: string;
+            /** Q */
+            q: string;
+            /** Src */
+            src: string;
+            /** Sites */
+            sites: string[];
+            /** Order */
+            order: string;
+            /** Rating */
+            rating: string[];
+        };
+        /** TabList */
+        TabList: {
+            /** Tabs */
+            tabs: components["schemas"]["Tab"][];
+            /** Active */
+            active: string | null;
+            /** Rev */
+            rev: number;
+        };
+        /** TabListBody */
+        TabListBody: {
+            /** Tabs */
+            tabs: components["schemas"]["Tab"][];
+            /** Active */
+            active: string | null;
+            /** Rev */
+            rev: number;
         };
         /** Tag */
         Tag: {
@@ -3452,6 +3503,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ViewSettingItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tabs_api_tabs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TabList"];
+                };
+            };
+        };
+    };
+    put_tabs_api_tabs_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TabListBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TabList"];
                 };
             };
             /** @description Validation Error */
