@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query, Request
 from app.api.errors import ApiError
 from app.api.library_komga_real import fetch_komga_page
 from app.api.library_stash_real import fetch_stash_page
+from app.api.search_filters import parse_order, parse_rating, unsupported_notice
 from app.filters.rules import evaluate, load_rules
 from app.komga import Komga, KomgaError, book_item
 from app.models import (
@@ -25,6 +26,7 @@ from app.models import (
 )
 from app.paging import PAGE_SIZE_CAPS, clamp_page_size, pages_for
 from app.sources.base import Post, Source, SourceError
+from app.sources.filters import NOTICE_CODE
 from app.targets.stash_client import StashClient, StashError
 from app.targets.stash_library import image_item, map_items, stash_sort, video_item
 
@@ -125,8 +127,12 @@ def search(
     sources: str = "",
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=200),
+    order: str = "",
+    rating: str = "",
 ) -> SearchResponse:
     """Search across configured sources and library sections."""
+    order_v = parse_order(order)
+    rating_v = parse_rating(rating)
     raw = sources.split(",") if sources else _DEFAULT
     ids = [s.strip() for s in raw if s.strip()]
     rules = load_rules(request.app.state.settings.db_path)
@@ -147,7 +153,9 @@ def search(
             tags = q.split()
             pg = page if not multi else 1
             try:
-                page_result = src.search(tags, pg, page_size if not multi else None)
+                page_result = src.search(
+                    tags, pg, page_size if not multi else None, order_v, rating_v
+                )
             except SourceError as e:
                 sections.append(
                     Section(
@@ -190,6 +198,10 @@ def search(
                     )
                 if multi:
                     items = items[:18]
+                notes = [*page_result.notices]
+                unsupported = unsupported_notice(sid, order_v, rating_v)
+                if unsupported:
+                    notes.append(unsupported)
                 sections.append(
                     Section(
                         id=cast_sid,
@@ -212,6 +224,9 @@ def search(
                             )
                             if page_result.dropped
                             else None
+                        ),
+                        notice=(
+                            Problem(code=NOTICE_CODE, message=". ".join(notes)) if notes else None
                         ),
                     )
                 )

@@ -8,6 +8,7 @@ import httpx
 from app.paging import clamp_page_size
 from app.sources.auth import SiteAuth, build_auth
 from app.sources.base import Post, Rating, SearchPage, SourceError
+from app.sources.filters import danbooru_plan
 from app.sources.throttle import DEFAULT_PACE, Throttle
 
 RATING_MAP: dict[str, Rating] = {
@@ -100,12 +101,25 @@ class Danbooru:
         except Exception:
             raise SourceError("upstream_error", "Danbooru sent invalid JSON") from None
 
-    def search(self, tags: list[str], page: int = 1, page_size: int | None = None) -> SearchPage:
-        """Search posts by a list of tags."""
+    @property
+    def tag_limit(self) -> int:
+        """Search words the server takes."""
+        return self._tag_limit
+
+    def search(
+        self,
+        tags: list[str],
+        page: int = 1,
+        page_size: int | None = None,
+        order: str | None = None,
+        rating: list[str] | None = None,
+    ) -> SearchPage:
+        """Search posts by a list of tags; order and rating take free tag slots."""
         size = clamp_page_size("danbooru", page_size or self._page_size)
         cleaned = [t.strip() for t in tags if t.strip()]
-        server_tags = cleaned[: self._tag_limit]
-        local_tags = cleaned[self._tag_limit :]
+        server_tags, local_tags, notices = danbooru_plan(
+            cleaned, order, rating or [], self._tag_limit
+        )
         query = " ".join(server_tags)
         data = self._get(
             "/posts.json",
@@ -123,7 +137,9 @@ class Danbooru:
             if self._matches(post, local_tags):
                 posts.append(post)
         next_page = page + 1 if raw_count == size else None
-        return SearchPage(posts=posts, page=page, next_page=next_page, dropped=dropped)
+        return SearchPage(
+            posts=posts, page=page, next_page=next_page, dropped=dropped, notices=notices
+        )
 
     def _matches(self, post: Post, local_tags: list[str]) -> bool:
         """Return True if the post passes all local tag filters."""
