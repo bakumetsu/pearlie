@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     komga_path_prefix_komga: str = ""
     download_interval_s: float = 2.0
     worker_enabled: bool = True
+    log_dir: Path | None = None
+    log_keep_days: int = 7
 
     def safe_summary(self) -> dict[str, str]:
         result: dict[str, str] = {}
