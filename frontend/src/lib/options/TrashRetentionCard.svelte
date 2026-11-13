@@ -4,6 +4,7 @@
 	import type { OptionsStore } from "../stores/options.svelte";
 	import { getApi } from "../api/client";
 	import type { Api } from "../api/client";
+	import NumberStepper from "./NumberStepper.svelte";
 
 	let {
 		store = options,
@@ -112,19 +113,21 @@
 	<p class="hint">Days to keep deleted items before they are removed</p>
 	<div class="row">
 		<label for="trash-retention-days">Retention days</label>
-		<input
-			id="trash-retention-days"
-			type="number"
-			inputmode="numeric"
-			min={1}
-			max={365}
-			step={1}
-			data-testid="trash-retention"
-			aria-label="Retention days"
-			bind:this={inputEl}
-			value={draft}
-			onchange={handleChange}
-		/>
+		<NumberStepper label="retention days">
+			<input
+				id="trash-retention-days"
+				type="number"
+				inputmode="numeric"
+				min={1}
+				max={365}
+				step={1}
+				data-testid="trash-retention"
+				aria-label="Retention days"
+				bind:this={inputEl}
+				value={draft}
+				onchange={handleChange}
+			/>
+		</NumberStepper>
 	</div>
 	{#if error}<span class="err" role="alert">{error}</span>{/if}
 </section>
