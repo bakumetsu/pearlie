@@ -2,7 +2,7 @@ import { isOffline, errorText, ApiError } from "../api/client";
 import type { Api, UpdateChangelog, UpdateStatus } from "../api/client";
 import { toasts } from "./toasts.svelte";
 
-export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: number; maxMs?: number; reload?: () => void } = {}) {
+export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: number; maxMs?: number; retryMs?: number; reload?: () => void } = {}) {
   let status: UpdateStatus | null = $state(null);
   let loaded = $state(false);
   let offline = $state(false);
@@ -18,6 +18,9 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
   let timer: ReturnType<typeof setTimeout> | null = null;
   let failureStart: number | null = null;
   let startedAt: number | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let loadRestart = false;
+  let disposed = false;
 
   const latestState = $derived.by(() => {
     if (status?.available) return "available";
@@ -172,8 +175,40 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     }
   }
 
+  function stopRetry() {
+    if (retryTimer !== null) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  }
+
   function dispose() {
+    disposed = true;
     stopPolling();
+    stopRetry();
+  }
+
+  // A failed status load is never a dead end: probe health (a restart shows
+  // "Restarting…") and keep retrying until the status arrives.
+  async function loadFailed(refresh: boolean) {
+    try {
+      await api.health();
+    } catch {
+      if (phase === "idle") {
+        phase = "restarting";
+        loadRestart = true;
+      }
+    }
+    if (disposed || retryTimer !== null) return;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      void load(refresh);
+    }, opts.retryMs ?? 5000);
+  }
+
+  async function retry() {
+    stopRetry();
+    await load(true);
   }
 
   async function load(refresh = false) {
@@ -192,13 +227,20 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
       if (result.latest) lastLatest = result.latest;
       offline = false;
       error = null;
+      stopRetry();
+      if (loadRestart) {
+        loadRestart = false;
+        if (phase === "restarting") phase = "idle";
+      }
       void loadChangelog(false);
+      if (phase === "idle") resume();
     } catch (e) {
       if (isOffline(e)) {
         offline = true;
       } else {
         error = errorText(e);
       }
+      await loadFailed(refresh);
     } finally {
       loaded = true;
     }
@@ -267,6 +309,7 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     get step() { return step; },
     get applyError() { return applyError; },
     load,
+    retry,
     apply,
     resume,
     dispose,

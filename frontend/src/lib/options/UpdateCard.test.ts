@@ -110,6 +110,20 @@ describe("UpdateCard", () => {
     expect(strip).toBeTruthy();
   });
 
+  it("status load fails: Retry button and Restarting strip show, Retry recovers", async () => {
+    hoisted.api.health = vi.fn().mockRejectedValue(new Error("down"));
+    hoisted.api.getUpdateStatus
+      .mockRejectedValueOnce(new Error("Failed to fetch"))
+      .mockResolvedValue(makeStatus());
+    render(UpdateCard);
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    expect((await screen.findByRole("status")).textContent).toContain("Restarting");
+    hoisted.api.health = vi.fn().mockResolvedValue({ status: "ok" });
+    await fireEvent.click(retry);
+    await screen.findByText("1.2.3");
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
   it("failed_rollback status shows a persistent alert", async () => {
     hoisted.api.applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
     hoisted.api.health = vi.fn().mockResolvedValue({ status: "ok" });

@@ -25,12 +25,6 @@
 
 <section class="card">
 	<h2>Update</h2>
-	{#if update.phase === "running" || update.phase === "restarting"}
-		<div class="strip" role="status">
-			<span class="spin"><Icon name="refresh" size={16} /></span>
-			{update.phase === "restarting" ? "Restarting…" : (update.step ?? "Starting…")}
-		</div>
-	{/if}
 	{#if update.phase === "failed_rollback"}
 		<div class="banner" role="alert">
 			<p>Update failed and could not be rolled back. Run pearlie-update in the Pearlie console to repair.</p>
@@ -110,10 +104,12 @@
 					/>
 				</span>
 			</li>
+		{/if}
 
-			<!-- Actions -->
-			<li class="row">
-				<span class="row-value actions">
+		<!-- Actions -->
+		<li class="row">
+			<span class="row-value actions">
+				{#if update.status}
 					<button
 						class="iconbtn"
 						class:spin={update.checking}
@@ -144,9 +140,19 @@
 							<Icon name="external-link" />
 						</a>
 					{/if}
-				</span>
-			</li>
-		{/if}
+				{:else if update.offline || update.error}
+					<button class="iconbtn" aria-label="Retry" title="Retry" onclick={() => update.retry()}>
+						<Icon name="refresh" />
+					</button>
+				{/if}
+				{#if update.phase === "running" || update.phase === "restarting"}
+					<div class="strip" role="status">
+						<span class="spin"><Icon name="refresh" size={16} /></span>
+						{update.phase === "restarting" ? "Restarting…" : (update.step ?? "Starting…")}
+					</div>
+				{/if}
+			</span>
+		</li>
 	</ul>
 	{#if update.status}
 		<div class="changelog" aria-label="Changelog">
@@ -238,6 +244,11 @@
 
 	.actions {
 		gap: var(--s-1);
+		width: 100%;
+	}
+
+	.actions .strip {
+		margin-left: auto;
 	}
 
 	.changelog {
