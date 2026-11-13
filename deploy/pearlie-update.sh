@@ -528,20 +528,20 @@ swap_on() {
   [[ "$memtotal" -lt 1572864 ]] || return 0
   mkdir -p "$ROOT/staging"
   log "adding 1G swap for build"
-  if ! fallocate -l 1G "$ROOT/staging/swap"; then
-    log "swap: fallocate failed, skipping"
+  if ! fallocate -l 1G "$ROOT/staging/swap" >/dev/null 2>&1; then
+    log "swap: not available here (fallocate), skipping"
     return
   fi
-  if ! chmod 600 "$ROOT/staging/swap"; then
-    log "swap: chmod failed, skipping"
+  if ! chmod 600 "$ROOT/staging/swap" >/dev/null 2>&1; then
+    log "swap: not available here (chmod), skipping"
     return
   fi
-  if ! mkswap "$ROOT/staging/swap"; then
-    log "swap: mkswap failed, skipping"
+  if ! mkswap "$ROOT/staging/swap" >/dev/null 2>&1; then
+    log "swap: not available here (mkswap), skipping"
     return
   fi
-  if ! swapon "$ROOT/staging/swap"; then
-    log "swap: swapon failed, skipping"
+  if ! swapon "$ROOT/staging/swap" >/dev/null 2>&1; then
+    log "swap: not available here (swapon), skipping"
     return
   fi
 }
@@ -554,7 +554,21 @@ build_release() {
     local name="$1"
     shift
     log "build step: $name"
-    if ! "$@" >>"$ROOT/update.log" 2>&1; then
+    if [[ "$name" == npm-ci || "$name" == npm-build ]]; then
+      local tmp
+      tmp=$(mktemp)
+      if ! "$@" >"$tmp" 2>&1; then
+        {
+          echo "npm output trimmed to last 80 lines"
+          tail -n 80 "$tmp"
+        } >>"$ROOT/update.log"
+        rm -f "$tmp"
+        rm -rf "$REL"
+        die "$name failed, see update.log"
+      fi
+      tail -n 30 "$tmp" >>"$ROOT/update.log"
+      rm -f "$tmp"
+    elif ! "$@" >>"$ROOT/update.log" 2>&1; then
       rm -rf "$REL"
       die "$name failed, see update.log"
     fi
