@@ -21,9 +21,9 @@ def make_client(tmp_path, handler):
             komga_url=URL,
             db_path=tmp_path / "p.db",
             static_dir=tmp_path / "nostatic",
-            _env_file=None,
+            _env_file=None,  # pyright: ignore[reportCallIssue]
         )
-    )  # pyright: ignore[reportCallIssue]
+    )
     app.state.komga = Komga(
         URL, KEY, client=httpx.Client(base_url=URL, transport=httpx.MockTransport(handler))
     )
