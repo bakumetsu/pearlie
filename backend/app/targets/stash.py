@@ -87,7 +87,7 @@ class StashTarget:
     def __init__(
         self,
         settings: Settings,
-        client: StashClient,
+        client: StashClient | None,
         http: httpx.Client,
         sources: dict[str, Source],
         throttles: dict[str, Throttle] | None = None,
@@ -95,7 +95,7 @@ class StashTarget:
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._settings = settings
-        self._client = client
+        self._c = client
         self._http = http
         self._sources = sources
         self._throttles = throttles or {}
@@ -103,7 +103,13 @@ class StashTarget:
         self._clock = clock
 
     def set_client(self, client: StashClient) -> None:
-        self._client = client
+        self._c = client
+
+    @property
+    def _client(self) -> StashClient:
+        if self._c is None:
+            raise SaveError("not_configured", "Stash is not configured", 503)
+        return self._c
 
     def _check_host(self, post: Post) -> str:
         """Validate that the file URL host is allowed for the post's source."""
