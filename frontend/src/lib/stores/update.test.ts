@@ -20,6 +20,10 @@ function makeStatus(overrides: Partial<UpdateStatus> = {}): UpdateStatus {
     error: null,
     retry_after: null,
     can_apply: false,
+    rollback: null,
+    jobs_running: 0,
+    started_at: "t0",
+    can_restart: true,
     ...overrides,
   };
 }
@@ -318,6 +322,107 @@ describe("createUpdate", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("restart ends when started_at changes, then reloads status and goes idle", async () => {
+    vi.useFakeTimers();
+    try {
+      const restartServer = vi.fn().mockResolvedValue({ state: "restarting" });
+      const health = vi.fn().mockResolvedValue({ status: "ok" });
+      const getUpdateStatus = vi
+        .fn()
+        .mockResolvedValueOnce(makeStatus({ started_at: "t0" }))
+        .mockResolvedValueOnce(makeStatus({ started_at: "t0" }))
+        .mockResolvedValue(makeStatus({ started_at: "t1" }));
+      const api = { restartServer, health, getUpdateStatus } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, restartMs: 1000 });
+
+      await store.load();
+      await store.restart(true);
+      expect(restartServer).toHaveBeenCalledWith({ force: true });
+      expect(store.phase).toBe("restarting");
+
+      await vi.advanceTimersByTimeAsync(15);
+      expect(store.phase).toBe("restarting");
+      await vi.advanceTimersByTimeAsync(30);
+      expect(store.phase).toBe("idle");
+      expect(store.pending).toBeNull();
+      expect(store.status?.started_at).toBe("t1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("restart gives up after restartMs with the console message", async () => {
+    vi.useFakeTimers();
+    try {
+      const restartServer = vi.fn().mockResolvedValue({ state: "restarting" });
+      const health = vi.fn().mockResolvedValue({ status: "ok" });
+      const getUpdateStatus = vi.fn().mockResolvedValue(makeStatus({ started_at: "t0" }));
+      const api = { restartServer, health, getUpdateStatus } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, restartMs: 50 });
+
+      await store.load();
+      await store.restart();
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(toasts.push).toHaveBeenCalledWith({
+        kind: "error",
+        message: "Pearlie did not come back. Check the console.",
+      });
+      expect(store.phase).toBe("idle");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rollback ignores a stale done status, ends on reverted and sets the note", async () => {
+    vi.useFakeTimers();
+    try {
+      const rollbackUpdate = vi.fn().mockResolvedValue({ state: "running" });
+      const health = vi.fn().mockResolvedValue({ status: "ok" });
+      const getUpdateStatus = vi
+        .fn()
+        .mockResolvedValueOnce(makeStatus({ state: "done" }))
+        .mockResolvedValueOnce(makeStatus({ state: "done" }))
+        .mockResolvedValue(
+          makeStatus({ state: "reverted", installed: { version: "0.9.2", channel: "main", commit: "x" } }),
+        );
+      const reload = vi.fn();
+      const api = { rollbackUpdate, health, getUpdateStatus } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, maxMs: 1000, reload });
+
+      await store.load();
+      await store.rollback({ restoreDb: true });
+      expect(rollbackUpdate).toHaveBeenCalledWith({ restore_db: true, force: false });
+      expect(store.phase).toBe("running");
+
+      await vi.advanceTimersByTimeAsync(15);
+      expect(store.phase).toBe("running");
+      expect(store.note).toBeNull();
+      await vi.advanceTimersByTimeAsync(30);
+      expect(store.phase).toBe("idle");
+      expect(store.note).toBe("Rolled back to 0.9.2");
+      expect(reload).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rollback 409 toasts and reloads status; phase stays idle", async () => {
+    const rollbackUpdate = vi.fn().mockRejectedValue(new ApiError(409, "jobs_running", "jobs"));
+    const getUpdateStatus = vi.fn().mockResolvedValue(makeStatus({ jobs_running: 1 }));
+    const api = { rollbackUpdate, getUpdateStatus } as unknown as Api;
+    const store = createUpdate(api, {});
+
+    await store.rollback();
+
+    expect(toasts.push).toHaveBeenCalledWith({
+      kind: "error",
+      message: "Could not start. Check the card and try again.",
+    });
+    expect(getUpdateStatus).toHaveBeenCalled();
+    expect(store.phase).toBe("idle");
   });
 
   it("rolled_back: error toast, applyError set, no reload, phase idle", async () => {

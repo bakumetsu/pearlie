@@ -198,6 +198,14 @@ class JobStore:
         finally:
             conn.close()
 
+    def count_running(self) -> int:
+        conn = connect(self._path)
+        try:
+            row = conn.execute("SELECT COUNT(*) FROM jobs WHERE status='running'").fetchone()
+            return int(row[0])
+        finally:
+            conn.close()
+
     def queued(self) -> list[tuple[str, str]]:
         conn = connect(self._path)
         try:

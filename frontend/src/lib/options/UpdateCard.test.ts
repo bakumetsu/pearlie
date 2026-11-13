@@ -28,6 +28,10 @@ interface UpdateStatus {
   error: string | null;
   retry_after: number | null;
   can_apply: boolean;
+  rollback: { version: string; schema: string; backup_at: string | null } | null;
+  jobs_running: number;
+  started_at: string;
+  can_restart: boolean;
 }
 
 function makeStatus(overrides: Partial<UpdateStatus> = {}): UpdateStatus {
@@ -43,6 +47,10 @@ function makeStatus(overrides: Partial<UpdateStatus> = {}): UpdateStatus {
     error: null,
     retry_after: null,
     can_apply: true,
+    rollback: { version: "1.2.2", schema: "same", backup_at: null },
+    jobs_running: 0,
+    started_at: "2026-06-01T11:00:00Z",
+    can_restart: true,
     ...overrides,
   };
 }
@@ -96,6 +104,89 @@ describe("UpdateCard", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(hoisted.api.applyUpdate).not.toHaveBeenCalled();
+  });
+
+  it("Roll back and Restart are disabled when the server cannot restart", async () => {
+    hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus({ can_restart: false }));
+    render(UpdateCard);
+    const rb = (await screen.findByRole("button", { name: /^Roll back/ })) as HTMLButtonElement;
+    expect(rb.disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Restart server" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("Roll back is disabled with a reason line when no earlier version is kept", async () => {
+    hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus({ rollback: null }));
+    render(UpdateCard);
+    const rb = (await screen.findByRole("button", { name: "Roll back" })) as HTMLButtonElement;
+    expect(rb.disabled).toBe(true);
+    expect(screen.getByText("Roll back is off: no earlier version is kept.")).toBeTruthy();
+  });
+
+  it("Restart sheet confirms, then calls restartServer without force", async () => {
+    hoisted.api.restartServer = vi.fn().mockResolvedValue({ state: "restarting" });
+    hoisted.api.health = vi.fn().mockResolvedValue({ status: "ok" });
+    hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus());
+    render(UpdateCard);
+    await fireEvent.click(await screen.findByRole("button", { name: "Restart server" }));
+    expect(await screen.findByRole("dialog", { name: "Restart server" })).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+    expect(hoisted.api.restartServer).toHaveBeenCalledWith({ force: false });
+  });
+
+  it("Restart sheet with running jobs shows the count and only Restart anyway (force)", async () => {
+    hoisted.api.restartServer = vi.fn().mockResolvedValue({ state: "restarting" });
+    hoisted.api.health = vi.fn().mockResolvedValue({ status: "ok" });
+    hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus({ jobs_running: 2 }));
+    render(UpdateCard);
+    await fireEvent.click(await screen.findByRole("button", { name: "Restart server" }));
+    expect(screen.getByText(/2 jobs are running/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Restart" })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Restart anyway" }));
+    expect(hoisted.api.restartServer).toHaveBeenCalledWith({ force: true });
+  });
+
+  it("Roll back sheet, schema same: no restore checkbox", async () => {
+    hoisted.api.rollbackUpdate = vi.fn().mockResolvedValue({ state: "running" });
+    hoisted.api.health = vi.fn().mockResolvedValue({ status: "ok" });
+    hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus());
+    render(UpdateCard);
+    await fireEvent.click(await screen.findByRole("button", { name: "Roll back to 1.2.2" }));
+    expect(await screen.findByRole("dialog", { name: "Roll back to 1.2.2" })).toBeTruthy();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Roll back" }));
+    expect(hoisted.api.rollbackUpdate).toHaveBeenCalledWith({ restore_db: false, force: false });
+  });
+
+  it("Roll back sheet, schema changed: checkbox switches the button to Roll back and restore", async () => {
+    hoisted.api.rollbackUpdate = vi.fn().mockResolvedValue({ state: "running" });
+    hoisted.api.health = vi.fn().mockResolvedValue({ status: "ok" });
+    hoisted.api.getUpdateStatus.mockResolvedValue(
+      makeStatus({ rollback: { version: "1.2.2", schema: "changed", backup_at: "2026-06-01T11:02:00Z" } }),
+    );
+    render(UpdateCard);
+    await fireEvent.click(await screen.findByRole("button", { name: "Roll back to 1.2.2" }));
+    const box = screen.getByRole("checkbox") as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    await fireEvent.click(box);
+    await fireEvent.click(screen.getByRole("button", { name: "Roll back and restore" }));
+    expect(hoisted.api.rollbackUpdate).toHaveBeenCalledWith({ restore_db: true, force: false });
+  });
+
+  it("Roll back sheet, schema changed but no backup: no checkbox", async () => {
+    hoisted.api.getUpdateStatus.mockResolvedValue(
+      makeStatus({ rollback: { version: "1.2.2", schema: "unknown", backup_at: null } }),
+    );
+    render(UpdateCard);
+    await fireEvent.click(await screen.findByRole("button", { name: "Roll back to 1.2.2" }));
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.getByText(/database layout may have changed/)).toBeTruthy();
+  });
+
+  it("does not show the reverse-proxy hint", async () => {
+    hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus());
+    render(UpdateCard);
+    await screen.findByText("1.2.3");
+    expect(screen.queryByText(/PEARLIE_ALLOWED_HOSTS/)).toBeNull();
   });
 
   it("Confirm calls applyUpdate and shows the progress strip", async () => {

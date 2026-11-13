@@ -3,7 +3,37 @@ from pathlib import Path
 
 import pytest
 
-from app.db import connect, db_reachable, init_db
+from app.db import SCHEMA_VERSION, connect, db_reachable, init_db, schema_version
+
+SNAPSHOTS = {
+    1: {
+        "destinations": ["site", "folder", "created_at"],
+        "jobs": [
+            "id",
+            "source",
+            "post_id",
+            "status",
+            "error",
+            "error_code",
+            "target",
+            "title",
+            "thumb_url",
+            "post_json",
+            "notices",
+            "library_ref_id",
+            "attempts",
+            "restarts",
+            "started_at",
+            "finished_at",
+            "created_at",
+            "updated_at",
+        ],
+        "rules": ["id", "list", "pattern", "scope", "enabled", "created_at", "target"],
+        "saved_items": ["id", "source", "post_id", "md5", "target", "image_id", "created_at"],
+        "settings": ["key", "value"],
+        "site_icons": ["site", "data", "mime", "fetched_at"],
+    }
+}
 
 
 def test_init_db_creates_tables(tmp_path: Path) -> None:
@@ -46,3 +76,26 @@ def test_db_reachable_bad(tmp_path: Path) -> None:
     blocker.write_text("x")
     bad_path = tmp_path / "file" / "x.db"
     assert db_reachable(bad_path) is False
+
+
+def test_init_db_stamps_user_version(tmp_path: Path) -> None:
+    db_path = tmp_path / "test.db"
+    init_db(db_path)
+    assert schema_version(db_path) == SCHEMA_VERSION
+
+
+def test_schema_snapshot_needs_version_bump(tmp_path: Path) -> None:
+    # Fails when a column or table changes without a SCHEMA_VERSION bump.
+    db_path = tmp_path / "test.db"
+    init_db(db_path)
+    conn = connect(db_path)
+    tables = sorted(
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        )
+    )
+    snapshot = {t: [row[1] for row in conn.execute(f"PRAGMA table_info({t})")] for t in tables}
+    conn.close()
+    expected = SNAPSHOTS[SCHEMA_VERSION]
+    assert snapshot == expected, "schema changed: bump SCHEMA_VERSION and add a snapshot"

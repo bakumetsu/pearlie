@@ -1043,6 +1043,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/update/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restart Server */
+        post: operations["restart_server_api_update_restart_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/update/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rollback Release */
+        post: operations["rollback_release_api_update_rollback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -1684,9 +1718,50 @@ export interface components {
             /** Completed */
             completed: boolean;
         };
+        /** RestartIn */
+        RestartIn: {
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+        };
+        /** RestartOut */
+        RestartOut: {
+            /**
+             * State
+             * @constant
+             */
+            state: "restarting";
+        };
         /** RestoreResult */
         RestoreResult: {
             item: components["schemas"]["LibraryItem"];
+        };
+        /** RollbackIn */
+        RollbackIn: {
+            /**
+             * Restore Db
+             * @default false
+             */
+            restore_db: boolean;
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+        };
+        /** RollbackOut */
+        RollbackOut: {
+            /** Version */
+            version: string;
+            /**
+             * Schema
+             * @enum {string}
+             */
+            schema: "same" | "changed" | "unknown";
+            /** Backup At */
+            backup_at: string | null;
         };
         /** RuleMapping */
         RuleMapping: {
@@ -1897,6 +1972,13 @@ export interface components {
             retry_after: number | null;
             /** Can Apply */
             can_apply: boolean;
+            rollback: components["schemas"]["RollbackOut"] | null;
+            /** Jobs Running */
+            jobs_running: number;
+            /** Started At */
+            started_at: string;
+            /** Can Restart */
+            can_restart: boolean;
         };
         /** StreamOption */
         StreamOption: {
@@ -4140,6 +4222,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApplyOut"];
+                };
+            };
+        };
+    };
+    restart_server_api_update_restart_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestartIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestartOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rollback_release_api_update_rollback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RollbackIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -11,6 +11,7 @@ import os
 import subprocess
 import threading
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,7 @@ STATES: tuple[str, ...] = (
     "running",
     "done",
     "rolled_back",
+    "reverted",
     "failed",
     "failed_rollback",
 )
@@ -156,3 +158,73 @@ def start_update(
     except (OSError, subprocess.TimeoutExpired):
         return False
     return result.returncode == 0
+
+
+def _start_unit(
+    args: list[str],
+    run: Callable[..., subprocess.CompletedProcess[bytes]],
+) -> bool:
+    try:
+        result = run(args, check=False, capture_output=True, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
+def start_rollback(
+    restore_db: bool,
+    run: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
+) -> bool:
+    args = [
+        "systemd-run",
+        "--unit=pearlie-update",
+        "--collect",
+        "--no-block",
+        "/usr/local/bin/pearlie-update",
+        "--rollback",
+    ]
+    if restore_db:
+        args.append("--restore-db")
+    args.append("--from-ui")
+    return _start_unit(args, run)
+
+
+def start_restart(
+    run: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
+) -> bool:
+    return _start_unit(
+        [
+            "systemd-run",
+            "--unit=pearlie-restart",
+            "--collect",
+            "--no-block",
+            "systemctl",
+            "restart",
+            "pearlie",
+        ],
+        run,
+    )
+
+
+def read_previous(root: Path = LAYOUT_ROOT) -> tuple[str, int | None, str | None] | None:
+    """(version, schema or None when unknown, backup mtime ISO or None), or None
+    when no previous release is kept."""
+    try:
+        data: Any = json.loads((root / "previous" / "app" / "VERSION.json").read_text())
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("version"), str):
+        return None
+    schema = data.get("schema")
+    backup_at: str | None = None
+    try:
+        backup = root / "backups" / (root / "current").resolve().name
+        stamp = backup.stat().st_mtime
+        backup_at = datetime.fromtimestamp(stamp, UTC).isoformat(timespec="seconds")
+    except OSError:
+        pass
+    return (
+        data["version"].split("+", 1)[0],
+        schema if isinstance(schema, int) and not isinstance(schema, bool) else None,
+        backup_at,
+    )

@@ -819,7 +819,117 @@ case_installer_defaults() {
   expect "installer_defaults: host=auto appears once in installer" "$(grep -c '^host=auto' "$REPO/install/pearlie-install.sh" || true)" 1
 }
 
-CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_integrity case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_unit_sync case_installer_defaults)
+# ---- rollback ----------------------------------------------------------------
+
+# current = releases/newer (1.1.0), previous = releases/seed (1.0.0), backup of the old database
+seed_rollback() {
+  seed_install 1.0.0
+  local dir="$ROOT/releases/newer/app"
+  mkdir -p "$dir"
+  printf '{"version":"1.1.0","channel":"main","commit":null,"built_at":"x"}\n' > "$dir/VERSION.json"
+  ln -sfn "$(mp "$ROOT/releases/newer")" "$ROOT/current"
+  ln -sfn "$(mp "$ROOT/releases/seed")" "$ROOT/previous"
+  mkdir -p "$ROOT/backups/newer"
+  printf 'db-backup\n' > "$ROOT/backups/newer/pearlie.db"
+  printf 'db-live\n' > "$ROOT/data/pearlie.db"
+  : > "$STUB_LOG"
+}
+
+case_previous_and_schema() {
+  new_case previous_schema
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B" "file:pearlie-1.1.0/backend/app/db.py:SCHEMA_VERSION = 3"
+  run_update
+  expect "previous_schema: RC" "$RC" 0
+  case "$(readlink "$ROOT/previous")" in
+    *releases/seed*) ok "previous_schema: previous is seed" ;;
+    *) bad "previous_schema: previous is seed" "got $(readlink "$ROOT/previous" || true)" ;;
+  esac
+  if grep -q '"schema":3' "$(current_target)/app/VERSION.json"; then
+    ok "previous_schema: schema 3 in VERSION.json"
+  else
+    bad "previous_schema: schema 3 in VERSION.json" "$(cat "$(current_target)/app/VERSION.json")"
+  fi
+  new_case previous_noschema
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  run_update
+  if grep -q 'schema' "$(current_target)/app/VERSION.json"; then
+    bad "previous_schema: no key when unknown" "$(cat "$(current_target)/app/VERSION.json")"
+  else
+    ok "previous_schema: no key when unknown"
+  fi
+}
+
+case_rollback_code_only() {
+  new_case rollback_code
+  seed_rollback
+  run_update --rollback --from-ui
+  expect "rollback_code: RC" "$RC" 0
+  expect "rollback_code: state" "$(status_get state)" reverted
+  case "$(current_target)" in
+    *releases/seed*) ok "rollback_code: current is seed" ;;
+    *) bad "rollback_code: current is seed" "got $(current_target)" ;;
+  esac
+  expect "rollback_code: db kept" "$(cat "$ROOT/data/pearlie.db")" "db-live"
+  if [ -e "$ROOT/previous" ] || [ -L "$ROOT/previous" ]; then
+    bad "rollback_code: previous link removed" "still there"
+  else
+    ok "rollback_code: previous link removed"
+  fi
+  if [ -e "$ROOT/backups/newer-pre-rollback" ]; then
+    bad "rollback_code: no pre-rollback copy" "exists"
+  else
+    ok "rollback_code: no pre-rollback copy"
+  fi
+  no_bad_args "rollback_code: stub args"
+}
+
+case_rollback_restore() {
+  new_case rollback_restore
+  seed_rollback
+  run_update --rollback --restore-db --from-ui
+  expect "rollback_restore: RC" "$RC" 0
+  expect "rollback_restore: state" "$(status_get state)" reverted
+  expect "rollback_restore: db restored" "$(cat "$ROOT/data/pearlie.db")" "db-backup"
+  expect "rollback_restore: live copy kept" "$(cat "$ROOT/backups/newer-pre-rollback/pearlie.db")" "db-live"
+}
+
+case_rollback_fail() {
+  new_case rollback_fail
+  seed_rollback
+  printf '1.0.0\n' > "$STATE/bad_versions"
+  run_update --rollback --restore-db --from-ui
+  expect "rollback_fail: RC" "$RC" 1
+  expect "rollback_fail: state" "$(status_get state)" failed
+  case "$(current_target)" in
+    *releases/newer*) ok "rollback_fail: current is newer again" ;;
+    *) bad "rollback_fail: current is newer again" "got $(current_target)" ;;
+  esac
+  expect "rollback_fail: db put back" "$(cat "$ROOT/data/pearlie.db")" "db-live"
+  if grep -q 'kept 1.1.0' "$ROOT/update-status.json"; then
+    ok "rollback_fail: error names kept version"
+  else
+    bad "rollback_fail: error names kept version" "$(cat "$ROOT/update-status.json")"
+  fi
+}
+
+case_rollback_none() {
+  new_case rollback_none
+  seed_install 1.0.0
+  run_update --rollback --from-ui
+  expect "rollback_none: RC" "$RC" 1
+  expect "rollback_none: state" "$(status_get state)" failed
+  expect "rollback_none: no systemctl stop" "$(stub_calls 'systemctl stop')" 0
+  new_case rollback_nobackup
+  seed_rollback
+  rm -rf "$ROOT/backups/newer"
+  run_update --rollback --restore-db --from-ui
+  expect "rollback_nobackup: RC" "$RC" 1
+  expect "rollback_nobackup: no systemctl stop" "$(stub_calls 'systemctl stop')" 0
+}
+
+CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_integrity case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_unit_sync case_installer_defaults case_previous_and_schema case_rollback_code_only case_rollback_restore case_rollback_fail case_rollback_none)
 
 for c in "${CASES[@]}"; do
   "$c"
