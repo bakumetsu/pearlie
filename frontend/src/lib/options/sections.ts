@@ -1,3 +1,5 @@
+import type { IconName } from '../components/Icon.svelte'
+
 export type SectionId =
   | 'general'
   | 'viewing'
@@ -287,4 +289,19 @@ const SECTION_IDS: ReadonlySet<string> = new Set(SECTIONS.map((s) => s.id))
 
 export function isSectionId(s: string): s is SectionId {
   return SECTION_IDS.has(s)
+}
+
+export const SECTION_ICONS: Record<SectionId, IconName> = {
+  general: 'sliders',
+  viewing: 'eye',
+  'content-filter': 'eye-off',
+  discover: 'star',
+  rules: 'rules',
+  sources: 'download',
+  library: 'library',
+  'save-folders': 'bookmark',
+  trash: 'trash',
+  update: 'refresh',
+  logs: 'list',
+  about: 'info',
 }
