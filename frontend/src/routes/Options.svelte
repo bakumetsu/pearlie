@@ -1,10 +1,13 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import { type Match } from "../lib/router";
   import { getRouter } from "../lib/ctx";
   import {
     SECTIONS,
     searchSections,
+    type SearchHit,
+    rowMatches,
+    type OptionCard,
     SECTION_ICONS,
     isSectionId,
     type SectionId,
@@ -62,6 +65,31 @@
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  });
+
+  // Real cards for a hit: whole cards from the section, companions folded
+  // into the card that renders them. Rules is a full page, so it stays a plain card.
+  const COMPANION: Record<string, string> = { Komga: "Stash", "Log viewer": "Logging" };
+  function resolveCards(hit: SearchHit): OptionCard[] {
+    const out: OptionCard[] = [];
+    for (const c of hit.cards) {
+      const title = COMPANION[c.title] ?? c.title;
+      if (out.some((x) => x.title === title)) continue;
+      out.push(hit.section.cards.find((x) => x.title === title) ?? c);
+    }
+    return out;
+  }
+
+  // Scroll the first match into view whenever the results change.
+  $effect(() => {
+    if (!isSearching) return;
+    void searchResults;
+    tick().then(() => {
+      const el =
+        document.querySelector<HTMLElement>(".pane [data-row-hit]") ??
+        document.querySelector<HTMLElement>(".pane [data-hit]");
+      el?.scrollIntoView?.({ block: "nearest" });
+    });
   });
 
   function onSearchKeydown(e: KeyboardEvent) {
@@ -177,6 +205,50 @@
   ];
 </script>
 
+{#snippet cardView(sectionId: SectionId, card: OptionCard, q: string)}
+  {#if sectionId === "viewing" && card.title === "Image viewer"}
+    <ImageViewerCard />
+  {:else if sectionId === "viewing" && card.title === "Lists"}
+    <ListsCard />
+  {:else if sectionId === "content-filter" && card.title === "Content filter"}
+    <ContentFilterCard />
+  {:else if sectionId === "discover" && card.title === "Sites in the rail"}
+    <DiscoverCard />
+  {:else if sectionId === "sources" && card.title === "Downloads"}
+    <DownloadsCard />
+  {:else if sectionId === "save-folders" && card.title === "Save folders"}
+    <SaveFoldersCard />
+  {:else if sectionId === "trash" && card.title === "Retention"}
+    <TrashRetentionCard />
+  {:else if sectionId === "sources" && card.title === "Site access"}
+    <ConnectionRows title="Site access" names={SITE_NAMES} />
+  {:else if sectionId === "library" && card.title === "Stash"}
+    <ConnectionRows title="Stash and Komga" names={LIBRARY_NAMES} />
+  {:else if sectionId === "library" && card.title === "Komga"}
+    <!-- shown with Stash -->
+  {:else if sectionId === "library" && card.title === "Status"}
+    <StatusCard />
+  {:else if sectionId === "update" && card.title === "Update"}
+    <UpdateCard />
+  {:else if sectionId === "logs" && card.title === "Logging"}
+    <LogsCard />
+  {:else if sectionId === "logs" && card.title === "Log viewer"}
+    <!-- shown with Logging -->
+  {:else}
+    <section class="card">
+      <h2 class="card-title">{card.title}</h2>
+      <dl>
+        {#each card.rows as row (row.label)}
+          <div class="row" class:row-hit={q !== "" && rowMatches(row, q)} data-row-hit={q !== "" && rowMatches(row, q) ? "" : undefined}>
+            <dt>{row.label}</dt>
+            <dd>{row.hint}</dd>
+          </div>
+        {/each}
+      </dl>
+    </section>
+  {/if}
+{/snippet}
+
 <!-- ═══════════════════════════════════════════════════════════ -->
 <!-- PHONE: /options → list only                                  -->
 <!-- ═══════════════════════════════════════════════════════════ -->
@@ -278,47 +350,7 @@
         <p class="coming-later">Coming later.</p>
       {:else}
         {#each activeSection.cards as card (card.title)}
-          {#if activeSectionId === "viewing" && card.title === "Image viewer"}
-            <ImageViewerCard />
-          {:else if activeSectionId === "viewing" && card.title === "Lists"}
-            <ListsCard />
-          {:else if activeSectionId === "content-filter" && card.title === "Content filter"}
-            <ContentFilterCard />
-          {:else if activeSectionId === "discover" && card.title === "Sites in the rail"}
-            <DiscoverCard />
-          {:else if activeSectionId === "sources" && card.title === "Downloads"}
-            <DownloadsCard />
-          {:else if activeSectionId === "save-folders" && card.title === "Save folders"}
-            <SaveFoldersCard />
-          {:else if activeSectionId === "trash" && card.title === "Retention"}
-            <TrashRetentionCard />
-          {:else if activeSectionId === "sources" && card.title === "Site access"}
-            <ConnectionRows title="Site access" names={SITE_NAMES} />
-          {:else if activeSectionId === "library" && card.title === "Stash"}
-            <ConnectionRows title="Stash and Komga" names={LIBRARY_NAMES} />
-          {:else if activeSectionId === "library" && card.title === "Komga"}
-            <!-- shown with Stash -->
-          {:else if activeSectionId === "library" && card.title === "Status"}
-            <StatusCard />
-          {:else if activeSectionId === "update" && card.title === "Update"}
-            <UpdateCard />
-          {:else if activeSectionId === "logs" && card.title === "Logging"}
-            <LogsCard />
-          {:else if activeSectionId === "logs" && card.title === "Log viewer"}
-            <!-- shown with Logging -->
-          {:else}
-            <section class="card">
-              <h2 class="card-title">{card.title}</h2>
-              <dl>
-                {#each card.rows as row (row.label)}
-                  <div class="row">
-                    <dt>{row.label}</dt>
-                    <dd>{row.hint}</dd>
-                  </div>
-                {/each}
-              </dl>
-            </section>
-          {/if}
+          {@render cardView(activeSectionId, card, "")}
         {/each}
       {/if}
     </div>
@@ -411,18 +443,10 @@
         {:else}
           {#each searchResults as hit (hit.section.id)}
             <h2 class="result-heading">{hit.section.title}</h2>
-            {#each hit.cards as card (card.title)}
-              <section class="card">
-                <h3 class="card-title">{card.title}</h3>
-                <dl>
-                  {#each card.rows as row (row.label)}
-                    <div class="row">
-                      <dt>{row.label}</dt>
-                      <dd>{row.hint}</dd>
-                    </div>
-                  {/each}
-                </dl>
-              </section>
+            {#each resolveCards(hit) as card (card.title)}
+              <div class="hit-card" data-hit>
+                {@render cardView(hit.section.id, card, searchQuery.trim().toLowerCase())}
+              </div>
             {/each}
           {/each}
         {/if}
@@ -443,47 +467,7 @@
           <p class="coming-later">Coming later.</p>
         {:else}
           {#each activeSection.cards as card (card.title)}
-            {#if activeSectionId === "viewing" && card.title === "Image viewer"}
-              <ImageViewerCard />
-            {:else if activeSectionId === "viewing" && card.title === "Lists"}
-              <ListsCard />
-            {:else if activeSectionId === "content-filter" && card.title === "Content filter"}
-              <ContentFilterCard />
-            {:else if activeSectionId === "discover" && card.title === "Sites in the rail"}
-              <DiscoverCard />
-            {:else if activeSectionId === "sources" && card.title === "Downloads"}
-              <DownloadsCard />
-            {:else if activeSectionId === "save-folders" && card.title === "Save folders"}
-              <SaveFoldersCard />
-            {:else if activeSectionId === "trash" && card.title === "Retention"}
-              <TrashRetentionCard />
-            {:else if activeSectionId === "sources" && card.title === "Site access"}
-              <ConnectionRows title="Site access" names={SITE_NAMES} />
-            {:else if activeSectionId === "library" && card.title === "Stash"}
-              <ConnectionRows title="Stash and Komga" names={LIBRARY_NAMES} />
-            {:else if activeSectionId === "library" && card.title === "Komga"}
-              <!-- shown with Stash -->
-            {:else if activeSectionId === "library" && card.title === "Status"}
-              <StatusCard />
-            {:else if activeSectionId === "update" && card.title === "Update"}
-              <UpdateCard />
-            {:else if activeSectionId === "logs" && card.title === "Logging"}
-              <LogsCard />
-            {:else if activeSectionId === "logs" && card.title === "Log viewer"}
-              <!-- shown with Logging -->
-            {:else}
-              <section class="card">
-                <h2 class="card-title">{card.title}</h2>
-                <dl>
-                  {#each card.rows as row (row.label)}
-                    <div class="row">
-                      <dt>{row.label}</dt>
-                      <dd>{row.hint}</dd>
-                    </div>
-                  {/each}
-                </dl>
-              </section>
-            {/if}
+            {@render cardView(activeSectionId, card, "")}
           {/each}
         {/if}
       {/if}
@@ -690,6 +674,22 @@
   }
 
   /* ── Search results in pane ───────────────────────────── */
+  .hit-card {
+    border-radius: var(--r-sm);
+    outline: 1px solid color-mix(in srgb, var(--accent, #7aa2ff) 45%, transparent);
+    outline-offset: 0;
+    margin: 0 0 20px;
+  }
+
+  .hit-card :global(.card) {
+    margin-bottom: 0;
+  }
+
+  .hit-card :global(.row-hit) {
+    background: color-mix(in srgb, var(--accent, #7aa2ff) 14%, transparent);
+    border-radius: var(--r-sm);
+  }
+
   .result-heading {
     font-size: 0.85rem;
     font-weight: 600;
