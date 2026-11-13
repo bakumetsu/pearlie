@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from app.logs import install_http_hooks
 from app.paging import clamp_page_size
 from app.sources.auth import SiteAuth, build_auth
 from app.sources.base import Post, Rating, SearchPage, SourceError
@@ -62,10 +63,10 @@ class Danbooru:
         page_size: int = 60,
         credentials: Callable[[], dict[str, str]] | None = None,
     ) -> None:
-        self._client = client or httpx.Client(
-            timeout=15.0, headers={"User-Agent": "Pearlie/0.1"}
+        self._client = client or install_http_hooks(
+            httpx.Client(timeout=15.0, headers={"User-Agent": "Pearlie/0.1"}), "danbooru"
         )
-        self._throttle = throttle or Throttle(DEFAULT_PACE["danbooru"])
+        self._throttle = throttle or Throttle(DEFAULT_PACE["danbooru"], site="danbooru")
         self._base_url = base_url
         self.file_hosts = (urlparse(base_url).hostname or "", "cdn.donmai.us")
         self._tag_limit = tag_limit

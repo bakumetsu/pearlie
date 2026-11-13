@@ -19,6 +19,7 @@ from app.connections_store import (
     ConnectionStore,
     StoreError,
 )
+from app.logs import install_http_hooks
 from app.sources.auth import build_auth
 
 logger = logging.getLogger("pearlie")
@@ -196,7 +197,9 @@ def test_connection(request: Request, name: str) -> TestOut:
     elif name == "nhentai":
         url = address + "/api/v2/search?query=a"
 
-    client = httpx.Client(transport=transport, timeout=10.0, follow_redirects=False)
+    client = install_http_hooks(
+        httpx.Client(transport=transport, timeout=10.0, follow_redirects=False), name
+    )
     try:
         if method == "POST":
             resp = client.post(url, json=json_body, headers=headers)

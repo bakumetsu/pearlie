@@ -1,9 +1,12 @@
 """Per-site rate throttle with exponential back-off and ease-in."""
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections.abc import Callable
+
+logger = logging.getLogger("pearlie.throttle")
 
 MAX_WAIT: float = 300.0
 EASE_AFTER: int = 10
@@ -23,7 +26,9 @@ class Throttle:
         min_interval: float,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
+        site: str = "",
     ) -> None:
+        self._site = site
         self._user: float = min_interval
         self._current: float = min_interval
         self._clean: int = 0
@@ -39,6 +44,7 @@ class Throttle:
             start = max(now, self._next_at)
             self._next_at = start + self._current
         if start > now:
+            logger.debug("THROTTLE site=%s wait=%.1fs", self._site, start - now)
             self._sleep(start - now)
 
     def report(self, status: int, retry_after: float | None = None) -> None:
@@ -52,6 +58,13 @@ class Throttle:
                     new = min(MAX_WAIT, (self._current or 1.0) * 2)
                 self._current = max(self._user, new)
                 self._next_at = max(self._next_at, self._clock() + self._current)
+                logger.warning(
+                    "THROTTLE site=%s backoff status=%d retry_after=%s wait=%.1fs",
+                    self._site,
+                    status,
+                    "none" if retry_after is None else f"{retry_after:.1f}s",
+                    self._current,
+                )
             else:
                 self._clean += 1
                 if self._clean >= EASE_AFTER:

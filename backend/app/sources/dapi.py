@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from app.logs import install_http_hooks
 from app.paging import clamp_page_size
 from app.sources.auth import SiteAuth, build_auth
 from app.sources.base import Post, Rating, SearchPage, SourceError
@@ -59,10 +60,10 @@ class DapiSource:
         page_size: int = 60,
         credentials: Callable[[], dict[str, str]] | None = None,
     ) -> None:
-        self._client = client or httpx.Client(
-            timeout=15.0, headers={"User-Agent": "Pearlie/0.1"}
+        self._client = client or install_http_hooks(
+            httpx.Client(timeout=15.0, headers={"User-Agent": "Pearlie/0.1"}), self.id
         )
-        self._throttle = throttle or Throttle(DEFAULT_PACE[self.id])
+        self._throttle = throttle or Throttle(DEFAULT_PACE[self.id], site=self.id)
         self._base_url = (base_url or self.default_base_url).rstrip("/")
         self.file_hosts = (urlparse(self._base_url).hostname or "", *self.extra_file_hosts)
         self._page_size = page_size

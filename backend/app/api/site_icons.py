@@ -11,6 +11,7 @@ from fastapi import APIRouter, Request, Response
 
 from app.api.errors import ApiError
 from app.db import connect
+from app.logs import install_http_hooks
 
 logger = logging.getLogger("pearlie")
 
@@ -36,7 +37,9 @@ def _fetch(
 
     Returns (HTTP status or None on a network error, the icon or None unless a small image).
     """
-    http = client or httpx.Client(timeout=5.0, follow_redirects=False)
+    http = client or install_http_hooks(
+        httpx.Client(timeout=5.0, follow_redirects=False), "icon"
+    )
     try:
         with http.stream(
             "GET",

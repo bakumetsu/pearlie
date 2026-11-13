@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import base64
 import contextvars
+import json
 import logging
 import os
 import re
 import sys
 import threading
+import time
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote, quote_plus, urlsplit
+
+import httpx
 
 LOG_KEEP_DAYS = 7
 MAX_LINE = 2000
@@ -421,3 +425,112 @@ def setup_logging(
         root.addHandler(_console)
     set_debug(debug)
     return handler
+
+
+# ---------------------------------------------------------------------------
+# Outbound HTTP hooks (T-141, design 4.2)
+# ---------------------------------------------------------------------------
+
+_out = logging.getLogger("pearlie.out")
+_T0 = "pearlie_t0"
+_HEADER_WHITELIST = ("content-type", "server", "retry-after", "cf-mitigated")
+_GQL_OP = re.compile(r"^\s*(?:query|mutation)\s+(\w+)")
+_GQL_FIELD = re.compile(r"\{\s*(\w+)")
+_SNIPPET = 200
+
+
+def _ms(request: httpx.Request) -> int:
+    t0 = request.extensions.get(_T0)
+    return int((time.monotonic() - t0) * 1000) if isinstance(t0, float) else 0
+
+
+def _gql_op(request: httpx.Request) -> str:
+    try:
+        text = json.loads(request.content).get("query", "")
+    except (ValueError, AttributeError, httpx.RequestNotRead):
+        return "unknown"
+    if not isinstance(text, str):
+        return "unknown"
+    m = _GQL_OP.match(text) or _GQL_FIELD.search(text)
+    return m.group(1) if m else "anonymous"
+
+
+def _gql_error(resp: httpx.Response) -> str:
+    try:
+        resp.read()
+        errors = resp.json().get("errors")
+        if errors:
+            return str(errors[0].get("message", ""))[:_SNIPPET]
+    except (ValueError, AttributeError, TypeError, IndexError, httpx.HTTPError):
+        pass
+    return ""
+
+
+def _header_line(resp: httpx.Response) -> str:
+    items = []
+    for name in _HEADER_WHITELIST:
+        value = resp.headers.get(name)
+        if value:
+            items.append(f"{name}={value[:100]!r}")
+    return " ".join(items)
+
+
+def install_http_hooks(client: httpx.Client, site: str, save: bool = False) -> httpx.Client:
+    """Log one line per call made by *client*; *site* is the configured site label.
+
+    INFO for non-2xx and save-pipeline (*save*) calls, DEBUG for other 2xx.
+    Transport errors log the exception class name only, at WARNING.
+    """
+
+    def on_request(request: httpx.Request) -> None:
+        request.extensions[_T0] = time.monotonic()
+
+    def on_response(resp: httpx.Response) -> None:
+        req = resp.request
+        status = resp.status_code
+        ok = 200 <= status < 300
+        where = safe_url(str(req.url))
+        line = f"OUT site={site} {req.method} {where} status={status} ms={_ms(req)}"
+        if site == "stash":
+            line += f" op={_gql_op(req)}"
+            err = _gql_error(resp) if ok else ""
+            if err:
+                line += f" gql_error={err!r}"
+        if not ok:
+            hdrs = _header_line(resp)
+            if hdrs:
+                line += " " + hdrs
+            if _out.isEnabledFor(logging.DEBUG):
+                try:
+                    resp.read()
+                    body = resp.text[:_SNIPPET]
+                except httpx.HTTPError:
+                    body = ""
+                if body:
+                    line += f" body={body!r}"
+        level = logging.INFO if (not ok or save) else logging.DEBUG
+        _out.log(level, line)
+
+    hooks = client.event_hooks
+    hooks.setdefault("request", []).append(on_request)
+    hooks.setdefault("response", []).append(on_response)
+    client.event_hooks = hooks
+
+    plain_send = client.send
+
+    def send(request: httpx.Request, **kwargs):  # type: ignore[no-untyped-def]
+        try:
+            return plain_send(request, **kwargs)
+        except httpx.TransportError as exc:
+            _out.warning(
+                "OUT site=%s %s %s error=%s ms=%d",
+                site,
+                request.method,
+                safe_url(str(request.url)),
+                type(exc).__name__,
+                _ms(request),
+            )
+            raise
+
+    client.send = send  # type: ignore[method-assign]
+    return client
