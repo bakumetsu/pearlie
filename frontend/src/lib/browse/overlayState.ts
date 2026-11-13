@@ -28,3 +28,11 @@ export function withOpen(query: URLSearchParams, key: string | null): string {
   }
   return next.toString();
 }
+
+// Look the tile up by comparing data-key, so quotes or brackets in an id from the URL cannot break a selector.
+export function findTile(root: ParentNode, key: string): HTMLElement | null {
+  for (const el of root.querySelectorAll<HTMLElement>("[data-key]")) {
+    if (el.getAttribute("data-key") === key) return el;
+  }
+  return null;
+}

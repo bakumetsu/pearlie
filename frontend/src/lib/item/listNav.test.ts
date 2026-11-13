@@ -198,3 +198,22 @@ describe("stepInList", () => {
     expect(grid.goTo).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("stepInList cancelled", () => {
+  it("stops paging and returns null once cancelled", async () => {
+    const { grid, goTo } = makeGrid({
+      1: { items: [lib("a")] },
+      2: { items: [lib("b")] },
+      3: { items: [lib("c")] },
+    });
+    let dead = false;
+    goTo.mockImplementation(async (page: number) => {
+      grid.page = page;
+      grid.items = [lib("x" + page, "image")];
+      dead = true;
+    });
+    const r = await stepInList(grid, "video:a", 1, { cross: true, kind: "video", cancelled: () => dead });
+    expect(r).toBeNull();
+    expect(goTo).toHaveBeenCalledTimes(1);
+  });
+});

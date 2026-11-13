@@ -65,11 +65,18 @@
   function onFile() {
     const file = fileInput?.files?.[0];
     if (!file) return;
-    file.text().then((text) => {
-      const result = rules.importText(text);
-      importError = result.ok ? null : result.error;
-      if (fileInput) fileInput.value = "";
-    });
+    file
+      .text()
+      .then((text) => {
+        const result = rules.importText(text);
+        importError = result.ok ? null : result.error;
+      })
+      .catch(() => {
+        importError = "Could not read the file.";
+      })
+      .finally(() => {
+        if (fileInput) fileInput.value = "";
+      });
   }
 
   // Unsaved-leave guard: intercept internal navigation clicks

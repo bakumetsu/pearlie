@@ -23,7 +23,7 @@
   import Toolbar from "../lib/browse/Toolbar.svelte";
   import { parseOrder, parseRating, ORDER_LABELS, RATING_LABELS } from "../lib/browse/filters";
   import type { SourceFilters } from "../lib/api/client";
-  import { parseOpen, openKey, withOpen } from "../lib/browse/overlayState";
+  import { parseOpen, openKey, withOpen, findTile } from "../lib/browse/overlayState";
 
   let { match }: { match: Match } = $props();
 
@@ -152,7 +152,7 @@
       document.documentElement.style.overflow = "";
       window.scrollTo(0, y);
       const id = lastOpenId;
-      tick().then(() => { const tile = document.querySelector<HTMLElement>(`[data-key="${openKey(id)}"]`); tile?.scrollIntoView?.({ block: "nearest" }); tile?.focus(); });
+      tick().then(() => { const tile = findTile(document, openKey(id)); tile?.scrollIntoView?.({ block: "nearest" }); tile?.focus(); });
     };
   });
 

@@ -16,7 +16,7 @@ export interface ListGrid {
 
 export type Dir = 1 | -1;
 
-export type StepOpts = { kind?: SingularKind | null; cross: boolean; maxPages?: number };
+export type StepOpts = { kind?: SingularKind | null; cross: boolean; maxPages?: number; cancelled?: () => boolean };
 
 export function nearestInList(
   items: (LibraryItem | WebItem)[],
@@ -89,6 +89,7 @@ export async function stepInList(
       const firstKey = grid.items[0] ? keyOf(grid.items[0]) : null;
       const prevLen = grid.items.length;
       await grid.goTo(stepTarget(grid, dir));
+      if (opts.cancelled?.()) return null;
       if (grid.status === "error" || grid.more === "error") break;
       const items = grid.items;
       const result = nearestInList(items, arrivalIdx(grid, dir, firstKey, prevLen), dir, opts.kind);
