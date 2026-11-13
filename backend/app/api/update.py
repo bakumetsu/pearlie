@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, ConfigDict, StrictBool
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from app.api.errors import ApiError
 from app.api.guard import write_guard
-from app.db import connect
+from app.db import connect, schema_version
+from app.jobs.store import JobStore
 from app.update import runner
 from app.update import version as update_version
 
 router = APIRouter(prefix="/api/update")
+
+_STARTED_AT = datetime.now(UTC).isoformat(timespec="seconds")
 
 
 # ── Pydantic models ──────────────────────────────────────────────────────────
@@ -36,6 +40,14 @@ class LatestOut(BaseModel):
     url: str
 
 
+class RollbackOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: str
+    schema_: Literal["same", "changed", "unknown"] = Field(alias="schema")
+    backup_at: str | None
+
+
 class StatusOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -50,6 +62,10 @@ class StatusOut(BaseModel):
     error: str | None
     retry_after: int | None
     can_apply: bool
+    rollback: RollbackOut | None
+    jobs_running: int
+    started_at: str
+    can_restart: bool
 
 
 class SettingsIn(BaseModel):
@@ -94,6 +110,25 @@ class ApplyOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     state: Literal["running"]
+
+
+class RestartIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    force: StrictBool = False
+
+
+class RestartOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    state: Literal["restarting"]
+
+
+class RollbackIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    restore_db: StrictBool = False
+    force: StrictBool = False
 
 
 # ── Settings helpers ─────────────────────────────────────────────────────────
@@ -164,6 +199,20 @@ def _status(request: Request, refresh: bool, manual: bool) -> StatusOut:
 
     can_apply = mode == "real" and runner.supported(root)
 
+    rollback: RollbackOut | None = None
+    if can_apply:
+        prev = runner.read_previous(root)
+        if prev is not None:
+            prev_version, prev_schema, backup_at = prev
+            live = schema_version(db_path)
+            if prev_schema is None:
+                verdict: Literal["same", "changed", "unknown"] = "unknown"
+            elif live > prev_schema:
+                verdict = "changed"
+            else:
+                verdict = "same"
+            rollback = RollbackOut(version=prev_version, schema=verdict, backup_at=backup_at)
+
     latest_out: LatestOut | None = None
     if result and result.latest:
         latest_out = LatestOut(
@@ -188,6 +237,10 @@ def _status(request: Request, refresh: bool, manual: bool) -> StatusOut:
         error=error,
         retry_after=result.retry_after if result else None,
         can_apply=can_apply,
+        rollback=rollback,
+        jobs_running=JobStore(db_path).count_running(),
+        started_at=_STARTED_AT,
+        can_restart=can_apply,
     )
 
 
@@ -303,4 +356,40 @@ def apply_update(request: Request) -> ApplyOut:
             raise ApiError(409, "already_running", "update already in progress")
         raise ApiError(500, "start_failed", "could not start update process")
 
+    return ApplyOut(state="running")
+
+
+def _guard_action(request: Request, force: bool) -> Path:
+    app_state = request.app.state
+    root: Path = app_state.update_root
+    run = app_state.update_run
+    if not (app_state.settings.mode == "real" and runner.supported(root)):
+        raise ApiError(503, "unsupported", "not supported here")
+    if runner.read_status(root).get("state") == "running" or runner.is_running(run=run):
+        raise ApiError(409, "already_running", "update already in progress")
+    count = JobStore(app_state.settings.db_path).count_running()
+    if count and not force:
+        raise ApiError(409, "jobs_running", f"{count} jobs are running", count=count)
+    return root
+
+
+@router.post("/restart", status_code=202, dependencies=[Depends(write_guard)])
+def restart_server(request: Request, body: RestartIn) -> RestartOut:
+    _guard_action(request, body.force)
+    if not runner.start_restart(run=request.app.state.update_run):
+        raise ApiError(500, "start_failed", "could not restart the server")
+    return RestartOut(state="restarting")
+
+
+@router.post("/rollback", status_code=202, dependencies=[Depends(write_guard)])
+def rollback_release(request: Request, body: RollbackIn) -> ApplyOut:
+    root = _guard_action(request, body.force)
+    if runner.read_previous(root) is None:
+        raise ApiError(409, "no_previous", "no earlier version is kept")
+    if body.restore_db:
+        prev = runner.read_previous(root)
+        if prev is None or prev[2] is None:
+            raise ApiError(409, "no_backup", "no database backup to restore")
+    if not runner.start_rollback(body.restore_db, run=request.app.state.update_run):
+        raise ApiError(500, "start_failed", "could not start rollback")
     return ApplyOut(state="running")

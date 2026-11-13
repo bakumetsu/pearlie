@@ -1,6 +1,9 @@
 import sqlite3
 from pathlib import Path
 
+# Bump on every new column or table (test_db.py snapshot guard fails otherwise).
+SCHEMA_VERSION = 1
+
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,8 +100,17 @@ def init_db(path: Path) -> None:
     rules_cols = {row[1] for row in conn.execute("PRAGMA table_info(rules)")}
     if "target" not in rules_cols:
         conn.execute("ALTER TABLE rules ADD COLUMN target TEXT")
+    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
     conn.close()
+
+
+def schema_version(path: Path) -> int:
+    conn = sqlite3.connect(str(path))
+    try:
+        return int(conn.execute("PRAGMA user_version").fetchone()[0])
+    finally:
+        conn.close()
 
 
 def db_reachable(path: Path) -> bool:

@@ -2,7 +2,7 @@ import { isOffline, errorText, ApiError } from "../api/client";
 import type { Api, ChangeBlock, UpdateChangelog, UpdateStatus } from "../api/client";
 import { toasts } from "./toasts.svelte";
 
-export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: number; maxMs?: number; retryMs?: number; reload?: () => void } = {}) {
+export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: number; maxMs?: number; retryMs?: number; restartMs?: number; reload?: () => void } = {}) {
   let status: UpdateStatus | null = $state(null);
   let loaded = $state(false);
   let offline = $state(false);
@@ -28,6 +28,9 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let loadRestart = false;
   let disposed = false;
+  let pending: "restart" | "rollback" | null = $state(null);
+  let startedMark: string | null = null;
+  let note: string | null = $state(null);
 
   const latestState = $derived.by(() => {
     if (status?.available) return "available";
@@ -119,12 +122,18 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
   function giveUp(message: string) {
     stopPolling();
     phase = "idle";
+    pending = null;
     toasts.push({ kind: "error", message });
   }
 
   async function tick() {
-    if (startedAt !== null && Date.now() - startedAt > (opts.maxMs ?? 600_000)) {
-      giveUp("Update did not finish. Check /opt/pearlie/update.log.");
+    const limit = pending === "restart" ? (opts.restartMs ?? 90_000) : (opts.maxMs ?? 600_000);
+    if (startedAt !== null && Date.now() - startedAt > limit) {
+      giveUp(
+        pending !== null
+          ? "Pearlie did not come back. Check the console."
+          : "Update did not finish. Check /opt/pearlie/update.log.",
+      );
       return;
     }
     try {
@@ -146,7 +155,25 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
       const s = await api.getUpdateStatus();
       status = s;
       step = s.step;
+      if (pending === "restart") {
+        if (s.started_at === startedMark) {
+          phase = "restarting";
+          timer = setTimeout(tick, opts.intervalMs ?? 2000);
+          return;
+        }
+        await finishPending(null);
+        return;
+      }
+      if (pending === "rollback" && (s.state === "done" || s.state === "rolled_back")) {
+        // stale result of the last update: the rollback has not written its own yet
+        phase = "running";
+        timer = setTimeout(tick, opts.intervalMs ?? 2000);
+        return;
+      }
       switch (s.state) {
+        case "reverted":
+          await finishPending("Rolled back to " + s.installed.version);
+          return;
         case "running":
         case "idle":
           phase = "running";
@@ -164,6 +191,12 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
           return;
         case "rolled_back":
         case "failed":
+          if (pending === "rollback") {
+            await finishPending(null);
+            applyError = s.error;
+            toasts.push({ kind: "error", message: s.error ?? "Rollback failed. The current version was kept." });
+            return;
+          }
           stopPolling();
           phase = "idle";
           applyError = s.error;
@@ -175,6 +208,7 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
           });
           return;
         case "failed_rollback":
+          pending = null;
           stopPolling();
           phase = "failed_rollback";
           applyError = s.error;
@@ -191,6 +225,14 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     }
 
     timer = setTimeout(tick, opts.intervalMs ?? 2000);
+  }
+
+  async function finishPending(message: string | null) {
+    stopPolling();
+    pending = null;
+    phase = "idle";
+    note = message;
+    await load();
   }
 
   function startPolling() {
@@ -224,6 +266,50 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
         toasts.push({ kind: "error", message: "Could not start the update. Try again." });
       }
     }
+  }
+
+  async function runAction(
+    kind: "restart" | "rollback",
+    call: () => Promise<unknown>,
+    failMessage: string,
+  ) {
+    if (phase !== "idle") return;
+    try {
+      await call();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        // jobs started or an update runs: show the fresh state in the card
+        toasts.push({
+          kind: "error",
+          message:
+            e.code === "already_running" ? "An update is already running." : "Could not start. Check the card and try again.",
+        });
+        await load();
+      } else if (e instanceof ApiError && e.status === 503) {
+        toasts.push({ kind: "error", message: "This is not available here." });
+      } else {
+        toasts.push({ kind: "error", message: failMessage });
+      }
+      return;
+    }
+    pending = kind;
+    note = null;
+    applyError = null;
+    startedMark = status?.started_at ?? null;
+    phase = kind === "restart" ? "restarting" : "running";
+    startPolling();
+  }
+
+  function restart(force = false) {
+    return runAction("restart", () => api.restartServer({ force }), "Could not restart the server. Try again.");
+  }
+
+  function rollback(p: { restoreDb?: boolean; force?: boolean } = {}) {
+    return runAction(
+      "rollback",
+      () => api.rollbackUpdate({ restore_db: p.restoreDb ?? false, force: p.force ?? false }),
+      "Could not start the rollback. Try again.",
+    );
   }
 
   function resume() {
@@ -368,11 +454,15 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     get changelogFailed() { return changelogFailed; },
     get viewChannel() { return viewChannel; },
     get phase() { return phase; },
+    get pending() { return pending; },
+    get note() { return note; },
     get step() { return step; },
     get applyError() { return applyError; },
     load,
     retry,
     apply,
+    restart,
+    rollback,
     resume,
     dispose,
     checkNow,

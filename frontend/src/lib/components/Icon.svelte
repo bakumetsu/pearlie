@@ -6,7 +6,7 @@
     | "trash" | "star" | "play" | "pause" | "external-link"
     | "refresh" | "alert" | "loader" | "bookmark" | "image" | "film" | "book"
     | "star-filled" | "volume" | "volume-x" | "pip" | "maximize" | "minimize" | "undo"
-    | "clock" | "minus" | "upload" | "columns" | "settings" | "arrow-left-right" | "rotate-ccw"
+    | "clock" | "minus" | "upload" | "columns" | "settings" | "arrow-left-right" | "rotate-ccw" | "power"
     | "help" | "chevron-up" | "list" | "fit-width" | "fit-height" | "fit-both" | "fit-actual" | "mode-single" | "mode-spread" | "mode-scroll"
     | "home" | "wrench" | "eye" | "eye-off"
     | "grid" | "wall" | "masonry" | "sliders" | "chevrons-left" | "chevrons-right"
@@ -207,6 +207,10 @@
       "M4 7h16",
       "M16 21l4-4-4-4",
       "M20 17H4",
+    ],
+    "power": [
+      "M12 2v10",
+      "M18.4 6.6a9 9 0 1 1-12.77.04",
     ],
     "rotate-ccw": [
       "M1 4v6h6",

@@ -39,6 +39,9 @@ export type ConnectionTest = S["TestOut"];
 export type UpdateStatus = S["StatusOut"];
 export type UpdateSettingsIn = S["SettingsIn"];
 export type UpdateApplied = S["ApplyOut"];
+export type UpdateRestartIn = S["RestartIn"];
+export type UpdateRestarted = S["RestartOut"];
+export type UpdateRollbackIn = S["RollbackIn"];
 export type UpdateChangelog = S["ChangelogOut"];
 export type ChangeBlock = S["ChangeBlockOut"];
 export type Destinations = S["Destinations"];
@@ -142,6 +145,8 @@ export interface Api {
   getUpdateStatus(p?: { refresh?: boolean; manual?: boolean }, signal?: AbortSignal): Promise<UpdateStatus>;
   putUpdateSettings(body: UpdateSettingsIn, signal?: AbortSignal): Promise<UpdateStatus>;
   applyUpdate(signal?: AbortSignal): Promise<UpdateApplied>;
+  restartServer(body: UpdateRestartIn, signal?: AbortSignal): Promise<UpdateRestarted>;
+  rollbackUpdate(body: UpdateRollbackIn, signal?: AbortSignal): Promise<UpdateApplied>;
   getUpdateChangelog(p?: { channel?: "main" | "dev"; refresh?: boolean; offset?: number; limit?: number }, signal?: AbortSignal): Promise<UpdateChangelog>;
   getLogs(signal?: AbortSignal): Promise<LogFiles>;
   getLogLines(date: string, p: { level: LogLevel; cursor?: string | null; limit?: number }, signal?: AbortSignal): Promise<LogPage>;
@@ -482,6 +487,28 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: "{}",
+        },
+        signal,
+      );
+    },
+    restartServer(body, signal) {
+      return request<UpdateRestarted>(
+        baseUrl + "/api/update/restart",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        signal,
+      );
+    },
+    rollbackUpdate(body, signal) {
+      return request<UpdateApplied>(
+        baseUrl + "/api/update/rollback",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
         },
         signal,
       );

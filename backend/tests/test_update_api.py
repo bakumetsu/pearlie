@@ -12,6 +12,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.db import SCHEMA_VERSION, connect
+from app.update import runner
 from app.update import version as update_version
 
 
@@ -87,7 +89,14 @@ def test_status_fixture_mode(client: TestClient) -> None:
         "error",
         "retry_after",
         "can_apply",
+        "rollback",
+        "jobs_running",
+        "started_at",
+        "can_restart",
     }
+    assert payload["rollback"] is None
+    assert payload["jobs_running"] == 0
+    assert payload["can_restart"] is False
     assert payload["can_apply"] is False
     assert payload["channel"] == "main"
     assert payload["state"] == "idle"
@@ -295,3 +304,161 @@ def test_write_guard_rejects_non_json_content_type(client: TestClient) -> None:
         },
     )
     assert resp.status_code == 415
+
+
+def _add_previous(
+    root: Path, schema: int | None, *, backup: bool = True, version: str = "0.9.2"
+) -> None:
+    prev = root / "previous" / "app"
+    prev.mkdir(parents=True)
+    data: dict[str, Any] = {"version": version, "channel": "main", "commit": None}
+    if schema is not None:
+        data["schema"] = schema
+    (prev / "VERSION.json").write_text(json.dumps(data), encoding="utf-8")
+    if backup:
+        (root / "backups" / "current").mkdir(parents=True)
+
+
+def _add_running_job(client: TestClient) -> None:
+    app = cast(FastAPI, client.app)
+    conn = connect(app.state.settings.db_path)
+    conn.execute("INSERT INTO jobs (source, post_id, status) VALUES ('danbooru', '1', 'running')")
+    conn.commit()
+    conn.close()
+
+
+def test_status_rollback_schema_verdicts(client: TestClient, tmp_path: Path) -> None:
+    _enable_real_mode(client, tmp_path, _FakeRun())
+    assert client.get("/api/update/status").json()["rollback"] is None
+
+    _add_previous(tmp_path, None)
+    data = cast(dict[str, Any], client.get("/api/update/status").json())
+    assert data["can_restart"] is True
+    assert data["rollback"]["version"] == "0.9.2"
+    assert data["rollback"]["schema"] == "unknown"
+    assert data["rollback"]["backup_at"] is not None
+
+    (tmp_path / "previous" / "app" / "VERSION.json").write_text(
+        json.dumps({"version": "0.9.2", "channel": "main", "commit": None, "schema": SCHEMA_VERSION}),
+        encoding="utf-8",
+    )
+    assert client.get("/api/update/status").json()["rollback"]["schema"] == "same"
+
+    (tmp_path / "previous" / "app" / "VERSION.json").write_text(
+        json.dumps(
+            {"version": "0.9.2", "channel": "main", "commit": None, "schema": SCHEMA_VERSION - 1}
+        ),
+        encoding="utf-8",
+    )
+    assert client.get("/api/update/status").json()["rollback"]["schema"] == "changed"
+
+
+def test_restart_unsupported_in_fixture_mode(client: TestClient) -> None:
+    resp = client.post("/api/update/restart", json={})
+    assert resp.status_code == 503
+    assert _error_code(resp.json()) == "unsupported"
+
+
+def test_restart_starts_transient_unit(client: TestClient, tmp_path: Path) -> None:
+    fake_run = _FakeRun()
+    _enable_real_mode(client, tmp_path, fake_run)
+    resp = client.post("/api/update/restart", json={})
+    assert resp.status_code == 202
+    assert resp.json() == {"state": "restarting"}
+    assert any(
+        argv[:2] == ["systemd-run", "--unit=pearlie-restart"] and argv[-3:] == ["systemctl", "restart", "pearlie"]
+        for argv in fake_run.calls
+    )
+
+
+def test_restart_blocked_by_running_jobs_unless_forced(client: TestClient, tmp_path: Path) -> None:
+    fake_run = _FakeRun()
+    _enable_real_mode(client, tmp_path, fake_run)
+    _add_running_job(client)
+    assert client.get("/api/update/status").json()["jobs_running"] == 1
+
+    resp = client.post("/api/update/restart", json={})
+    assert resp.status_code == 409
+    assert _error_code(resp.json()) == "jobs_running"
+    assert resp.json()["count"] == 1
+    assert not any("systemd-run" in argv[0] for argv in fake_run.calls)
+
+    assert client.post("/api/update/restart", json={"force": True}).status_code == 202
+
+
+def test_restart_blocked_while_update_runs(client: TestClient, tmp_path: Path) -> None:
+    _enable_real_mode(client, tmp_path, _FakeRun())
+    (tmp_path / "update-status.json").write_text(json.dumps({"state": "running"}), encoding="utf-8")
+    resp = client.post("/api/update/restart", json={})
+    assert resp.status_code == 409
+    assert _error_code(resp.json()) == "already_running"
+
+
+def test_restart_start_failure(client: TestClient, tmp_path: Path) -> None:
+    _enable_real_mode(client, tmp_path, _FakeRun(systemd_returncode=1))
+    resp = client.post("/api/update/restart", json={})
+    assert resp.status_code == 500
+    assert _error_code(resp.json()) == "start_failed"
+
+
+def test_rollback_unsupported_in_fixture_mode(client: TestClient) -> None:
+    resp = client.post("/api/update/rollback", json={})
+    assert resp.status_code == 503
+
+
+def test_rollback_no_previous(client: TestClient, tmp_path: Path) -> None:
+    _enable_real_mode(client, tmp_path, _FakeRun())
+    resp = client.post("/api/update/rollback", json={})
+    assert resp.status_code == 409
+    assert _error_code(resp.json()) == "no_previous"
+
+
+def test_rollback_code_only_and_restore_args(client: TestClient, tmp_path: Path) -> None:
+    fake_run = _FakeRun()
+    _enable_real_mode(client, tmp_path, fake_run)
+    _add_previous(tmp_path, None)
+
+    resp = client.post("/api/update/rollback", json={})
+    assert resp.status_code == 202
+    assert resp.json() == {"state": "running"}
+    call = next(argv for argv in fake_run.calls if argv and argv[0] == "systemd-run")
+    assert call[-3:] == ["/usr/local/bin/pearlie-update", "--rollback", "--from-ui"]
+
+    fake_run.calls.clear()
+    assert client.post("/api/update/rollback", json={"restore_db": True}).status_code == 202
+    call = next(argv for argv in fake_run.calls if argv and argv[0] == "systemd-run")
+    assert call[-3:] == ["--rollback", "--restore-db", "--from-ui"]
+
+
+def test_rollback_restore_needs_backup(client: TestClient, tmp_path: Path) -> None:
+    fake_run = _FakeRun()
+    _enable_real_mode(client, tmp_path, fake_run)
+    _add_previous(tmp_path, None, backup=False)
+    resp = client.post("/api/update/rollback", json={"restore_db": True})
+    assert resp.status_code == 409
+    assert _error_code(resp.json()) == "no_backup"
+    assert not any("systemd-run" in argv[0] for argv in fake_run.calls)
+    assert client.post("/api/update/rollback", json={}).status_code == 202
+
+
+def test_rollback_blocked_by_jobs_and_running_update(client: TestClient, tmp_path: Path) -> None:
+    _enable_real_mode(client, tmp_path, _FakeRun())
+    _add_previous(tmp_path, None)
+    _add_running_job(client)
+    resp = client.post("/api/update/rollback", json={})
+    assert resp.status_code == 409
+    assert _error_code(resp.json()) == "jobs_running"
+    assert client.post("/api/update/rollback", json={"force": True}).status_code == 202
+
+    (tmp_path / "update-status.json").write_text(json.dumps({"state": "running"}), encoding="utf-8")
+    resp = client.post("/api/update/rollback", json={"force": True})
+    assert _error_code(resp.json()) == "already_running"
+
+
+def test_read_previous_reads_version_schema_backup(tmp_path: Path) -> None:
+    assert runner.read_previous(tmp_path) is None
+    (tmp_path / "current").mkdir()
+    _add_previous(tmp_path, 3, version="0.9.2+abc")
+    version, schema, backup_at = cast(tuple[str, int | None, str | None], runner.read_previous(tmp_path))
+    assert (version, schema) == ("0.9.2", 3)
+    assert backup_at is not None
