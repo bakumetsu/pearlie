@@ -500,7 +500,7 @@
     {:else if grid.items.length === 0}
       <div class="empty">Nothing here.</div>
     {:else}
-      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => (lightboxKey = webKey(w))} landscape={source === "stash_videos"} />
+      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => (w.source === "nhentai" ? router.navigate("/web/nhentai/" + encodeURIComponent(w.post_id)) : (lightboxKey = webKey(w)))} landscape={source === "stash_videos"} />
     {/if}
 
     {#if infinite && grid.status === "done"}
