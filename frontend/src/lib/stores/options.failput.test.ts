@@ -63,8 +63,8 @@ describe("options failput", () => {
     });
 
     await store.load(api);
-    expect(store.values.backdrop_wall).toBe(true);
-    expect(store.values.backdrop_item).toBe(true);
+    expect(store.values?.backdrop_wall).toBe(true);
+    expect(store.values?.backdrop_item).toBe(true);
 
     store.set({ backdrop_wall: false });
     await vi.advanceTimersByTimeAsync(300); // debounce fires → PUT in flight
@@ -73,14 +73,14 @@ describe("options failput", () => {
     await vi.advanceTimersByTimeAsync(500); // first PUT rejects
 
     expect(toasts.push).toHaveBeenCalledTimes(1);
-    expect(store.values.backdrop_wall).toBe(true);
-    expect(store.values.backdrop_item).toBe(false);
+    expect(store.values?.backdrop_wall).toBe(true);
+    expect(store.values?.backdrop_item).toBe(false);
 
     await vi.advanceTimersByTimeAsync(3000); // re-flush PUT resolves
 
     expect(received).toHaveLength(1);
     expect(received[0]).toMatchObject({ backdrop_item: false });
-    expect(store.values.backdrop_item).toBe(false);
+    expect(store.values?.backdrop_item).toBe(false);
   });
 
   it("reverts to loaded values on failed PUT with nothing pending", async () => {
@@ -110,7 +110,7 @@ describe("options failput", () => {
     await vi.advanceTimersByTimeAsync(500); // PUT rejects
 
     expect(toasts.push).toHaveBeenCalledTimes(1);
-    expect(store.values.backdrop_wall).toBe(true);
-    expect(store.values.backdrop_item).toBe(true);
+    expect(store.values?.backdrop_wall).toBe(true);
+    expect(store.values?.backdrop_item).toBe(true);
   });
 });
