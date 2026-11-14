@@ -55,6 +55,12 @@ export function pollDelayMs(jobs: Job[], visible: boolean): number {
 }
 
 export function etaLabel(job: Job): string | null {
+  if (job.state === "running" && job.pages_total) {
+    const pages = `${job.pages_done ?? 0}/${job.pages_total} pages`;
+    return job.eta_s != null && job.eta_s > 0
+      ? `${pages}, ~${Math.ceil(job.eta_s)} s left`
+      : pages;
+  }
   if (job.state === "queued" && job.eta_s != null && job.eta_s > 0) {
     return `waits ${Math.ceil(job.eta_s)} s`;
   }

@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 # Bump on every new column or table (test_db.py snapshot guard fails otherwise).
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS jobs (
@@ -96,6 +96,9 @@ def init_db(path: Path) -> None:
         "started_at": "started_at TEXT",
         "finished_at": "finished_at TEXT",
         "placement": "placement TEXT",
+        "pages_done": "pages_done INTEGER",
+        "pages_total": "pages_total INTEGER",
+        "eta_s": "eta_s REAL",
     }
     for col_name, col_def in jobs_migrations.items():
         if col_name not in jobs_cols:

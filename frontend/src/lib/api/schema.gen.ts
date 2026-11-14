@@ -1451,6 +1451,10 @@ export interface components {
             progress: number;
             /** Eta S */
             eta_s?: number | null;
+            /** Pages Done */
+            pages_done?: number | null;
+            /** Pages Total */
+            pages_total?: number | null;
             /** Error */
             error?: string | null;
             /** Error Code */
