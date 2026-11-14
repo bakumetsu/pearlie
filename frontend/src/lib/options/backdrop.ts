@@ -2,9 +2,9 @@ export type BackdropWhere = "wall" | "item" | "lightbox";
 
 export const BACKDROP_DEFAULTS = {
   strength: 60,
-  wall: true,
-  item: true,
-  lightbox: true,
+  wall: false,
+  item: false,
+  lightbox: false,
 };
 
 type BackdropValues = {
@@ -22,7 +22,7 @@ export function backdropStrength(
   // Safe mode: the backdrop is a CSS background, so the SFW blur would not cover it
   if (hidden) return 0;
   const switchKey = `backdrop_${where}` as const;
-  const on = values ? values[switchKey] : true;
+  const on = values ? values[switchKey] : BACKDROP_DEFAULTS[where];
   if (!on) return 0;
 
   const raw = values ? values.backdrop_strength : BACKDROP_DEFAULTS.strength;

@@ -1678,17 +1678,17 @@ export interface components {
             backdrop_strength: number;
             /**
              * Backdrop Wall
-             * @default true
+             * @default false
              */
             backdrop_wall: boolean;
             /**
              * Backdrop Item
-             * @default true
+             * @default false
              */
             backdrop_item: boolean;
             /**
              * Backdrop Lightbox
-             * @default true
+             * @default false
              */
             backdrop_lightbox: boolean;
             /**

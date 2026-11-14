@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/svelte";
-import { backdropStrength } from "./backdrop";
+import { backdropStrength, BACKDROP_DEFAULTS } from "./backdrop";
 import Backdrop from "../components/Backdrop.svelte";
 
 describe("backdropStrength", () => {
-  it("returns 60 when values is null", () => {
-    expect(backdropStrength(null, "wall")).toBe(60);
+  it("returns 0 when values is null (switches default off)", () => {
+    expect(backdropStrength(null, "wall")).toBe(0);
   });
 
   it("returns 0 when the switch for `where` is off", () => {
@@ -68,5 +68,13 @@ describe("backdropStrength in safe mode", () => {
 
   it("keeps the strength when safe mode is off", () => {
     expect(backdropStrength(on, "lightbox", false)).toBe(60);
+  });
+});
+
+describe("BACKDROP_DEFAULTS", () => {
+  it("has all three switches off", () => {
+    expect(BACKDROP_DEFAULTS.wall).toBe(false);
+    expect(BACKDROP_DEFAULTS.item).toBe(false);
+    expect(BACKDROP_DEFAULTS.lightbox).toBe(false);
   });
 });
