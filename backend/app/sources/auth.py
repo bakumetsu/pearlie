@@ -21,7 +21,7 @@ def build_auth(site: str, values: Mapping[str, str]) -> SiteAuth:
 
     A pair with only one field set is not sent (missing lists the other one);
     with nothing set the request stays anonymous. nhentai has no pair: the cookie
-    alone is sent.
+    is optional and the User-Agent is always sent.
     """
     if site == "danbooru":
         headers = {"User-Agent": DEFAULT_USER_AGENT}
@@ -44,8 +44,8 @@ def build_auth(site: str, values: Mapping[str, str]) -> SiteAuth:
         return SiteAuth()
     if site == "nhentai":
         cookie, agent = values.get("cookie", ""), values.get("user_agent", "")
-        # A cookie saved before the User-Agent field existed keeps working with the default one.
-        headers = {"User-Agent": agent or DEFAULT_USER_AGENT} if (agent or cookie) else {}
+        # The default User-Agent also covers a cookie saved before that field existed.
+        headers = {"User-Agent": agent or DEFAULT_USER_AGENT}
         if cookie:
             headers["Cookie"] = cookie
         return SiteAuth(headers=headers)

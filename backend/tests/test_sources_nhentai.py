@@ -216,6 +216,24 @@ def test_get_post_and_errors() -> None:
     assert e.value.code == "not_found"
 
 
+def test_403_message_and_default_user_agent() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req)
+        return httpx.Response(403, text="Just a moment...")
+
+    with pytest.raises(SourceError) as e:
+        NHentai(
+            client=httpx.Client(transport=httpx.MockTransport(handler)), throttle=Throttle(0.0)
+        ).search(["a"])
+    assert e.value.status == 403
+    assert "Cloudflare" in e.value.message
+    assert seen[0].url.path.startswith("/api/v2/")
+    assert seen[0].headers["user-agent"]
+    assert "cookie" not in seen[0].headers
+
+
 def test_unreachable_and_bad_json() -> None:
     def boom(req: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("x")
