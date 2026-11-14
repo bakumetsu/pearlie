@@ -78,6 +78,7 @@ def test_build_query() -> None:
         'artist:"foo bar" "big breasts" -tag:"x"'
     )
     assert build_query([]) == ""
+    assert build_query(['tag:a"b']) == 'tag:"a b"'
 
 
 def test_search_parse_and_paging() -> None:

@@ -30,7 +30,7 @@ def _term(token: str) -> str:
         prefix = f"{kind}:"
     else:
         prefix, name = "", body
-    name = name.replace("_", " ").strip()
+    name = name.replace("_", " ").replace('"', " ").strip()
     return f'{neg}{prefix}"{name}"' if name else ""
 
 
