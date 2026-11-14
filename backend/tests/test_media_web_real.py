@@ -200,3 +200,17 @@ def test_preview_stream_frees_slot(tmp_path):
     client = TestClient(app)
     assert client.get("/api/media/web/danbooru/7/preview").content == IMG
     assert app.state.image_slots.limiter("danbooru", "i").in_flight == 0
+
+
+def test_preview_and_full_apply_rules_to_cold_post(tmp_path):
+    from app.filters.rules import RuleSet, load_rules, save_rules
+
+    seen: list[httpx.Request] = []
+    app = _app(tmp_path, _handler(seen))
+    client = TestClient(app)
+    db = app.state.settings.db_path
+    version = load_rules(db).version
+    save_rules(db, version, RuleSet(version=version, reject=["x"], warn=[], require=[], mapping=[]))
+    for kind in ("preview", "full", "thumb"):
+        assert client.get(f"/api/media/web/danbooru/7/{kind}").status_code == 404, kind
+    assert [q for q in seen if q.url.host == "cdn.donmai.us"] == []
