@@ -9,6 +9,10 @@
 	let { api = getApi(), store = options }: { api?: Api; store?: OptionsStore } = $props();
 
 	const placeMode = $derived(store.values?.place_mode ?? "suggest");
+	const scanWait = $derived(store.values?.komga_scan_wait_s ?? 10);
+	function setScanWait(n: number) {
+		store.set({ komga_scan_wait_s: Math.min(120, Math.max(0, n)) });
+	}
 
 	let dest = $state<Destinations | null>(null);
 	let loadError = $state("");
@@ -236,6 +240,31 @@
 					</span>
 				{/if}
 			</div>
+			<div class="row scan-row" data-testid="scan-wait">
+				<span id="scan-wait-label"><Icon name="clock" size={18} /> Komga scan delay</span>
+				<div class="stepper" role="group" aria-labelledby="scan-wait-label">
+					<button
+						type="button"
+						aria-label="Shorter delay"
+						data-testid="scan-wait-minus"
+						disabled={scanWait <= 0}
+						onclick={() => setScanWait(scanWait - 1)}
+					>
+						<Icon name="minus" size={18} />
+					</button>
+					<output data-testid="scan-wait-value">{scanWait} s</output>
+					<button
+						type="button"
+						aria-label="Longer delay"
+						data-testid="scan-wait-plus"
+						disabled={scanWait >= 120}
+						onclick={() => setScanWait(scanWait + 1)}
+					>
+						<Icon name="plus" size={18} />
+					</button>
+				</div>
+				<span class="ok">Wait this long after the last save before Komga scans.</span>
+			</div>
 		{/if}
 	{/if}
 </section>
@@ -275,6 +304,35 @@
 
 	.folder-row select {
 		max-width: 160px;
+	}
+
+	.stepper {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.stepper button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 44px;
+		min-height: 44px;
+		border: 1px solid var(--line-strong);
+		border-radius: 4px;
+		background: transparent;
+		color: inherit;
+		cursor: pointer;
+	}
+
+	.stepper button:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+
+	.stepper output {
+		min-width: 48px;
+		text-align: center;
 	}
 
 	.seg {

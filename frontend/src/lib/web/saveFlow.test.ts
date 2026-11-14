@@ -65,6 +65,11 @@ describe("settleQueued", () => {
     expect(settleQueued(["danbooru:1"], [job("running")])).toEqual({});
   });
 
+  it("keeps a save spinning while Komga scans (scan_wait, verifying)", () => {
+    expect(settleQueued(["danbooru:1"], [job("scan_wait")])).toEqual({});
+    expect(settleQueued(["danbooru:1"], [job("verifying")])).toEqual({});
+  });
+
   it("uses the newest job for the key", () => {
     const jobs = [job("failed", { created_at: "2026-01-01" }), job("running", { created_at: "2026-01-02" })];
     expect(settleQueued(["danbooru:1"], jobs)).toEqual({});

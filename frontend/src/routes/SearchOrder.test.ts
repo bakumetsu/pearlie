@@ -16,6 +16,7 @@ const OPTIONS = {
   allow_blurred_tags: false,
   trash_retention_days: 7,
   images_per_site: 10,
+  komga_scan_wait_s: 10,
   source_pace: {},
   hidden_sites: [],
   site_order: ["gelbooru", "danbooru", "rule34", "nhentai"],

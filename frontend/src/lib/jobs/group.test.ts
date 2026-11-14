@@ -238,3 +238,40 @@ describe("needsFolderFix", () => {
     expect(needsFolderFix(mk({ state: "queued", error_code: "outside_library" }))).toBe(false);
   });
 });
+
+describe("Komga scan states", () => {
+  it("orders Active: running, scan_wait, verifying, queued", () => {
+    const jobs = [
+      mk({ id: "q", state: "queued", created_at: "2025-01-01T00:00:00Z" }),
+      mk({ id: "v", state: "verifying", created_at: "2025-01-02T00:00:00Z" }),
+      mk({ id: "s", state: "scan_wait", created_at: "2025-01-03T00:00:00Z" }),
+      mk({ id: "r", state: "running", created_at: "2025-01-04T00:00:00Z" }),
+    ];
+    const groups = groupJobs(jobs);
+    expect(groups.active.map((j) => j.id)).toEqual(["r", "s", "v", "q"]);
+    expect(groups.attention).toEqual([]);
+  });
+
+  it("counts them as active and keeps the 2 s poll", () => {
+    for (const state of ["scan_wait", "verifying"] as const) {
+      expect(activeCount([mk({ state })])).toBe(1);
+      expect(pollDelayMs([mk({ state })], true)).toBe(2000);
+    }
+  });
+
+  it("labels the countdown and the check", () => {
+    expect(etaLabel(mk({ state: "scan_wait", eta_s: 6.2 }))).toBe("scan in 7 s");
+    expect(etaLabel(mk({ state: "verifying" }))).toBe("looking for the book");
+    expect(stateInfo("scan_wait").label).toBe("Waiting for Komga");
+    expect(stateInfo("verifying").label).toBe("Checking Komga");
+  });
+
+  it("allows Remove, not Cancel or Retry", () => {
+    for (const state of ["scan_wait", "verifying"] as const) {
+      const j = mk({ state });
+      expect(canRemove(j)).toBe(true);
+      expect(removeLabel(j)).toBe("Remove");
+      expect(canRetry(j)).toBe(false);
+    }
+  });
+});

@@ -181,6 +181,30 @@ describe("SaveFoldersCard", () => {
     expect(set).toHaveBeenCalledWith({ place_mode: "auto" });
   });
 
+  it("steps the Komga scan delay by 1 s and stops at 0 and 120", async () => {
+    const set = vi.fn();
+    const store = { values: { place_mode: "suggest", komga_scan_wait_s: 10 }, set } as never;
+    const { api } = makeApi({
+      getDestinations: vi.fn().mockResolvedValue(dest({ komga_sites: ["nhentai"] })),
+    });
+    render(SaveFoldersCard, { api, store });
+    expect((await screen.findByTestId("scan-wait-value")).textContent).toBe("10 s");
+    await fireEvent.click(screen.getByTestId("scan-wait-plus"));
+    expect(set).toHaveBeenLastCalledWith({ komga_scan_wait_s: 11 });
+    await fireEvent.click(screen.getByTestId("scan-wait-minus"));
+    expect(set).toHaveBeenLastCalledWith({ komga_scan_wait_s: 9 });
+  });
+
+  it("disables the stepper at its limits", async () => {
+    const mkStore = (n: number) => ({ values: { place_mode: "suggest", komga_scan_wait_s: n }, set: vi.fn() }) as never;
+    const getDestinations = vi.fn().mockResolvedValue(dest({ komga_sites: ["nhentai"] }));
+    const lo = render(SaveFoldersCard, { api: makeApi({ getDestinations }).api, store: mkStore(0) });
+    expect(((await lo.findByTestId("scan-wait-minus")) as HTMLButtonElement).disabled).toBe(true);
+    lo.unmount();
+    const hi = render(SaveFoldersCard, { api: makeApi({ getDestinations }).api, store: mkStore(120) });
+    expect(((await hi.findByTestId("scan-wait-plus")) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("says when Komga has no oneshots folder and hides the switch without Komga sites", async () => {
     const store = { values: { place_mode: "suggest" }, set: vi.fn() } as never;
     const a = makeApi({

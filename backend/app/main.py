@@ -319,6 +319,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.sources,
             {"stash": stash_target, "komga": komga_target},
             interval_s=settings.download_interval_s,
+            scan_wait_s=lambda: options.komga_scan_wait_s(app),
             startup_hooks=[stash_target.cleanup_temp, komga_target.cleanup_temp],
         )
 
