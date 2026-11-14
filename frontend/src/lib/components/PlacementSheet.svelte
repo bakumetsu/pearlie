@@ -4,6 +4,28 @@
 
   let { store = defaultStore }: { store?: typeof defaultStore } = $props();
 
+  let sheetEl: HTMLDivElement | undefined = $state();
+  let opener: HTMLElement | null = null;
+
+  // Focus moves into the sheet on open and back to the opener (the Save button) on close.
+  $effect(() => {
+    if (store.item && sheetEl) {
+      opener = document.activeElement as HTMLElement | null;
+      sheetEl.focus();
+      return () => {
+        opener?.focus();
+        opener = null;
+      };
+    }
+  });
+
+  function onkeydown(e: KeyboardEvent) {
+    if (store.item && e.key === "Escape") {
+      e.preventDefault();
+      store.cancel();
+    }
+  }
+
   const s = $derived(store.suggestion);
   const kind = $derived(store.kind);
   const line = $derived.by(() => {
@@ -21,9 +43,11 @@
   });
 </script>
 
+<svelte:window {onkeydown} />
+
 {#if store.item}
   <div class="scrim" role="presentation" onclick={() => store.cancel()}></div>
-  <div class="sheet" role="dialog" aria-modal="true" aria-label="Where to save" data-testid="placement-sheet">
+  <div class="sheet" bind:this={sheetEl} tabindex="-1" role="dialog" aria-modal="true" aria-label="Where to save" data-testid="placement-sheet">
     <div class="head">
       <span class="line" data-testid="placement-line">{store.loading ? "Checking…" : line}</span>
       <button class="icon-btn" aria-label="Close" onclick={() => store.cancel()}>
@@ -81,6 +105,9 @@
       border: 1px solid var(--line-strong);
       border-radius: var(--r-md);
     }
+  }
+  .sheet:focus {
+    outline: none;
   }
   .head {
     display: flex;

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createPlacement } from "./placement.svelte";
 import type { Api, WebItem } from "../api/client";
 
-const item = { source: "nhentai", post_id: "7" } as WebItem;
+const item = { source: "nhentai", post_id: "7", target: "komga" } as WebItem;
 const sug = { kind: "oneshot", series: null, number: null, joins_existing: false, moves_first: false, reason: "new" };
 
 function make(mode: string, getPlacement = vi.fn().mockResolvedValue(sug)) {
@@ -15,17 +15,17 @@ describe("placement store", () => {
     const { store, getPlacement } = make("auto");
     expect(await store.ask(item)).toEqual({});
     const s2 = make("suggest");
-    expect(await s2.store.ask({ source: "danbooru", post_id: "1" } as WebItem)).toEqual({});
+    expect(await s2.store.ask({ source: "danbooru", post_id: "1", target: "stash" } as WebItem)).toEqual({});
     expect(getPlacement).not.toHaveBeenCalled();
   });
 
-  it("sends no override when unchanged", async () => {
+  it("sends the confirmed kind even when unchanged", async () => {
     const { store } = make("suggest");
     const p = store.ask(item);
     await vi.waitFor(() => expect(store.loading).toBe(false));
     expect(store.kind).toBe("oneshot");
     store.confirm();
-    expect(await p).toEqual({});
+    expect(await p).toEqual({ placement: { kind: "oneshot" } });
   });
 
   it("sends the override after one tap", async () => {

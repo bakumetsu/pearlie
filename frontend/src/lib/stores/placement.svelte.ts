@@ -6,9 +6,6 @@ export type PlacementChoice = { kind: "series" | "oneshot" };
 // null = the user closed the sheet: no save.
 export type PlacementAnswer = { placement?: PlacementChoice } | null;
 
-// Sources that save into Komga; only these get the sheet.
-const KOMGA_SOURCES = ["nhentai"];
-
 export function createPlacement(deps: { api: () => Api; mode: () => string | undefined }) {
   let item: WebItem | null = $state(null);
   let suggestion: PlacementSuggestion | null = $state(null);
@@ -19,7 +16,7 @@ export function createPlacement(deps: { api: () => Api; mode: () => string | und
   let token = 0;
 
   function needsSheet(it: WebItem): boolean {
-    return KOMGA_SOURCES.includes(it.source) && deps.mode() === "suggest";
+    return it.target === "komga" && deps.mode() === "suggest";
   }
 
   function finish(a: PlacementAnswer) {
@@ -63,9 +60,9 @@ export function createPlacement(deps: { api: () => Api; mode: () => string | und
 
   function confirm() {
     if (loading) return;
-    // Send an override only when the user changed the suggestion.
-    const changed = suggestion !== null && kind !== suggestion.kind;
-    finish(changed ? { placement: { kind } } : {});
+    // Always send the confirmed kind: the backend joins by name prefix only for this path.
+    // Without a suggestion (check failed) send nothing; Pearlie decides.
+    finish(suggestion !== null ? { placement: { kind } } : {});
   }
 
   return {
