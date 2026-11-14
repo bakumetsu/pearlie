@@ -141,7 +141,7 @@
     visibility: hidden;
   }
 
-  /* Bottom-left chevron, shown while the pointer is near the left edge (always on touch). */
+  /* Bottom-left chevron, shown while the pointer is over its corner zone (always on touch). */
   .rail-reopen {
     position: fixed;
     bottom: var(--s-2);

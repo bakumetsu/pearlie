@@ -196,23 +196,23 @@
         <ChipField bind:pending chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch}>
           {#snippet trailing()}
             <span class="tail">
-            {#if dirty}
-              <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
-                <Icon name="search" size={20} />
+              {#if dirty}
+                <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
+                  <Icon name="search" size={20} />
+                </button>
+              {/if}
+              <button
+                class="fib"
+                bind:this={fibEl}
+                class:on={chips.length > 0}
+                type="button"
+                aria-label={chips.length ? `Filters (${chips.length} set)` : "Filters"}
+                aria-expanded={filterOpen}
+                onclick={() => (filterOpen = true)}
+              >
+                <Icon name="sliders" size={20} />
+                {#if chips.length}<b>{chips.length}</b>{/if}
               </button>
-            {/if}
-            <button
-              class="fib"
-              bind:this={fibEl}
-              class:on={chips.length > 0}
-              type="button"
-              aria-label={chips.length ? `Filters (${chips.length} set)` : "Filters"}
-              aria-expanded={filterOpen}
-              onclick={() => (filterOpen = true)}
-            >
-              <Icon name="sliders" size={20} />
-              {#if chips.length}<b>{chips.length}</b>{/if}
-            </button>
             </span>
           {/snippet}
         </ChipField>
