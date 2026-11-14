@@ -203,6 +203,7 @@ class Section(BaseModel):
 class SourceFilters(BaseModel):
     """What the order/rating/per-page toolbar may offer for one source."""
 
+    search: bool = True  # the source can take a search
     order: list[str] = Field(default_factory=list)
     rating: list[str] = Field(default_factory=list)
     sort: list[str] = Field(default_factory=list)  # library sources only
