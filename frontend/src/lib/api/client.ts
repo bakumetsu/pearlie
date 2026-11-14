@@ -17,6 +17,7 @@ export type PatchBody = S["PatchBody"];
 export type TrashResult = S["TrashResult"];
 export type TrashList = S["TrashList"];
 export type TrashEmptied = S["TrashEmptied"];
+export type ThumbCacheCleared = S["ThumbCacheCleared"];
 export type TrashPurgePreview = S["TrashPurgePreview"];
 export type RestoreResult = S["RestoreResult"];
 export type RulesBody = S["RulesBody"];
@@ -122,6 +123,7 @@ export interface Api {
   listTrash(signal?: AbortSignal): Promise<TrashList>;
   emptyTrash(signal?: AbortSignal): Promise<TrashEmptied>;
   purgePreview(days: number, signal?: AbortSignal): Promise<TrashPurgePreview>;
+  clearThumbCache(signal?: AbortSignal): Promise<ThumbCacheCleared>;
   getRules(signal?: AbortSignal): Promise<RulesBody>;
   putRules(body: RulesPut, signal?: AbortSignal): Promise<RulesBody>;
   jobs(p: { state?: string[] }, signal?: AbortSignal): Promise<JobList>;
@@ -312,6 +314,9 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     },
     purgePreview(days, signal) {
       return request<TrashPurgePreview>(baseUrl + "/api/trash/purge-preview?days=" + encodeURIComponent(String(days)), undefined, signal);
+    },
+    clearThumbCache(signal) {
+      return request<ThumbCacheCleared>(baseUrl + "/api/thumb-cache/clear", { method: "POST" }, signal);
     },
     getRules(signal) {
       return request<RulesBody>(baseUrl + "/api/rules", undefined, signal);
