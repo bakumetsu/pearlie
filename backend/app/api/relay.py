@@ -1,6 +1,6 @@
 """Relay an upstream body to the client and close the upstream when the client aborts."""
 
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncGenerator, Callable, Iterator
 
 from starlette.concurrency import run_in_threadpool
 
@@ -8,7 +8,7 @@ from starlette.concurrency import run_in_threadpool
 CHUNK_SIZE = 128 * 1024
 
 
-async def relay(chunks: Iterator[bytes], close: Callable[[], None]) -> AsyncIterator[bytes]:
+async def relay(chunks: Iterator[bytes], close: Callable[[], None]) -> AsyncGenerator[bytes, None]:
     """Yield chunks from a sync iterator; `close` runs on end, error and client abort.
 
     A seek makes the browser drop its open request. Starlette cancels the body task then and

@@ -193,7 +193,7 @@ async def web_media(request: Request, source: str, post_id: str, kind: str) -> R
 
 def _stream_media(
     request: Request, src: Source, post_id: str, kind: str, slot: Slot
-) -> StreamingResponse:
+) -> Response:
     url = _resolve(request, src, post_id, kind)  # type: ignore[arg-type]
     client: httpx.Client = src._client  # type: ignore[attr-defined]
     try:
