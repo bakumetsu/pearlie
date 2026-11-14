@@ -3,6 +3,14 @@
 from __future__ import annotations
 
 ORDERS = ("newest", "score")
+# nhentai sorts: order value -> the site's `sort` param (newest is the default listing).
+NHENTAI_SORTS = {
+    "popular-today": "popular-today",
+    "popular-week": "popular-week",
+    "popular-month": "popular-month",
+    "popular": "popular",
+}
+ALL_ORDERS = (*ORDERS, *NHENTAI_SORTS)
 RATINGS = ("g", "s", "q", "e")
 
 SCORE_TAG_DANBOORU = "order:score"
@@ -24,7 +32,9 @@ def normalize_rating(values: list[str]) -> list[str]:
 
 def supported_orders(source: str) -> list[str]:
     """Order values a web source offers (empty: none)."""
-    return [] if source == "nhentai" else list(ORDERS)
+    if source == "nhentai":
+        return ["newest", *NHENTAI_SORTS]
+    return list(ORDERS)
 
 
 def supported_ratings(source: str) -> list[str]:
