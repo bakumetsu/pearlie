@@ -31,7 +31,6 @@
 </script>
 
 <!-- One Enter runs the search, also with a word still typed: capture it before the chip field turns it into a chip. -->
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="bar"
   role="search"
