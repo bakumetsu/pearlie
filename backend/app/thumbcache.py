@@ -64,6 +64,7 @@ class ThumbCache:
         self._used = 0
         self._files = 0
         self._last_warn = 0.0
+        self._gen = 0
         self._available = self._prepare(forbidden)
 
     @property
@@ -99,19 +100,29 @@ class ThumbCache:
         threading.Thread(target=self.rescan, name="thumbcache-walk", daemon=True).start()
 
     def rescan(self) -> None:
-        used = files = 0
-        for path in self._walk():
-            if path.name.endswith(PART_SUFFIX):
-                self._unlink(path)
-                continue
-            try:
-                used += path.stat().st_size
-            except OSError:
-                continue
-            files += 1
-        with self._lock:
-            self._used = used
-            self._files = files
+        if not self._evict_lock.acquire(blocking=True):
+            return
+        try:
+            for attempt in range(3):
+                with self._lock:
+                    gen = self._gen
+                used = files = 0
+                for path in self._walk():
+                    if path.name.endswith(PART_SUFFIX):
+                        self._unlink(path)
+                        continue
+                    try:
+                        used += path.stat().st_size
+                    except OSError:
+                        continue
+                    files += 1
+                with self._lock:
+                    if self._gen == gen or attempt == 2:
+                        self._used = used
+                        self._files = files
+                        break
+        finally:
+            self._evict_lock.release()
 
     def _walk(self) -> Iterable[Path]:
         for site in SOURCES:
@@ -165,6 +176,7 @@ class ThumbCache:
             with self._lock:
                 self._used = max(0, self._used - size)
                 self._files = max(0, self._files - 1)
+                self._gen += 1
 
     def put(self, source: str, post_id: str, data: bytes) -> bool:
         """Store bytes atomically. False when nothing was stored."""
@@ -175,26 +187,38 @@ class ThumbCache:
         path = self.path_for(source, post_id)
         tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}{PART_SUFFIX}")
         try:
-            old = path.stat().st_size if path.exists() else None
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp.write_bytes(data)
-            os.replace(tmp, path)
         except OSError:
             self._unlink(tmp)
             self._warn_disk_full()
             return False
-        with self._lock:
-            self._used += len(data) - (old or 0)
-            self._files += 0 if old is not None else 1
-            over = self._used > self._max_bytes
+        try:
+            with self._lock:
+                try:
+                    old = path.stat().st_size
+                except OSError:
+                    old = None
+                os.replace(tmp, path)
+                self._used += len(data) - (old or 0)
+                self._files += 0 if old is not None else 1
+                self._gen += 1
+                over = self._used > self._max_bytes
+        except OSError:
+            self._unlink(tmp)
+            self._warn_disk_full()
+            return False
         if over:
             self._evict(EVICT_TARGET)
         return True
 
     def _warn_disk_full(self) -> None:
-        now = time.monotonic()
-        if now - self._last_warn >= WARN_INTERVAL_S:
-            self._last_warn = now
+        with self._lock:
+            now = time.monotonic()
+            should_warn = now - self._last_warn >= WARN_INTERVAL_S
+            if should_warn:
+                self._last_warn = now
+        if should_warn:
             logger.warning("thumbcache write failed; serving without storing")
         self._evict(FULL_DISK_TARGET)
 
@@ -204,27 +228,32 @@ class ThumbCache:
             return
         try:
             target = int(self._max_bytes * fraction)
-            entries: list[tuple[float, int, Path]] = []
-            for path in self._walk():
-                if path.name.endswith(PART_SUFFIX):
-                    continue
-                try:
-                    st = path.stat()
-                except OSError:
-                    continue
-                entries.append((st.st_mtime, st.st_size, path))
-            total = sum(size for _m, size, _p in entries)
-            entries.sort(key=lambda e: e[0])
-            freed_files = 0
-            for _mtime, size, path in entries:
-                if total <= target:
-                    break
-                if self._unlink(path):
-                    total -= size
-                    freed_files += 1
-            with self._lock:
-                self._used = total
-                self._files = len(entries) - freed_files
+            for attempt in range(3):
+                with self._lock:
+                    gen = self._gen
+                entries: list[tuple[float, int, Path]] = []
+                for path in self._walk():
+                    if path.name.endswith(PART_SUFFIX):
+                        continue
+                    try:
+                        st = path.stat()
+                    except OSError:
+                        continue
+                    entries.append((st.st_mtime, st.st_size, path))
+                total = sum(size for _m, size, _p in entries)
+                entries.sort(key=lambda e: e[0])
+                freed_files = 0
+                for _mtime, size, path in entries:
+                    if total <= target:
+                        break
+                    if self._unlink(path):
+                        total -= size
+                        freed_files += 1
+                with self._lock:
+                    if self._gen == gen or attempt == 2:
+                        self._used = total
+                        self._files = len(entries) - freed_files
+                        break
         finally:
             self._evict_lock.release()
 
