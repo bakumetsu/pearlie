@@ -99,7 +99,7 @@
         class="btn"
         aria-label={save.state === "queued" ? "Saving" : save.state === "blocked" ? "Blocked by a rule" : save.state === "in_library" ? "In library" : "Save"}
         title="Save"
-        disabled={save.state !== "idle"}
+        disabled={save.state !== "idle" || save.disabled}
         onclick={save.onsave}
       >
         <Icon name={save.state === "queued" ? "loader" : save.state === "blocked" ? "alert" : save.state === "in_library" ? "check" : "download"} size={20} />

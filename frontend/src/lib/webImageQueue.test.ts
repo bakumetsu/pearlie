@@ -7,11 +7,11 @@ describe("createGate", () => {
   it("lets 2 focus and 2 other requests in flight, no more", async () => {
     const g = createGate();
     const granted: string[] = [];
-    (["focus", "focus", "focus", "cover", "prefetch", "prefetch"] as const).forEach((p, i) => {
+    (["focus", "focus", "cover", "cover", "prefetch"] as const).forEach((p, i) => {
       void g.acquire(p).ready.then(() => granted.push(p + i));
     });
     await tick();
-    expect(granted).toEqual(["focus0", "focus1", "cover3", "prefetch4"]);
+    expect(granted).toEqual(["focus0", "focus1", "cover2", "cover3"]);
   });
 
   it("starts the next waiting request when one is released", async () => {
@@ -49,9 +49,24 @@ describe("createGate", () => {
   });
 });
 
+describe("focus borrowing", () => {
+  it("lets focus take idle other slots, but other never takes focus slots", async () => {
+    const g = createGate();
+    const got: string[] = [];
+    (["focus", "focus", "focus", "focus", "focus"] as const).forEach((p, i) => void g.acquire(p).ready.then(() => got.push(p + i)));
+    await tick();
+    expect(got).toEqual(["focus0", "focus1", "focus2", "focus3"]);
+    const g2 = createGate();
+    const got2: string[] = [];
+    (["prefetch", "prefetch", "prefetch"] as const).forEach((p, i) => void g2.acquire(p).ready.then(() => got2.push(p + i)));
+    await tick();
+    expect(got2).toEqual(["prefetch0", "prefetch1"]);
+  });
+});
+
 describe("withPrio", () => {
   it("adds the prio query", () => {
-    expect(withPrio("/a/1", "focus")).toBe("/a/1?prio=focus");
+    expect(withPrio("/a/1", "focus")).toBe("/a/1");
     expect(withPrio("/a/1?x=1", "prefetch")).toBe("/a/1?x=1&prio=prefetch");
   });
 });

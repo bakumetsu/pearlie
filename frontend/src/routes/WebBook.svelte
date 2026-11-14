@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { untrack } from "svelte";
   import { getApi } from "../lib/api/client";
   import type { WebBook } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
@@ -41,7 +41,10 @@
       status = "error";
     }
   }
-  onMount(() => void load());
+  $effect(() => {
+    void key;
+    untrack(() => void load());
+  });
 
   const item = $derived(book?.item ?? null);
   const saveState = $derived(item ? saveStateFor(item, search.saveStateOf(item)) : "idle");

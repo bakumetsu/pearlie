@@ -13,25 +13,28 @@ export function createGate(limits: { focus: number; other: number } = { focus: 2
   const busy = { focus: 0, other: 0 };
   const queue: Record<"focus" | "other", Job[]> = { focus: [], other: [] };
 
-  function pump(l: "focus" | "other") {
-    const max = l === "focus" ? limits.focus : limits.other;
-    while (busy[l] < max) {
-      const q = queue[l];
-      const i = q.findIndex((j) => !j.dead);
-      if (i < 0) {
-        q.length = 0;
-        return;
-      }
-      const job = q.splice(i, 1)[0];
-      busy[l]++;
-      let done = false;
-      job.grant(() => {
-        if (done) return;
-        done = true;
-        busy[l]--;
-        pump(l);
-      });
+  function start(job: Job, charged: "focus" | "other") {
+    busy[charged]++;
+    let done = false;
+    job.grant(() => {
+      if (done) return;
+      done = true;
+      busy[charged]--;
+      pump();
+    });
+  }
+
+  // Focus jobs may borrow an idle slot of the other lane; cover/prefetch never take focus slots.
+  function pump() {
+    for (const l of ["focus", "other"] as const) {
+      queue[l] = queue[l].filter((j) => !j.dead);
     }
+    while (queue.focus.length) {
+      if (busy.focus < limits.focus) start(queue.focus.shift()!, "focus");
+      else if (busy.other < limits.other) start(queue.focus.shift()!, "other");
+      else break;
+    }
+    while (queue.other.length && busy.other < limits.other) start(queue.other.shift()!, "other");
   }
 
   return {
@@ -46,7 +49,7 @@ export function createGate(limits: { focus: number; other: number } = { focus: 2
       const at = prio === "cover" ? q.findIndex((j) => j.prio === "prefetch") : -1;
       if (at < 0) q.push(job);
       else q.splice(at, 0, job);
-      pump(l);
+      pump();
       return {
         ready,
         cancel() {
@@ -59,7 +62,9 @@ export function createGate(limits: { focus: number; other: number } = { focus: 2
 
 export const webGate = createGate();
 
+// focus is the route default: no query, so the URL matches the reader thumbnail strip (browser cache hit)
 export function withPrio(url: string, prio: WebPrio): string {
+  if (prio === "focus") return url;
   return url + (url.includes("?") ? "&" : "?") + "prio=" + prio;
 }
 

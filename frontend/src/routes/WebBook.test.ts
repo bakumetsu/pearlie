@@ -73,7 +73,7 @@ describe("WebBook", () => {
     await new Promise((r) => setTimeout(r, 0));
     const srcs = [...container.querySelectorAll<HTMLImageElement>(".grid img")].map((i) => i.getAttribute("src"));
     expect(srcs.filter(Boolean)).toHaveLength(4);
-    expect(srcs[0]).toContain("prio=focus");
+    expect(srcs[0]).toBe("/api/media/web/nhentai/123/pages/1/thumb");
   });
 
   it("rejects a tag from the ban icon", async () => {
@@ -83,6 +83,14 @@ describe("WebBook", () => {
     await fireEvent.click(getByLabelText("Reject a tag"));
     await fireEvent.click(getByRole("group", { name: "Reject a tag" }).querySelectorAll("button")[1]);
     await waitFor(() => expect(api.putRules).toHaveBeenCalledWith(expect.objectContaining({ reject: ["b"] })));
+  });
+
+  it("loads the new book when the route id changes", async () => {
+    const { api, ctx, match } = setup();
+    const r = render(WebBook, { props: { match }, context: ctx });
+    await waitFor(() => expect(api.webBook).toHaveBeenCalledTimes(1));
+    await r.rerender({ match: matchRoute("/web/nhentai/456", "") });
+    await waitFor(() => expect(api.webBook).toHaveBeenCalledWith("nhentai", "456"));
   });
 
   it("hides Read and the grid for a book with no pages", async () => {

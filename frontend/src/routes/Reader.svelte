@@ -68,6 +68,7 @@
 			? {
 					state: saveStateFor(saveItem, searchStore.saveStateOf(saveItem)),
 					href: savedHrefFor(saveItem, searchStore.saveStateOf(saveItem)),
+					disabled: saveItem.saveable === false,
 					onsave: () => {
 						const it = saveItem;
 						if (!it) return;

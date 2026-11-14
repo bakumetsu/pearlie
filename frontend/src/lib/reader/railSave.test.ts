@@ -23,6 +23,8 @@ describe("Rail save slot", () => {
     expect(onsave).toHaveBeenCalledOnce();
     await r.rerender({ ...base, save: { state: "queued", onsave } });
     expect((screen.getByRole("button", { name: "Saving" }) as HTMLButtonElement).disabled).toBe(true);
+    await r.rerender({ ...base, save: { state: "idle", disabled: true, onsave } });
+    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
     await r.rerender({ ...base, save: { state: "in_library", href: "/item/books/b1", onsave } });
     expect(screen.getByRole("link", { name: "In library" }).getAttribute("href")).toBe("/item/books/b1");
   });
