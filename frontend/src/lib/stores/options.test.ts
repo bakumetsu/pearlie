@@ -23,6 +23,7 @@ function makeOptions(overrides: Partial<Options> = {}): Options {
     allow_blurred_tags: false,
     trash_retention_days: 7,
     infinite_scroll: false,
+    place_mode: "suggest",
     hidden_sites: [],
     site_order: [],
     thumb_cache: { max_mb: 1024, used_mb: 0, files: 0, available: true },
