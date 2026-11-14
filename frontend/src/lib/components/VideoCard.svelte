@@ -30,6 +30,7 @@
 
   const canPreview = $derived(
     !!item.preview_url &&
+    !videoPreview.hasFailed(key) &&
     !(
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
@@ -73,6 +74,10 @@
     if (!canPreview) return;
     refreshSfw();
     videoPreview.start(key);
+  }
+
+  function previewFailed() {
+    videoPreview.fail(key);
   }
 
   function stopPreview() {
@@ -206,7 +211,7 @@
       autoplay
       data-sfw-shown="1"
       class:blur-img={blurred}
-      onerror={stopPreview}
+      onerror={previewFailed}
     ></video>
   {/if}
 
