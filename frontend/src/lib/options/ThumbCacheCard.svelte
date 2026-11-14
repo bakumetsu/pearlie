@@ -13,7 +13,12 @@
 	let draft = $state<number | string>(untrack(() => currentCap));
 	let capError = $state("");
 
-	let cleared = $state(false);
+	let clearedAt = $state<{ used: number; files: number } | null>(null);
+	const cleared = $derived(
+		clearedAt !== null &&
+			cache?.used_mb === clearedAt.used &&
+			cache?.files === clearedAt.files
+	);
 	const effectiveUsed = $derived(cleared ? 0 : (cache?.used_mb ?? 0));
 	const effectiveFiles = $derived(cleared ? 0 : (cache?.files ?? 0));
 
@@ -33,6 +38,7 @@
 	);
 
 	let confirming = $state(false);
+	let busy = $state(false);
 	let confirmTimer: ReturnType<typeof setTimeout> | undefined;
 	let clearError = $state("");
 
@@ -83,14 +89,18 @@
 	}
 
 	async function handleClear() {
+		if (busy) return;
 		if (confirming) {
 			cancelConfirm();
+			busy = true;
 			try {
 				await api.clearThumbCache();
-				cleared = true;
+				clearedAt = { used: cache?.used_mb ?? 0, files: cache?.files ?? 0 };
 				clearError = "";
 			} catch {
 				clearError = "Could not clear the cache";
+			} finally {
+				busy = false;
 			}
 			return;
 		}
@@ -148,7 +158,7 @@
 				class="clear"
 				data-testid="thumb-cache-clear"
 				aria-label={confirming ? "Tap again to clear" : "Clear thumbnail cache"}
-				disabled={isClearDisabled}
+				disabled={isClearDisabled || busy}
 				title={clearTitleAttr || undefined}
 				onclick={handleClear}
 				onkeydown={handleClearKeydown}
