@@ -99,6 +99,11 @@ describe("komgaSource", () => {
     expect(api.getItem).toHaveBeenCalledWith("series", "s9");
   });
 
+  it("opens at the ?p page from a book page thumbnail tap", async () => {
+    const d = await komgaSource(fakeApi(), "k1", new URLSearchParams("p=7")).load();
+    expect(d.start).toBe(7);
+  });
+
   it("saves progress through the API and backs to the series", () => {
     const api = fakeApi();
     const s = komgaSource(api, "k1", new URLSearchParams("series=s9"));

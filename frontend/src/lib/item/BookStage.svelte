@@ -91,7 +91,7 @@
   .ib { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: transparent; color: var(--text); cursor: pointer; font: inherit; }
   .ib:disabled { opacity: .5; cursor: default; }
   .btn { min-height: 44px; display: inline-flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--line-strong); border-radius: var(--r-md); background: transparent; color: var(--text); font: inherit; cursor: pointer; }
-  .btn.primary { background: #fff; color: #111; border-color: #fff; font-weight: 600; }
+  .btn.primary { background: var(--accent); color: #0b1220; border-color: var(--accent); font-weight: 600; }
   .ib:focus-visible, .btn:focus-visible, .thumb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .grid { list-style: none; margin: var(--s-5) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: var(--s-2); }
   .thumb { display: block; width: 100%; padding: 0; aspect-ratio: 2 / 3; background: var(--surface); border-radius: var(--r-sm); overflow: hidden; border: 2px solid transparent; cursor: pointer; }
