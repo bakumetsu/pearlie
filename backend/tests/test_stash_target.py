@@ -684,6 +684,48 @@ def test_scan_failed_removes_orphan_file(
     assert _library_files(settings.stash_default_dir) == []
 
 
+def test_unexpected_error_after_move_removes_orphan_file(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target()
+
+    def boom(_path: str) -> str:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(target._client, "find_image_by_path", boom)
+    with pytest.raises(RuntimeError):
+        target.save(make_post(), [])
+    assert _library_files(settings.stash_default_dir) == []
+
+
+def test_unknown_md5_html_download_is_rejected(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target()
+    target._http = httpx.Client(
+        base_url="http://site",
+        transport=httpx.MockTransport(
+            lambda _r: httpx.Response(
+                200, content=b"<html>blocked</html>", headers={"content-type": "text/html"}
+            )
+        ),
+    )
+    post = make_post()
+    post = post.model_copy(update={"md5": None})
+    with pytest.raises(stash.SaveError) as exc:
+        target.save(post, [])
+    assert exc.value.code == "bad_content"
+    assert _library_files(settings.stash_default_dir) == []
+    assert list((tmp_path / "temp").glob("*")) == []
+
+
 def test_image_not_found(
     settings: Settings,
     tmp_path: Path,

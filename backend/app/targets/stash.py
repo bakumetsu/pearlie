@@ -32,6 +32,9 @@ ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".webm"}
 TEMP_PREFIX = "pearlie-"
 
 
+_NON_MEDIA_TYPES = frozenset({"application/json", "application/xml", "application/xhtml+xml"})
+
+
 class SaveError(Exception):
     """Error raised during a save operation."""
 
@@ -190,6 +193,11 @@ class StashTarget:
                         f"download returned {response.status_code}",
                         502,
                     )
+                if not post.md5:
+                    ctype = response.headers.get("content-type", "").split(";")[0].strip().lower()
+                    if ctype.startswith("text/") or ctype in _NON_MEDIA_TYPES:
+                        self._fail_log("download", "bad_content", url, detail=f"type={ctype}")
+                        raise SaveError("bad_content", "download is not a media file", 502)
                 content_length = response.headers.get("content-length")
                 if response.headers.get("content-encoding", "identity").lower() != "identity":
                     # Content-Length counts the encoded bytes; we write the decoded ones.
@@ -410,7 +418,9 @@ class StashTarget:
             if image_id is None:
                 self._lookup_miss(dest, stash_path, md5)
                 raise SaveError("image_not_found", "Stash did not index the file", 502)
-        except (SaveError, StashError):
+        except Exception:
+            # Any failure before the row exists (not only SaveError/StashError)
+            # must not leave a placed file that nothing tracks.
             self._discard_orphan(dest, resumed)
             raise
 
