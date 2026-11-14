@@ -70,6 +70,8 @@ describe("Search chips do not auto-run", () => {
     await settle();
     expect(searchCalls).toBe(base);
     expect(screen.getByRole("button", { name: "Search" })).toBeTruthy();
+    // The button sits inside the field, so the field keeps its width.
+    expect(screen.getByRole("button", { name: "Search" }).closest(".field")).not.toBeNull();
 
     await fireEvent.click(screen.getByRole("button", { name: "Remove dog" }));
     await settle();

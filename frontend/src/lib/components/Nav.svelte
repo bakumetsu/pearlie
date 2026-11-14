@@ -82,7 +82,6 @@
     flex-direction: column;
     align-items: stretch;
     background: var(--rail);
-    border-right: 1px solid var(--line);
     z-index: 900;
     overflow-x: hidden;
     transition: width 250ms ease, transform 250ms ease;
@@ -108,7 +107,6 @@
     justify-content: center;
     background: transparent;
     border: 0;
-    border-top: 1px solid var(--line);
     color: var(--muted);
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
@@ -141,12 +139,12 @@
   :global(:root[data-rail="hidden"]) .nav.rail {
     transform: translateX(-100%);
     visibility: hidden;
-    border-right-color: transparent;
   }
 
+  /* Bottom-left chevron, shown while the pointer is over its corner zone (always on touch). */
   .rail-reopen {
     position: fixed;
-    top: var(--s-2);
+    bottom: var(--s-2);
     left: var(--s-2);
     width: 44px;
     height: 44px;
@@ -154,12 +152,30 @@
     align-items: center;
     justify-content: center;
     background: var(--rail);
-    border: 1px solid var(--line);
+    border: 0;
     border-radius: 50%;
     color: var(--muted);
     cursor: pointer;
     z-index: 900;
-    transition: background 0.15s, color 0.15s;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+  }
+
+  .rail-reopen::before {
+    content: "";
+    position: absolute;
+    inset: -8px -16px -8px -16px;
+  }
+
+  .rail-reopen:hover,
+  .rail-reopen:focus-visible {
+    opacity: 1;
+  }
+
+  @media (hover: none) {
+    .rail-reopen {
+      opacity: 1;
+    }
   }
 
   .rail-reopen:hover {
