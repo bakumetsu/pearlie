@@ -155,6 +155,32 @@ describe("createSearch", () => {
     expect(s.sections["danbooru"]?.status).toBe("done");
   });
 
+  it("retrySection does not strand other loading sections", async () => {
+    const api = makeApi();
+    let resolveMain!: (v: { sections: Section[] }) => void;
+    api.search
+      .mockResolvedValueOnce({ sections: [sec("stash_images"), sec("danbooru", { code: "x", message: "boom" })] })
+      .mockReturnValueOnce(new Promise((r) => { resolveMain = r; }));
+    const s = createSearch(api);
+    const st = { chips: [chip("q")], pill: "all", sites: ["danbooru"] } as SearchState;
+    s.run(st, { immediate: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(s.sections["danbooru"]?.status).toBe("error");
+
+    // Full search still loading; retry another section meanwhile.
+    s.retryAll();
+    api.search.mockResolvedValueOnce({ sections: [sec("danbooru")] });
+    s.retrySection("danbooru");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(s.sections["danbooru"]?.status).toBe("done");
+    expect(s.sections["stash_images"]?.status).toBe("loading");
+
+    resolveMain({ sections: [sec("stash_images"), sec("danbooru")] });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(s.sections["stash_images"]?.status).toBe("done");
+    expect(s.loading).toBe(false);
+  });
+
   it("save handles 409 / 422 / 500 / success", async () => {
     const api = makeApi();
     const s = createSearch(api);
