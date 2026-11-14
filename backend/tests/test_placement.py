@@ -181,3 +181,19 @@ def test_cache_ttl_and_invalidate(tmp_path):
 def test_oneshots_dir_leading_slash_anchors():
     libs = [{"root": "/k", "oneshotsDirectory": "/_oneshots"}]
     assert oneshots_dir_name(libs, "/k/x").name == "_oneshots"
+
+
+def test_build_index_key_collision_is_deterministic(tmp_path, monkeypatch):
+    class _Dir:
+        def __init__(self, name):
+            self.name = name
+
+        def is_dir(self):
+            return True
+
+    # "Foo?" is not creatable on Windows, so feed the scan result directly.
+    monkeypatch.setattr(
+        "app.targets.placement._scan", lambda _p: [_Dir("[A] Foo?"), _Dir("[A] Foo")]
+    )
+    idx = build_index(tmp_path, None)
+    assert idx.series["[a]"]["foo"] == "[A] Foo"

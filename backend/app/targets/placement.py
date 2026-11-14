@@ -99,11 +99,12 @@ def build_index(series_root: Path, oneshots_name: str | None) -> NameIndex:
     entries = _scan(series_root)
     if entries is None:
         return NameIndex(too_large=True)
-    for e in entries:
+    for e in sorted(entries, key=lambda d: d.name):
         if not e.is_dir() or e.name == oneshots_name:
             continue
         author, root = _split_folder(e.name)
-        series.setdefault(author.lower(), {})[clean_folder_name(root).lower()] = e.name
+        # Two folders can clean to one key; the first by name wins, deterministically.
+        series.setdefault(author.lower(), {}).setdefault(clean_folder_name(root).lower(), e.name)
     if oneshots_name:
         files = _scan(series_root / oneshots_name)
         if files is None:
