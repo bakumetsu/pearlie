@@ -53,12 +53,11 @@ class Options(BaseModel):
     allow_blurred_tags: StrictBool = False
     trash_retention_days: StrictInt = Field(default=7, ge=1, le=365)
     infinite_scroll: StrictBool = False
+    place_mode: Literal["auto", "suggest"] = "suggest"
     source_pace: dict[str, SitePace] = {}
     hidden_sites: list[str] = []
     site_order: list[str] = []
-    thumb_cache: ThumbCacheInfo = ThumbCacheInfo(
-        max_mb=1024, used_mb=0.0, files=0, available=True
-    )
+    thumb_cache: ThumbCacheInfo = ThumbCacheInfo(max_mb=1024, used_mb=0.0, files=0, available=True)
 
     @field_validator("player_rate")
     @classmethod
@@ -81,6 +80,7 @@ class OptionsUpdate(BaseModel):
     trash_retention_days: StrictInt | None = Field(default=None, ge=1, le=365)
     confirm_purge: StrictBool | None = None
     infinite_scroll: StrictBool | None = None
+    place_mode: Literal["auto", "suggest"] | None = None
     source_pace: dict[str, float] | None = None
     hidden_sites: list[str] | None = None
     site_order: list[str] | None = None
@@ -271,6 +271,10 @@ def get_options(request: Request) -> Options:
     is_raw = read("options.global.infinite_scroll")
     infinite_scroll: bool = is_raw == "1"
 
+    place_mode: Literal["auto", "suggest"] = (
+        "auto" if read("komga.place_mode") == "auto" else "suggest"
+    )
+
     # Source pace
     source_pace: dict[str, SitePace] = {}
     throttles: dict[str, Throttle] = getattr(request.app.state, "throttles", {})
@@ -331,6 +335,7 @@ def get_options(request: Request) -> Options:
         allow_blurred_tags=allow_blurred_tags,
         trash_retention_days=trash_retention_days,
         infinite_scroll=infinite_scroll,
+        place_mode=place_mode,
         source_pace=source_pace,
         hidden_sites=hidden_sites,
         site_order=site_order,
@@ -367,6 +372,8 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
         write("options.global.allow_blurred_tags", "1" if body.allow_blurred_tags else "0")
     if body.infinite_scroll is not None:
         write("options.global.infinite_scroll", "1" if body.infinite_scroll else "0")
+    if body.place_mode is not None:
+        write("komga.place_mode", body.place_mode)
     if body.trash_retention_days is not None:
         write("options.global.trash_retention_days", str(body.trash_retention_days))
         if fixture:

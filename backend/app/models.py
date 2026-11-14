@@ -284,9 +284,26 @@ class ProgressResult(BaseModel):
     completed: bool
 
 
+PlacementKind = Literal["series", "oneshot"]
+
+
+class PlacementBody(BaseModel):
+    kind: PlacementKind
+
+
 class SaveBody(BaseModel):
     source: WebSource
     post_id: str
+    placement: PlacementBody | None = None
+
+
+class PlacementSuggestion(BaseModel):
+    kind: PlacementKind
+    series: str | None
+    number: str | None
+    joins_existing: bool
+    moves_first: bool
+    reason: str
 
 
 class SaveAccepted(BaseModel):

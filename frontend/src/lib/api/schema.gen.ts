@@ -468,6 +468,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/save/placement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Save Placement
+         * @description Suggest series or oneshot for a Komga save (fixture: always a oneshot).
+         */
+        get: operations["save_placement_api_save_placement_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs": {
         parameters: {
             query?: never;
@@ -1630,6 +1650,12 @@ export interface components {
              */
             infinite_scroll: boolean;
             /**
+             * Place Mode
+             * @default suggest
+             * @enum {string}
+             */
+            place_mode: "auto" | "suggest";
+            /**
              * Source Pace
              * @default {}
              */
@@ -1678,6 +1704,8 @@ export interface components {
             confirm_purge?: boolean | null;
             /** Infinite Scroll */
             infinite_scroll?: boolean | null;
+            /** Place Mode */
+            place_mode?: ("auto" | "suggest") | null;
             /** Source Pace */
             source_pace?: {
                 [key: string]: number;
@@ -1723,6 +1751,32 @@ export interface components {
             favorite?: boolean | null;
             /** Tags */
             tags?: string[] | null;
+        };
+        /** PlacementBody */
+        PlacementBody: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "series" | "oneshot";
+        };
+        /** PlacementSuggestion */
+        PlacementSuggestion: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "series" | "oneshot";
+            /** Series */
+            series: string | null;
+            /** Number */
+            number: string | null;
+            /** Joins Existing */
+            joins_existing: boolean;
+            /** Moves First */
+            moves_first: boolean;
+            /** Reason */
+            reason: string;
         };
         /** PlayerSettings */
         PlayerSettings: {
@@ -1865,6 +1919,7 @@ export interface components {
             source: "danbooru" | "gelbooru" | "rule34" | "nhentai";
             /** Post Id */
             post_id: string;
+            placement?: components["schemas"]["PlacementBody"] | null;
         };
         /** SavedRef */
         SavedRef: {
@@ -3129,6 +3184,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SaveAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_placement_api_save_placement_get: {
+        parameters: {
+            query: {
+                source: "danbooru" | "gelbooru" | "rule34" | "nhentai";
+                post_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementSuggestion"];
                 };
             };
             /** @description Validation Error */

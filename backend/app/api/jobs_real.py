@@ -10,8 +10,9 @@ from app.api.errors import ApiError
 from app.filters.rules import evaluate, load_rules
 from app.jobs.store import JobStore
 from app.jobs.worker import JobWorker
-from app.models import Job, JobList, SaveAccepted, SaveBody
+from app.models import Job, JobList, PlacementSuggestion, SaveAccepted, SaveBody, WebSource
 from app.sources.base import Source, SourceError
+from app.targets.stash import SaveError
 
 router = APIRouter(prefix="/api")
 logger = logging.getLogger("pearlie")
@@ -75,11 +76,42 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
         src.target,
         title=post.title or f"{post.source} {post.post_id}",
         thumb_url=post.preview_url or "",
+        placement=body.placement.kind if body.placement else None,
     )
     worker = _worker(request)
     if worker is not None:
         worker.wake()
     return SaveAccepted(job_id=job_id)
+
+
+@router.get("/save/placement")
+def save_placement(
+    request: Request, source: WebSource = Query(...), post_id: str = Query(...)
+) -> PlacementSuggestion:
+    """Suggest series or oneshot for a Komga save. Pure: nothing is written."""
+    src = request.app.state.sources.get(source)
+    target = getattr(request.app.state, "komga_target", None)
+    if src is None or src.target != "komga" or target is None:
+        raise ApiError(422, "no_target", f"{source} does not save to Komga")
+    try:
+        post = src.get_post(post_id)
+    except SourceError as e:
+        if e.status == 404 or e.code == "not_found":
+            raise ApiError(404, "not_found", "Post not found") from None
+        raise ApiError(502, e.code, e.message) from None
+    try:
+        plan = target.suggest(post)
+    except SaveError as e:
+        raise ApiError(e.status, e.code, e.message) from None
+    joins = plan.via in ("folder", "absorb", "oneshot_pair")
+    return PlacementSuggestion(
+        kind="series" if plan.kind == "series" else "oneshot",
+        series=plan.series,
+        number=plan.number or None,
+        joins_existing=joins,
+        moves_first=bool(plan.move_from),
+        reason=plan.via,
+    )
 
 
 @router.get("/jobs")

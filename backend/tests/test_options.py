@@ -61,6 +61,7 @@ def test_defaults(any_client: TestClient) -> None:
         "allow_blurred_tags": False,
         "trash_retention_days": 7,
         "infinite_scroll": False,
+        "place_mode": "suggest",
         "source_pace": expected_pace,
         "hidden_sites": [],
         "site_order": ["danbooru", "gelbooru", "rule34", "nhentai"],
@@ -129,9 +130,7 @@ def test_profiles_separate_sf_rate_global_shared(any_client: TestClient) -> None
     )
 
     # Desktop sees its own profile values
-    d = any_client.get(
-        "/api/options", headers={"X-Pearlie-Device": "desktop"}
-    ).json()
+    d = any_client.get("/api/options", headers={"X-Pearlie-Device": "desktop"}).json()
     assert d["sfw"] is True
     assert d["sfw_set"] is True
     assert d["player_rate"] == 1.5
@@ -139,9 +138,7 @@ def test_profiles_separate_sf_rate_global_shared(any_client: TestClient) -> None
     assert d["backdrop_strength"] == 90
 
     # Touch sees default profile values but shared global
-    t = any_client.get(
-        "/api/options", headers={"X-Pearlie-Device": "touch"}
-    ).json()
+    t = any_client.get("/api/options", headers={"X-Pearlie-Device": "touch"}).json()
     assert t["sfw"] is False
     assert t["sfw_set"] is False
     assert t["player_rate"] == 1.0
@@ -364,3 +361,17 @@ def test_source_pace_backing_off(any_client: TestClient) -> None:
     throttles["danbooru"].report(429)
     r = any_client.get("/api/options")
     assert r.json()["source_pace"]["danbooru"]["backing_off"] is True
+
+
+def test_place_mode_default_and_roundtrip(any_client: TestClient) -> None:
+    assert any_client.get("/api/options").json()["place_mode"] == "suggest"
+    resp = any_client.put("/api/options", json={"place_mode": "auto"})
+    assert resp.status_code == 200
+    assert resp.json()["place_mode"] == "auto"
+    assert any_client.get("/api/options").json()["place_mode"] == "auto"
+    resp = any_client.put("/api/options", json={"place_mode": "suggest"})
+    assert resp.json()["place_mode"] == "suggest"
+
+
+def test_place_mode_rejects_other_values(any_client: TestClient) -> None:
+    assert any_client.put("/api/options", json={"place_mode": "bogus"}).status_code == 422

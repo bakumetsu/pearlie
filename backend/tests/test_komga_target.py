@@ -44,11 +44,7 @@ class FakeKomga:
         self.list_calls += 1
         if not self.visible or self.dest is None:
             return {"content": []}
-        return {
-            "content": [
-                {"id": "B1", "url": f.as_posix()} for f in self.dest.rglob("*.cbz")
-            ]
-        }
+        return {"content": [{"id": "B1", "url": f.as_posix()} for f in self.dest.rglob("*.cbz")]}
 
 
 def make_post(pages: int = 3, media_id: str = "123") -> Post:
@@ -299,3 +295,12 @@ def test_job_placement_roundtrip(tmp_path: Path) -> None:
     assert store.load_placement(jid) == "oneshot"
     other = make_post().model_copy(update={"post_id": "43"})
     assert store.load_placement(store.enqueue(other, "komga", "t", "")) is None
+
+
+def test_suggest_writes_nothing(env) -> None:
+    target, _komga, _s, dest, _h = env
+    target.save(titled("[Foo] My Sister vol 1", "1"), [])
+    before = sorted(p.name for p in dest.rglob("*"))
+    plan = target.suggest(titled("[Foo] My Sister vol 2", "2"))
+    assert plan.kind == "series" and plan.series == "My Sister"
+    assert sorted(p.name for p in dest.rglob("*")) == before
