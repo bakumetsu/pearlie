@@ -12,6 +12,7 @@ from typing import Protocol
 from app import logs
 from app.jobs.store import JobStore
 from app.sources.base import Post, Source, SourceError
+from app.targets.komga import KomgaTarget
 from app.targets.stash import SaveError, SaveResult
 from app.targets.stash_client import StashError
 
@@ -192,7 +193,11 @@ class JobWorker:
                 post = Post.model_validate_json(post_json)
 
             tags = sorted({tag for group in post.tags.values() for tag in group})
-            result = target.save(post, tags)
+            placement = self._store.load_placement(job_id)
+            if placement and isinstance(target, KomgaTarget):
+                result = target.save(post, tags, placement=placement)
+            else:
+                result = target.save(post, tags)
 
             if result.status == "saved":
                 self._store.finish(

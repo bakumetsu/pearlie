@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import errno
+import hashlib
 import logging
 import os
 import posixpath
@@ -23,6 +25,16 @@ from app.sources.nhentai import CDN_HOST, NHentai
 from app.sources.throttle import Throttle
 from app.targets import destinations
 from app.targets.comicinfo import build_cbz
+from app.targets.placement import (
+    IndexCache,
+    NameIndex,
+    OneshotsDir,
+    Plan,
+    make_plan,
+    oneshots_dir_name,
+    series_folder_name,
+)
+from app.targets.placement_name import parse_name
 from app.targets.stash import SaveError, SaveResult, _md5_of, _retry_after
 
 logger = logging.getLogger("pearlie.komga")
@@ -62,6 +74,7 @@ class KomgaTarget:
         self._throttles = throttles or {}
         self._clock = clock
         self._sleep = sleep
+        self._index_cache = IndexCache()
 
     def set_client(self, client: Komga) -> None:
         self._c = client
@@ -159,8 +172,129 @@ class KomgaTarget:
             pages.append(part)
         return pages
 
-    def save(self, post: Post, tags: list[str]) -> SaveResult:
-        """Download the gallery, pack it as a CBZ, place it in Komga's folder, scan."""
+    def _place_mode(self) -> str:
+        conn = connect(self._settings.db_path)
+        try:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = 'komga.place_mode'"
+            ).fetchone()
+        finally:
+            conn.close()
+        return "auto" if row is not None and row["value"] == "auto" else "suggest"
+
+    def _oneshots(self, folder: str, tag: str) -> OneshotsDir:
+        s = self._settings
+        try:
+            libs = self._client.list_libraries()
+        except KomgaError:
+            return OneshotsDir(None, "oneshots_not_set")
+        found = oneshots_dir_name(
+            libs, folder, s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
+        )
+        logger.info(
+            "KOMGA %s oneshots dir=%s via=%s",
+            tag,
+            found.name or "",
+            "komga" if found.name else "none",
+        )
+        return found
+
+    def _plan(
+        self,
+        post: Post,
+        dest_dir: Path,
+        oneshots: OneshotsDir,
+        override: str | None,
+        notices: list[Problem],
+        tag: str,
+    ) -> Plan:
+        parsed = parse_name(post.title or "", post.tags.get("artist", []))
+        index = self._index_cache.get(dest_dir, oneshots.name)
+        if index.too_large:
+            notices.append(
+                Problem(
+                    code="placement_index_too_large",
+                    message="folder has too many entries to match; saved as a new book",
+                )
+            )
+            index = NameIndex()
+        mode = self._place_mode()
+        plan = make_plan(index, parsed, mode, oneshots.name is not None)
+        if override == "oneshot" and plan.kind == "series":
+            plan = Plan("oneshot", None, "", None, "oneshot")
+        elif override == "series" and plan.kind == "oneshot":
+            folder = series_folder_name(parsed.author, parsed.root)
+            plan = Plan("series", parsed.root, parsed.number, folder, "new")
+        logger.info(
+            "KOMGA %s placement kind=%s root_hash=%s number=%s via=%s mode=%s",
+            tag,
+            plan.kind,
+            hashlib.md5((plan.series or "").encode()).hexdigest()[:8],
+            plan.number or "-",
+            plan.via,
+            "override" if override else mode,
+        )
+        return plan
+
+    @staticmethod
+    def _target_dir(
+        plan: Plan, dest_dir: Path, oneshots: OneshotsDir, notices: list[Problem]
+    ) -> Path:
+        if plan.kind == "series" and plan.folder:
+            sub = dest_dir / plan.folder
+        elif oneshots.name:
+            sub = dest_dir / oneshots.name
+        else:
+            notices.append(
+                Problem(
+                    code="oneshots_not_set",
+                    message="set the oneshots directory in Komga; saved flat in the folder",
+                )
+            )
+            return dest_dir
+        try:
+            sub.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            raise SaveError(
+                "destination_not_writable", f"Pearlie cannot write to {sub}", 422
+            ) from None
+        return sub
+
+    @staticmethod
+    def _move_first(
+        plan: Plan,
+        dest_dir: Path,
+        oneshots: OneshotsDir,
+        series_dir: Path,
+        tag: str,
+        notices: list[Problem],
+    ) -> None:
+        """Rename earlier oneshots of the group into the series folder; never fails the save."""
+        if not plan.move_from or not oneshots.name:
+            return
+        for name in plan.move_from:
+            old = dest_dir / oneshots.name / name
+            logger.info("KOMGA %s move start from=%s to=%s", tag, name, series_dir.name)
+            if not old.exists():
+                logger.info("KOMGA %s move skipped code=missing", tag)
+                notices.append(Problem(code="move_skipped", message=f"{name} is gone; not moved"))
+                continue
+            try:
+                if (series_dir / name).exists():
+                    raise FileExistsError(errno.EEXIST, "target exists")
+                os.rename(old, series_dir / name)
+            except OSError as e:
+                code = errno.errorcode.get(e.errno or 0, "OSError")
+                logger.warning("KOMGA %s move failed code=%s", tag, code)
+                notices.append(Problem(code="move_failed", message="first book stays in oneshots"))
+                continue
+            logger.info("KOMGA %s move done", tag)
+
+    def save(self, post: Post, tags: list[str], placement: str | None = None) -> SaveResult:
+        """Download the gallery, pack it as a CBZ, place it in Komga's folder, scan.
+
+        *placement* ("series" or "oneshot") overrides the suggested kind.
+        """
         notices: list[Problem] = []
         tag = f"source={post.source} post={post.post_id}"
         if self._saved(post):
@@ -178,6 +312,8 @@ class KomgaTarget:
                 tag,
                 folder,
             )
+        oneshots = self._oneshots(folder, tag)
+        plan = self._plan(post, dest_dir, oneshots, placement, notices, tag)
 
         work = self._settings.komga_temp_dir / f"{TEMP_PREFIX}{post.source}-{post.post_id}"
         try:
@@ -191,10 +327,11 @@ class KomgaTarget:
                 pages = self._fetch(urls, work, post)
                 logger.info("KOMGA %s downloaded pages=%d", tag, len(pages))
                 cbz = work / "gallery.cbz.part"
-                build_cbz(cbz, pages, post)
+                build_cbz(cbz, pages, post, plan)
                 md5 = _md5_of(cbz)
                 logger.info("KOMGA %s cbz built md5=%s", tag, md5)
-                target, same = self._place(cbz, dest_dir, _file_name(post), md5, notices)
+                place_dir = self._target_dir(plan, dest_dir, oneshots, notices)
+                target, same = self._place(cbz, place_dir, _file_name(post), md5, notices)
             except SaveError as e:
                 logger.warning("KOMGA %s save failed code=%s", tag, e.code)
                 raise
@@ -205,6 +342,9 @@ class KomgaTarget:
             logger.info("KOMGA %s duplicate via=same file md5=%s", tag, md5)
             return self._duplicate("same file already in the folder")
         logger.info("KOMGA %s placed file=%s pearlie_path=%s", tag, target.name, target.as_posix())
+        if plan.kind == "series":
+            self._move_first(plan, dest_dir, oneshots, place_dir, tag, notices)
+        self._index_cache.invalidate()
 
         komga_path = destinations.to_stash_path(
             target.as_posix(),

@@ -95,6 +95,7 @@ def init_db(path: Path) -> None:
         "restarts": "restarts INTEGER NOT NULL DEFAULT 0",
         "started_at": "started_at TEXT",
         "finished_at": "finished_at TEXT",
+        "placement": "placement TEXT",
     }
     for col_name, col_def in jobs_migrations.items():
         if col_name not in jobs_cols:
