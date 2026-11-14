@@ -331,7 +331,7 @@ def test_api_komga_site_validates_against_komga_roots(tmp_path: Path) -> None:
 
     class FakeKomga:
         def list_libraries(self) -> list[dict]:
-            return [{"id": "L1", "root": "/mnt/komga/doujin"}]
+            return [{"id": "L1", "root": "/mnt/komga/doujin", "oneshotsDirectory": "_oneshots"}]
 
     cfg = Settings(
         mode="real",
@@ -343,6 +343,7 @@ def test_api_komga_site_validates_against_komga_roots(tmp_path: Path) -> None:
     app.state.komga = FakeKomga()
     with TestClient(app) as c:
         body = c.get("/api/destinations").json()
+        assert body["komga_oneshots_dir"] == "_oneshots"
         assert body["komga_sites"] == ["nhentai"]
         assert body["komga_library_paths"] == ["/mnt/komga/doujin"]
         bad = c.put("/api/destinations/nhentai", json={"folder": "/mnt/stash/x"})

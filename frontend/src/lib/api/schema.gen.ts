@@ -1349,6 +1349,8 @@ export interface components {
             komga_library_paths?: string[];
             /** Komga Library Error */
             komga_library_error?: string | null;
+            /** Komga Oneshots Dir */
+            komga_oneshots_dir?: string | null;
         };
         /** FieldOut */
         FieldOut: {

@@ -2,8 +2,13 @@
 	import { onMount } from "svelte";
 	import { getApi, ApiError, errorText } from "../api/client";
 	import type { Api, Destinations } from "../api/client";
+	import { options } from "../stores/options.svelte";
+	import type { OptionsStore } from "../stores/options.svelte";
+	import Icon from "../components/Icon.svelte";
 
-	let { api = getApi() }: { api?: Api } = $props();
+	let { api = getApi(), store = options }: { api?: Api; store?: OptionsStore } = $props();
+
+	const placeMode = $derived(store.values?.place_mode ?? "suggest");
 
 	let dest = $state<Destinations | null>(null);
 	let loadError = $state("");
@@ -190,6 +195,48 @@
 				{#if saved[key]}<span class="ok" role="status">Saved</span>{/if}
 			</form>
 		{/each}
+		{#if komgaSites.length}
+			<div class="row place-row" data-testid="place-mode">
+				<span id="place-label">Komga placement</span>
+				<div class="seg" role="radiogroup" aria-labelledby="place-label">
+					<button
+						type="button"
+						role="radio"
+						aria-checked={placeMode === "auto"}
+						data-testid="place-auto"
+						class:on={placeMode === "auto"}
+						onclick={() => store.set({ place_mode: "auto" })}
+					>
+						<Icon name="wand-sparkles" size={18} /><span>Auto</span>
+					</button>
+					<button
+						type="button"
+						role="radio"
+						aria-checked={placeMode === "suggest"}
+						data-testid="place-suggest"
+						class:on={placeMode === "suggest"}
+						onclick={() => store.set({ place_mode: "suggest" })}
+					>
+						<Icon name="mouse-pointer" size={18} /><span>Suggest</span>
+					</button>
+				</div>
+				<span class="ok" data-testid="place-hint">
+					{placeMode === "auto"
+						? "Pearlie picks series or oneshot alone."
+						: "The save dialog shows the pick; one tap changes it."}
+				</span>
+				<span class="ok" data-testid="oneshots-line">
+					{dest.komga_oneshots_dir
+						? `Oneshots: ${dest.komga_oneshots_dir}`
+						: "Oneshots: not set in Komga"}
+				</span>
+				{#if dest.komga_oneshots_dir}
+					<span class="ok" data-testid="oneshots-note">
+						A first book moves into a new series. Komga keeps read progress only if "Hash files" is on.
+					</span>
+				{/if}
+			</div>
+		{/if}
 	{/if}
 </section>
 
@@ -228,6 +275,33 @@
 
 	.folder-row select {
 		max-width: 160px;
+	}
+
+	.seg {
+		display: flex;
+		gap: 8px;
+	}
+
+	.seg button {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 2px;
+		min-width: 64px;
+		min-height: 44px;
+		padding: 4px 12px;
+		border: 1px solid var(--line-strong);
+		border-radius: 4px;
+		background: transparent;
+		color: inherit;
+		font-size: var(--t-13);
+		cursor: pointer;
+	}
+
+	.seg button.on {
+		background: var(--accent-bg);
+		color: var(--accent);
 	}
 
 	.ok {

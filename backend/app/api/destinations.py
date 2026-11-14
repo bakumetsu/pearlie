@@ -7,6 +7,7 @@ from app.komga import KomgaError
 from app.models import DestinationItem, Destinations, FolderBody, MappingBody
 from app.targets import destinations
 from app.targets.destinations import DestinationError
+from app.targets.placement import oneshots_dir_name
 from app.targets.stash_client import StashError
 
 router = APIRouter(prefix="/api")
@@ -34,14 +35,27 @@ def _sites(request: Request, target: str = "stash") -> list[str]:
     return [sid for sid, src in request.app.state.sources.items() if src.target == target]
 
 
-def _komga_roots(request: Request) -> list[str]:
+def _komga_libraries(request: Request) -> list[dict]:
     client = request.app.state.komga
     if client is None:
         raise ApiError(502, "not_configured", "Komga is not configured")
     try:
-        return [str(lib.get("root", "")) for lib in client.list_libraries()]
+        return client.list_libraries()
     except KomgaError as err:
         raise ApiError(err.status, err.code, err.message) from None
+
+
+def _komga_roots(request: Request) -> list[str]:
+    return [str(lib.get("root", "")) for lib in _komga_libraries(request)]
+
+
+def _oneshots_name(libraries: list[dict]) -> str | None:
+    """First usable oneshots folder name set in Komga (read-only display)."""
+    for lib in libraries:
+        found = oneshots_dir_name([lib], str(lib.get("root", "")))
+        if found.name:
+            return found.name
+    return None
 
 
 def _mapping(request: Request) -> tuple[str, str, bool]:
@@ -74,10 +88,13 @@ def _payload(request: Request) -> Destinations:
     pp, ps, from_env = _mapping(request)
     komga_sites = _sites(request, "komga")
     komga_roots: list[str] = []
+    komga_oneshots: str | None = None
     komga_error = None
     if komga_sites:
         try:
-            komga_roots = _komga_roots(request)
+            libs = _komga_libraries(request)
+            komga_roots = [str(lib.get("root", "")) for lib in libs]
+            komga_oneshots = _oneshots_name(libs)
         except ApiError as err:
             komga_error = err.message
     return Destinations(
@@ -92,6 +109,7 @@ def _payload(request: Request) -> Destinations:
         komga_sites=komga_sites,
         komga_library_paths=komga_roots,
         komga_library_error=komga_error,
+        komga_oneshots_dir=komga_oneshots,
     )
 
 

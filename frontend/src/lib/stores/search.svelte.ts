@@ -146,11 +146,11 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
     loading = false;
   }
 
-  async function save(item: WebItem) {
+  async function save(item: WebItem, placement?: { kind: "series" | "oneshot" }) {
     const key = `${item.source}:${item.post_id}`;
     saves[key] = { state: "queued" };
     try {
-      await api.save({ source: item.source, post_id: item.post_id });
+      await api.save({ source: item.source, post_id: item.post_id, ...(placement ? { placement } : {}) });
       return { result: "queued" as const };
     } catch (e: unknown) {
       if (e instanceof ApiError && e.status === 409) {

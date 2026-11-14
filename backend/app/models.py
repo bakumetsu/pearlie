@@ -418,6 +418,7 @@ class Destinations(BaseModel):
     komga_sites: list[str] = Field(default_factory=list)
     komga_library_paths: list[str] = Field(default_factory=list)
     komga_library_error: str | None = None
+    komga_oneshots_dir: str | None = None
 
 
 class MappingBody(BaseModel):

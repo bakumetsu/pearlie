@@ -12,6 +12,7 @@
     | "grid" | "wall" | "masonry" | "sliders" | "chevrons-left" | "chevrons-right"
     | "skip-back" | "skip-forward" | "rewind" | "fast-forward" | "replay-10" | "forward-10"
     | "zoom-in" | "zoom-out" | "info" | "order" | "shield"
+    | "wand-sparkles" | "mouse-pointer"
     | "octagon-x" | "triangle-alert" | "bug" | "copy" | "history";
 
   const paths: Record<IconName, string[]> = {
@@ -178,6 +179,20 @@
       "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8",
       "M3 3v5h5",
       "M12 7v5l4 2",
+    ],
+    "wand-sparkles": [
+      "m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72",
+      "m14 7 3 3",
+      "M5 6v4",
+      "M19 14v4",
+      "M10 2v2",
+      "M7 8H3",
+      "M21 16h-4",
+      "M11 3H9",
+    ],
+    "mouse-pointer": [
+      "M12.586 12.586 19 19",
+      "M3.688 3.037a.497.497 0 0 0-.651.651l6.5 15.999a.501.501 0 0 0 .947-.062l1.569-6.083a2 2 0 0 1 1.448-1.479l6.124-1.579a.5.5 0 0 0 .063-.947z",
     ],
     "minus": [
       "M5 12h14",

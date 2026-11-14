@@ -13,6 +13,7 @@
   import { SvelteURLSearchParams } from "svelte/reactivity";
   import { viewSettings } from "../lib/stores/viewSettings.svelte";
   import { options } from "../lib/stores/options.svelte";
+  import { placement } from "../lib/stores/placement.svelte";
   import { pageOf, remapPage } from "../lib/browse/pager";
   import type { Mode } from "../lib/browse/layout";
   import ResultsGrid from "../lib/browse/ResultsGrid.svelte";
@@ -286,9 +287,11 @@
 
   async function handleSave(item: WebItem) {
     const key = item.source + ":" + item.post_id;
+    const answer = await placement.ask(item);
+    if (answer === null) return;
     saveStates[key] = "queued";
     try {
-      await api.save({ source: item.source, post_id: item.post_id });
+      await api.save({ source: item.source, post_id: item.post_id, ...answer });
       toasts.push({ kind: "info", message: "Added to queue", actionLabel: "View", href: "/queue" });
     } catch (e) {
       if (e instanceof ApiErrorClass && e.status === 409) {
