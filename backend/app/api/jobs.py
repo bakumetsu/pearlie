@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, Query, Response
 
 from app.api.errors import ApiError
@@ -41,7 +43,7 @@ def save(body: SaveBody) -> SaveAccepted:
 
 @router.get("/save/placement")
 def save_placement(
-    source: WebSource = Query(...), post_id: str = Query(...)
+    source: Annotated[WebSource, Query()], post_id: Annotated[str, Query()]
 ) -> PlacementSuggestion:
     """Suggest series or oneshot for a Komga save (fixture: always a oneshot)."""
     if store.web_raw(source, post_id) is None:

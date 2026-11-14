@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, Response
 
@@ -86,7 +87,9 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
 
 @router.get("/save/placement")
 def save_placement(
-    request: Request, source: WebSource = Query(...), post_id: str = Query(...)
+    request: Request,
+    source: Annotated[WebSource, Query()],
+    post_id: Annotated[str, Query()],
 ) -> PlacementSuggestion:
     """Suggest series or oneshot for a Komga save. Pure: nothing is written."""
     src = request.app.state.sources.get(source)
