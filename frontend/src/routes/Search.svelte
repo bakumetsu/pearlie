@@ -195,6 +195,12 @@
       <div class="search-row">
         <ChipField bind:pending chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch}>
           {#snippet trailing()}
+            <span class="tail">
+            {#if dirty}
+              <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
+                <Icon name="search" size={20} />
+              </button>
+            {/if}
             <button
               class="fib"
               bind:this={fibEl}
@@ -207,13 +213,9 @@
               <Icon name="sliders" size={20} />
               {#if chips.length}<b>{chips.length}</b>{/if}
             </button>
+            </span>
           {/snippet}
         </ChipField>
-        {#if dirty}
-          <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
-            <Icon name="search" size={20} />
-          </button>
-        {/if}
       </div>
     </div>
     {#if chips.length}
@@ -338,15 +340,22 @@
     min-width: 0;
   }
 
+  .tail {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--s-1);
+    margin-left: auto;
+    margin-block: -8px;
+  }
+
   .fib {
     position: relative;
     display: grid;
     place-items: center;
     flex: none;
-    margin-left: auto;
     width: 44px;
     height: 44px;
-    margin-block: -8px;
     padding: 0;
     background: none;
     border: none;
@@ -457,7 +466,7 @@
     display: grid;
     place-items: center;
     width: 44px;
-    min-height: 44px;
+    height: 44px;
     padding: 0;
     background: var(--accent);
     color: var(--surface);
