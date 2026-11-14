@@ -2068,6 +2068,11 @@ export interface components {
          * @description What the order/rating/per-page toolbar may offer for one source.
          */
         SourceFilters: {
+            /**
+             * Search
+             * @default true
+             */
+            search: boolean;
             /** Order */
             order?: string[];
             /** Rating */

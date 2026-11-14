@@ -66,6 +66,7 @@ def search_filters(request: Request) -> FiltersResponse:
     out: dict[str, SourceFilters] = {}
     for sid in _LIBRARY:
         out[sid] = SourceFilters(
+            search=True,
             sort=_LIBRARY_SORTS,
             favorite=True,
             per_page_options=preset_options(sid),
@@ -73,6 +74,7 @@ def search_filters(request: Request) -> FiltersResponse:
         )
     for sid in _WEB:
         out[sid] = SourceFilters(
+            search=True,
             order=supported_orders(sid),
             rating=supported_ratings(sid),
             per_page_options=preset_options(sid),

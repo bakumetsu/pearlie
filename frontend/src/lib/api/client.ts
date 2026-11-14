@@ -98,6 +98,7 @@ export type ListParams = {
 
 // GET /api/search/filters: what each source supports (design D-16 section 5).
 export type SourceFilters = {
+  search?: boolean; // the source can take a search
   order?: string[];
   rating?: string[];
   per_page_options?: number[];

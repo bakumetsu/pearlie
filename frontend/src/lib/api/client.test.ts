@@ -165,4 +165,12 @@ describe("createApi", () => {
       }),
     );
   });
+
+  it("searchFilters passes the search capability through", async () => {
+    const reply = { sources: { danbooru: { search: true, per_page_max: 200 } } };
+    const api = createApi("", vi.fn().mockResolvedValue(ok(reply)));
+    const filters = await api.searchFilters();
+    const search: boolean | undefined = filters.danbooru.search;
+    expect(search).toBe(true);
+  });
 });
