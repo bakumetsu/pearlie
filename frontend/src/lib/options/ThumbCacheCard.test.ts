@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/svelte";
 import ThumbCacheCard from "./ThumbCacheCard.svelte";
+import { tick } from "svelte";
 import { createOptions } from "../stores/options.svelte";
 import type { Api } from "../api/client";
 
@@ -78,6 +79,32 @@ describe("ThumbCacheCard", () => {
 		await waitFor(() => {
 			expect(putOptions).toHaveBeenCalledWith({ thumb_cache_max_mb: 2048 });
 		});
+	});
+
+	it("(h) click Increase size limit increments cap by 1", async () => {
+		const { putOptions } = await renderCard();
+		const btn = screen.getByRole("button", { name: "Increase size limit" });
+		await fireEvent.click(btn);
+		await waitFor(() => {
+			expect(putOptions).toHaveBeenCalledWith({ thumb_cache_max_mb: 1025 });
+		});
+	});
+
+	it("(i) click Decrease size limit decrements cap by 1", async () => {
+		const { putOptions } = await renderCard();
+		const btn = screen.getByRole("button", { name: "Decrease size limit" });
+		await fireEvent.click(btn);
+		await waitFor(() => {
+			expect(putOptions).toHaveBeenCalledWith({ thumb_cache_max_mb: 1023 });
+		});
+	});
+
+	it("(j) at max 20480, Increase size limit does not call putOptions", async () => {
+		const { putOptions } = await renderCard({ max_mb: 20480 });
+		const btn = screen.getByRole("button", { name: "Increase size limit" });
+		await fireEvent.click(btn);
+		await tick();
+		expect(putOptions).not.toHaveBeenCalled();
 	});
 
 	it("(d) invalid caps show alert and do not call putOptions", async () => {
