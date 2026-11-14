@@ -15,6 +15,7 @@
   import { createZoom, zoomKey } from "../lib/item/zoomModel.svelte";
   import ItemPanel from "../lib/item/ItemPanel.svelte";
   import SeriesGrid from "../lib/item/SeriesGrid.svelte";
+  import BookStage from "../lib/item/BookStage.svelte";
   import { rejectTag } from "../lib/item/reject";
   import { PHONE_MAX, initialOpen, savePanel } from "../lib/item/panelState";
   import Icon from "../lib/components/Icon.svelte";
@@ -291,12 +292,12 @@
             />
           </div>
         {:else if view.detail.kind === "book"}
-          <div class="book-stage">
-            <img src={view.detail.thumb_url} alt={view.detail.title} />
-            <button onclick={() => router.navigate("/read/" + encodeURIComponent(view.detail!.id))}>
-              Read
-            </button>
-          </div>
+          <BookStage
+            detail={view.detail}
+            {api}
+            onread={(p) => router.navigate("/read/" + encodeURIComponent(view.detail!.id) + (p ? "?p=" + p : ""))}
+            onerror={(message) => toasts.push({ kind: "error", message })}
+          />
         {/if}
       </div>
       <aside class="panel" inert={!panelOpen} aria-hidden={!panelOpen} bind:this={panelEl}>
