@@ -45,6 +45,16 @@ def _to_job(row: sqlite3.Row) -> Job:
     return Job.model_validate(data)
 
 
+def _chunks(items: list[str], size: int = 500):
+    for i in range(0, len(items), size):
+        yield items[i : i + size]
+
+
+def _ref(target: str, image_id: str | None) -> SavedRef:
+    # A Komga row has no image id; the marker still shows, without a link.
+    return SavedRef(kind="book" if target == "komga" else "image", id=image_id or "")
+
+
 class JobStore:
     def __init__(self, db_path: Path) -> None:
         self._path = db_path
@@ -59,6 +69,43 @@ class JobStore:
             if row is None:
                 return None
             return row["image_id"] if row["image_id"] is not None else ""
+        finally:
+            conn.close()
+
+    def saved_refs(
+        self, source: str, post_ids: list[str], md5s: dict[str, str] | None = None
+    ) -> dict[str, SavedRef]:
+        """One batched lookup for a page: post id to the library ref of its saved copy.
+
+        `md5s` (post id to MD5) adds a second pass that also matches the same file
+        saved from another source or post.
+        """
+        if not post_ids:
+            return {}
+        conn = connect(self._path)
+        try:
+            found: dict[str, SavedRef] = {}
+            for chunk in _chunks(post_ids):
+                marks = ",".join("?" * len(chunk))
+                for row in conn.execute(
+                    "SELECT post_id, target, image_id FROM saved_items "
+                    f"WHERE source = ? AND post_id IN ({marks})",
+                    (source, *chunk),
+                ):
+                    found[row["post_id"]] = _ref(row["target"], row["image_id"])
+            by_md5 = {
+                m.lower(): pid for pid, m in (md5s or {}).items() if m and pid not in found
+            }
+            for chunk in _chunks(list(by_md5)):
+                marks = ",".join("?" * len(chunk))
+                for row in conn.execute(
+                    f"SELECT md5, target, image_id FROM saved_items WHERE md5 IN ({marks})",
+                    tuple(chunk),
+                ):
+                    found.setdefault(
+                        by_md5[row["md5"].lower()], _ref(row["target"], row["image_id"])
+                    )
+            return found
         finally:
             conn.close()
 

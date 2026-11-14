@@ -3,6 +3,8 @@ import { ApiError } from "../api/client";
 import type { Api, Section, WebItem } from "../api/client";
 import { sectionsFor, serialiseQuery } from "../query";
 import type { SearchState } from "../query";
+import type { Job } from "../jobs/group";
+import { settleQueued } from "../web/saveFlow";
 
 export function createSearch(api: Api, opts?: { debounceMs?: number }) {
   const debounceMs = opts?.debounceMs ?? 300;
@@ -167,6 +169,15 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
     }
   }
 
+  function settle(jobs: Job[]) {
+    const queued = Object.keys(saves).filter((k) => saves[k]?.state === "queued");
+    if (queued.length === 0) return;
+    for (const [key, next] of Object.entries(settleQueued(queued, jobs))) {
+      if (next === "idle") delete saves[key];
+      else saves[key] = next;
+    }
+  }
+
   function saveStateOf(item: WebItem) {
     return saves[`${item.source}:${item.post_id}`];
   }
@@ -182,5 +193,6 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
     cancel,
     save,
     saveStateOf,
+    settle,
   };
 }

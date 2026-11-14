@@ -8,7 +8,7 @@
 	import { saveWebItem, saveStateFor, savedHrefFor } from "../lib/web/saveFlow";
 	import type { SaveSlot } from "../lib/reader/saveSlot";
 	import { komgaSource, webSource, type ReaderSource } from "../lib/reader/source";
-	import { getRouter } from "../lib/ctx";
+	import { getRouter, findJobs } from "../lib/ctx";
 	import type { Match } from "../lib/router";
 	import Stage from "../lib/reader/Stage.svelte";
 	import ScrollStage from "../lib/reader/ScrollStage.svelte";
@@ -63,6 +63,10 @@
 	let notice = $state<string | null>(null);
 	let saveItem = $state<WebItem | null>(null);
 	const searchStore = createSearch(api);
+	const jobsStore = findJobs();
+	$effect(() => {
+		if (jobsStore) searchStore.settle(jobsStore.items);
+	});
 	const saveSlot = $derived<SaveSlot | undefined>(
 		saveItem
 			? {

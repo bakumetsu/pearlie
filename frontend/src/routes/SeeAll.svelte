@@ -1,7 +1,8 @@
 <script lang="ts">
   import { untrack, tick } from "svelte";
   import { getApi } from "../lib/api/client";
-  import { getRouter } from "../lib/ctx";
+  import { getRouter, findJobs } from "../lib/ctx";
+  import { settleQueued } from "../lib/web/saveFlow";
   import { linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
   import type { Kind, WebItem, LibraryItem } from "../lib/api/client";
@@ -284,6 +285,17 @@
 
   // --- save state for web items ---
   let saveStates = $state<Record<string, "queued" | "in_library">>({});
+
+  const jobsStore = findJobs();
+  $effect(() => {
+    if (!jobsStore) return;
+    const jobs = jobsStore.items;
+    const queued = Object.keys(untrack(() => saveStates)).filter((k) => saveStates[k] === "queued");
+    for (const [key, next] of Object.entries(settleQueued(queued, jobs))) {
+      if (next === "idle") delete saveStates[key];
+      else saveStates[key] = "in_library";
+    }
+  });
 
   async function handleSave(item: WebItem) {
     const key = item.source + ":" + item.post_id;

@@ -12,6 +12,7 @@ from app.api.library_stash_real import fetch_stash_page
 from app.api.media_web_real import media_kind, pick_url, proxy_path, remember, tile_url
 from app.api.search_filters import parse_order, parse_rating, unsupported_notice
 from app.filters.rules import evaluate, load_rules
+from app.jobs.store import JobStore
 from app.komga import Komga, KomgaError, book_item
 from app.models import (
     Blur,
@@ -203,6 +204,14 @@ def search(
                             blur=Blur(tag=verdict.tag) if verdict else None,
                         )
                     )
+                saved = JobStore(request.app.state.settings.db_path).saved_refs(
+                    sid,
+                    [p.post_id for p in visible],
+                    {p.post_id: p.md5 for p in visible if p.md5},
+                )
+                for it in items:
+                    if isinstance(it, WebItem):
+                        it.saved = saved.get(it.post_id)
                 remember(request.app, visible, rules.version)
                 if multi:
                     items = items[:18]

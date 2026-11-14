@@ -14,6 +14,11 @@ export function getJobs(): Jobs {
   return j;
 }
 
+// For pages that also run without the app shell (tests, the reader): no jobs means no live save state.
+export function findJobs(): Jobs | undefined {
+  return getContext<Jobs | undefined>(JOBS_KEY);
+}
+
 const KEY = Symbol("router");
 
 export function setRouter(r: Router): void {

@@ -426,3 +426,24 @@ def test_search_library_body_has_no_service_url_or_key(tmp_path):
     assert r.status_code == 200
     for secret in (STASH_URL, STASH_KEY, KOMGA_URL, KOMGA_KEY):
         assert secret not in r.text
+
+
+def test_search_marks_saved_items(tmp_path):
+    """One saved_items row marks the matching result; the others stay unmarked."""
+    from app.db import connect
+
+    client = make_client(
+        tmp_path, lambda request: httpx.Response(200, json=load("search"))
+    )
+    conn = connect(tmp_path / "p.db")
+    conn.execute(
+        "INSERT INTO saved_items (source, post_id, md5, target, image_id) "
+        "VALUES ('danbooru', '101', ?, 'stash', '42')",
+        ("f" * 32,),
+    )
+    conn.commit()
+    conn.close()
+    items = client.get("/api/search?q=1girl&sources=danbooru").json()["sections"][0]["items"]
+    saved = {i["post_id"]: i["saved"] for i in items}
+    assert saved["101"] == {"kind": "image", "id": "42"}
+    assert [v for k, v in saved.items() if k != "101"] == [None, None]

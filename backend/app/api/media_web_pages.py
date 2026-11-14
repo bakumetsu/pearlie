@@ -20,6 +20,7 @@ from app.api.image_slots import Busy, Gone, Limiter, Prio, SlotBody, parse_prio,
 from app.api.media_web_real import proxy_path
 from app.db import connect
 from app.filters.rules import evaluate, load_rules
+from app.jobs.store import JobStore
 from app.models import Tag, WebBook, WebItem
 from app.sources.base import Post, SourceError
 from app.sources.nhentai import CDN_HOST, NHentai
@@ -341,6 +342,9 @@ async def book(request: Request, gid: str) -> Response:
     except _Refusal as r:
         return _refusal_response(r)
     data = build_book(post, src.target)
+    data.item.saved = JobStore(request.app.state.settings.db_path).saved_refs(
+        "nhentai", [post.post_id]
+    ).get(post.post_id)
     return JSONResponse(data.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
 
 
