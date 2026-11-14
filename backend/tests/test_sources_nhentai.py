@@ -135,7 +135,12 @@ def test_real_gallery_sample() -> None:
     assert p.tags["general"] == ["big breasts", "sole male"]
     assert p.preview_url == "https://t.nhentai.net/galleries/4302773/cover.webp.webp"
     assert (p.width, p.height) == (350, 495)
-    assert p.extra == {"media_id": "4302773", "page_exts": ["webp", "webp", "webp"]}
+    assert p.extra == {
+        "media_id": "4302773",
+        "page_exts": ["webp", "webp", "webp"],
+        "title_english": ("Making a Harem of the Three Bitchy Gal Sisters - All Chapters + Bonus"),
+        "title_japanese": None,
+    }
     assert src.page_urls(p) == [
         f"https://i.nhentai.net/galleries/4302773/{n}.webp" for n in (1, 2, 3)
     ]
@@ -148,7 +153,12 @@ def test_gallery_fields_and_page_urls() -> None:
     assert p.preview_url == "https://t.nhentai.net/galleries/901/cover.jpg"
     assert p.tags["general"] == ["big breasts", "x"]
     assert p.tags["artist"] == ["some artist"] and p.tags["parody"] == ["original"]
-    assert p.extra == {"media_id": "901", "page_exts": ["jpg", "png"]}
+    assert p.extra == {
+        "media_id": "901",
+        "page_exts": ["jpg", "png"],
+        "title_english": "Eng 1",
+        "title_japanese": None,
+    }
     assert src.page_urls(p) == [
         "https://i.nhentai.net/galleries/901/1.jpg",
         "https://i.nhentai.net/galleries/901/2.png",
