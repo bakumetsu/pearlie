@@ -119,4 +119,31 @@ describe("DownloadsCard", () => {
     await vi.waitFor(() => expect(input.value).toBe("1"));
     expect(screen.queryByRole("alert")).toBeNull();
   });
+
+  it("plus button steps the pace and saves it", () => {
+    const store = makeStore({ source_pace: pace() });
+    render(DownloadsCard, { store });
+
+    fireEvent.click(screen.getByRole("button", { name: "Increase Danbooru seconds" }));
+
+    expect(store.set).toHaveBeenCalledWith({ source_pace: { danbooru: 1.5 } });
+  });
+
+  it("minus button at the minimum saves nothing", () => {
+    const store = makeStore({ source_pace: pace() });
+    render(DownloadsCard, { store });
+
+    fireEvent.click(screen.getByRole("button", { name: "Decrease Danbooru seconds" }));
+
+    expect(store.set).not.toHaveBeenCalled();
+  });
+
+  it("locked site disables its step buttons", () => {
+    const store = makeStore({ source_pace: pace({ rule34: { locked: true } }) });
+    render(DownloadsCard, { store });
+
+    expect(
+      (screen.getByRole("button", { name: "Increase Rule34 seconds" }) as HTMLButtonElement).disabled
+    ).toBe(true);
+  });
 });
