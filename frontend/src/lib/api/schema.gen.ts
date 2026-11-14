@@ -1443,7 +1443,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "queued" | "running" | "done" | "failed" | "needs_click" | "skipped";
+            state: "queued" | "running" | "scan_wait" | "verifying" | "done" | "failed" | "needs_click" | "skipped";
             /**
              * Progress
              * @default 0
