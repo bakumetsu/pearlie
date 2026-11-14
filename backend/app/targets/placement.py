@@ -57,7 +57,9 @@ def oneshots_dir_name(
                 best, best_len = lib, len(root)
     raw = best.get(ONESHOTS_FIELD) if best else None
     name = raw.strip() if isinstance(raw, str) else ""
-    if not name or name.startswith(".") or "/" in name or "\\" in name:
+    if name.startswith("/"):  # Komga: a leading "/" only anchors the match
+        name = name[1:]
+    if not name or name.startswith(".") or ".." in name or "/" in name or "\\" in name:
         return OneshotsDir(None, "oneshots_not_set")
     return OneshotsDir(name)
 

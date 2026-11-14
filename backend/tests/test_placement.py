@@ -35,7 +35,7 @@ def test_oneshots_dir_not_set():
 
 
 def test_oneshots_dir_refused_values():
-    for bad in (".hidden", "a/b", "a\\b", "  "):
+    for bad in (".hidden", "a/b", "a\\b", "  ", "/", "//x", "..", "/..", "x..y"):
         libs = [{"root": "/k", "oneshotsDirectory": bad}]
         assert oneshots_dir_name(libs, "/k/x").name is None
 
@@ -176,3 +176,8 @@ def test_cache_ttl_and_invalidate(tmp_path):
     (root / "[Newer] Thing").mkdir()
     cache.invalidate()
     assert "[newer]" in cache.get(root, "_oneshots").series
+
+
+def test_oneshots_dir_leading_slash_anchors():
+    libs = [{"root": "/k", "oneshotsDirectory": "/_oneshots"}]
+    assert oneshots_dir_name(libs, "/k/x").name == "_oneshots"
