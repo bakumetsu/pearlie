@@ -46,11 +46,11 @@
 				class="btn test-btn"
 				aria-label={`Test ${label}`}
 				disabled={store.testing[key]}
-				on:click={() => store.test(api, key)}
+				onclick={() => store.test(api, key)}
 			>
 				{store.testing[key] ? "Testing..." : "Test"}
 			</button>
-			<button class="btn" aria-label={`Edit ${label}`} on:click={() => (editing = key)}><Icon name="settings" size={16} /></button>
+			<button class="btn" aria-label={`Edit ${label}`} onclick={() => (editing = key)}><Icon name="settings" size={16} /></button>
 		</div>
 	{/each}
 </section>
