@@ -5,7 +5,7 @@
 	import { getApi } from "../api/client";
 	import type { Api } from "../api/client";
 	import Icon from "../components/Icon.svelte";
-	import NumberStepper from "./NumberStepper.svelte";
+
 
 	let { store = options, api = getApi() }: { store?: OptionsStore; api?: Api } = $props();
 
@@ -140,20 +140,18 @@
 		<div class="row controls">
 			<div class="cap-group">
 				<label for="thumb-cache-cap">Size limit (MB)</label>
-				<NumberStepper label="size limit">
-					<input
-						id="thumb-cache-cap"
-						type="number"
-						inputmode="numeric"
-						min={50}
-						max={20480}
-						step={1}
-						data-testid="thumb-cache-cap"
-						aria-label="Size limit in MB"
-						value={draft}
-						onchange={handleCapChange}
-					/>
-				</NumberStepper>
+				<input
+					id="thumb-cache-cap"
+					type="number"
+					inputmode="numeric"
+					min={50}
+					max={20480}
+					step={1}
+					data-testid="thumb-cache-cap"
+					aria-label="Size limit in MB"
+					value={draft}
+					onchange={handleCapChange}
+				/>
 				<span class="helper">{capGbText}</span>
 			</div>
 			<button

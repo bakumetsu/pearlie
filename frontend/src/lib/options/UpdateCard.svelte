@@ -200,6 +200,14 @@
 				{/if}
 			</span>
 		</li>
+		{#if update.status}
+			<li class="row">
+				<a class="cl-link" href="/options/changelog" onclick={(e) => { if (router) linkClick(e, router); }}>
+					<span class="row-label">{update.status.available ? "See what's new" : "See changelog"}</span>
+					<Icon name="history" size={18} />
+				</a>
+			</li>
+		{/if}
 	</ul>
 	{#if update.status}
 		{#if canRestart && !rb}
@@ -208,10 +216,6 @@
 		{#if update.note}
 			<p class="muted" role="status">{update.note}</p>
 		{/if}
-		<a class="cl-link" href="/options/changelog" onclick={(e) => { if (router) linkClick(e, router); }}>
-			<Icon name="history" size={18} />
-			{update.status.available ? "See what's new" : "See changelog"}
-		</a>
 	{/if}
 </section>
 
@@ -291,11 +295,13 @@
 	}
 
 	.cl-link {
-		display: inline-flex;
+		display: flex;
+		justify-content: space-between;
 		align-items: center;
-		gap: var(--s-2);
+		width: 100%;
 		min-height: 44px;
 		color: var(--accent);
+		text-decoration: none;
 	}
 
 	.pill {

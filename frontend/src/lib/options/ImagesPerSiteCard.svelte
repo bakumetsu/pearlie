@@ -2,7 +2,6 @@
 	import { untrack } from "svelte";
 	import { options } from "../stores/options.svelte";
 	import type { OptionsStore } from "../stores/options.svelte";
-	import NumberStepper from "./NumberStepper.svelte";
 
 	let { store = options }: { store?: OptionsStore } = $props();
 
@@ -36,20 +35,18 @@
 	<div class="row">
 		<label class="row-label" for="images-per-site">Images at a time</label>
 		<span class="muted">default 10</span>
-		<NumberStepper label="images at a time">
-			<input
-				id="images-per-site"
-				type="number"
-				inputmode="numeric"
-				min={1}
-				max={16}
-				step={1}
-				data-testid="images-per-site"
-				aria-label="Images at a time per site"
-				value={draft}
-				onchange={handleChange}
-			/>
-		</NumberStepper>
+		<input
+			id="images-per-site"
+			type="number"
+			inputmode="numeric"
+			min={1}
+			max={16}
+			step={1}
+			data-testid="images-per-site"
+			aria-label="Images at a time per site"
+			value={draft}
+			onchange={handleChange}
+		/>
 	</div>
 	{#if error}<span class="err" role="alert">{error}</span>{/if}
 </section>
