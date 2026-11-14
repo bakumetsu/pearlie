@@ -21,6 +21,7 @@
   import ImageViewerCard from "../lib/options/ImageViewerCard.svelte";
   import ListsCard from "../lib/options/ListsCard.svelte";
   import DownloadsCard from "../lib/options/DownloadsCard.svelte";
+  import ImagesPerSiteCard from "../lib/options/ImagesPerSiteCard.svelte";
   import StatusCard from "../lib/options/StatusCard.svelte";
   import UpdateCard from "../lib/options/UpdateCard.svelte";
   import ThumbCacheCard from "../lib/options/ThumbCacheCard.svelte";
@@ -218,6 +219,8 @@
     <DiscoverCard />
   {:else if sectionId === "sources" && card.title === "Downloads"}
     <DownloadsCard />
+  {:else if sectionId === "sources" && card.title === "Browsing"}
+    <ImagesPerSiteCard />
   {:else if sectionId === "save-folders" && card.title === "Save folders"}
     <SaveFoldersCard />
   {:else if sectionId === "trash" && card.title === "Retention"}

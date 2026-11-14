@@ -52,6 +52,7 @@ class Options(BaseModel):
     backdrop_lightbox: StrictBool = True
     allow_blurred_tags: StrictBool = False
     trash_retention_days: StrictInt = Field(default=7, ge=1, le=365)
+    images_per_site: StrictInt = Field(default=10, ge=1, le=16)
     infinite_scroll: StrictBool = False
     place_mode: Literal["auto", "suggest"] = "suggest"
     source_pace: dict[str, SitePace] = {}
@@ -78,6 +79,7 @@ class OptionsUpdate(BaseModel):
     backdrop_lightbox: StrictBool | None = None
     allow_blurred_tags: StrictBool | None = None
     trash_retention_days: StrictInt | None = Field(default=None, ge=1, le=365)
+    images_per_site: StrictInt | None = Field(default=None, ge=1, le=16)
     confirm_purge: StrictBool | None = None
     infinite_scroll: StrictBool | None = None
     place_mode: Literal["auto", "suggest"] | None = None
@@ -191,6 +193,26 @@ def _thumb_cache_max_mb(request: Request) -> int:
     return v
 
 
+IMAGES_PER_SITE_KEY = "options.global.images_per_site"
+
+
+def images_per_site(app: FastAPI) -> int:
+    """Images fetched at a time per site for web browsing streams (default 10, 1-16)."""
+    if app.state.settings.mode == "fixture":
+        mem: dict[str, str] | None = getattr(app.state, "options_mem", None)
+        raw = mem.get(IMAGES_PER_SITE_KEY) if mem else None
+    else:
+        conn = connect(app.state.settings.db_path)
+        try:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (IMAGES_PER_SITE_KEY,)
+            ).fetchone()
+        finally:
+            conn.close()
+        raw = row["value"] if row is not None else None
+    return min(16, max(1, int(_num(raw, 10))))
+
+
 def _effective_pace(app: FastAPI, site: str) -> tuple[float, bool]:
     """Return (value, locked) for the given site's pace."""
     settings = app.state.settings
@@ -268,6 +290,8 @@ def get_options(request: Request) -> Options:
     trd_raw = str(store.retention_days) if fixture else read("options.global.trash_retention_days")
     trash_retention_days: int = min(365, max(1, int(_num(trd_raw, 7))))
 
+    ips = min(16, max(1, int(_num(read(IMAGES_PER_SITE_KEY), 10))))
+
     is_raw = read("options.global.infinite_scroll")
     infinite_scroll: bool = is_raw == "1"
 
@@ -334,6 +358,7 @@ def get_options(request: Request) -> Options:
         backdrop_lightbox=backdrop_lightbox,
         allow_blurred_tags=allow_blurred_tags,
         trash_retention_days=trash_retention_days,
+        images_per_site=ips,
         infinite_scroll=infinite_scroll,
         place_mode=place_mode,
         source_pace=source_pace,
@@ -378,6 +403,9 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
         write("options.global.trash_retention_days", str(body.trash_retention_days))
         if fixture:
             store.set_retention(body.trash_retention_days, purge=body.confirm_purge is True)
+
+    if body.images_per_site is not None:
+        write(IMAGES_PER_SITE_KEY, str(body.images_per_site))
 
     if body.hidden_sites is not None:
         for site in body.hidden_sites:

@@ -1,8 +1,10 @@
 """Async slot scheduler for web image fetches (D-21 amendment A1).
 
-Per site and image host class (`t` thumbs and covers, `i` full pages) there is one priority
-queue and an adaptive number of fetch slots: they ramp up on clean fetches and drop to one on
-403/429/Retry-After or a run of slow fetches. The fetch itself stays sync (threadpool).
+Per site and image host class (`t` thumbs and covers, `i` full images and pages) there is one
+priority queue and an adaptive number of fetch slots. The slots start at the setting "images at a
+time per site" (default 10, 1-16). On 403/429/503 or Retry-After the site gets a pause and falls
+back to the browser level (6); a further error during the next run drops it lower; clean fetches
+bring it back to the setting slowly. The fetch itself stays sync (threadpool).
 """
 
 from __future__ import annotations
@@ -21,8 +23,10 @@ logger = logging.getLogger("pearlie.image_slots")
 Prio = Literal["focus", "cover", "prefetch"]
 HostClass = Literal["t", "i"]
 RANK: dict[str, int] = {"focus": 0, "cover": 1, "prefetch": 2}
-START_SLOTS: dict[str, int] = {"t": 4, "i": 2}
-DEFAULT_CEILING: dict[str, int] = {"t": 8, "i": 4}
+DEFAULT_SLOTS = 10
+MIN_SLOTS = 1
+MAX_SLOTS = 16
+BROWSER_LEVEL = 6  # what a browser opens per host: the fallback level
 RAMP_EVERY = 10
 RECOVER_EVERY = 30
 RAMP_BLOCK_S = 600.0
@@ -33,7 +37,8 @@ SLOW_RUN = 3
 WAIT_CAP_S = 20.0
 POLL_S = 0.25
 CEILING_TTL_S = 5.0
-STALE_GRANT_S = 180.0  # a slot never finished (stream never started) is taken back
+STREAM_LIMIT_S = 300.0  # one image stream may run this long in all
+STALE_GRANT_S = 600.0  # a slot never finished (stream never started) is taken back
 
 
 class Busy(Exception):
@@ -42,6 +47,10 @@ class Busy(Exception):
 
 class Gone(Exception):
     """The client left while the request waited."""
+
+
+def clamp_slots(value: int | None) -> int:
+    return DEFAULT_SLOTS if value is None else max(MIN_SLOTS, min(MAX_SLOTS, value))
 
 
 def parse_prio(value: str | None, default: Prio) -> Prio:
@@ -96,9 +105,8 @@ class Limiter:
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.host_class = host_class
-        self.start = START_SLOTS[host_class]
-        self.ceiling = max(1, ceiling if ceiling is not None else DEFAULT_CEILING[host_class])
-        self.slots = min(self.start, self.ceiling)
+        self.ceiling = clamp_slots(ceiling)
+        self.slots = self.ceiling
         self._clock = clock
         self._loop: asyncio.AbstractEventLoop | None = None
         self._heap: list[_Entry] = []
@@ -108,13 +116,14 @@ class Limiter:
         self._slow = 0
         self._pause_until = 0.0
         self._ramp_blocked_until = 0.0
+        self._fell_back = False
 
     @property
     def in_flight(self) -> int:
         return len(self._active)
 
     def set_ceiling(self, ceiling: int) -> None:
-        self.ceiling = max(1, ceiling)
+        self.ceiling = clamp_slots(ceiling)
         self.slots = min(self.slots, self.ceiling)
 
     def _dispatch(self) -> None:
@@ -142,25 +151,37 @@ class Limiter:
 
     def _record(self, status: int, retry_after: float | None, elapsed: float) -> None:
         now = self._clock()
-        if status in (403, 429) or retry_after is not None:
+        if status in (403, 429, 503) or retry_after is not None:
             pause = BACKOFF_PAUSE_S
             if retry_after is not None:
                 pause = min(MAX_PAUSE_S, max(pause, retry_after))
-            self.slots = 1
-            self._pause_until = now + pause
+            # answers of requests sent before the pause started are one event, not new errors
+            fresh = now >= self._pause_until
+            if not self._fell_back:
+                self.slots = min(self.slots, BROWSER_LEVEL)
+                self._fell_back = True
+            elif fresh:
+                self.slots = max(MIN_SLOTS, self.slots // 2)
+            self._pause_until = max(self._pause_until, now + pause)
             self._ramp_blocked_until = now + RAMP_BLOCK_S
             self._clean = self._slow = 0
-            logger.warning("backoff host=%s status=%d pause=%.0fs", self.host_class, status, pause)
+            logger.warning(
+                "backoff host=%s status=%d pause=%.0fs slots=%d",
+                self.host_class,
+                status,
+                pause,
+                self.slots,
+            )
             return
         if status >= 400:
             return
         if elapsed > SLOW_S:
             self._slow += 1
             self._clean = 0
-            if self._slow >= SLOW_RUN and self.slots > 1:
-                self.slots = 1
+            if self._slow >= SLOW_RUN and self.slots > MIN_SLOTS:
+                self.slots = min(self.slots - 1, BROWSER_LEVEL)
                 self._slow = 0
-                logger.warning("slow spell host=%s: one slot", self.host_class)
+                logger.warning("slow spell host=%s: slots=%d", self.host_class, self.slots)
             return
         self._slow = 0
         self._clean += 1
@@ -168,6 +189,8 @@ class Limiter:
         if self._clean >= every and self.slots < self.ceiling:
             self.slots += 1
             self._clean = 0
+            if self.slots >= self.ceiling:
+                self._fell_back = False
 
     async def acquire(
         self,
@@ -205,27 +228,74 @@ class Limiter:
 class SlotScheduler:
     """All limiters of the app, keyed by site and host class."""
 
-    def __init__(self, ceilings: Callable[[str], int | None] | None = None) -> None:
-        self._ceilings = ceilings
+    def __init__(self, ceiling: Callable[[], int | None] | None = None) -> None:
+        self._read = ceiling
         self._limiters: dict[tuple[str, str], Limiter] = {}
-        self._read_at: dict[str, tuple[float, int | None]] = {}
+        self._read_at: tuple[float, int | None] | None = None
 
-    def _ceiling(self, host_class: str) -> int | None:
-        """The settings ceiling, read at most every CEILING_TTL_S (not one DB read per image)."""
-        if self._ceilings is None:
+    def _ceiling(self) -> int | None:
+        """The setting, read at most every CEILING_TTL_S (not one DB read per image)."""
+        if self._read is None:
             return None
         now = time.monotonic()
-        hit = self._read_at.get(host_class)
-        if hit is None or now - hit[0] >= CEILING_TTL_S:
-            hit = self._read_at[host_class] = (now, self._ceilings(host_class))
-        return hit[1]
+        if self._read_at is None or now - self._read_at[0] >= CEILING_TTL_S:
+            self._read_at = (now, self._read())
+        return self._read_at[1]
 
     def limiter(self, site: str, host_class: str) -> Limiter:
         key = (site, host_class)
         lim = self._limiters.get(key)
-        ceiling = self._ceiling(host_class)
+        ceiling = self._ceiling()
         if lim is None:
             lim = self._limiters[key] = Limiter(host_class, ceiling)
-        elif ceiling is not None and ceiling != lim.ceiling:
+        elif ceiling is not None and clamp_slots(ceiling) != lim.ceiling:
             lim.set_ceiling(ceiling)
         return lim
+
+
+def scheduler(app) -> SlotScheduler:
+    """The app's one scheduler; its ceiling is the stored setting."""
+    from app.api.options import images_per_site
+
+    sched = getattr(app.state, "image_slots", None)
+    if sched is None:
+        sched = app.state.image_slots = SlotScheduler(lambda: images_per_site(app))
+    return sched
+
+
+class SlotBody:
+    """Streams an upstream body under a size and time cap; frees response and slot once."""
+
+    def __init__(
+        self,
+        resp,
+        slot: Slot,
+        max_bytes: int | None = None,
+        time_limit: float = STREAM_LIMIT_S,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._resp, self._slot = resp, slot
+        self._status = resp.status_code
+        self._max_bytes = max_bytes
+        self._clock = clock
+        self._deadline = clock() + time_limit
+        self._complete = False
+
+    def __iter__(self):
+        sent = 0
+        try:
+            for chunk in self._resp.iter_raw():
+                sent += len(chunk)
+                if self._max_bytes is not None and sent > self._max_bytes:
+                    return  # cut: the client sees a short body
+                yield chunk
+                if self._clock() > self._deadline:
+                    logger.warning("stream cut: time limit")
+                    return
+            self._complete = True
+        finally:
+            self.close()
+
+    def close(self) -> None:
+        self._resp.close()
+        self._slot.finish(self._status if self._complete else None)

@@ -31,12 +31,12 @@ def test_finish_from_thread_wakes_waiter():
 def test_ceiling_read_is_cached():
     calls: list[str] = []
 
-    def read(host_class: str) -> int | None:
-        calls.append(host_class)
+    def read() -> int | None:
+        calls.append("read")
         return 3
 
     sched = SlotScheduler(read)
     for _ in range(5):
         sched.limiter("nhentai", "t")
-    assert calls == ["t"]
+    assert calls == ["read"]
     assert sched.limiter("nhentai", "t").ceiling == 3
