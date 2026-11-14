@@ -25,6 +25,7 @@ function makeOptions(overrides: Partial<Options> = {}): Options {
     infinite_scroll: false,
     hidden_sites: [],
     site_order: [],
+    thumb_cache: { max_mb: 1024, used_mb: 0, files: 0, available: true },
     source_pace: { danbooru: { value: 1, default: 1, locked: false, backing_off: false } },
     ...overrides,
   };
