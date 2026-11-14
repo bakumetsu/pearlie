@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 # Bump on every new column or table (test_db.py snapshot guard fails otherwise).
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS jobs (
