@@ -47,6 +47,7 @@ STALE_S = 3600
 VERIFY_TRIES = 5
 VERIFY_DELAY_S = 2.0
 VERIFY_PAGE_SIZE = 50
+STALE_GRACE = "-1 day"  # Komga may not have scanned a fresh save yet
 
 
 def _file_name(post: Post) -> str:
@@ -488,16 +489,33 @@ class KomgaTarget:
     def drop_if_gone(self, source: str, post_id: str) -> bool:
         """Drop the index row of a post when Komga no longer has its book.
 
-        One search per dedupe hit. A Komga error keeps the row: only a clear
-        "no matching book" counts as gone.
+        One search per dedupe hit. A row younger than STALE_GRACE, a Komga error
+        and a full result page keep the row: only a clear "no matching book"
+        counts as gone.
         """
         tag = f"source={source} post={post_id}"
+        conn = connect(self._settings.db_path)
+        try:
+            fresh = conn.execute(
+                "SELECT 1 FROM saved_items WHERE target = 'komga' AND source = ? "
+                "AND post_id = ? AND created_at > datetime('now', ?)",
+                (source, post_id, STALE_GRACE),
+            ).fetchone()
+        finally:
+            conn.close()
+        if fresh is not None:
+            logger.info("KOMGA %s stale check skipped: saved within the grace period", tag)
+            return False
         try:
             page = self._client.list_books(0, VERIFY_PAGE_SIZE, post_id, "createdDate,desc")
         except KomgaError as e:
             logger.warning("KOMGA %s stale check failed code=%s status=%s", tag, e.code, e.status)
             return False
-        if any(self._book_matches(b, post_id) for b in page.get("content", [])):
+        books = page.get("content", [])
+        if any(self._book_matches(b, post_id) for b in books):
+            return False
+        if len(books) >= VERIFY_PAGE_SIZE:
+            logger.warning("KOMGA %s stale check inconclusive: full result page", tag)
             return False
         conn = connect(self._settings.db_path)
         try:
