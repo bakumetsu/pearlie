@@ -19,6 +19,7 @@
   import FilterPanel from "../lib/components/FilterPanel.svelte";
   import SectionRow from "../lib/components/SectionRow.svelte";
   import Tile from "../lib/components/Tile.svelte";
+  import { saveWebItem } from "../lib/web/saveFlow";
   import Lightbox from "../lib/components/Lightbox.svelte";
 
   let { match }: { match: Match } = $props();
@@ -139,23 +140,11 @@
     lightbox ? tileSavedHref(lightbox) : undefined
   );
 
-  async function doSave(item: WebItem): Promise<void> {
-    const answer = await placement.ask(item);
-    if (answer === null) return;
-    const r = await search.save(item, answer.placement);
-    switch (r.result) {
-      case "queued":
-        toasts.push({ kind: "info", message: "Added to queue", actionLabel: "View", href: "/queue" });
-        break;
-      case "in_library":
-        break;
-      case "blocked":
-        toasts.push({ kind: "error", message: "Blocked by a rule" });
-        break;
-      case "error":
-        toasts.push({ kind: "error", message: "Could not save. Try again." });
-        break;
-    }
+  function doSave(item: WebItem): Promise<void> {
+    return saveWebItem(
+      { ask: (i) => placement.ask(i), save: (i, p) => search.save(i, p), toast: (t) => toasts.push(t) },
+      item,
+    );
   }
 
   const noResults = $derived(
@@ -251,7 +240,7 @@
           onretry={() => search.retrySection(id)}
           onnavigate={(e) => linkClick(e, router)}
         >
-          {#each visibleInSafeMode(entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (lightbox = item)} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
+          {#each visibleInSafeMode(entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (item.source === "nhentai" ? router.navigate("/web/nhentai/" + encodeURIComponent(item.post_id)) : (lightbox = item))} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
         </SectionRow>
       {/if}
     {/each}

@@ -83,7 +83,7 @@ export function webSource(api: Api, source: string, id: string, query: URLSearch
       setWebPage(key, page, count);
     },
     backTarget() {
-      return "/";
+      return "/web/" + encodeURIComponent(source) + "/" + encodeURIComponent(id);
     },
   };
 }
