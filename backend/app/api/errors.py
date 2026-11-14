@@ -25,7 +25,9 @@ def install(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def _api_error(request: Request, exc: ApiError) -> JSONResponse:
         content = {"code": exc.code, "message": exc.message, **exc.extra}
-        return JSONResponse(status_code=exc.status, content=content)
+        return JSONResponse(
+            status_code=exc.status, content=content, headers={"Cache-Control": "no-store"}
+        )
 
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
