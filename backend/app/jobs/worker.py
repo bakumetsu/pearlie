@@ -144,6 +144,20 @@ class JobWorker:
         finally:
             logs.reset_job(token)
 
+    def _progress_cb(self, job_id: str) -> Callable[[int, int], None]:
+        """Store pages done/total and a linear eta after each page."""
+        t0 = self._clock()
+
+        def report(done: int, total: int) -> None:
+            elapsed = max(0.0, self._clock() - t0)
+            eta = elapsed / done * (total - done) if done > 0 else None
+            try:
+                self._store.set_progress(job_id, done, total, eta)
+            except Exception as e:
+                logger.warning("job=%s progress write failed: %s", job_id, type(e).__name__)
+
+        return report
+
     def _finish_failed(self, job_id: str, error: str, error_code: str) -> None:
         """Write the failed row; retry once so a transient DB error cannot leave it running."""
         for attempt in (1, 2):
@@ -194,8 +208,10 @@ class JobWorker:
 
             tags = sorted({tag for group in post.tags.values() for tag in group})
             placement = self._store.load_placement(job_id)
-            if placement and isinstance(target, KomgaTarget):
-                result = target.save(post, tags, placement=placement)
+            if isinstance(target, KomgaTarget):
+                result = target.save(
+                    post, tags, placement=placement, on_progress=self._progress_cb(job_id)
+                )
             else:
                 result = target.save(post, tags)
 

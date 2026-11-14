@@ -20,6 +20,15 @@ def _utc_iso(value: str | None) -> str | None:
     return value.replace(" ", "T", 1) + "Z"
 
 
+def _progress(row: sqlite3.Row) -> float:
+    if row["status"] == "done":
+        return 1.0
+    total = row["pages_total"]
+    if row["status"] == "running" and total:
+        return min(1.0, max(0.0, (row["pages_done"] or 0) / total))
+    return 0.0
+
+
 def _to_job(row: sqlite3.Row) -> Job:
     data: dict[str, object] = {
         "id": str(row["id"]),
@@ -29,8 +38,10 @@ def _to_job(row: sqlite3.Row) -> Job:
         "thumb_url": row["thumb_url"],
         "target": row["target"],
         "state": row["status"],
-        "progress": 1.0 if row["status"] == "done" else 0.0,
-        "eta_s": None,
+        "progress": _progress(row),
+        "eta_s": row["eta_s"] if row["status"] == "running" else None,
+        "pages_done": row["pages_done"],
+        "pages_total": row["pages_total"],
         "error": row["error"],
         "dest_path": row["dest_path"],
         "error_code": row["error_code"],
@@ -192,6 +203,7 @@ class JobStore:
                     "UPDATE jobs SET status='queued', error=NULL, error_code=NULL, "
                     "notices='[]', post_json=NULL, library_ref_id=NULL, dest_path=NULL, "
                     "started_at=NULL, finished_at=NULL, attempts=attempts+1, restarts=0, "
+                    "pages_done=NULL, pages_total=NULL, eta_s=NULL, "
                     "updated_at=CURRENT_TIMESTAMP "
                     "WHERE id=? AND status IN ('failed', 'needs_click')",
                     (job_id,),
@@ -242,6 +254,7 @@ class JobStore:
             )
             cur = conn.execute(
                 "UPDATE jobs SET status='queued', started_at=NULL, restarts=restarts+1, "
+                "pages_done=NULL, pages_total=NULL, eta_s=NULL, "
                 "updated_at=CURRENT_TIMESTAMP WHERE status='running'"
             )
             conn.commit()
@@ -306,6 +319,20 @@ class JobStore:
         except (ValueError, AttributeError):
             return None
         return kind if kind in ("series", "oneshot") else None
+
+    def set_progress(
+        self, job_id: str, pages_done: int, pages_total: int, eta_s: float | None
+    ) -> None:
+        conn = connect(self._path)
+        try:
+            conn.execute(
+                "UPDATE jobs SET pages_done=?, pages_total=?, eta_s=?, "
+                "updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='running'",
+                (pages_done, pages_total, eta_s, job_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
     def set_post(self, job_id: str, post: Post) -> None:
         conn = connect(self._path)

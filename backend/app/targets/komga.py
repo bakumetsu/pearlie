@@ -137,7 +137,13 @@ class KomgaTarget:
                 raise SaveError("host_not_allowed", f"file host not allowed for {post.source}", 422)
         return urls
 
-    def _fetch(self, urls: list[str], work: Path, post: Post) -> list[Path]:
+    def _fetch(
+        self,
+        urls: list[str],
+        work: Path,
+        post: Post,
+        on_progress: Callable[[int, int], None] | None = None,
+    ) -> list[Path]:
         src = self._sources[post.source]
         assert isinstance(src, NHentai)
         throttle = self._throttles.get(post.source)
@@ -170,6 +176,8 @@ class KomgaTarget:
             if written == 0:
                 raise SaveError("size_mismatch", f"page {n} is empty", 502)
             pages.append(part)
+            if on_progress:
+                on_progress(n, len(urls))
         return pages
 
     def _place_mode(self) -> str:
@@ -311,7 +319,13 @@ class KomgaTarget:
                 continue
             logger.info("KOMGA %s move done", tag)
 
-    def save(self, post: Post, tags: list[str], placement: str | None = None) -> SaveResult:
+    def save(
+        self,
+        post: Post,
+        tags: list[str],
+        placement: str | None = None,
+        on_progress: Callable[[int, int], None] | None = None,
+    ) -> SaveResult:
         """Download the gallery, pack it as a CBZ, place it in Komga's folder, scan.
 
         *placement* ("series" or "oneshot") overrides the suggested kind.
@@ -345,7 +359,7 @@ class KomgaTarget:
             ) from None
         try:
             try:
-                pages = self._fetch(urls, work, post)
+                pages = self._fetch(urls, work, post, on_progress)
                 logger.info("KOMGA %s downloaded pages=%d", tag, len(pages))
                 cbz = work / "gallery.cbz.part"
                 build_cbz(cbz, pages, post, plan)

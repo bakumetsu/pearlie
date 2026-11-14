@@ -115,8 +115,20 @@ describe("pollDelayMs", () => {
 });
 
 describe("etaLabel", () => {
-  it("returns null for running job", () => {
+  it("returns null for running job without pages", () => {
     expect(etaLabel(mk({ state: "running", eta_s: 5 }))).toBeNull();
+  });
+
+  it("shows pages and time left for a running job", () => {
+    expect(
+      etaLabel(mk({ state: "running", pages_done: 2, pages_total: 8, eta_s: 4.2 })),
+    ).toBe("2/8 pages, ~5 s left");
+  });
+
+  it("shows pages only when no eta yet", () => {
+    expect(etaLabel(mk({ state: "running", pages_done: 0, pages_total: 8 }))).toBe(
+      "0/8 pages",
+    );
   });
 
   it("returns null when eta_s is 0", () => {

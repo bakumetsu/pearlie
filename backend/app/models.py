@@ -244,6 +244,8 @@ class Job(BaseModel):
     state: JobState
     progress: float = 0.0
     eta_s: float | None = None
+    pages_done: int | None = None
+    pages_total: int | None = None
     error: str | None = None
     error_code: str | None = None
     library_ref: SavedRef | None = None
