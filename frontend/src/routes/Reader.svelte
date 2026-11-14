@@ -304,13 +304,17 @@
 		fullscreen = document.fullscreenElement != null;
 	}
 
+	function onPageHide() {
+		progress.flush(true);
+	}
+
 	// ── lifecycle ──────────────────────────────────────────────────────
 	onMount(() => {
 		settings = loadSettings();
 		hide.poke();
 		window.addEventListener("keydown", onKey);
 		window.addEventListener("pointermove", onPointer);
-		window.addEventListener("pagehide", () => progress.flush(true));
+		window.addEventListener("pagehide", onPageHide);
 		document.addEventListener("fullscreenchange", onFsChange);
 	});
 
@@ -319,6 +323,7 @@
 		hide.destroy();
 		window.removeEventListener("keydown", onKey);
 		window.removeEventListener("pointermove", onPointer);
+		window.removeEventListener("pagehide", onPageHide);
 		document.removeEventListener("fullscreenchange", onFsChange);
 	});
 </script>

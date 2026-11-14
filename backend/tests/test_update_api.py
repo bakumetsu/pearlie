@@ -226,6 +226,24 @@ def test_apply_real_mode_starts_update(client: TestClient, tmp_path: Path) -> No
     assert any("systemd-run" in str(argv[0]) for argv in fake_run.calls if argv)
 
 
+def test_apply_with_check_off_never_calls_github(client: TestClient, tmp_path: Path) -> None:
+    fake_run = _FakeRun(systemd_returncode=0)
+    _enable_real_mode(client, tmp_path, fake_run)
+    app = cast(FastAPI, client.app)
+    client.put("/api/update/settings", json={"check_enabled": False})
+
+    class _Cold(_FakeChecker):
+        def cached(self, channel: str) -> _CheckResult | None:
+            return None
+
+    checker = _Cold("available")
+    app.state.update_checker = checker
+
+    resp = client.post("/api/update/apply")
+    assert resp.status_code == 409
+    assert checker.check_calls == 0
+
+
 def test_apply_real_mode_up_to_date(client: TestClient, tmp_path: Path) -> None:
     fake_run = _FakeRun(systemd_returncode=0)
     _enable_real_mode(client, tmp_path, fake_run)
