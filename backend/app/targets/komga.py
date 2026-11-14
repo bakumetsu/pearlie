@@ -236,6 +236,14 @@ class KomgaTarget:
         )
         return plan
 
+    def suggest(self, post: Post) -> Plan:
+        """The plan a save would use now. Writes nothing: no folder, no file, no job."""
+        folder = self._folder(post.source)
+        oneshots = self._oneshots(folder, f"source={post.source} post={post.post_id}")
+        return self._plan(
+            post, Path(folder), oneshots, None, [], f"source={post.source} post={post.post_id}"
+        )
+
     @staticmethod
     def _target_dir(
         plan: Plan, dest_dir: Path, oneshots: OneshotsDir, notices: list[Problem]
