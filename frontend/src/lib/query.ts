@@ -203,9 +203,6 @@ export function filterChips(s: SearchState): FilterChip[] {
     out.push({ key: "pill", label: PILLS.find((p) => p.id === s.pill)?.label ?? s.pill, remove: { pill: "all" } });
   }
   if (!isDefaultSites(s.sites)) {
-    if (s.sites.length === 0) {
-      out.push({ key: "sites", label: "No sites", remove: { sites: DEFAULT_SITES } });
-    }
     for (const id of s.sites) {
       out.push({
         key: "site:" + id,
