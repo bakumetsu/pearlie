@@ -28,6 +28,12 @@ describe("item and read routes", () => {
     expect(m.query.get("p")).toBe("4");
   });
 
+  it("matches /web/nhentai/123 as web-book", () => {
+    const m = matchRoute("/web/nhentai/123", "");
+    expect(m.name).toBe("web-book");
+    expect(m.params).toEqual({ source: "nhentai", id: "123" });
+  });
+
   it("returns not_found for /item/images (missing id)", () => {
     const m = matchRoute("/item/images", "");
     expect(m.name).toBe("not_found");

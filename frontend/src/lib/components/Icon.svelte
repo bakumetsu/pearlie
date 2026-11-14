@@ -13,7 +13,7 @@
     | "skip-back" | "skip-forward" | "rewind" | "fast-forward" | "replay-10" | "forward-10"
     | "zoom-in" | "zoom-out" | "info" | "order" | "shield"
     | "wand-sparkles" | "mouse-pointer"
-    | "octagon-x" | "triangle-alert" | "bug" | "copy" | "history";
+    | "ban" | "octagon-x" | "triangle-alert" | "bug" | "copy" | "history";
 
   const paths: Record<IconName, string[]> = {
     "search": [
@@ -388,6 +388,10 @@
     ],
     "shield": [
       "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
+    ],
+    "ban": [
+      "M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0",
+      "m4.9 4.9 14.2 14.2",
     ],
     "octagon-x": [
       "m15 9-6 6",

@@ -11,6 +11,7 @@
   import Trash from "./routes/Trash.svelte";
   import Options from "./routes/Options.svelte";
   import Reader from "./routes/Reader.svelte";
+  import WebBook from "./routes/WebBook.svelte";
   import { setApi, createApi } from "./lib/api/client";
   import Nav from "./lib/components/Nav.svelte";
   import Toast from "./lib/components/Toast.svelte";
@@ -96,6 +97,8 @@
       <Item {match} />
     {:else if match.name === "read" || match.name === "read-web"}
       <Reader {match} />
+    {:else if match.name === "web-book"}
+      <WebBook {match} />
     {:else if match.name === "queue"}
       <Queue />
     {:else if match.name === "options"}

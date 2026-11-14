@@ -86,7 +86,7 @@ describe("webSource", () => {
   });
 
   it("back target is the discover page", () => {
-    expect(webSource(fakeApi(), "nhentai", "1", new URLSearchParams()).backTarget()).toBe("/");
+    expect(webSource(fakeApi(), "nhentai", "1", new URLSearchParams()).backTarget()).toBe("/web/nhentai/1");
   });
 });
 

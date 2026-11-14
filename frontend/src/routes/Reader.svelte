@@ -1,7 +1,12 @@
 <script lang="ts">
 	import { onMount, onDestroy, untrack } from "svelte";
 	import { getApi } from "../lib/api/client";
-	import type { LibraryItem } from "../lib/api/client";
+	import type { LibraryItem, WebItem } from "../lib/api/client";
+	import { createSearch } from "../lib/stores/search.svelte";
+	import { placement } from "../lib/stores/placement.svelte";
+	import { toasts } from "../lib/stores/toasts.svelte";
+	import { saveWebItem, saveStateFor, savedHrefFor } from "../lib/web/saveFlow";
+	import type { SaveSlot } from "../lib/reader/saveSlot";
 	import { komgaSource, webSource, type ReaderSource } from "../lib/reader/source";
 	import { getRouter } from "../lib/ctx";
 	import type { Match } from "../lib/router";
@@ -56,6 +61,25 @@
 	let thumbTpl = $state<string | null>(null);
 	let books = $state<LibraryItem[]>([]);
 	let notice = $state<string | null>(null);
+	let saveItem = $state<WebItem | null>(null);
+	const searchStore = createSearch(api);
+	const saveSlot = $derived<SaveSlot | undefined>(
+		saveItem
+			? {
+					state: saveStateFor(saveItem, searchStore.saveStateOf(saveItem)),
+					href: savedHrefFor(saveItem, searchStore.saveStateOf(saveItem)),
+					disabled: saveItem.saveable === false,
+					onsave: () => {
+						const it = saveItem;
+						if (!it) return;
+						void saveWebItem(
+							{ ask: (i) => placement.ask(i), save: (i, p) => searchStore.save(i, p), toast: (t) => toasts.push(t) },
+							it,
+						);
+					},
+				}
+			: undefined,
+	);
 	let wide = $state<Set<number>>(new Set<number>());
 	let est = $state<{ w: number; h: number } | null>(null);
 	let atEnd = $state(false);
@@ -132,6 +156,7 @@
 		popover = null;
 		books = [];
 		notice = null;
+		saveItem = null;
 		setSettings({ zoom: 100 });
 
 		try {
@@ -142,6 +167,7 @@
 			thumbTpl = d.thumbTpl;
 			books = d.books;
 			notice = d.notice;
+			saveItem = d.save?.item ?? null;
 			page = clampPage(d.start, count);
 			status = "ready";
 		} catch {
@@ -398,6 +424,7 @@
 			onclosepopover={() => (popover = null)}
 			onhover={(v) => hide.setHover(v)}
 			onfocus={(v) => hide.setFocus(v)}
+			save={saveSlot}
 		/>
 
 		<div class="sr-only" aria-live="polite">Page {page} of {count}</div>
