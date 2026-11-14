@@ -91,7 +91,11 @@ def test_parse_title_cases(k):
             "English",
         )
     if k == 6:
-        assert (p.event, p.translator, p.language) == ("COMIC Anthurium 2021-03", "Nisor", "English")
+        assert (p.event, p.translator, p.language) == (
+            "COMIC Anthurium 2021-03",
+            "Nisor",
+            "English",
+        )
         assert p.title_sub == "Otonashi Ookami"
     if k == 0:
         assert p.language == "English" and p.translator is None  # cut-off "[Coffed" dropped

@@ -19,7 +19,7 @@ The web app comes first (self-hosted, then PWA). A native iOS client (SwiftUI) f
 2. **Never exposed directly.** Access only through Tailscale/WireGuard or a reverse proxy with login. Outbound calls go only to the configured sites (including their `/favicon.ico` for the Discover site icons and their thumbnail CDN hosts, fetched through the thumbnail cache), Stash and Komga, and to GitHub (`api.github.com` for the update check, `codeload.github.com` for the update download; no tokens; can be turned off).
 3. **Secrets stay local.** API keys and site cookies live in `.env` or the local config, are never logged and never reach the browser. Clients never get Stash or Komga keys. Secrets may be typed into the Options page (write-only, stored encrypted); they are never shown, logged or sent to the browser.
 4. **No delete without undo.** Library deletes go to a Pearlie trash folder with an Undo toast; real deletion happens after a retention period the user sets.
-5. **Polite to sites.** Every source has a throttle; one download at a time per site by default.
+5. **Polite to sites.** Every source has a throttle; one download at a time per site by default. Exception (user decision 2026-11-14, web image routes only): `/api/media/web/{source}/{post_id}/pages/...` runs an adaptive per-site limiter: thumbnails start at 4 parallel and grow to 8, pages start at 2 and grow to 4 (settings `image_slots_thumb_max`, `image_slots_page_max`); a 403, a 429 or a slow answer drops the site back to 1. API calls keep the 2 s pace.
 6. **Thin clients.** All logic lives in the backend. The web UI and the iOS app only call the JSON API.
 7. **UI:** no clutter, icons over text in tight bars, touch targets at least 44 px.
 
@@ -163,6 +163,9 @@ Notes:
 | DELETE | `/api/trash` | Empty: permanently delete everything in the trash, returns `{removed}` (the real deletion rule 4 allows; the UI asks to confirm first). Fixture mode only for now; in real mode the route is absent (404), never an empty list |
 | GET | `/api/media/...` | proxy for thumbnails, images, video (Range), book pages |
 | GET | `/api/media/web/{source}/{post_id}/thumb` | web-site tile thumbnail, cached on disk and fetched through a per-site thumbnail lane (one at a time, 0.25 s, site-wide backoff on 429/503); a hit never touches the site. `source` is one of the four web sites, `post_id` matches `[A-Za-z0-9_-]{1,32}`, else 404 |
+| GET | `/api/media/web/nhentai/{id}/book` | book meta (title parts from `parse_title`, page count, tags), cached 10 min |
+| GET | `/api/media/web/nhentai/{id}/pages/{n}` | one page image streamed from the site, nothing stored; `?prio=focus\|cover\|prefetch` sets the queue priority; 20 MB cap |
+| GET | `/api/media/web/nhentai/{id}/pages/{n}/thumb` | page thumbnail, same limiter and `prio` |
 | POST | `/api/thumb-cache/clear` | delete every cached thumbnail; answers `{freed_mb}`; no Undo (the cache is disposable) |
 | POST | `/api/save` `{source, post_id}` | rules, dedupe (409), queue; returns job id |
 | GET / POST / DELETE | `/api/jobs`, `/api/jobs/{id}`, `/retry` | queue (newest first; `?state=` CSV; jobs carry `notices`). Worker: one job per site, 2 s gap (`PEARLIE_DOWNLOAD_INTERVAL_S`), running jobs requeued at startup, at most 3 times in a row (`restarts` column, `MAX_RESTARTS` in jobs/store.py), then failed with `restart_limit` until the user retries (retry resets the count); a failed `finish` is retried once; a row still stuck is bounded by the restart cap |

@@ -368,6 +368,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/media/web/nhentai/{gid}/book": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Book */
+        get: operations["book_api_media_web_nhentai__gid__book_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/media/web/nhentai/{gid}/pages/{n}/thumb": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Page Thumb */
+        get: operations["page_thumb_api_media_web_nhentai__gid__pages__n__thumb_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/media/web/nhentai/{gid}/pages/{n}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Page */
+        get: operations["page_api_media_web_nhentai__gid__pages__n__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/media/komga/series/{id}/thumb": {
         parameters: {
             query?: never;
@@ -2223,6 +2274,45 @@ export interface components {
                 [key: string]: components["schemas"]["ViewSettingItem"];
             };
         };
+        /**
+         * WebBook
+         * @description nhentai gallery for the web book page (title parsed by the backend).
+         */
+        WebBook: {
+            /** Title */
+            title?: string | null;
+            /** Title Main */
+            title_main: string;
+            /** Title Sub */
+            title_sub?: string | null;
+            /** Artist */
+            artist?: string | null;
+            /** Circle */
+            circle?: string | null;
+            /** Event */
+            event?: string | null;
+            /** Language */
+            language?: string | null;
+            /** Translator */
+            translator?: string | null;
+            /** Tags */
+            tags?: {
+                [key: string]: string[];
+            };
+            /** Page Count */
+            page_count: number;
+            /**
+             * Page Url
+             * @description URL template with a literal {n} (1-based page number).
+             */
+            page_url: string;
+            /**
+             * Page Thumb Url
+             * @description Like page_url, for the page thumbnail.
+             */
+            page_thumb_url: string;
+            item: components["schemas"]["WebItem"];
+        };
         /** WebItem */
         WebItem: {
             /**
@@ -3013,6 +3103,101 @@ export interface operations {
             path: {
                 source: string;
                 post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    book_api_media_web_nhentai__gid__book_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebBook"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    page_thumb_api_media_web_nhentai__gid__pages__n__thumb_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+                n: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    page_api_media_web_nhentai__gid__pages__n__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+                n: number;
             };
             cookie?: never;
         };
