@@ -130,7 +130,7 @@
       class="viewbtn"
       bind:this={viewBtn}
       aria-label="View"
-      aria-haspopup="true"
+      aria-haspopup="dialog"
       aria-expanded={viewOpen}
       onclick={() => (viewOpen = !viewOpen)}
     >
@@ -217,7 +217,7 @@
     padding: var(--s-2);
     border: 1px solid var(--text);
     border-radius: var(--s-2);
-    background: var(--surface, #1e1e1e);
+    background: var(--surface);
   }
 
   .modes.menu button {
