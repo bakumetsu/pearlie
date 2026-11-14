@@ -240,6 +240,21 @@ describe("ConnectionRows", () => {
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  it("clicking the overlay closes the dialog, clicking inside does not", async () => {
+    await renderRows();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Stash" }));
+    const dialog = await screen.findByRole("dialog");
+
+    // Clicking inside the dialog does not close it
+    fireEvent.click(dialog);
+    expect(screen.getByRole("dialog")).toBeDefined();
+
+    // Clicking the overlay (parent) closes it
+    fireEvent.click(dialog.parentElement as HTMLElement);
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
   it("rejected putConnection shows alert and keeps dialog open", async () => {
     const data = makeConnections();
     const { api, putConnection } = makeApi(data);
