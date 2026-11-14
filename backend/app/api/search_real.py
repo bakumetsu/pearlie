@@ -12,6 +12,7 @@ from app.api.library_stash_real import fetch_stash_page
 from app.api.media_web_real import media_kind, pick_url, proxy_path, remember, tile_url
 from app.api.search_filters import parse_order, parse_rating, unsupported_notice
 from app.filters.rules import evaluate, load_rules
+from app.jobs.store import JobStore
 from app.komga import Komga, KomgaError, book_item
 from app.models import (
     Blur,
@@ -25,7 +26,6 @@ from app.models import (
     WebItem,
     WebSource,
 )
-from app.jobs.store import JobStore
 from app.paging import PAGE_SIZE_CAPS, clamp_page_size, pages_for
 from app.sources.base import Post, Source, SourceError
 from app.sources.filters import NOTICE_CODE

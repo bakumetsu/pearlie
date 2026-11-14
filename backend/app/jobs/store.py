@@ -102,7 +102,9 @@ class JobStore:
                     f"SELECT md5, target, image_id FROM saved_items WHERE md5 IN ({marks})",
                     tuple(chunk),
                 ):
-                    found.setdefault(by_md5[row["md5"].lower()], _ref(row["target"], row["image_id"]))
+                    found.setdefault(
+                        by_md5[row["md5"].lower()], _ref(row["target"], row["image_id"])
+                    )
             return found
         finally:
             conn.close()
