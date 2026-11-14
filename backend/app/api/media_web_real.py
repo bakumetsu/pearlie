@@ -41,8 +41,9 @@ STREAM_TIMEOUT = 30.0
 IMAGE_TIME_LIMIT = 300.0
 VIDEO_TIME_LIMIT = 1800.0
 _MEMORY = 5000
-# Thumbnail lane (D-17): own throttle per site, one miss at a time.
-THUMB_PACE = 0.25
+# Thumbnail lane (D-17): own throttle per site. A few misses fly at once; on a back-off, one at a time.
+THUMB_PACE = 0.15
+THUMB_PARALLEL = 4
 MAX_REDIRECTS = 2
 FAILURE_TTL = 60.0
 THUMB_TIMEOUT = 10.0
@@ -271,6 +272,7 @@ class _Refused:
 @dataclass
 class _Lane:
     throttle: Throttle
+    slots: asyncio.Semaphore = field(default_factory=lambda: asyncio.Semaphore(THUMB_PARALLEL))
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
@@ -440,17 +442,24 @@ async def _run_miss(
     flights = _table(app, "web_thumb_flights")
     try:
         lane = _lane(app, src)
-        async with lane.lock:
-            if flight.waiters <= 0:
-                return None
+        async with lane.slots:
             main: Throttle | None = getattr(src, "_throttle", None)
-            floor = main.interval if main is not None and main.backing_off else 0.0
-            delay = lane.throttle.reserve(floor)
-            if delay > 0:
-                await asyncio.sleep(delay)
-            if flight.waiters <= 0:
-                return None
-            outcome = await run_in_threadpool(_fetch_thumb, src, key[1], url, lane.throttle)
+            backing_off = lane.throttle.backing_off or (main is not None and main.backing_off)
+            if backing_off:
+                await lane.lock.acquire()  # rule 5: one at a time until the site recovers
+            try:
+                if flight.waiters <= 0:
+                    return None
+                floor = main.interval if main is not None and main.backing_off else 0.0
+                delay = lane.throttle.reserve(floor)
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                if flight.waiters <= 0:
+                    return None
+                outcome = await run_in_threadpool(_fetch_thumb, src, key[1], url, lane.throttle)
+            finally:
+                if backing_off:
+                    lane.lock.release()
         if isinstance(outcome, _Refused):
             logger.warning("site=%s post=%s err status=%d", key[0], key[1], outcome.status)
             if outcome.status in (404, 502):
@@ -496,10 +505,12 @@ def _fetch_thumb(src: Source, post_id: str, url: str, lane: Throttle) -> _Thumb 
                 current = target
                 continue
             retry_after = _retry_after(resp)
-            lane.report(status, retry_after)
-            if status in (429, 503):
+            # 403 is a Cloudflare block: same pause and fall back as 429
+            reported = 429 if status == 403 else status
+            lane.report(reported, retry_after)
+            if reported in (429, 503):
                 if main is not None:
-                    main.report(status, retry_after)
+                    main.report(reported, retry_after)
                 wait = int(retry_after or 5)
                 return _Refused(503, "rate_limited", "The site asked to slow down", wait)
             if status in (404, 410):

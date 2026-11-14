@@ -116,6 +116,64 @@ def test_429_gives_503_retry_after_and_reports_to_both_throttles(tmp_path):
     assert _cached_files(tmp_path) == []
 
 
+def test_403_backs_off_like_429(tmp_path):
+    def respond(request):
+        return stream_response(403, b"", JPEG)
+
+    app, client, _seen = _client(tmp_path, respond)
+    _warm(client)
+    r = client.get("/api/media/web/danbooru/7/thumb")
+    assert r.status_code == 503 and "retry-after" in r.headers
+    assert app.state.web_thumb_lanes["danbooru"].throttle.backing_off
+    assert app.state.sources["danbooru"]._throttle.backing_off
+    assert _cached_files(tmp_path) == []
+
+
+def _fetch_peak(app, src):
+    """Run 8 misses at once; return the most fetches in flight at one moment."""
+    state = {"now": 0, "peak": 0}
+
+    def fake(_src, _pid, _url, _lane):
+        import time
+
+        state["now"] += 1
+        state["peak"] = max(state["peak"], state["now"])
+        time.sleep(0.6)
+        state["now"] -= 1
+        return mw._Thumb(IMG, "image/jpeg", "e")
+
+    async def run():
+        orig = mw._fetch_thumb
+        mw._fetch_thumb = fake
+        try:
+            flights = [mw._Flight(waiters=1) for _ in range(8)]
+            await asyncio.gather(
+                *[
+                    mw._run_miss(app, src, ("danbooru", str(i)), SAMPLE, None, f)
+                    for i, f in enumerate(flights)
+                ]
+            )
+        finally:
+            mw._fetch_thumb = orig
+
+    asyncio.run(run())
+    return state["peak"]
+
+
+def test_misses_fly_in_parallel_and_serialize_on_backoff(tmp_path):
+    app, client, _seen = _client(tmp_path)
+    _warm(client)
+    src = app.state.sources["danbooru"]
+    assert 1 < _fetch_peak(app, src) <= mw.THUMB_PARALLEL
+
+    # main throttle backing off: the lane falls back to one at a time
+    main = src._throttle
+    main.report(429, 0.01)
+    assert main.backing_off
+    app.state.web_thumb_lanes.clear()
+    assert _fetch_peak(app, src) == 1
+
+
 @pytest.mark.parametrize(("hops", "status"), [(1, 200), (2, 200), (3, 502)])
 def test_redirect_limit(tmp_path, hops, status):
     def respond(request: httpx.Request) -> httpx.Response:
