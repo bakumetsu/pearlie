@@ -23,6 +23,7 @@
   import DownloadsCard from "../lib/options/DownloadsCard.svelte";
   import StatusCard from "../lib/options/StatusCard.svelte";
   import UpdateCard from "../lib/options/UpdateCard.svelte";
+  import ThumbCacheCard from "../lib/options/ThumbCacheCard.svelte";
   import ChangelogCard from "../lib/options/ChangelogCard.svelte";
   import LogsCard from "../lib/options/LogsCard.svelte";
   import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
@@ -229,6 +230,8 @@
     <!-- shown with Stash -->
   {:else if sectionId === "library" && card.title === "Status"}
     <StatusCard />
+  {:else if sectionId === "cache" && card.title === "Thumbnail cache"}
+    <ThumbCacheCard />
   {:else if sectionId === "update" && card.title === "Update"}
     <UpdateCard />
   {:else if sectionId === "changelog" && card.title === "Changelog"}

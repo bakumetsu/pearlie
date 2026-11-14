@@ -10,6 +10,7 @@ export type SectionId =
   | 'library'
   | 'save-folders'
   | 'trash'
+  | 'cache'
   | 'update'
   | 'changelog'
   | 'logs'
@@ -187,6 +188,22 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'cache',
+    title: 'Cache',
+    group: 'System',
+    later: false,
+    cards: [
+      {
+        title: 'Thumbnail cache',
+        rows: [
+          { label: 'Used', hint: 'size of the thumbnail cache' },
+          { label: 'Size limit', hint: 'cap in MB, oldest thumbnails go first' },
+          { label: 'Clear', hint: 'delete all cached thumbnails' },
+        ],
+      },
+    ],
+  },
+  {
     id: 'update',
     title: 'Update',
     group: 'System',
@@ -325,6 +342,7 @@ export const SECTION_ICONS: Record<SectionId, IconName> = {
   library: 'library',
   'save-folders': 'bookmark',
   trash: 'trash',
+  cache: 'image',
   update: 'refresh',
   changelog: 'history',
   logs: 'list',
