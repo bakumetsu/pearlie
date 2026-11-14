@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.db import connect
@@ -21,12 +22,31 @@ def _utc_iso(value: str | None) -> str | None:
 
 
 def _progress(row: sqlite3.Row) -> float:
-    if row["status"] == "done":
+    if row["status"] in ("done", "scan_wait", "verifying"):
         return 1.0
     total = row["pages_total"]
     if row["status"] == "running" and total:
         return min(1.0, max(0.0, (row["pages_done"] or 0) / total))
     return 0.0
+
+
+def _wait_left(due_at: str | None) -> float | None:
+    """Seconds until a stored UTC `scan_due_at` (never below 0)."""
+    if not due_at:
+        return None
+    try:
+        due = datetime.fromisoformat(due_at).replace(tzinfo=UTC)
+    except ValueError:
+        return None
+    return max(0.0, (due - datetime.now(UTC)).total_seconds())
+
+
+def _eta(row: sqlite3.Row) -> float | None:
+    if row["status"] == "running":
+        return row["eta_s"]
+    if row["status"] == "scan_wait":
+        return _wait_left(row["scan_due_at"])
+    return None
 
 
 def _to_job(row: sqlite3.Row) -> Job:
@@ -39,7 +59,7 @@ def _to_job(row: sqlite3.Row) -> Job:
         "target": row["target"],
         "state": row["status"],
         "progress": _progress(row),
-        "eta_s": row["eta_s"] if row["status"] == "running" else None,
+        "eta_s": _eta(row),
         "pages_done": row["pages_done"],
         "pages_total": row["pages_total"],
         "error": row["error"],
@@ -54,6 +74,13 @@ def _to_job(row: sqlite3.Row) -> Job:
         data["library_ref"] = SavedRef(kind=kind, id=row["library_ref_id"])
     data["notices"] = [Problem(**n) for n in json.loads(row["notices"])]
     return Job.model_validate(data)
+
+
+def _db_time(value: datetime | None) -> str | None:
+    """Naive UTC text, as SQLite CURRENT_TIMESTAMP writes it."""
+    if value is None:
+        return None
+    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _chunks(items: list[str], size: int = 500):
@@ -104,9 +131,7 @@ class JobStore:
                     (source, *chunk),
                 ):
                     found[row["post_id"]] = _ref(row["target"], row["image_id"])
-            by_md5 = {
-                m.lower(): pid for pid, m in (md5s or {}).items() if m and pid not in found
-            }
+            by_md5 = {m.lower(): pid for pid, m in (md5s or {}).items() if m and pid not in found}
             for chunk in _chunks(list(by_md5)):
                 marks = ",".join("?" * len(chunk))
                 for row in conn.execute(
@@ -125,7 +150,7 @@ class JobStore:
         try:
             row = conn.execute(
                 "SELECT id FROM jobs WHERE source = ? AND post_id = ? "
-                "AND status IN ('queued', 'running')",
+                "AND status IN ('queued', 'running', 'scan_wait', 'verifying')",
                 (source, post_id),
             ).fetchone()
             if row is None:
@@ -259,6 +284,97 @@ class JobStore:
             )
             conn.commit()
             return cur.rowcount
+        finally:
+            conn.close()
+
+    def mark_scan_wait(
+        self,
+        job_id: str,
+        library_id: str,
+        name: str,
+        dest_path: str | None,
+        notices: list[Problem],
+        due_at: datetime | None = None,
+    ) -> None:
+        """A saved file waits for its library scan; the job stays active."""
+        conn = connect(self._path)
+        try:
+            conn.execute(
+                "UPDATE jobs SET status='scan_wait', scan_library_id=?, scan_name=?, "
+                "dest_path=?, notices=?, scan_due_at=?, pages_done=NULL, pages_total=NULL, "
+                "eta_s=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (
+                    library_id,
+                    name,
+                    dest_path,
+                    json.dumps([n.model_dump() for n in notices]),
+                    _db_time(due_at),
+                    job_id,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def set_scan_due(self, job_ids: list[str], due_at: datetime | None) -> None:
+        """Move the countdown of waiting jobs (None clears it)."""
+        if not job_ids:
+            return
+        conn = connect(self._path)
+        try:
+            for chunk in _chunks(job_ids):
+                marks = ",".join("?" * len(chunk))
+                conn.execute(
+                    "UPDATE jobs SET scan_due_at=?, updated_at=CURRENT_TIMESTAMP "
+                    f"WHERE status='scan_wait' AND id IN ({marks})",
+                    (_db_time(due_at), *chunk),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def set_verifying(self, job_ids: list[str]) -> None:
+        if not job_ids:
+            return
+        conn = connect(self._path)
+        try:
+            for chunk in _chunks(job_ids):
+                marks = ",".join("?" * len(chunk))
+                conn.execute(
+                    "UPDATE jobs SET status='verifying', scan_due_at=NULL, "
+                    f"updated_at=CURRENT_TIMESTAMP WHERE status='scan_wait' AND id IN ({marks})",
+                    tuple(chunk),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def scan_pending(self) -> list[tuple[str, str, str, str, str]]:
+        """Jobs left waiting or checking at a restart, put back to `scan_wait`.
+
+        Returns (job id, source, library id, name, komga path) rows, oldest first.
+        """
+        conn = connect(self._path)
+        try:
+            conn.execute(
+                "UPDATE jobs SET status='scan_wait', scan_due_at=NULL, "
+                "updated_at=CURRENT_TIMESTAMP WHERE status='verifying'"
+            )
+            conn.commit()
+            rows = conn.execute(
+                "SELECT id, source, scan_library_id, scan_name, dest_path FROM jobs "
+                "WHERE status='scan_wait' AND scan_library_id IS NOT NULL ORDER BY id"
+            ).fetchall()
+            return [
+                (
+                    str(r["id"]),
+                    r["source"],
+                    r["scan_library_id"],
+                    r["scan_name"] or "",
+                    r["dest_path"] or "",
+                )
+                for r in rows
+            ]
         finally:
             conn.close()
 

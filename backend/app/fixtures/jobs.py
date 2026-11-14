@@ -89,6 +89,7 @@ class JobBoard:
         now_dt = datetime.now(UTC)
         specs: Sequence[tuple[str, str | None, bool]] = (
             [("running", None, False)] * 2
+            + [("scan_wait", None, True), ("verifying", None, True)]
             + [("queued", None, False)] * 3
             + [("failed", "Source returned 503", True)] * 2
             + [("needs_click", None, True)] * 1
@@ -101,7 +102,7 @@ class JobBoard:
             if state == "running":
                 start = now_mono - 3
             elif state == "queued":
-                start = now_mono + 3 + (i - 2) * 3
+                start = now_mono + 3 + (i - 4) * 3
             else:
                 start = now_mono
             ref = (
@@ -118,8 +119,8 @@ class JobBoard:
                     "thumb_url": p["thumb_url"],
                     "target": p["target"],
                     "state": state,
-                    "progress": 1.0 if state == "done" else 0.0,
-                    "eta_s": 0.0,
+                    "progress": 1.0 if state in ("done", "scan_wait", "verifying") else 0.0,
+                    "eta_s": 7.0 if state == "scan_wait" else 0.0,
                     "error": error,
                     "library_ref": ref,
                     "created_at": (now_dt - timedelta(minutes=i)).isoformat(),
@@ -164,7 +165,7 @@ class JobBoard:
                 j["source"] == source
                 and j["post_id"] == post_id
                 and not j["_fixed"]
-                and j["state"] in ("queued", "running")
+                and j["state"] in ("queued", "running", "scan_wait", "verifying")
             ):
                 raise Conflict(None)
         d = self._new_from_post(post)

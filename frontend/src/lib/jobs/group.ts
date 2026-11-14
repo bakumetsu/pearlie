@@ -73,6 +73,8 @@ export function stateInfo(
   const map: Record<Job["state"], { label: string; icon: IconName }> = {
     queued: { label: "Queued", icon: "clock" },
     running: { label: "Running", icon: "download" },
+    scan_wait: { label: "Waiting for scan", icon: "clock" },
+    verifying: { label: "Verifying", icon: "clock" },
     done: { label: "Done", icon: "check" },
     failed: { label: "Failed", icon: "alert" },
     needs_click: { label: "Needs a click", icon: "alert" },

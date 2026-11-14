@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api")
 logger = logging.getLogger("pearlie")
 
 _VALID_STATES: frozenset[str] = frozenset(
-    ("queued", "running", "done", "failed", "needs_click", "skipped")
+    ("queued", "running", "scan_wait", "verifying", "done", "failed", "needs_click", "skipped")
 )
 
 
