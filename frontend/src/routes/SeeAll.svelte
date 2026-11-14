@@ -24,7 +24,7 @@
   import Lightbox from "../lib/components/Lightbox.svelte";
   import Toolbar from "../lib/browse/Toolbar.svelte";
   import { nextAutohide } from "../lib/browse/autohide";
-  import { parseOrder, parseRating, ORDER_LABELS, RATING_LABELS } from "../lib/browse/filters";
+  import { parseOrder, parseRating } from "../lib/browse/filters";
   import type { SourceFilters } from "../lib/api/client";
   import { parseOpen, openKey, withOpen, findTile } from "../lib/browse/overlayState";
 
@@ -166,7 +166,11 @@
   const ratingKey = $derived(rating.join(","));
   // A blocked Order is off for the request and the chip; the URL keeps the pick for when the words shrink.
   const order = $derived(orderBlocked ? "" : rawOrder);
-  const showFilters = $derived(!isLibrary && caps !== undefined && ((caps.order?.length ?? 0) > 1 || (caps.rating?.length ?? 0) > 0));
+  // One Sort control: library lists use `sort`, web lists use `order`. komga_series has no caps row yet, so the library falls back to the fixed list.
+  const sortOptions = $derived(isLibrary ? (caps?.sort?.length ? caps.sort : ["newest", "rating", "random"]) : orderOptions);
+  const sortValue = $derived(isLibrary ? sort : order);
+  const favoritesAvail = $derived(isLibrary && (caps?.favorite ?? true));
+  const canReset = $derived(q.trim() !== "" || sort !== "" || rawOrder !== "" || rating.length > 0 || favorite);
 
   const listKey = $derived(
     [source, q, sort, favorite ? "1" : "0", order, ratingKey, seed ?? "", String(vs.per_page), infinite ? "inf" : "pg"].join("|"),
@@ -336,32 +340,34 @@
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   }
 
-  function onSortChange(value: string) {
+  // One toolbar change (or one sheet Apply) is one navigation, so one request.
+  function onToolbar(next: { sort: string; rating: string[] }) {
     const qs = new SvelteURLSearchParams(match.query);
     qs.delete("page");
-    if (value) {
-      qs.set("sort", value);
-      if (value === "random") {
-        qs.set("seed", String(Math.floor(Math.random() * 1e8)));
+    if (isLibrary) {
+      if (next.sort) {
+        qs.set("sort", next.sort);
+        if (next.sort === "random") {
+          if (sort !== "random") qs.set("seed", String(Math.floor(Math.random() * 1e8)));
+        } else qs.delete("seed");
       } else {
+        qs.delete("sort");
         qs.delete("seed");
       }
     } else {
-      qs.delete("sort");
-      qs.delete("seed");
+      if (next.sort) qs.set("order", next.sort);
+      else qs.delete("order");
+      if (next.rating.length) qs.set("rating", next.rating.join(","));
+      else qs.delete("rating");
     }
     const search = qs.toString();
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   }
 
-  // One filter change (or one sheet Apply) is one navigation, so one request.
-  function onFilters(next: { order: string; rating: string[] }) {
+  // Reset clears the search and every filter in one request.
+  function onReset() {
     const qs = new SvelteURLSearchParams(match.query);
-    qs.delete("page");
-    if (next.order) qs.set("order", next.order);
-    else qs.delete("order");
-    if (next.rating.length) qs.set("rating", next.rating.join(","));
-    else qs.delete("rating");
+    for (const k of ["q", "sort", "order", "rating", "favorite", "seed", "page"]) qs.delete(k);
     const search = qs.toString();
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   }
@@ -458,36 +464,8 @@
       </div>
     {/if}
 
-    {#if showFilters && (order || rating.length)}
-      <div class="f-chips">
-        {#if order}
-          <button type="button" class="f-chip" aria-label={`Remove ${ORDER_LABELS[order] ?? order}`} onclick={() => onFilters({ order: "", rating })}>{ORDER_LABELS[order] ?? order}<Icon name="x" size={14} /></button>
-        {/if}
-        {#each rating as r (r)}
-          <button type="button" class="f-chip" aria-label={`Remove ${RATING_LABELS[r] ?? r}`} onclick={() => onFilters({ order, rating: rating.filter((x) => x !== r) })}>{RATING_LABELS[r] ?? r}<Icon name="x" size={14} /></button>
-        {/each}
-      </div>
-    {/if}
-
     <div class="controls">
-    {#if isLibrary}
-        <select aria-label="Sort" class="sort-select" value={sort} onchange={(e) => onSortChange((e.target as HTMLSelectElement).value)}>
-          <option value="">Newest</option>
-          <option value="rating">Rating</option>
-          <option value="random">Random</option>
-        </select>
-        <button
-          class="fav-toggle"
-          aria-pressed={favorite}
-          onclick={onFavToggle}
-        >
-          <Icon name={favorite ? "heart-filled" : "heart"} size={16} />
-          Favorites
-        </button>
-    {/if}
-    {#if showFilters}
-      <Toolbar {order} {rating} orders={orderOptions} ratings={ratingOptions} {orderBlocked} onapply={onFilters} />
-    {/if}
+      <Toolbar sort={sortValue} {rating} sorts={sortOptions} ratings={isLibrary ? [] : ratingOptions} {orderBlocked} favorites={favoritesAvail} {favorite} {canReset} onapply={onToolbar} onfavorite={onFavToggle} onreset={onReset} />
     {#if viewSettings.ready}
       <ViewBar modes={vs.modes as Mode[]} mode={vs.mode as Mode} perPage={vs.per_page} zoom={vs.zoom} options={vs.per_page_options} max={vs.per_page_max} onmode={onMode} onperpage={onPerPage} onzoom={onZoom} onzoompreview={onZoomPreview} />
     {/if}
@@ -559,11 +537,7 @@
   @media (prefers-reduced-motion: reduce) { .sticky-header { transition: none; } }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: var(--s-4); }
   @media (min-width: 640px) { .controls { flex-wrap: nowrap; } }
-  .sort-select { min-height: 44px; padding: var(--s-2) var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: var(--surface); color: var(--text); }
   .shown { font-size: 0.875rem; color: var(--muted); }
-  .f-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
-  .f-chip { min-height: 44px; display: inline-flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-4); background: none; color: var(--text); cursor: pointer; font: inherit; }
-  .fav-toggle { min-height: 44px; display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: none; color: var(--text); cursor: pointer; }
   .muted { color: var(--muted); }
   .error-box { padding: var(--s-4); text-align: center; color: var(--text); }
   .more-box { min-height: 44px; padding: var(--s-4); text-align: center; color: var(--text); }

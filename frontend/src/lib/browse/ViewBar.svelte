@@ -31,6 +31,9 @@
 
   let custom = $state(false);
   let sheet = $state(false);
+  let viewOpen = $state(false);
+  let viewWrap: HTMLDivElement | undefined = $state();
+  let viewBtn: HTMLButtonElement | undefined = $state();
   let vw = $state(1024);
   let customVal = $state("");
   let customBad = $state(false);
@@ -81,9 +84,13 @@
   }
 </script>
 
-<svelte:window bind:innerWidth={vw} />
+<svelte:window
+  bind:innerWidth={vw}
+  onpointerdown={(e) => { if (viewOpen && viewWrap && !viewWrap.contains(e.target as Node)) viewOpen = false; }}
+  onkeydown={(e) => { if (viewOpen && e.key === "Escape") { viewOpen = false; viewBtn?.focus(); } }}
+/>
 
-{#snippet controls()}
+{#snippet controls(inline: boolean)}
   <div class="pp">
     <select aria-label="Per page" value={String(perPage)} onchange={onPerPageChange}>
       {#each selectOptions as n (n)}
@@ -108,19 +115,45 @@
       {/if}
     {/if}
   </div>
-  <div class="modes">
-    {#each modes as m (m)}
-      <button
-        type="button"
-        aria-label={MODE_LABELS[m]}
-        aria-pressed={mode === m}
-        class:active={mode === m}
-        onclick={() => onmode(m)}
-      >
-        <Icon name={m} />
-      </button>
-    {/each}
+  {#if inline}
+    <div class="modes">
+      {#each modes as m (m)}
+        <button type="button" aria-label={MODE_LABELS[m]} aria-pressed={mode === m} class:active={mode === m} onclick={() => onmode(m)}>
+          <Icon name={m} />
+        </button>
+      {/each}
+    </div>
+  {:else}
+  <div class="view-wrap" bind:this={viewWrap}>
+    <button
+      type="button"
+      class="viewbtn"
+      bind:this={viewBtn}
+      aria-label="View"
+      aria-haspopup="true"
+      aria-expanded={viewOpen}
+      onclick={() => (viewOpen = !viewOpen)}
+    >
+      <Icon name={mode} />
+    </button>
+    {#if viewOpen}
+      <div class="modes menu" role="group" aria-label="View mode">
+        {#each modes as m (m)}
+          <button
+            type="button"
+            aria-label={MODE_LABELS[m]}
+            aria-pressed={mode === m}
+            class:active={mode === m}
+            onclick={() => { viewOpen = false; onmode(m); }}
+          >
+            <Icon name={m} />
+            <span>{MODE_LABELS[m]}</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
   </div>
+  {/if}
   <div class="zoom-wrap">
     <input
       type="range"
@@ -136,7 +169,7 @@
 {/snippet}
 
 {#if !phone}
-  <div class="viewbar">{@render controls()}</div>
+  <div class="viewbar">{@render controls(false)}</div>
 {:else}
   <button
     type="button"
@@ -145,12 +178,12 @@
     aria-haspopup="dialog"
     onclick={() => (sheet = true)}
   >
-    <Icon name="sliders" />
+    <Icon name={mode} />
   </button>
   {#if sheet}
     <div class="backdrop" role="presentation" onclick={() => (sheet = false)}></div>
     <div class="sheet" role="dialog" aria-label="View settings">
-      {@render controls()}
+      {@render controls(true)}
       <button type="button" class="done" onclick={() => (sheet = false)}>Done</button>
     </div>
   {/if}
@@ -165,8 +198,32 @@
     gap: var(--s-2);
   }
 
-  .viewbar .modes {
+  .viewbar .view-wrap {
     margin-left: auto;
+  }
+
+  .view-wrap {
+    position: relative;
+  }
+
+  .modes.menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: var(--s-2);
+    z-index: 20;
+    flex-direction: column;
+    min-width: 10em;
+    padding: var(--s-2);
+    border: 1px solid var(--text);
+    border-radius: var(--s-2);
+    background: var(--surface, #1e1e1e);
+  }
+
+  .modes.menu button {
+    justify-content: flex-start;
+    gap: var(--s-2);
+    padding: 0 var(--s-2);
   }
 
   .viewbar .zoom-wrap {

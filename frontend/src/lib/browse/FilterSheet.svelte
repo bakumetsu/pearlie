@@ -1,27 +1,27 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { ORDER_LABELS, RATING_LABELS } from "./filters";
+  import { sortLabel, RATING_LABELS } from "./filters";
 
   let {
-    order,
+    sort,
     rating,
-    orders,
+    sorts,
     ratings,
     orderBlocked = false,
     onapply,
     onclose,
   }: {
-    order: string;
+    sort: string;
     rating: string[];
-    orders: string[];
+    sorts: string[];
     ratings: string[];
     orderBlocked?: boolean;
-    onapply: (next: { order: string; rating: string[] }) => void;
+    onapply: (next: { sort: string; rating: string[] }) => void;
     onclose: () => void;
   } = $props();
 
   // Draft state: nothing is sent until Apply, so several changes are one request.
-  let dOrder = $state(untrack(() => order));
+  let dSort = $state(untrack(() => sort));
   let dRating = $state<string[]>(untrack(() => [...rating]));
 
   function toggle(r: string) {
@@ -29,19 +29,19 @@
   }
 
   function apply() {
-    onapply({ order: dOrder, rating: ratings.filter((r) => dRating.includes(r)) });
+    onapply({ sort: dSort, rating: ratings.filter((r) => dRating.includes(r)) });
   }
 </script>
 
 <div class="backdrop" role="presentation" onclick={onclose}></div>
 <div class="sheet" role="dialog" aria-label="Filters">
-  {#if orders.length > 1}
-    <p class="group-label">Order</p>
-    {#if orderBlocked}<p class="hint">Order is off while the search words fill the site's tag limit.</p>{/if}
-    <div class="chips" role="group" aria-label="Order">
-      {#each orders as o (o)}
+  {#if sorts.length > 1}
+    <p class="group-label">Sort</p>
+    {#if orderBlocked}<p class="hint">Sort is off while the search words fill the site's tag limit.</p>{/if}
+    <div class="chips" role="group" aria-label="Sort">
+      {#each sorts as o (o)}
         {@const v = o === "newest" ? "" : o}
-        <button type="button" class="chip" aria-pressed={dOrder === v} disabled={orderBlocked} onclick={() => (dOrder = v)}>{ORDER_LABELS[o] ?? o}</button>
+        <button type="button" class="chip" aria-pressed={dSort === v} disabled={orderBlocked} onclick={() => (dSort = v)}>{sortLabel(o)}</button>
       {/each}
     </div>
   {/if}
