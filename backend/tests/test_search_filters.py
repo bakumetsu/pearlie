@@ -170,6 +170,13 @@ def test_fixture_nhentai_drops_filters_with_notice(client: TestClient):
     assert sec["total"] > 0
 
 
+def test_nhentai_popular_is_valid_and_other_sites_drop_it(client: TestClient):
+    sec = client.get("/api/search?sources=nhentai&order=popular-week").json()["sections"][0]
+    assert not sec.get("notice")
+    sec = client.get("/api/search?sources=gelbooru&order=popular-week").json()["sections"][0]
+    assert "not available" in sec["notice"]["message"]
+
+
 # --- capability list ---------------------------------------------------------------------------
 
 
@@ -179,7 +186,15 @@ def test_filters_capability_list(client: TestClient):
     assert src["danbooru"]["rating"] == ["g", "s", "q", "e"]
     assert src["danbooru"]["order_blocked_when"] == 2
     assert src["rule34"]["rating"] == ["g", "q", "e"]
-    assert src["nhentai"]["order"] == [] and src["nhentai"]["per_page_max"] == 25
+    assert src["nhentai"]["order"] == [
+        "newest",
+        "popular-today",
+        "popular-week",
+        "popular-month",
+        "popular",
+    ]
+    assert src["nhentai"]["rating"] == []
+    assert src["nhentai"]["per_page_max"] == 25
     assert src["stash_images"]["sort"] == ["newest", "rating", "random"]
     assert src["stash_images"]["favorite"] is True
     assert src["gelbooru"]["per_page_max"] == 100

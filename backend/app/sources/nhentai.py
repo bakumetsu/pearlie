@@ -10,6 +10,7 @@ from app.paging import clamp_page_size
 from app.sources.auth import SiteAuth, build_auth
 from app.sources.base import Post, SearchPage, SourceError
 from app.sources.danbooru import _retry_after
+from app.sources.filters import NHENTAI_SORTS
 from app.sources.throttle import DEFAULT_PACE, Throttle
 
 API_HOST = "nhentai.net"
@@ -140,7 +141,13 @@ class NHentai:
         clamp_page_size(self.id, page_size or self._page_size)
         page = max(page, 1)
         query = build_query(tags)
-        if query:
+        sort = NHENTAI_SORTS.get(order or "")
+        if sort:
+            # The listing endpoint has no sort; match-all search takes one.
+            data = self._get(
+                "/api/v2/search", {"query": query or "pages:>0", "page": page, "sort": sort}
+            )
+        elif query:
             data = self._get("/api/v2/search", {"query": query, "page": page})
         else:
             data = self._get("/api/v2/galleries", {"page": page})

@@ -205,6 +205,32 @@ def test_empty_query_lists_all_and_last_page() -> None:
     assert page.posts == [] and page.next_page is None
 
 
+@pytest.mark.parametrize("order", ["popular-today", "popular-week", "popular-month", "popular"])
+def test_popular_sorts_use_search_endpoint(order: str) -> None:
+    seen: list[httpx.URL] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req.url)
+        return httpx.Response(200, json={"result": [], "num_pages": 1, "per_page": 25})
+
+    src = make(handler)
+    src.search([], page=2, order=order)
+    src.search(["artist:foo"], order=order)
+    assert [u.path for u in seen] == ["/api/v2/search"] * 2
+    assert seen[0].params["sort"] == order and seen[0].params["page"] == "2"
+    assert seen[0].params["query"] == "pages:>0"
+    assert seen[1].params["query"] == 'artist:"foo"'
+
+
+def test_newest_sends_no_sort() -> None:
+    def handler(req: httpx.Request) -> httpx.Response:
+        assert "sort" not in req.url.params
+        return httpx.Response(200, json={"result": [], "num_pages": 1, "per_page": 25})
+
+    make(handler).search(["x"], order="newest")
+    make(handler).search([], order=None)
+
+
 def test_get_post_and_errors() -> None:
     codes = {5: 404, 6: 429, 7: 403, 8: 503, 9: 500}
 
