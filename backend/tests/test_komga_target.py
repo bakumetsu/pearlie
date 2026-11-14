@@ -424,3 +424,19 @@ def test_to_pearlie_path_roundtrip() -> None:
     assert destinations.to_pearlie_path("/k", "/p", "/k") == "/p"
     assert destinations.to_pearlie_path("/x", "/p", "/k") == "/x"
     assert destinations.to_pearlie_path("/x", "", "") == "/x"
+
+
+def test_file_outside_every_library_leaves_no_index_row(env) -> None:
+    target, komga, settings, _dest, _h = env
+    komga.root = "/somewhere/else"
+    res = target.save(make_post(), [])
+    assert any(n.code == "scan_failed" for n in res.notices)
+    assert _row_count(settings) == 0
+
+
+def test_book_not_listed_yet_keeps_row_for_grace(env) -> None:
+    target, komga, settings, _dest, _h = env
+    komga.visible = False
+    res = target.save(make_post(), [])
+    assert any(n.code == "waiting_for_komga" for n in res.notices)
+    assert _row_count(settings) == 1

@@ -415,8 +415,11 @@ class KomgaTarget:
             self._settings.komga_path_prefix_pearlie,
             self._settings.komga_path_prefix_komga,
         )
-        library_id = self._scan(komga_path, notices)
-        if library_id is not None:
+        library_id, outside = self._scan(komga_path, notices)
+        if outside:
+            self._forget(post)
+            logger.warning("KOMGA %s index row dropped: file is outside every library", tag)
+        elif library_id is not None:
             self._verify(library_id, target.name, komga_path, tag, notices)
         logger.info(
             "KOMGA %s save done pearlie_path=%s komga_path=%s",
@@ -426,14 +429,17 @@ class KomgaTarget:
         )
         return SaveResult(status="saved", image_id=None, dest_path=komga_path, notices=notices)
 
-    def _scan(self, komga_path: str, notices: list[Problem]) -> str | None:
+    def _scan(self, komga_path: str, notices: list[Problem]) -> tuple[str | None, bool]:
+        """Scan the library holding the file; the flag says no library holds it."""
+        outside = False
         try:
             for lib in self._client.list_libraries():
                 root = posixpath.normpath(str(lib.get("root", "")).replace("\\", "/"))
                 if komga_path == root or komga_path.startswith(root + "/"):
                     self._client.scan_library(str(lib["id"]))
                     logger.info("KOMGA scan requested library=%s", lib.get("id"))
-                    return str(lib["id"])
+                    return str(lib["id"]), False
+            outside = True
             raise KomgaError("not_found", "no library holds the folder", 404)
         except KomgaError as e:
             logger.warning("KOMGA scan failed code=%s status=%s", e.code, e.status)
@@ -443,7 +449,18 @@ class KomgaTarget:
                     message="file saved; Komga will pick it up on its next scan",
                 )
             )
-            return None
+            return None, outside
+
+    def _forget(self, post: Post) -> None:
+        conn = connect(self._settings.db_path)
+        try:
+            conn.execute(
+                "DELETE FROM saved_items WHERE target = 'komga' AND source = ? AND post_id = ?",
+                (post.source, post.post_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
     def _verify(
         self, library_id: str, name: str, komga_path: str, tag: str, notices: list[Problem]
