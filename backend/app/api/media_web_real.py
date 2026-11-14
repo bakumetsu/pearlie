@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import math
 import re
 import threading
 import time
@@ -222,9 +223,10 @@ def _stream_media(request: Request, src: Source, post_id: str, kind: str) -> Str
 
 def _retry_after(resp: httpx.Response) -> float | None:
     try:
-        return float(resp.headers["Retry-After"])
+        value = float(resp.headers["Retry-After"])
     except (KeyError, ValueError):
         return None
+    return value if math.isfinite(value) and value >= 0 else None
 
 
 # ---- thumbnails: cache, own lane, shared in-flight fetch (D-17) ----

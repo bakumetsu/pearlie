@@ -171,3 +171,11 @@ def test_media_kind_follows_preview_extension():
     assert media_kind(post(file_url="https://x/a.WEBM")) == "video"
     assert media_kind(post(file_url="https://x/a.gif")) == "image"
     assert media_kind(post(preview_url="https://x/t.jpg")) == "image"
+
+
+def test_retry_after_ignores_non_finite_and_negative() -> None:
+    from app.api.media_web_real import _retry_after
+
+    for raw in ("inf", "nan", "-5"):
+        assert _retry_after(httpx.Response(429, headers={"Retry-After": raw})) is None
+    assert _retry_after(httpx.Response(429, headers={"Retry-After": "7"})) == 7.0
