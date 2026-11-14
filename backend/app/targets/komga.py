@@ -443,12 +443,23 @@ class KomgaTarget:
             raise KomgaError("not_found", "no library holds the folder", 404)
         except KomgaError as e:
             logger.warning("KOMGA scan failed code=%s status=%s", e.code, e.status)
-            notices.append(
-                Problem(
-                    code="scan_failed",
-                    message="file saved; Komga will pick it up on its next scan",
+            if outside:
+                notices.append(
+                    Problem(
+                        code="outside_library",
+                        message=(
+                            "file saved outside every Komga library; "
+                            "check the Pearlie/Komga path mapping"
+                        ),
+                    )
                 )
-            )
+            else:
+                notices.append(
+                    Problem(
+                        code="scan_failed",
+                        message="file saved; Komga will pick it up on its next scan",
+                    )
+                )
             return None, outside
 
     def _forget(self, post: Post) -> None:

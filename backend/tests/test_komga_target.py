@@ -430,7 +430,8 @@ def test_file_outside_every_library_leaves_no_index_row(env) -> None:
     target, komga, settings, _dest, _h = env
     komga.root = "/somewhere/else"
     res = target.save(make_post(), [])
-    assert any(n.code == "scan_failed" for n in res.notices)
+    codes = [n.code for n in res.notices]
+    assert "outside_library" in codes and "scan_failed" not in codes
     assert _row_count(settings) == 0
 
 
