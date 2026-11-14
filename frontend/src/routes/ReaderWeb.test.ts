@@ -63,4 +63,27 @@ describe("Reader on the web route", () => {
     expect(JSON.parse(localStorage.getItem("pearlie.webread.v1")!)["nhentai:123"].page).toBe(4);
     expect(api.saveProgress).not.toHaveBeenCalled();
   });
+
+  it("ignores a slow load for the old id after the id changed", async () => {
+    const { api, ctx, match } = setup("/read/web/nhentai/123");
+    const mk = (n: number) => ({
+      title_main: "B" + n,
+      page_count: n,
+      page_url: "/p/{n}",
+      page_thumb_url: "/t/{n}",
+      item: { source: "nhentai", post_id: "x" },
+    });
+    let resolveOld: (v: unknown) => void = () => {};
+    const impl = vi.fn((_s: string, id: string) =>
+      id === "123" ? new Promise((r) => (resolveOld = r)) : Promise.resolve(mk(4)),
+    );
+    (api as unknown as { webBook: unknown }).webBook = impl;
+    const { container, rerender } = render(Reader, { props: { match }, context: ctx });
+    await waitFor(() => expect(impl).toHaveBeenCalledTimes(1));
+    await rerender({ match: matchRoute("/read/web/nhentai/456", "") });
+    await waitFor(() => expect(container.querySelector(".sr-only")?.textContent).toBe("Page 1 of 4"));
+    resolveOld(mk(10));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(container.querySelector(".sr-only")?.textContent).toBe("Page 1 of 4");
+  });
 });
