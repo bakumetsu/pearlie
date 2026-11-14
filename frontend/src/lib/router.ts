@@ -35,7 +35,13 @@ export function matchRoute(pathname: string, search: string, routes: RouteDef[] 
     let ok = true;
     for (let i = 0; i < patSegs.length; i++) {
       if (patSegs[i].startsWith(":")) {
-        params[patSegs[i].slice(1)] = decodeURIComponent(pathSegs[i]);
+        let value = pathSegs[i];
+        try {
+          value = decodeURIComponent(value);
+        } catch {
+          // malformed % escape: keep the raw segment
+        }
+        params[patSegs[i].slice(1)] = value;
       } else if (patSegs[i] !== pathSegs[i]) {
         ok = false;
         break;

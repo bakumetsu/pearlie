@@ -469,6 +469,7 @@
   }
 
   .banner-btn {
+    min-height: 44px;
     padding: var(--s-1) var(--s-3);
     background: var(--danger-fg);
     color: var(--surface);
