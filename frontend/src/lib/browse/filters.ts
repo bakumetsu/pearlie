@@ -8,7 +8,16 @@ export const ORDER_LABELS: Record<string, string> = {
   "popular-week": "Popular this week",
   "popular-month": "Popular this month",
   popular: "Popular all time",
+  rating: "Rating",
+  random: "Random",
 };
+
+// Label for a sort value; an unknown value shows its raw name capitalised (no blank option).
+export function sortLabel(v: string): string {
+  if (ORDER_LABELS[v]) return ORDER_LABELS[v];
+  const t = v.replace(/[-_]+/g, " ").trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "Newest";
+}
 export const RATING_LABELS: Record<string, string> = {
   g: "General",
   s: "Sensitive",

@@ -1,22 +1,32 @@
 <script lang="ts">
   import Icon from "../components/Icon.svelte";
   import FilterSheet from "./FilterSheet.svelte";
-  import { ORDER_LABELS, RATING_LABELS } from "./filters";
+  import { sortLabel, RATING_LABELS } from "./filters";
 
   let {
-    order,
+    sort,
     rating,
-    orders,
+    sorts,
     ratings,
     orderBlocked = false,
+    favorites = false,
+    favorite = false,
+    canReset = false,
     onapply,
+    onfavorite,
+    onreset,
   }: {
-    order: string;
+    sort: string;
     rating: string[];
-    orders: string[];
+    sorts: string[];
     ratings: string[];
     orderBlocked?: boolean;
-    onapply: (next: { order: string; rating: string[] }) => void;
+    favorites?: boolean;
+    favorite?: boolean;
+    canReset?: boolean;
+    onapply: (next: { sort: string; rating: string[] }) => void;
+    onfavorite: () => void;
+    onreset: () => void;
   } = $props();
 
   let vw = $state(1024);
@@ -26,11 +36,13 @@
   let ratingBtn: HTMLButtonElement | undefined = $state();
 
   const phone = $derived(vw < 640);
-  const count = $derived((order ? 1 : 0) + (rating.length ? 1 : 0));
+  const hasSort = $derived(sorts.length > 1);
+  const hasRating = $derived(ratings.length > 0);
+  const count = $derived((sort ? 1 : 0) + (rating.length ? 1 : 0));
 
   function pickRating(r: string, on: boolean) {
     const next = on ? [...rating, r] : rating.filter((x) => x !== r);
-    onapply({ order, rating: ratings.filter((x) => next.includes(x)) });
+    onapply({ sort, rating: ratings.filter((x) => next.includes(x)) });
   }
 </script>
 
@@ -41,25 +53,27 @@
 />
 
 {#if phone}
-  <button type="button" class="tbtn" aria-label="Filters" aria-haspopup="dialog" onclick={() => (sheet = true)}>
-    <Icon name="sliders" />
-    {#if count > 0}<span class="badge" data-testid="filter-badge">{count}</span>{/if}
-  </button>
-  {#if sheet}
-    <FilterSheet {order} {rating} {orders} {ratings} {orderBlocked} onapply={(n) => { sheet = false; onapply(n); }} onclose={() => (sheet = false)} />
+  {#if hasSort || hasRating}
+    <button type="button" class="tbtn" aria-label="Filters" aria-haspopup="dialog" onclick={() => (sheet = true)}>
+      <Icon name="sliders" />
+      {#if count > 0}<span class="badge" data-testid="filter-badge">{count}</span>{/if}
+    </button>
+    {#if sheet}
+      <FilterSheet {sort} {rating} {sorts} {ratings} {orderBlocked} onapply={(n) => { sheet = false; onapply(n); }} onclose={() => (sheet = false)} />
+    {/if}
   {/if}
 {:else}
-  {#if orders.length > 1}
-    <label class="dd" class:disabled={orderBlocked} title={orderBlocked ? "Order is off while the search words fill the site's tag limit" : undefined}>
+  {#if hasSort}
+    <label class="dd" class:disabled={orderBlocked} title={orderBlocked ? "Sort is off while the search words fill the site's tag limit" : undefined}>
       <Icon name="order" size={16} />
-      <select aria-label="Order" value={order} disabled={orderBlocked} onchange={(e) => onapply({ order: (e.currentTarget as HTMLSelectElement).value === "newest" ? "" : (e.currentTarget as HTMLSelectElement).value, rating })}>
-        {#each orders as o (o)}
-          <option value={o === "newest" ? "" : o}>{ORDER_LABELS[o] ?? o}</option>
+      <select aria-label="Sort" value={sort} disabled={orderBlocked} onchange={(e) => onapply({ sort: (e.currentTarget as HTMLSelectElement).value, rating })}>
+        {#each sorts as o (o)}
+          <option value={o === "newest" ? "" : o}>{sortLabel(o)}</option>
         {/each}
       </select>
     </label>
   {/if}
-  {#if ratings.length > 0}
+  {#if hasRating}
     <div class="dd-wrap" bind:this={wrapEl}>
       <button type="button" class="dd" bind:this={ratingBtn} aria-label="Rating" aria-haspopup="true" aria-expanded={ratingOpen} onclick={() => (ratingOpen = !ratingOpen)}>
         <Icon name="shield" size={16} />
@@ -77,6 +91,16 @@
       {/if}
     </div>
   {/if}
+{/if}
+{#if favorites}
+  <button type="button" class="tbtn" aria-label="Favorites" aria-pressed={favorite} onclick={onfavorite}>
+    <Icon name={favorite ? "heart-filled" : "heart"} />
+  </button>
+{/if}
+{#if canReset}
+  <button type="button" class="tbtn" aria-label="Reset" onclick={onreset}>
+    <Icon name="rotate-ccw" />
+  </button>
 {/if}
 
 <style>

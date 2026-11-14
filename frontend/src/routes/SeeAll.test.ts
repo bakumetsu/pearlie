@@ -177,6 +177,7 @@ describe("SeeAll paging", () => {
     history.replaceState({}, "", "/see-all?source=stash_videos");
     freshRender(FreshApp);
     try {
+      (await freshScreen.findByRole("button", { name: "View" })).click();
       await freshScreen.findByRole("button", { name: "List" });
       expect(freshScreen.getByRole("button", { name: "Wall" })).toBeTruthy();
       expect(freshScreen.getByRole("button", { name: "List" })).toBeTruthy();
@@ -202,6 +203,7 @@ describe("SeeAll paging", () => {
     history.replaceState({}, "", "/see-all?source=komga_series");
     freshRender(FreshApp);
     try {
+      (await freshScreen.findByRole("button", { name: "View" })).click();
       await freshScreen.findByRole("button", { name: "List" });
       expect(freshScreen.getByRole("button", { name: "Grid" })).toBeTruthy();
       expect(freshScreen.getByRole("button", { name: "List" })).toBeTruthy();
@@ -227,6 +229,7 @@ describe("SeeAll paging", () => {
     history.replaceState({}, "", "/see-all?source=stash_images");
     freshRender(FreshApp);
     try {
+      (await freshScreen.findByRole("button", { name: "View" })).click();
       await freshScreen.findByRole("button", { name: "List" });
       expect(freshScreen.getByRole("button", { name: "Grid" })).toBeTruthy();
       expect(freshScreen.getByRole("button", { name: "Wall" })).toBeTruthy();
