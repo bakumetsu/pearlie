@@ -477,6 +477,41 @@ class KomgaTarget:
         return row is not None
 
     @staticmethod
+    def _book_matches(book: dict, post_id: str) -> bool:
+        """True when a Komga book is the saved copy of *post_id* (file name or Web link)."""
+        url = str(book.get("url", "")).replace("\\", "/")
+        if f"[{post_id}]" in posixpath.basename(url):
+            return True
+        links = (book.get("metadata") or {}).get("links") or []
+        return any(f"/{post_id}/" in str(ln.get("url", "")).rstrip("/") + "/" for ln in links)
+
+    def drop_if_gone(self, source: str, post_id: str) -> bool:
+        """Drop the index row of a post when Komga no longer has its book.
+
+        One search per dedupe hit. A Komga error keeps the row: only a clear
+        "no matching book" counts as gone.
+        """
+        tag = f"source={source} post={post_id}"
+        try:
+            page = self._client.list_books(0, VERIFY_PAGE_SIZE, post_id, "createdDate,desc")
+        except KomgaError as e:
+            logger.warning("KOMGA %s stale check failed code=%s status=%s", tag, e.code, e.status)
+            return False
+        if any(self._book_matches(b, post_id) for b in page.get("content", [])):
+            return False
+        conn = connect(self._settings.db_path)
+        try:
+            conn.execute(
+                "DELETE FROM saved_items WHERE target = 'komga' AND source = ? AND post_id = ?",
+                (source, post_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        logger.info("KOMGA %s stale index row dropped", tag)
+        return True
+
+    @staticmethod
     def _duplicate(via: str) -> SaveResult:
         return SaveResult(
             status="duplicate",

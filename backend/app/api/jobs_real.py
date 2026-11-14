@@ -57,6 +57,11 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
         # The index can outlive the image: one Stash lookup, drop the row if it is gone.
         if request.app.state.stash_target.drop_if_gone(image_id):
             image_id = store.saved_image_id(body.source, body.post_id)
+    elif image_id == "" and src.target == "komga":
+        # Same for Komga: one search, drop the row if the book was deleted there.
+        komga_target = getattr(request.app.state, "komga_target", None)
+        if komga_target is not None and komga_target.drop_if_gone(body.source, body.post_id):
+            image_id = store.saved_image_id(body.source, body.post_id)
     if image_id is not None:
         ref: dict[str, str] | None = None if image_id == "" else {"kind": "image", "id": image_id}
         raise ApiError(409, "already_saved", "Already saved", library_ref=ref)
