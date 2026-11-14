@@ -80,6 +80,31 @@ describe("ThumbCacheCard", () => {
 		});
 	});
 
+	it("(h) click Increase size limit increments cap by 1", async () => {
+		const { putOptions } = await renderCard();
+		const btn = screen.getByRole("button", { name: "Increase size limit" });
+		await fireEvent.click(btn);
+		await waitFor(() => {
+			expect(putOptions).toHaveBeenCalledWith({ thumb_cache_max_mb: 1025 });
+		});
+	});
+
+	it("(i) click Decrease size limit decrements cap by 1", async () => {
+		const { putOptions } = await renderCard();
+		const btn = screen.getByRole("button", { name: "Decrease size limit" });
+		await fireEvent.click(btn);
+		await waitFor(() => {
+			expect(putOptions).toHaveBeenCalledWith({ thumb_cache_max_mb: 1023 });
+		});
+	});
+
+	it("(j) at max 20480, Increase size limit does not call putOptions", async () => {
+		const { putOptions } = await renderCard({ max_mb: 20480 });
+		const btn = screen.getByRole("button", { name: "Increase size limit" });
+		await fireEvent.click(btn);
+		expect(putOptions).not.toHaveBeenCalled();
+	});
+
 	it("(d) invalid caps show alert and do not call putOptions", async () => {
 		const { putOptions } = await renderCard();
 		const input = screen.getByTestId("thumb-cache-cap") as HTMLInputElement;
