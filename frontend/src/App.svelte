@@ -94,7 +94,7 @@
       <SeeAll {match} />
     {:else if match.name === "item"}
       <Item {match} />
-    {:else if match.name === "read"}
+    {:else if match.name === "read" || match.name === "read-web"}
       <Reader {match} />
     {:else if match.name === "queue"}
       <Queue />

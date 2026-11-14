@@ -6,6 +6,7 @@ type S = components["schemas"];
 
 export type LibraryItem = S["LibraryItem"];
 export type WebItem = S["WebItem"];
+export type WebBook = S["WebBook"];
 export type Section = S["Section"];
 export type SearchResponse = S["SearchResponse"];
 export type SaveBody = S["SaveBody"];
@@ -119,6 +120,7 @@ export interface Api {
   getPlacement(source: string, postId: string, signal?: AbortSignal): Promise<PlacementSuggestion>;
   health(signal?: AbortSignal): Promise<Health>;
   getItem(kind: Kind, id: string, signal?: AbortSignal): Promise<LibraryItemDetail>;
+  webBook(source: string, id: string, signal?: AbortSignal): Promise<WebBook>;
   patchItem(kind: Kind, id: string, body: PatchBody, signal?: AbortSignal): Promise<LibraryItemDetail>;
   deleteItem(kind: Kind, id: string, signal?: AbortSignal): Promise<TrashResult>;
   restore(token: string, signal?: AbortSignal): Promise<RestoreResult>;
@@ -286,6 +288,13 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     getItem(kind, id, signal) {
       return request<LibraryItemDetail>(
         baseUrl + "/api/library/" + kind + "/" + encodeURIComponent(id),
+        undefined,
+        signal,
+      );
+    },
+    webBook(source, id, signal) {
+      return request<WebBook>(
+        baseUrl + "/api/media/web/" + encodeURIComponent(source) + "/" + encodeURIComponent(id) + "/book",
         undefined,
         signal,
       );

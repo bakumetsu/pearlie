@@ -13,6 +13,7 @@ export const ROUTES: RouteDef[] = [
   { name: "library_books", pattern: "/library/komga/books" },
   { name: "item", pattern: "/item/:kinds/:id" },
   { name: "read", pattern: "/read/:bookId" },
+  { name: "read-web", pattern: "/read/web/:source/:id" },
   { name: "queue", pattern: "/queue" },
   { name: "trash", pattern: "/trash" },
   { name: "options", pattern: "/options" },

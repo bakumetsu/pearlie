@@ -42,6 +42,13 @@ describe("createApi", () => {
     );
   });
 
+  it("webBook calls the nhentai book route", async () => {
+    const fakeFetch = vi.fn().mockResolvedValue(ok({ page_count: 3 }));
+    const api = createApi("", fakeFetch);
+    await api.webBook("nhentai", "12 3");
+    expect(fakeFetch).toHaveBeenCalledWith("/api/media/web/nhentai/12%203/book", expect.anything());
+  });
+
   it("list maps each Kind to its path and sends only defined params", async () => {
     const fakeFetch = vi.fn().mockImplementation(() => Promise.resolve(ok({ items: [] })));
     const api = createApi("", fakeFetch);

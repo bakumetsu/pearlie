@@ -21,6 +21,13 @@ describe("item and read routes", () => {
     expect(m.query.get("p")).toBe("3");
   });
 
+  it("matches /read/web/nhentai/123 as read-web, not as a Komga book", () => {
+    const m = matchRoute("/read/web/nhentai/123", "?p=4");
+    expect(m.name).toBe("read-web");
+    expect(m.params).toEqual({ source: "nhentai", id: "123" });
+    expect(m.query.get("p")).toBe("4");
+  });
+
   it("returns not_found for /item/images (missing id)", () => {
     const m = matchRoute("/item/images", "");
     expect(m.name).toBe("not_found");
