@@ -150,17 +150,16 @@ export function createOptions(deps: {
         }
       } catch {
         inFlight = false;
-        pendingPatch = {};
-        if (debounceTimer !== null) {
-          clearTimeout(debounceTimer);
-          debounceTimer = null;
-        }
+        // pendingPatch only holds changes made after toSend was taken: keep it and the debounce timer
         if (lastConfirmed) {
-          values = lastConfirmed;
-          deps.sfw.set(lastConfirmed.sfw);
-          deps.player.loadRate(lastConfirmed.player_rate);
+          values = applyPatch(lastConfirmed, pendingPatch);
+          deps.sfw.set(values.sfw);
+          deps.player.loadRate(values.player_rate);
         }
         toasts.push({ kind: "error", message: "Could not save options" });
+        if (Object.keys(pendingPatch).length > 0 && debounceTimer === null) {
+          flush();
+        }
       }
     })();
   }
