@@ -304,7 +304,7 @@ def _authorize(request: Request, src: Source, post_id: str) -> Post:
     post = mem.get(src.id, post_id)
     if post is not None:
         return post
-    if not post_id.isdigit():
+    if not (post_id.isascii() and post_id.isdigit()):
         raise ApiError(404, "not_found", "Media not found")
     try:
         post = src.get_post(post_id)
