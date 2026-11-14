@@ -907,6 +907,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/thumb-cache/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear Thumb Cache */
+        post: operations["clear_thumb_cache_api_thumb_cache_clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/connections": {
         parameters: {
             query?: never;
@@ -1629,6 +1646,15 @@ export interface components {
              * @default []
              */
             site_order: string[];
+            /**
+             * @default {
+             *       "max_mb": 1024,
+             *       "used_mb": 0,
+             *       "files": 0,
+             *       "available": true
+             *     }
+             */
+            thumb_cache: components["schemas"]["ThumbCacheInfo"];
         };
         /** OptionsUpdate */
         OptionsUpdate: {
@@ -1660,6 +1686,8 @@ export interface components {
             hidden_sites?: string[] | null;
             /** Site Order */
             site_order?: string[] | null;
+            /** Thumb Cache Max Mb */
+            thumb_cache_max_mb?: number | null;
         };
         /** PageStats */
         PageStats: {
@@ -2037,6 +2065,22 @@ export interface components {
             ok: boolean;
             /** Message */
             message: string;
+        };
+        /** ThumbCacheCleared */
+        ThumbCacheCleared: {
+            /** Freed Mb */
+            freed_mb: number;
+        };
+        /** ThumbCacheInfo */
+        ThumbCacheInfo: {
+            /** Max Mb */
+            max_mb: number;
+            /** Used Mb */
+            used_mb: number;
+            /** Files */
+            files: number;
+            /** Available */
+            available: boolean;
         };
         /** TrashEmptied */
         TrashEmptied: {
@@ -3986,6 +4030,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_thumb_cache_api_thumb_cache_clear_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThumbCacheCleared"];
                 };
             };
         };

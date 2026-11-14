@@ -275,6 +275,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.mode == "real"
         else None
     )
+    if app.state.thumb_cache is not None:
+        stored_mb = options.stored_thumb_cache_mb(settings.db_path)
+        if stored_mb is not None:
+            app.state.thumb_cache.set_max_mb(stored_mb)
 
     if settings.mode == "fixture":
         real = {n.strip() for n in settings.real.split(",") if n.strip()}

@@ -64,6 +64,7 @@ def test_defaults(any_client: TestClient) -> None:
         "source_pace": expected_pace,
         "hidden_sites": [],
         "site_order": ["danbooru", "gelbooru", "rule34", "nhentai"],
+        "thumb_cache": {"max_mb": 1024, "used_mb": 0.0, "files": 0, "available": True},
     }
 
 

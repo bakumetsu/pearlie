@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, FastAPI, Request
@@ -27,6 +28,15 @@ class SitePace(BaseModel):
     backing_off: bool
 
 
+class ThumbCacheInfo(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_mb: int
+    used_mb: float
+    files: int
+    available: bool
+
+
 class Options(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -46,6 +56,9 @@ class Options(BaseModel):
     source_pace: dict[str, SitePace] = {}
     hidden_sites: list[str] = []
     site_order: list[str] = []
+    thumb_cache: ThumbCacheInfo = ThumbCacheInfo(
+        max_mb=1024, used_mb=0.0, files=0, available=True
+    )
 
     @field_validator("player_rate")
     @classmethod
@@ -71,6 +84,7 @@ class OptionsUpdate(BaseModel):
     source_pace: dict[str, float] | None = None
     hidden_sites: list[str] | None = None
     site_order: list[str] | None = None
+    thumb_cache_max_mb: StrictInt | None = Field(default=None, ge=50, le=20480)
 
     @field_validator("player_rate")
     @classmethod
@@ -78,6 +92,12 @@ class OptionsUpdate(BaseModel):
         if v is not None and v not in ALLOWED_RATES:
             raise ValueError(f"player_rate must be one of {ALLOWED_RATES}")
         return v
+
+
+class ThumbCacheCleared(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    freed_mb: float
 
 
 def _detect_profile(request: Request) -> Literal["desktop", "touch"]:
@@ -136,6 +156,39 @@ def _write_db(request: Request, key: str, value: str) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def stored_thumb_cache_mb(db_path: Path) -> int | None:
+    """Saved cap from the settings table, or None when unset or out of range."""
+    conn = connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", ("thumbcache.max_mb",)
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return None
+    try:
+        v = int(row["value"])
+    except (ValueError, TypeError):
+        return None
+    return v if 50 <= v <= 20480 else None
+
+
+def _thumb_cache_max_mb(request: Request) -> int:
+    fixture = request.app.state.settings.mode == "fixture"
+    key = "thumbcache.max_mb"
+    raw = _read_mem(request, key) if fixture else _read_db(request, key)
+    if raw is None:
+        return 1024
+    try:
+        v = int(raw)
+    except (ValueError, TypeError):
+        return 1024
+    if not (50 <= v <= 20480):
+        return 1024
+    return v
 
 
 def _effective_pace(app: FastAPI, site: str) -> tuple[float, bool]:
@@ -239,6 +292,32 @@ def get_options(request: Request) -> Options:
     site_order = list(dict.fromkeys(s for s in so_raw if s in DEFAULT_PACE))
     site_order += [s for s in DEFAULT_PACE if s not in site_order]
 
+    # Thumb cache
+    if fixture:
+        thumb_cache = ThumbCacheInfo(
+            max_mb=_thumb_cache_max_mb(request),
+            used_mb=0.0,
+            files=0,
+            available=True,
+        )
+    else:
+        cache = getattr(request.app.state, "thumb_cache", None)
+        if cache is not None:
+            stats = cache.stats()
+            thumb_cache = ThumbCacheInfo(
+                max_mb=stats["max_mb"],
+                used_mb=stats["used_mb"],
+                files=stats["files"],
+                available=stats["available"],
+            )
+        else:
+            thumb_cache = ThumbCacheInfo(
+                max_mb=_thumb_cache_max_mb(request),
+                used_mb=0.0,
+                files=0,
+                available=False,
+            )
+
     return Options(
         sfw=sfw_val,
         sfw_set=sfw_set,
@@ -255,6 +334,7 @@ def get_options(request: Request) -> Options:
         source_pace=source_pace,
         hidden_sites=hidden_sites,
         site_order=site_order,
+        thumb_cache=thumb_cache,
     )
 
 
@@ -325,4 +405,20 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
             if site in throttles:
                 throttles[site].set_interval(value)
 
+    if body.thumb_cache_max_mb is not None:
+        write("thumbcache.max_mb", str(body.thumb_cache_max_mb))
+        cache = getattr(request.app.state, "thumb_cache", None)
+        if cache is not None:
+            cache.set_max_mb(body.thumb_cache_max_mb)
+
     return get_options(request)
+
+
+@router.post("/thumb-cache/clear", response_model=ThumbCacheCleared)
+def clear_thumb_cache(request: Request) -> ThumbCacheCleared:
+    cache = getattr(request.app.state, "thumb_cache", None)
+    if cache is not None:
+        freed_mb = round(cache.clear() / (1024 * 1024), 1)
+    else:
+        freed_mb = 0.0
+    return ThumbCacheCleared(freed_mb=freed_mb)
