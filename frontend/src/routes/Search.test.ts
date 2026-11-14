@@ -6,6 +6,7 @@ import App from "../App.svelte";
 describe("Search chips do not auto-run", () => {
   let searchCalls: number;
   let lastBody: string;
+  let hiddenSites: string[] = [];
 
   beforeEach(() => {
     vi.stubGlobal("localStorage", {
@@ -19,12 +20,21 @@ describe("Search chips do not auto-run", () => {
     window.scrollTo = vi.fn();
     history.replaceState({}, "", "/?q=cat");
     searchCalls = 0;
+    hiddenSites = [];
     lastBody = "";
     globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(
         typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
         "http://localhost",
       );
+      if (url.pathname === "/api/options") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ hidden_sites: hiddenSites }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }
       if (url.pathname === "/api/search") {
         searchCalls++;
         lastBody = url.search + String(init?.body ?? "");
@@ -110,5 +120,23 @@ describe("Search chips do not auto-run", () => {
     await settle();
     expect(searchCalls).toBe(base + 1);
     expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
+  });
+
+  it("removing a filter chip keeps hidden sites, draft chips and pending text", async () => {
+    hiddenSites = ["rule34"];
+    history.replaceState({}, "", "/?q=cat&sites=danbooru,gelbooru,rule34");
+    render(App);
+    await settle();
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    await fireEvent.input(input, { target: { value: "dog" } });
+    await fireEvent.keyDown(input, { key: "Enter" });
+    await fireEvent.input(input, { target: { value: "bird" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Remove Gelbooru" }));
+    await settle();
+    const params = new URLSearchParams(location.search);
+    expect(params.get("sites")).toBe("danbooru,rule34");
+    expect(params.get("q") ?? "").not.toContain("dog");
+    expect(screen.getByRole("button", { name: "Remove dog" })).toBeTruthy();
+    expect(input.value).toBe("bird");
   });
 });

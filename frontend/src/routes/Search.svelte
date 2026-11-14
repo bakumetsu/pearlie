@@ -101,6 +101,17 @@
     navigateState({ ...saved, pill });
   }
 
+  // Build from the saved state so hidden sites stay, and keep the unsaved draft chips and pending text.
+  function removeFilterChip(change: Partial<typeof query>): void {
+    const draft = draftChips;
+    const keep = change.sites;
+    const next = keep ? { ...saved, sites: saved.sites.filter((id) => hidden.includes(id) || keep.includes(id)) } : { ...saved, ...change };
+    navigateState(next);
+    void tick().then(() => {
+      draftChips = draft;
+    });
+  }
+
   function clearFilters(): void {
     navigateState({ ...saved, pill: "all", sites: DEFAULT_SITES });
   }
@@ -205,7 +216,7 @@
         {#each chips as c (c.key)}
           <span class="fchip">
             {c.label}
-            <button type="button" aria-label="Remove {c.label}" onclick={() => navigateState({ ...query, ...c.remove })}>
+            <button type="button" aria-label="Remove {c.label}" onclick={() => removeFilterChip(c.remove)}>
               <Icon name="x" size={14} />
             </button>
           </span>
