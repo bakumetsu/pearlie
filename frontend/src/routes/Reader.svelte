@@ -355,7 +355,6 @@
 				onsize={onsize}
 				onturn={turn}
 				ontoggle={() => hide.toggle()}
-				onzoom={(z) => setZoomValue(z)}
 				onzoomstep={(d) => setZoomValue(zoomStep(settings.zoom, d))}
 			/>
 		{/if}
