@@ -110,6 +110,33 @@ class KomgaTarget:
         except KomgaError as e:
             raise SaveError(e.code, e.message, e.status) from None
 
+    def _check_mounted(self, folder: str, tag: str) -> None:
+        """Fail when the library root is missing on Pearlie's side.
+
+        A wrong mount or prefix map would otherwise make the save create a
+        fresh folder tree that Komga never scans.
+        """
+        s = self._settings
+        mapped = destinations.to_stash_path(
+            folder, s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
+        )
+        for root in self._roots():
+            root = posixpath.normpath(root.replace("\\", "/"))
+            if mapped != root and not mapped.startswith(root + "/"):
+                continue
+            local = destinations.to_pearlie_path(
+                root, s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
+            )
+            if Path(local).is_dir():
+                return
+            logger.warning("KOMGA %s library root missing on Pearlie side root=%s", tag, local)
+            raise SaveError(
+                "library_not_mounted",
+                f"Komga library {root} is not found at {local} in Pearlie; "
+                "check the Pearlie/Komga path mapping and the mount",
+                422,
+            )
+
     @staticmethod
     def _check_writable(folder: str) -> Path:
         path = Path(folder)
@@ -339,6 +366,7 @@ class KomgaTarget:
         urls = self._urls(post)
         logger.info("KOMGA %s save start pages=%d", tag, len(urls))
         folder = self._folder(post.source)
+        self._check_mounted(folder, tag)
         existed = Path(folder).is_dir()
         dest_dir = self._check_writable(folder)
         if not existed:
