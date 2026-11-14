@@ -21,6 +21,7 @@ function makeOptions(overrides: Partial<Options> = {}): Options {
     images_per_site: 10,
     komga_scan_wait_s: 10,
     infinite_scroll: false,
+    site_names: true,
     place_mode: "suggest",
     hidden_sites: [],
     site_order: [],

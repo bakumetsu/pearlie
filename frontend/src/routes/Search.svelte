@@ -37,6 +37,7 @@
   const saved = $derived(parseSearchParams("?" + match.query.toString()));
   // The saved site order sets the order of the site rows; the address keeps the fixed order.
   const siteOrder = $derived(orderedSites(options.values?.site_order));
+  const names = $derived(options.values?.site_names ?? true);
   const query = $derived({
     ...saved,
     sites: siteOrder.filter((id) => effectiveSites(saved.sites, hidden).includes(id)),
@@ -188,7 +189,7 @@
   <header class="header">
     <h1 class="sr-only" tabindex="-1" bind:this={h1}>Discover</h1>
     <div class="hmarks">
-      <SiteMarks sites={query.sites} onsites={handleSitesChange} {hidden} order={siteOrder} onreorder={(o) => options.set({ site_order: o })} />
+      <SiteMarks sites={query.sites} onsites={handleSitesChange} {hidden} order={siteOrder} onreorder={(o) => options.set({ site_order: o })} {names} />
     </div>
     <div class="hfield">
       <div class="search-row">

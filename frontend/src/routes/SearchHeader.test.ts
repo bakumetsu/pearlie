@@ -66,12 +66,11 @@ describe("Discover header", () => {
     vi.unstubAllGlobals();
   });
 
-  it("names only the active site mark", async () => {
+  it("names every site mark", async () => {
     render(App);
     const marks = screen.getByRole("group", { name: "Sites" });
     expect(within(marks).getByRole("button", { name: "Danbooru" }).textContent).toContain("Danbooru");
-    // inactive marks show the icon only; the name stays in aria-label
-    expect(within(marks).getByRole("button", { name: "Gelbooru" }).textContent?.trim()).toBe("");
+    expect(within(marks).getByRole("button", { name: "Gelbooru" }).textContent).toContain("Gelbooru");
   });
 
   it("hides the chips row at defaults and shows it when filters are set", async () => {

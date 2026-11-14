@@ -37,4 +37,13 @@
 			/>
 		</div>
 	{/each}
+	<div class="row">
+		<span class="row-label">Show site names</span>
+		<Switch
+			checked={store.values?.site_names ?? true}
+			label="Show site names on pills"
+			onclick={() => store.set({ site_names: !(store.values?.site_names ?? true) })}
+		/>
+	</div>
+	<p class="hint">Off: pills show the icon only.</p>
 </section>
