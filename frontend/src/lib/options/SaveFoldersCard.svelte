@@ -10,8 +10,10 @@
 
 	const placeMode = $derived(store.values?.place_mode ?? "suggest");
 	const scanWait = $derived(store.values?.komga_scan_wait_s ?? 10);
-	function setScanWait(n: number) {
-		store.set({ komga_scan_wait_s: Math.min(120, Math.max(0, n)) });
+	const SCAN_STEP = 5;
+	function stepScanWait(dir: 1 | -1) {
+		const n = dir > 0 ? Math.floor(scanWait / SCAN_STEP + 1) : Math.ceil(scanWait / SCAN_STEP - 1);
+		store.set({ komga_scan_wait_s: Math.min(120, Math.max(0, n * SCAN_STEP)) });
 	}
 
 	let dest = $state<Destinations | null>(null);
@@ -248,7 +250,7 @@
 						aria-label="Shorter delay"
 						data-testid="scan-wait-minus"
 						disabled={scanWait <= 0}
-						onclick={() => setScanWait(scanWait - 1)}
+						onclick={() => stepScanWait(-1)}
 					>
 						<Icon name="minus" size={18} />
 					</button>
@@ -258,7 +260,7 @@
 						aria-label="Longer delay"
 						data-testid="scan-wait-plus"
 						disabled={scanWait >= 120}
-						onclick={() => setScanWait(scanWait + 1)}
+						onclick={() => stepScanWait(1)}
 					>
 						<Icon name="plus" size={18} />
 					</button>

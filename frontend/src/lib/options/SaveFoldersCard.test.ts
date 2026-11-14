@@ -181,7 +181,7 @@ describe("SaveFoldersCard", () => {
     expect(set).toHaveBeenCalledWith({ place_mode: "auto" });
   });
 
-  it("steps the Komga scan delay by 1 s and stops at 0 and 120", async () => {
+  it("steps the Komga scan delay by 5 s and stops at 0 and 120", async () => {
     const set = vi.fn();
     const store = { values: { place_mode: "suggest", komga_scan_wait_s: 10 }, set } as never;
     const { api } = makeApi({
@@ -190,9 +190,9 @@ describe("SaveFoldersCard", () => {
     render(SaveFoldersCard, { api, store });
     expect((await screen.findByTestId("scan-wait-value")).textContent).toBe("10 s");
     await fireEvent.click(screen.getByTestId("scan-wait-plus"));
-    expect(set).toHaveBeenLastCalledWith({ komga_scan_wait_s: 11 });
+    expect(set).toHaveBeenLastCalledWith({ komga_scan_wait_s: 15 });
     await fireEvent.click(screen.getByTestId("scan-wait-minus"));
-    expect(set).toHaveBeenLastCalledWith({ komga_scan_wait_s: 9 });
+    expect(set).toHaveBeenLastCalledWith({ komga_scan_wait_s: 5 });
   });
 
   it("disables the stepper at its limits", async () => {
