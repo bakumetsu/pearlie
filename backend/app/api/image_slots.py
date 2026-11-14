@@ -278,8 +278,13 @@ class SlotBody:
         time_limit: float = STREAM_LIMIT_S,
         clock: Callable[[], float] = time.monotonic,
         strict: bool = False,
+        chunk_size: int | None = None,
+        record_status: bool = True,
     ) -> None:
         self._strict = strict
+        self._chunk = () if chunk_size is None else (chunk_size,)
+        # a long video is slow by nature: its length must not count as a slow spell
+        self._record = record_status
         self._resp, self._slot = resp, slot
         self._status = resp.status_code
         self._max_bytes = max_bytes
@@ -290,7 +295,7 @@ class SlotBody:
     def __iter__(self):
         sent = 0
         try:
-            for chunk in self._resp.iter_raw():
+            for chunk in self._resp.iter_raw(*self._chunk):
                 sent += len(chunk)
                 if self._max_bytes is not None and sent > self._max_bytes:
                     return self._cut("size limit")
@@ -308,4 +313,4 @@ class SlotBody:
 
     def close(self) -> None:
         self._resp.close()
-        self._slot.finish(self._status if self._complete else None)
+        self._slot.finish(self._status if self._complete and self._record else None)

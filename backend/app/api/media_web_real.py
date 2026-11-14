@@ -18,10 +18,10 @@ import httpx
 from fastapi import APIRouter, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
-from starlette.background import BackgroundTask
 
 from app.api.errors import ApiError
 from app.api.image_slots import Busy, Gone, Slot, SlotBody, parse_prio, scheduler
+from app.api.relay import CHUNK_SIZE, relay
 from app.db import connect
 from app.filters.rules import evaluate, load_rules
 from app.sources.base import Post, Source, SourceError
@@ -193,7 +193,7 @@ async def web_media(request: Request, source: str, post_id: str, kind: str) -> R
 
 def _stream_media(
     request: Request, src: Source, post_id: str, kind: str, slot: Slot
-) -> StreamingResponse:
+) -> Response:
     url = _resolve(request, src, post_id, kind)  # type: ignore[arg-type]
     client: httpx.Client = src._client  # type: ignore[attr-defined]
     try:
@@ -207,6 +207,14 @@ def _stream_media(
         raise ApiError(502, "upstream_error", "The site is unreachable") from None
     media_type = upstream.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     status = upstream.status_code
+    if status == 416 and "range" in request.headers:
+        # a seek past the end: answer the player as the site did, not as an error
+        upstream.close()
+        slot.finish(None)
+        headers = {"Cache-Control": "no-store"}
+        if "content-range" in upstream.headers:
+            headers["Content-Range"] = upstream.headers["content-range"]
+        return Response(status_code=416, headers=headers)
     if status not in (200, 206) or not media_type.startswith(("image/", "video/")):
         upstream.close()
         slot.finish(None if status in (200, 206) else status, _retry_after(upstream))
@@ -218,14 +226,19 @@ def _stream_media(
     for h in _RELAY_HEADERS:
         if h in upstream.headers:
             headers["-".join(w.capitalize() for w in h.split("-"))] = upstream.headers[h]
-    limit = VIDEO_TIME_LIMIT if media_type.startswith("video/") else IMAGE_TIME_LIMIT
-    body = SlotBody(upstream, slot, time_limit=limit)
+    video = media_type.startswith("video/")
+    body = SlotBody(
+        upstream,
+        slot,
+        time_limit=VIDEO_TIME_LIMIT if video else IMAGE_TIME_LIMIT,
+        chunk_size=CHUNK_SIZE,
+        record_status=not video,
+    )
     return StreamingResponse(
-        iter(body),
+        relay(iter(body), body.close),
         status_code=status,
         media_type=media_type,
         headers=headers,
-        background=BackgroundTask(body.close),
     )
 
 

@@ -5,9 +5,9 @@ from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response, StreamingResponse
-from starlette.background import BackgroundTask
 
 from app.api.errors import ApiError
+from app.api.relay import CHUNK_SIZE, relay
 from app.targets import stash_library
 from app.targets.stash_client import StashError
 
@@ -46,11 +46,10 @@ def _stream(upstream, cache: str) -> StreamingResponse:
         if h in upstream.headers:
             headers[h.replace("-", " ").title().replace(" ", "-")] = upstream.headers[h]
     return StreamingResponse(
-        upstream.iter_raw(),
+        relay(upstream.iter_raw(CHUNK_SIZE), upstream.close),
         status_code=upstream.status_code,
         media_type=media_type,
         headers=headers,
-        background=BackgroundTask(upstream.close),
     )
 
 
