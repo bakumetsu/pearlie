@@ -224,7 +224,9 @@ class KomgaTarget:
             index = NameIndex()
         mode = self._place_mode()
         prefix_ok = mode == "suggest" and (absorb or override is not None)
-        plan = make_plan(index, parsed, "suggest" if prefix_ok else "auto", oneshots.name is not None)
+        plan = make_plan(
+            index, parsed, "suggest" if prefix_ok else "auto", oneshots.name is not None
+        )
         if override == "oneshot" and plan.kind == "series":
             plan = Plan("oneshot", None, "", None, "oneshot")
         elif override == "series" and plan.kind == "oneshot":
