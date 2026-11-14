@@ -50,7 +50,6 @@ THUMB_CACHE_CONTROL = "private, max-age=86400"
 _THUMB_ID = re.compile(r"[A-Za-z0-9_-]{1,32}")
 _RELAY_HEADERS = ("content-range", "content-length", "accept-ranges", "etag", "last-modified")
 _DROP_REQUEST_HEADERS = {"cookie", "authorization"}
-_VALID_ID_CHARS = frozenset("0123456789")
 
 
 def proxy_path(source: str, post_id: str, kind: Kind) -> str:
@@ -147,15 +146,7 @@ def _request_headers(request: Request, src: Source) -> dict[str, str]:
 
 
 def _resolve(request: Request, src: Source, post_id: str, kind: Kind) -> str:
-    post = _memory(request).get(src.id, post_id)
-    if post is None:
-        if not post_id or not set(post_id) <= _VALID_ID_CHARS:
-            raise ApiError(404, "not_found", "Media not found")
-        try:
-            post = src.get_post(post_id)
-        except SourceError as e:
-            raise ApiError(404 if e.code == "not_found" else 502, e.code, e.message) from None
-        _memory(request).put(post)
+    post = _authorize(request, src, post_id)
     url = pick_url(post, kind)
     if not url:
         raise ApiError(404, "not_found", "Media not found")
@@ -313,7 +304,7 @@ def _authorize(request: Request, src: Source, post_id: str) -> Post:
     post = mem.get(src.id, post_id)
     if post is not None:
         return post
-    if not post_id.isdigit():
+    if not (post_id.isascii() and post_id.isdigit()):
         raise ApiError(404, "not_found", "Media not found")
     try:
         post = src.get_post(post_id)
