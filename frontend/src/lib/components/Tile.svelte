@@ -20,7 +20,8 @@
   } = $props();
 
   const isWeb = $derived("post_id" in item);
-  // Web thumbs fall back thumb_url -> preview_url -> placeholder with Retry.
+  // Direct web thumbs fall back thumb_url -> preview_url -> placeholder with Retry;
+  // proxied ones (/api/media/web/) go straight to the placeholder with Retry.
   let stage = $state<0 | 1 | 2>(0);
   let lastThumb = "";
   $effect(() => {
@@ -35,7 +36,9 @@
   }
   function onWebError() {
     const w = item as WebItem;
-    if (stage === 0 && w.preview_url && w.preview_url !== w.thumb_url) stage = 1;
+    // A proxied thumb never falls back to preview_url (the full file): placeholder + Retry.
+    const proxied = w.thumb_url.startsWith("/api/media/web/");
+    if (!proxied && stage === 0 && w.preview_url && w.preview_url !== w.thumb_url) stage = 1;
     else stage = 2;
   }
   let revealed = $state(false);
