@@ -22,6 +22,7 @@ from app.targets.stash import SaveError
 class FakeKomga:
     def __init__(self, root: str, fail_scan: bool = False) -> None:
         self.root = root
+        self.oneshots: str | None = None
         self.fail_scan = fail_scan
         self.scanned: list[str] = []
         self.visible = True
@@ -29,7 +30,10 @@ class FakeKomga:
         self.dest: Path | None = None
 
     def list_libraries(self) -> list[dict]:
-        return [{"id": "L1", "name": "Doujin", "root": self.root}]
+        lib = {"id": "L1", "name": "Doujin", "root": self.root}
+        if self.oneshots:
+            lib["oneshotsDirectory"] = self.oneshots
+        return [lib]
 
     def scan_library(self, library_id: str) -> None:
         if self.fail_scan:
@@ -42,7 +46,7 @@ class FakeKomga:
             return {"content": []}
         return {
             "content": [
-                {"id": "B1", "url": f"{self.dest.as_posix()}/{f.name}"} for f in self.dest.iterdir()
+                {"id": "B1", "url": f.as_posix()} for f in self.dest.rglob("*.cbz")
             ]
         }
 
@@ -142,12 +146,13 @@ def test_scan_failure_is_a_notice(env) -> None:
     komga.fail_scan = True
     res = target.save(make_post(), [])
     assert res.status == "saved"
-    assert [n.code for n in res.notices] == ["scan_failed"]
+    assert [n.code for n in res.notices] == ["oneshots_not_set", "scan_failed"]
     assert len(list(dest.iterdir())) == 1
 
 
 def test_verified_book_has_no_notice(env) -> None:
     target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
     res = target.save(make_post(), [])
     assert res.notices == []
     assert res.dest_path and res.dest_path.startswith(dest.as_posix())
@@ -160,7 +165,7 @@ def test_missing_book_is_waiting_for_komga(env) -> None:
     res = target.save(make_post(), [])
     assert res.status == "saved"
     codes = [n.code for n in res.notices]
-    assert codes == ["waiting_for_komga"]
+    assert codes == ["oneshots_not_set", "waiting_for_komga"]
     assert komga.list_calls == 5
 
 
@@ -198,3 +203,99 @@ def test_validate_komga_folder() -> None:
     with pytest.raises(destinations.DestinationError) as e:
         destinations.validate_komga_folder("/other", ["/lib"])
     assert "Komga" in e.value.message
+
+
+def titled(title: str, post_id: str) -> Post:
+    post = make_post()
+    return post.model_copy(update={"title": title, "post_id": post_id})
+
+
+def _comic_info(path: Path) -> str:
+    with zipfile.ZipFile(path) as zf:
+        return zf.read("ComicInfo.xml").decode()
+
+
+def test_oneshot_goes_to_oneshots_folder(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    res = target.save(titled("[Foo] Lonely Book", "1"), [])
+    assert res.status == "saved" and res.notices == []
+    book = next((dest / "_oneshots").iterdir())
+    assert "<Series>" not in _comic_info(book)
+    assert [p.name for p in dest.iterdir()] == ["_oneshots"]
+
+
+def test_series_book_goes_to_author_root_folder(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    target.save(titled("[Foo] My Sister vol 2", "2"), [])
+    book = next((dest / "[Foo] My Sister").iterdir())
+    info = _comic_info(book)
+    assert "<Series>My Sister</Series>" in info and "<Number>2</Number>" in info
+
+
+def test_second_volume_moves_first_oneshot(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    target.save(titled("[Foo] My Sister", "1"), [])
+    first = next((dest / "_oneshots").iterdir())
+    data = first.read_bytes()
+    res = target.save(titled("[Foo] My Sister 2", "2"), [])
+    assert res.notices == []
+    names = sorted(p.name for p in (dest / "[Foo] My Sister").iterdir())
+    assert first.name in names and len(names) == 2
+    assert not list((dest / "_oneshots").iterdir())
+    assert (dest / "[Foo] My Sister" / first.name).read_bytes() == data
+
+
+def test_move_failure_never_fails_the_save(env, monkeypatch: pytest.MonkeyPatch) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    target.save(titled("[Foo] My Sister", "1"), [])
+
+    def boom(src, dst):
+        raise PermissionError(13, "denied")
+
+    monkeypatch.setattr("app.targets.komga.os.rename", boom)
+    res = target.save(titled("[Foo] My Sister 2", "2"), [])
+    assert res.status == "saved"
+    assert "move_failed" in [n.code for n in res.notices]
+    assert len(list((dest / "_oneshots").iterdir())) == 1
+
+
+def test_missing_old_file_is_move_skipped(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    target.save(titled("[Foo] My Sister", "1"), [])
+    plan_cache = target._index_cache
+    plan_cache.get(dest, "_oneshots")  # warm the cache, then remove the file behind it
+    next((dest / "_oneshots").iterdir()).unlink()
+    res = target.save(titled("[Foo] My Sister 2", "2"), [])
+    assert res.status == "saved"
+    assert "move_skipped" in [n.code for n in res.notices]
+
+
+def test_override_oneshot_wins_over_series(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    target.save(titled("[Foo] My Sister vol 2", "2"), [], placement="oneshot")
+    assert len(list((dest / "_oneshots").iterdir())) == 1
+    assert not (dest / "[Foo] My Sister").exists()
+
+
+def test_override_series_for_oneshot(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    target.save(titled("[Foo] Lonely Book", "1"), [], placement="series")
+    assert len(list((dest / "[Foo] Lonely Book").iterdir())) == 1
+
+
+def test_job_placement_roundtrip(tmp_path: Path) -> None:
+    from app.jobs.store import JobStore
+
+    init_db(tmp_path / "j.db")
+    store = JobStore(tmp_path / "j.db")
+    jid = store.enqueue(make_post(), "komga", "t", "", placement="oneshot")
+    assert store.load_placement(jid) == "oneshot"
+    other = make_post().model_copy(update={"post_id": "43"})
+    assert store.load_placement(store.enqueue(other, "komga", "t", "")) is None

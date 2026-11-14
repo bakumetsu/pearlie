@@ -15,6 +15,8 @@ from app.targets.placement_name import ParsedName, parse_name
 
 MAX_ENTRIES = 50_000
 CACHE_TTL_S = 30.0
+# Komga libraries JSON field; not confirmed against swagger (T-198), keep it in one place.
+ONESHOTS_FIELD = "oneshotsDirectory"
 _BAD_CHARS = re.compile(r'[<>:"/\|?*]')
 _FOLDER_AUTHOR_RE = re.compile(r"^(\[[^\]]+\])\s*(.*)$")
 
@@ -53,9 +55,11 @@ def oneshots_dir_name(
         if komga_path == root or komga_path.startswith(root.rstrip("/") + "/"):
             if len(root) > best_len:
                 best, best_len = lib, len(root)
-    raw = best.get("oneshotsDirectory") if best else None
+    raw = best.get(ONESHOTS_FIELD) if best else None
     name = raw.strip() if isinstance(raw, str) else ""
-    if not name or name.startswith(".") or "/" in name or "\\" in name:
+    if name.startswith("/"):  # Komga: a leading "/" only anchors the match
+        name = name[1:]
+    if not name or name.startswith(".") or ".." in name or "/" in name or "\\" in name:
         return OneshotsDir(None, "oneshots_not_set")
     return OneshotsDir(name)
 

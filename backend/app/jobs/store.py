@@ -76,15 +76,17 @@ class JobStore:
         finally:
             conn.close()
 
-    def enqueue(self, post: Post, target: str, title: str, thumb_url: str) -> str:
+    def enqueue(
+        self, post: Post, target: str, title: str, thumb_url: str, placement: str | None = None
+    ) -> str:
         conn = connect(self._path)
         try:
             for _ in range(3):
                 try:
                     cur = conn.execute(
                         "INSERT INTO jobs "
-                        "(source, post_id, status, target, title, thumb_url, post_json) "
-                        "VALUES (?, ?, 'queued', ?, ?, ?, ?)",
+                        "(source, post_id, status, target, title, thumb_url, post_json, placement) "
+                        "VALUES (?, ?, 'queued', ?, ?, ?, ?, ?)",
                         (
                             post.source,
                             post.post_id,
@@ -92,6 +94,7 @@ class JobStore:
                             title,
                             thumb_url,
                             post.model_dump_json(),
+                            json.dumps({"kind": placement}) if placement else None,
                         ),
                     )
                     conn.commit()
@@ -241,6 +244,21 @@ class JobStore:
             return (row["target"], row["post_json"])
         finally:
             conn.close()
+
+    def load_placement(self, job_id: str) -> str | None:
+        """The save-dialog override ("series" or "oneshot") stored with the job, if any."""
+        conn = connect(self._path)
+        try:
+            row = conn.execute("SELECT placement FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        finally:
+            conn.close()
+        if row is None or not row["placement"]:
+            return None
+        try:
+            kind = json.loads(row["placement"]).get("kind")
+        except (ValueError, AttributeError):
+            return None
+        return kind if kind in ("series", "oneshot") else None
 
     def set_post(self, job_id: str, post: Post) -> None:
         conn = connect(self._path)
