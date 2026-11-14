@@ -55,6 +55,7 @@ class Options(BaseModel):
     images_per_site: StrictInt = Field(default=10, ge=1, le=16)
     komga_scan_wait_s: StrictInt = Field(default=10, ge=0, le=120)
     infinite_scroll: StrictBool = False
+    site_names: StrictBool = True
     place_mode: Literal["auto", "suggest"] = "suggest"
     source_pace: dict[str, SitePace] = {}
     hidden_sites: list[str] = []
@@ -84,6 +85,7 @@ class OptionsUpdate(BaseModel):
     komga_scan_wait_s: StrictInt | None = Field(default=None, ge=0, le=120)
     confirm_purge: StrictBool | None = None
     infinite_scroll: StrictBool | None = None
+    site_names: StrictBool | None = None
     place_mode: Literal["auto", "suggest"] | None = None
     source_pace: dict[str, float] | None = None
     hidden_sites: list[str] | None = None
@@ -313,6 +315,9 @@ def get_options(request: Request) -> Options:
     is_raw = read("options.global.infinite_scroll")
     infinite_scroll: bool = is_raw == "1"
 
+    sn_raw = read("options.global.site_names")
+    site_names: bool = sn_raw != "0"
+
     place_mode: Literal["auto", "suggest"] = (
         "auto" if read("komga.place_mode") == "auto" else "suggest"
     )
@@ -379,6 +384,7 @@ def get_options(request: Request) -> Options:
         images_per_site=ips,
         komga_scan_wait_s=komga_scan_wait_s,
         infinite_scroll=infinite_scroll,
+        site_names=site_names,
         place_mode=place_mode,
         source_pace=source_pace,
         hidden_sites=hidden_sites,
@@ -416,6 +422,8 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
         write("options.global.allow_blurred_tags", "1" if body.allow_blurred_tags else "0")
     if body.infinite_scroll is not None:
         write("options.global.infinite_scroll", "1" if body.infinite_scroll else "0")
+    if body.site_names is not None:
+        write("options.global.site_names", "1" if body.site_names else "0")
     if body.place_mode is not None:
         write("komga.place_mode", body.place_mode)
     if body.trash_retention_days is not None:

@@ -63,6 +63,7 @@ def test_defaults(any_client: TestClient) -> None:
         "images_per_site": 10,
         "komga_scan_wait_s": 10,
         "infinite_scroll": False,
+        "site_names": True,
         "place_mode": "suggest",
         "source_pace": expected_pace,
         "hidden_sites": [],
@@ -86,6 +87,24 @@ def test_infinite_scroll_off_then_saved(any_client: TestClient) -> None:
 
 def test_infinite_scroll_rejects_non_bool(any_client: TestClient) -> None:
     r = any_client.put("/api/options", json={"infinite_scroll": "yes"})
+    assert r.status_code == 422
+
+
+def test_site_names_on_then_saved_off(any_client: TestClient) -> None:
+    assert any_client.get("/api/options").json()["site_names"] is True
+    r = any_client.put("/api/options", json={"site_names": False})
+    assert r.status_code == 200
+    assert r.json()["site_names"] is False
+    assert any_client.get("/api/options").json()["site_names"] is False
+    # Global: the touch profile sees the same value
+    touch = any_client.get("/api/options", headers={"X-Pearlie-Device": "touch"})
+    assert touch.json()["site_names"] is False
+    r = any_client.put("/api/options", json={"site_names": True})
+    assert r.json()["site_names"] is True
+
+
+def test_site_names_rejects_non_bool(any_client: TestClient) -> None:
+    r = any_client.put("/api/options", json={"site_names": "yes"})
     assert r.status_code == 422
 
 

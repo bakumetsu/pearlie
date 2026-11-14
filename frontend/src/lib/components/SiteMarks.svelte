@@ -9,12 +9,14 @@
     hidden = [],
     order,
     onreorder,
+    names = true,
   }: {
     sites: SiteId[];
     onsites: (s: SiteId[]) => void;
     hidden?: readonly string[];
     order?: readonly string[];
     onreorder?: (order: SiteId[]) => void;
+    names?: boolean;
   } = $props();
 
   const MOVE_PX = 6;
@@ -156,7 +158,7 @@
             /></span
           >
         {/if}
-        {#if on}<span class="mk-name">{s.label}</span>{/if}
+        {#if names}<span class="mk-name">{s.label}</span>{/if}
       </span>
     </button>
   {/each}

@@ -45,4 +45,23 @@ describe("DiscoverCard", () => {
     expect(store.set).not.toHaveBeenCalled();
     expect((screen.getByRole("switch", { name: "Show Rule34 in rail" }) as HTMLButtonElement).disabled).toBe(false);
   });
+
+  it("shows site names on by default", () => {
+    const store = makeStore({ hidden_sites: [] });
+    render(DiscoverCard, { store });
+    expect(screen.getByRole("switch", { name: "Show site names on pills" }).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("shows site names off when saved off", () => {
+    render(DiscoverCard, { store: makeStore({ site_names: false }) });
+    expect(screen.getByRole("switch", { name: "Show site names on pills" }).getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("turns site names off", async () => {
+    const store = makeStore({ site_names: true });
+    render(DiscoverCard, { store });
+    const sw = screen.getByRole("switch", { name: "Show site names on pills" }) as HTMLButtonElement;
+    await fireEvent.click(sw);
+    expect(store.set).toHaveBeenCalledWith({ site_names: false });
+  });
 });
