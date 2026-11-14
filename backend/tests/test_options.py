@@ -55,9 +55,9 @@ def test_defaults(any_client: TestClient) -> None:
         "player_rate_set": False,
         "profile": "desktop",
         "backdrop_strength": 60,
-        "backdrop_wall": True,
-        "backdrop_item": True,
-        "backdrop_lightbox": True,
+        "backdrop_wall": False,
+        "backdrop_item": False,
+        "backdrop_lightbox": False,
         "allow_blurred_tags": False,
         "trash_retention_days": 7,
         "images_per_site": 10,
@@ -94,6 +94,18 @@ def test_infinite_scroll_rejects_non_bool(any_client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_backdrop_switches_default_off_and_saved_value_stays(any_client: TestClient) -> None:
+    d = any_client.get("/api/options").json()
+    assert d["backdrop_wall"] is False
+    assert d["backdrop_item"] is False
+    assert d["backdrop_lightbox"] is False
+    any_client.put("/api/options", json={"backdrop_wall": True})
+    d = any_client.get("/api/options").json()
+    assert d["backdrop_wall"] is True
+    assert d["backdrop_item"] is False
+    assert d["backdrop_lightbox"] is False
+
+
 def test_partial_put_then_get(any_client: TestClient) -> None:
     r = any_client.put("/api/options", json={"sfw": True, "backdrop_strength": 80})
     assert r.status_code == 200
@@ -104,7 +116,7 @@ def test_partial_put_then_get(any_client: TestClient) -> None:
     # Untouched fields keep defaults
     assert data["player_rate"] == 1.0
     assert data["player_rate_set"] is False
-    assert data["backdrop_wall"] is True
+    assert data["backdrop_wall"] is False
     assert data["trash_retention_days"] == 7
 
     r2 = any_client.get("/api/options")

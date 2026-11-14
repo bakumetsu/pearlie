@@ -47,9 +47,9 @@ class Options(BaseModel):
     profile: Literal["desktop", "touch"] = "desktop"
 
     backdrop_strength: StrictInt = Field(default=60, ge=0, le=100)
-    backdrop_wall: StrictBool = True
-    backdrop_item: StrictBool = True
-    backdrop_lightbox: StrictBool = True
+    backdrop_wall: StrictBool = False
+    backdrop_item: StrictBool = False
+    backdrop_lightbox: StrictBool = False
     allow_blurred_tags: StrictBool = False
     trash_retention_days: StrictInt = Field(default=7, ge=1, le=365)
     images_per_site: StrictInt = Field(default=10, ge=1, le=16)
@@ -291,13 +291,13 @@ def get_options(request: Request) -> Options:
     backdrop_strength: int = min(100, max(0, int(_num(bs_raw, 60))))
 
     bw_raw = read("options.global.backdrop_wall")
-    backdrop_wall: bool = bw_raw == "1" if bw_raw is not None else True
+    backdrop_wall: bool = bw_raw == "1" if bw_raw is not None else False
 
     bi_raw = read("options.global.backdrop_item")
-    backdrop_item: bool = bi_raw == "1" if bi_raw is not None else True
+    backdrop_item: bool = bi_raw == "1" if bi_raw is not None else False
 
     bl_raw = read("options.global.backdrop_lightbox")
-    backdrop_lightbox: bool = bl_raw == "1" if bl_raw is not None else True
+    backdrop_lightbox: bool = bl_raw == "1" if bl_raw is not None else False
 
     abt_raw = read("options.global.allow_blurred_tags")
     allow_blurred_tags: bool = abt_raw == "1" if abt_raw is not None else False
