@@ -227,5 +227,10 @@ class NHentai:
                 or None
             ),
             page_count=count if isinstance(count, int) else (len(exts) or None),
-            extra={"media_id": media_id, "page_exts": exts},
+            extra={
+                "media_id": media_id,
+                "page_exts": exts,
+                "title_english": title.get("english") or None,
+                "title_japanese": title.get("japanese") or None,
+            },
         )

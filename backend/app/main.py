@@ -27,6 +27,8 @@ from app.api import (
     media_komga_real,
     media_stash,
     media_stash_real,
+    media_web_pages,
+    media_web_pages_fixture,
     media_web_real,
     options,
     player_settings,
@@ -72,6 +74,7 @@ FIXTURE_ROUTERS = {
     "library_komga": library_komga.router,
     "library_stash": library_stash.router,
     "media_stash": media_stash.router,
+    "media_web_pages": media_web_pages_fixture.router,
     "media_komga": media_komga.router,
     "jobs": jobs.router,
     "rules": rules.router,
@@ -83,6 +86,7 @@ REAL_ROUTERS: dict[str, APIRouter] = {
     "media_stash": media_stash_real.router,
     "library_stash": library_stash_real.router,
     "media_komga": media_komga_real.router,
+    "media_web_pages": media_web_pages.router,
     "media_web": media_web_real.router,
     "jobs": jobs_real.router,
     "rules": rules_real.router,
@@ -325,7 +329,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "media_stash": ("stash",),
         "jobs": ("stash", "komga"),
     }
-    for name in real:
+    for name in (n for n in REAL_ROUTERS if n in real):  # order: /book before {kind}
         deps = [Depends(_require_configured(name, needs[name]))] if name in needs else []
         app.include_router(REAL_ROUTERS[name], dependencies=deps)
     if settings.mode == "real":

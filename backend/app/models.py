@@ -139,6 +139,24 @@ class WebItem(BaseModel):
     blur: Blur | None = None
 
 
+class WebBook(BaseModel):
+    """nhentai gallery for the web book page (title parsed by the backend)."""
+
+    title: str | None = None
+    title_main: str
+    title_sub: str | None = None
+    artist: str | None = None
+    circle: str | None = None
+    event: str | None = None
+    language: str | None = None
+    translator: str | None = None
+    tags: dict[str, list[str]] = Field(default_factory=dict)
+    page_count: int
+    page_url: str = Field(description="URL template with a literal {n} (1-based page number).")
+    page_thumb_url: str = Field(description="Like page_url, for the page thumbnail.")
+    item: WebItem
+
+
 class PageStats(BaseModel):
     megapixels: float | None = None
     size_bytes: int | None = None
