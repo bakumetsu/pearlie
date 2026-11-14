@@ -1,7 +1,9 @@
+import { SvelteSet } from "svelte/reactivity";
+
 // Single active video-card preview key (T-36)
 let activeKey: string | null = $state(null);
 // Keys whose preview file failed to load (Stash has none generated); not retried on every hover.
-const failedKeys = new Set<string>();
+const failedKeys = new SvelteSet<string>();
 
 export const videoPreview = {
   get active(): string | null { return activeKey; },

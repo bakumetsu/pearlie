@@ -30,7 +30,7 @@
 
   const canPreview = $derived(
     !!item.preview_url &&
-    !failed &&
+    !videoPreview.hasFailed(key) &&
     !(
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
@@ -38,7 +38,6 @@
     )
   );
 
-  let failed = $state(false);
   let sfwOff = $state(true);
   let posterShown = $state(false);
 
@@ -72,13 +71,12 @@
   }
 
   function startPreview() {
-    if (!canPreview || videoPreview.hasFailed(key)) return;
+    if (!canPreview) return;
     refreshSfw();
     videoPreview.start(key);
   }
 
   function previewFailed() {
-    failed = true;
     videoPreview.fail(key);
   }
 
