@@ -108,6 +108,25 @@ describe("komgaSource", () => {
     expect(komgaSource(api, "k1", new URLSearchParams()).backTarget()).toBe("/item/books/k1");
   });
 
+  it("fetches book and series at the same time", async () => {
+    const order: string[] = [];
+    const api = fakeApi({
+      getItem: vi.fn(async (kind: string) => {
+        order.push(kind);
+        await Promise.resolve();
+        return kind === "series" ? { books: [] } : { title: "T", page_count: 5, page_url: "/p/{n}" };
+      }),
+    });
+    const p = komgaSource(api, "k1", new URLSearchParams("series=s")).load();
+    expect(order).toEqual(["books", "series"]);
+    await p;
+  });
+
+  it("a failed book load rejects", async () => {
+    const api = fakeApi({ getItem: vi.fn(async () => { throw new Error("x"); }) });
+    await expect(komgaSource(api, "k1", new URLSearchParams()).load()).rejects.toThrow();
+  });
+
   it("a failed series load keeps the book", async () => {
     const api = fakeApi({
       getItem: vi.fn(async (kind: string) => {

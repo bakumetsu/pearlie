@@ -167,7 +167,7 @@
 		progress.set(bookId, g[g.length - 1]);
 		const qs = "?p=" + page + (seriesId ? "&series=" + seriesId : "");
 		const base = source.kind === "web"
-			? "/read/web/" + match.params.source + "/" + encodeURIComponent(match.params.id)
+			? "/read/web/" + encodeURIComponent(match.params.source) + "/" + encodeURIComponent(match.params.id)
 			: "/read/" + encodeURIComponent(bookId);
 		router.navigate(base + qs, { replace: true });
 	}

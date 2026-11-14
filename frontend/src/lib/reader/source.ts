@@ -31,27 +31,23 @@ export function komgaSource(api: Api, bookId: string, query: URLSearchParams): R
     kind: "komga",
     key: bookId,
     async load() {
-      const d = await api.getItem("books", bookId);
-      let books: LibraryItem[] = [];
-      let notice: string | null = null;
-      if (seriesId) {
-        try {
-          const s = await api.getItem("series", seriesId);
-          books = s.books ?? [];
-          notice = s.notice?.message ?? null;
-        } catch {
-          books = [];
-          notice = null;
-        }
-      }
+      const [d, series] = await Promise.all([
+        api.getItem("books", bookId),
+        seriesId
+          ? api.getItem("series", seriesId).then(
+              (s) => ({ books: s.books ?? [], notice: s.notice?.message ?? null }),
+              () => ({ books: [] as LibraryItem[], notice: null }),
+            )
+          : Promise.resolve({ books: [] as LibraryItem[], notice: null }),
+      ]);
       return {
         title: d.title,
         count: d.page_count ?? 0,
         tpl: d.page_url ?? "",
         thumbTpl: d.page_thumb_url ?? null,
         start: startPage(query.get("p"), d.read_page, d.page_count ?? null),
-        books,
-        notice,
+        books: series.books,
+        notice: series.notice,
       };
     },
     saveProgress(page, _count, opts) {
