@@ -68,12 +68,18 @@ export function withPrio(url: string, prio: WebPrio): string {
   return url + (url.includes("?") ? "&" : "?") + "prio=" + prio;
 }
 
-// Svelte action: sets the image src only when the gate grants a slot; frees it on load or error.
+// A request that neither loads nor errors within this time frees its slot anyway.
+export const GATE_HOLD_MS = 30_000;
+
+// Svelte action: sets the image src only when the gate grants a slot; frees it on load, error or timeout.
 export function gatedSrc(node: HTMLImageElement, arg: { src: string; prio: WebPrio; gate?: Gate }) {
   let cancel: (() => void) | null = null;
   let release: (() => void) | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
 
   function free() {
+    if (timer) clearTimeout(timer);
+    timer = null;
     release?.();
     release = null;
   }
@@ -95,6 +101,7 @@ export function gatedSrc(node: HTMLImageElement, arg: { src: string; prio: WebPr
         return;
       }
       release = rel;
+      timer = setTimeout(free, GATE_HOLD_MS);
       node.src = withPrio(a.src, a.prio);
     });
   }

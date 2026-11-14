@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { createGate, withPrio } from "./webImageQueue";
+import { describe, it, expect, vi } from "vitest";
+import { createGate, withPrio, gatedSrc, GATE_HOLD_MS } from "./webImageQueue";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -68,5 +68,24 @@ describe("withPrio", () => {
   it("adds the prio query", () => {
     expect(withPrio("/a/1", "focus")).toBe("/a/1");
     expect(withPrio("/a/1?x=1", "prefetch")).toBe("/a/1?x=1&prio=prefetch");
+  });
+});
+
+describe("gatedSrc timeout", () => {
+  it("frees the slot when the image neither loads nor errors", async () => {
+    vi.useFakeTimers();
+    try {
+      const g = createGate({ focus: 1, other: 1 });
+      const node = { src: "", removeAttribute() {}, addEventListener() {}, removeEventListener() {} };
+      gatedSrc(node as unknown as HTMLImageElement, { src: "/a/1", prio: "cover", gate: g });
+      let second = false;
+      void g.acquire("cover").ready.then(() => (second = true));
+      await vi.advanceTimersByTimeAsync(GATE_HOLD_MS - 1);
+      expect(second).toBe(false);
+      await vi.advanceTimersByTimeAsync(2);
+      expect(second).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
