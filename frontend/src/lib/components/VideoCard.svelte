@@ -30,6 +30,7 @@
 
   const canPreview = $derived(
     !!item.preview_url &&
+    !failed &&
     !(
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
@@ -37,6 +38,7 @@
     )
   );
 
+  let failed = $state(false);
   let sfwOff = $state(true);
   let posterShown = $state(false);
 
@@ -70,9 +72,14 @@
   }
 
   function startPreview() {
-    if (!canPreview) return;
+    if (!canPreview || videoPreview.hasFailed(key)) return;
     refreshSfw();
     videoPreview.start(key);
+  }
+
+  function previewFailed() {
+    failed = true;
+    videoPreview.fail(key);
   }
 
   function stopPreview() {
@@ -206,7 +213,7 @@
       autoplay
       data-sfw-shown="1"
       class:blur-img={blurred}
-      onerror={stopPreview}
+      onerror={previewFailed}
     ></video>
   {/if}
 
