@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import urljoin
+
 import httpx
 
 from app.logs import install_http_hooks
@@ -75,6 +77,10 @@ GET_SCENE = (
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
+
+
+_REDIRECTS = (301, 302, 303, 307, 308)
+_MAX_HOPS = 2
 
 
 class StashError(Exception):
@@ -279,12 +285,31 @@ class StashClient:
         request = self._client.build_request(
             "GET", path, params=params, headers=headers
         )
-        try:
-            response = self._client.send(
-                request, stream=True, follow_redirects=False
-            )
-        except httpx.HTTPError as exc:
-            raise StashError("upstream_error", "Stash is not reachable") from exc
+        origin = request.url
+        hops = 0
+        while True:
+            try:
+                response = self._client.send(
+                    request, stream=True, follow_redirects=False
+                )
+            except httpx.HTTPError as exc:
+                raise StashError("upstream_error", "Stash is not reachable") from exc
+            if response.status_code not in _REDIRECTS:
+                break
+            location = response.headers.get("location")
+            response.close()
+            if not location or hops >= _MAX_HOPS:
+                raise StashError("upstream_error", "Stash redirect not followed")
+            target = httpx.URL(urljoin(str(request.url), location))
+            if (target.scheme, target.host, target.port) != (
+                origin.scheme,
+                origin.host,
+                origin.port,
+            ):
+                # Never send the ApiKey to another host.
+                raise StashError("upstream_error", "Stash redirect not followed")
+            hops += 1
+            request = self._client.build_request("GET", target, headers=headers)
 
         status = response.status_code
         if status == 404:

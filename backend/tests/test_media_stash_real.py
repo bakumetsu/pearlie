@@ -298,3 +298,57 @@ def test_rewrite_m3u8_comments() -> None:
 
     src = "#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:2.0,\n0.ts\n"
     assert rewrite_m3u8(src).splitlines() == src.splitlines()
+
+
+# --- redirects: same-host only, max 2 hops, ApiKey never off-host ---
+
+
+def _redirect(location: str | None) -> httpx.Response:
+    headers = {"Location": location} if location else {}
+    return stream_response(302, b"", headers)
+
+
+def test_same_host_redirect_followed(tmp_path: Path) -> None:
+    seen: list[tuple[str, str | None]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.url.path, request.headers.get("apikey")))
+        if request.url.path.endswith("/thumbnail"):
+            return _redirect("/moved/thumb.jpg")
+        return stream_response(200, b"IMG", {"Content-Type": "image/jpeg"})
+
+    r = make_client(tmp_path, handler).get("/api/media/stash/images/1/thumb")
+    assert r.status_code == 200
+    assert r.content == b"IMG"
+    assert [p for p, _ in seen] == ["/image/1/thumbnail", "/moved/thumb.jpg"]
+    assert all(k == KEY for _, k in seen)
+
+
+def test_off_host_redirect_refused(tmp_path: Path) -> None:
+    hosts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hosts.append(request.url.host)
+        return _redirect("http://evil.test/steal")
+
+    r = make_client(tmp_path, handler).get("/api/media/stash/images/1/thumb")
+    assert r.status_code == 502
+    assert r.headers["cache-control"] == "no-store"
+    assert hosts == ["stash.test"]
+    assert KEY not in r.text
+
+
+@pytest.mark.parametrize("location", [None, "/a"])
+def test_redirect_missing_location_or_too_many_hops(
+    tmp_path: Path, location: str | None
+) -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return _redirect(location)
+
+    r = make_client(tmp_path, handler).get("/api/media/stash/images/1/thumb")
+    assert r.status_code == 502
+    assert r.headers["cache-control"] == "no-store"
+    assert len(calls) == (1 if location is None else 3)
