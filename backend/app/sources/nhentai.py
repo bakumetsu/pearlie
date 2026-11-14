@@ -114,7 +114,8 @@ class NHentai:
         if status in (403, 503):
             raise SourceError(
                 "upstream_error",
-                "nhentai blocked the request (Cloudflare check): set the cookie and User-Agent in Options",
+                "nhentai blocked the request (Cloudflare check): "
+                "set the cookie and User-Agent in Options",
                 status,
             )
         if status >= 400:
