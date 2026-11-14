@@ -267,7 +267,8 @@ async def _fetch_image(request: Request, gid: str, n: int, thumb: bool, prio: Pr
             _check_response(resp)
         except _Refusal:
             resp.close()
-            slot.finish(resp.status_code, _retry_after(resp))
+            # a 200 that is no usable image is not a clean answer: do not ramp slots up
+            slot.finish(None if resp.status_code == 200 else resp.status_code, _retry_after(resp))
             raise
         except BaseException:
             resp.close()
@@ -276,7 +277,7 @@ async def _fetch_image(request: Request, gid: str, n: int, thumb: bool, prio: Pr
     except _Refusal as r:
         logger.warning("nhentai gallery=%s page=%d thumb=%s err %d", gid, n, thumb, r.status)
         return _refusal_response(r)
-    body = SlotBody(resp, slot, MAX_PAGE_BYTES, PAGE_TIME_LIMIT)
+    body = SlotBody(resp, slot, MAX_PAGE_BYTES, PAGE_TIME_LIMIT, strict=True)
     media_type = resp.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     headers = {"Cache-Control": PAGE_CACHE_CONTROL}
     if "content-length" in resp.headers:
