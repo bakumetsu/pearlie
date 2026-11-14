@@ -177,3 +177,20 @@ def test_danbooru_200_eases():
 
     d._get("/posts.json")
     assert not t.backing_off
+
+
+# -- set_interval validation -------------------------------------------------
+
+def test_set_interval_rejects_invalid():
+    t, _, _ = make_throttle(1.0)
+    for bad in (-1, float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="interval must be finite and >= 0"):
+            t.set_interval(bad)
+
+
+def test_set_interval_accepts_valid():
+    t, _, _ = make_throttle(1.0)
+    t.set_interval(0)
+    assert t.interval == 0
+    t.set_interval(2.5)
+    assert t.interval == 2.5

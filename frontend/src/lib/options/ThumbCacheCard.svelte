@@ -6,7 +6,6 @@
 	import type { Api } from "../api/client";
 	import Icon from "../components/Icon.svelte";
 
-
 	let { store = options, api = getApi() }: { store?: OptionsStore; api?: Api } = $props();
 
 	const cache = $derived(store.values?.thumb_cache);

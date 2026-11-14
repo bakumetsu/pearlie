@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import SecretStr, ValidationError, field_validator
+from pydantic import Field, SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     db_path: Path = Path("data/pearlie.db")
     static_dir: Path = Path("../frontend/dist")
     host: str = "127.0.0.1"
-    port: int = 8000
+    port: int = Field(8000, ge=1, le=65535)
     trusted_network: bool = False
     allowed_hosts: str = ""
     secret_key: SecretStr = SecretStr("")
@@ -38,12 +38,12 @@ class Settings(BaseSettings):
     stash_default_dir: Path = Path("/mnt/media/stash/Other")
     stash_path_prefix_pearlie: str = ""
     stash_path_prefix_stash: str = ""
-    stash_scan_timeout_s: float = 120.0
+    stash_scan_timeout_s: float = Field(120.0, gt=0, allow_inf_nan=False)
     komga_incoming_dir: str = ""
     komga_temp_dir: Path = Path("/mnt/media/komga/.pearlie-tmp")
     komga_path_prefix_pearlie: str = ""
     komga_path_prefix_komga: str = ""
-    download_interval_s: float = 2.0
+    download_interval_s: float = Field(2.0, ge=0, allow_inf_nan=False)
     worker_enabled: bool = True
     log_dir: Path | None = None
     log_keep_days: int = 7

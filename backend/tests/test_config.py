@@ -164,3 +164,28 @@ def test_resolve_auto_host(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(subprocess, "run", fake_run_error)
     assert resolve_auto_host() is None
+
+
+def test_port_bounds() -> None:
+    for bad in (0, 65536):
+        with pytest.raises(ConfigError):
+            load_settings(mode="fixture", port=bad, _env_file=None)
+    for good in (1, 65535):
+        s = load_settings(mode="fixture", port=good, _env_file=None)
+        assert s.port == good
+
+
+def test_download_interval_s_bounds() -> None:
+    for bad in (-1, float("nan"), float("inf")):
+        with pytest.raises(ConfigError):
+            load_settings(mode="fixture", download_interval_s=bad, _env_file=None)
+    s = load_settings(mode="fixture", download_interval_s=0, _env_file=None)
+    assert s.download_interval_s == 0
+
+
+def test_stash_scan_timeout_s_bounds() -> None:
+    for bad in (0, -5, float("nan"), float("inf")):
+        with pytest.raises(ConfigError):
+            load_settings(mode="fixture", stash_scan_timeout_s=bad, _env_file=None)
+    s = load_settings(mode="fixture", stash_scan_timeout_s=0.5, _env_file=None)
+    assert s.stash_scan_timeout_s == 0.5
