@@ -23,6 +23,8 @@
   import WallOverlay from "../lib/browse/WallOverlay.svelte";
   import Lightbox from "../lib/components/Lightbox.svelte";
   import Toolbar from "../lib/browse/Toolbar.svelte";
+  import SeeAllSearch from "../lib/browse/SeeAllSearch.svelte";
+  import { getLastDiscoverQuery } from "../lib/stores/search.svelte";
   import { nextAutohide } from "../lib/browse/autohide";
   import { parseOrder, parseRating } from "../lib/browse/filters";
   import type { SourceFilters } from "../lib/api/client";
@@ -36,7 +38,20 @@
   let h1: HTMLHeadingElement | undefined;
   let notice = $state<string | null>(null);
 
+  // Opened without a q: start from the last Discover search (one way; See all never writes it back).
+  // The grid waits for the prefilled address, so the first request already carries it.
+  const prefillQ = match.query.get("q") ? "" : getLastDiscoverQuery().trim();
+  let prefilling = $state(prefillQ !== "");
+
   onMount(() => {
+    if (prefillQ) {
+      const qs = new SvelteURLSearchParams(match.query);
+      qs.set("q", prefillQ);
+      // After a tick: the app shell subscribes to the router after its children mount.
+      tick().then(() => router.navigate(match.path + `?${qs.toString()}`, { replace: true }));
+      // The grid effect clears the flag once the prefilled q arrives; this timer only guards a missed update.
+      setTimeout(() => { prefilling = false; }, 1000);
+    }
     h1?.focus();
     viewSettings.load(api);
     // Capability list for the toolbar. No answer yet or a failed call: no Order/Rating controls, plain list.
@@ -56,6 +71,7 @@
   });
 
   const q = $derived(match.query.get("q") ?? "");
+  $effect(() => { if (q) prefilling = false; });
   const sort = $derived(match.query.get("sort") ?? "");
   const favorite = $derived(match.query.get("favorite") === "true");
   const caps = $derived(filterCaps[source]);
@@ -178,7 +194,7 @@
 
   $effect(() => {
     if (!viewSettings.ready || !options.ready) return;
-    if (pendingCloseQuery !== null) return;
+    if (pendingCloseQuery !== null || prefilling) return;
     const inf = infinite;
     const k = sourceToKind(source);
     const src = source;
@@ -372,6 +388,26 @@
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   }
 
+  function setQuery(next: string) {
+    const text = next.trim();
+    if (text === q.trim()) return;
+    const qs = new SvelteURLSearchParams(match.query);
+    qs.delete("page");
+    if (text) qs.set("q", text);
+    else qs.delete("q");
+    const search = qs.toString();
+    router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
+  }
+
+  const filtersSet = $derived(sort !== "" || rawOrder !== "" || rating.length > 0 || favorite);
+
+  function clearFilters() {
+    const qs = new SvelteURLSearchParams(match.query);
+    for (const k of ["sort", "order", "rating", "favorite", "seed", "page"]) qs.delete(k);
+    const search = qs.toString();
+    router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
+  }
+
   function onFavToggle() {
     const qs = new SvelteURLSearchParams(match.query);
     qs.delete("page");
@@ -455,13 +491,11 @@
         <Icon name="arrow-left" size={20} />
       </button>
       <h2 class="header-title">{title}{grid.total != null ? ` (${grid.total})` : ""}</h2>
-      {#if !isLibrary && grid.total == null && grid.status === "done"}<span class="shown" data-testid="shown">{grid.items.length} shown</span>{/if}
+      {#if !isLibrary && grid.total == null && grid.status === "done" && grid.items.length > 0}<span class="shown" data-testid="shown">{grid.items.length} shown</span>{/if}
     </div>
 
-    {#if q}
-      <div class="q-chips">
-        <span class="q-chip">{q}</span>
-      </div>
+    {#if caps?.search !== false}
+      <SeeAllSearch value={q} web={!isLibrary} onsubmit={setQuery} />
     {/if}
 
     <div class="controls">
@@ -488,7 +522,19 @@
         <button class="retry-btn" onclick={() => grid.retry()}>Retry</button>
       </div>
     {:else if grid.items.length === 0}
-      <div class="empty">Nothing here.</div>
+      <div class="empty" data-testid="empty">
+        {#if q.trim()}
+          <p>No results for “{q.trim()}”</p>
+        {:else if filtersSet}
+          <p>Nothing matches these filters</p>
+        {:else}
+          <p>Nothing here.</p>
+        {/if}
+        <div class="empty-actions">
+          {#if q.trim()}<button class="clear-btn" type="button" onclick={() => setQuery("")}>Clear search</button>{/if}
+          {#if filtersSet}<button class="clear-btn" type="button" onclick={clearFilters}>Clear filters</button>{/if}
+        </div>
+      </div>
     {:else}
       <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => (w.source === "nhentai" ? router.navigate("/web/nhentai/" + encodeURIComponent(w.post_id)) : (lightboxKey = webKey(w)))} landscape={source === "stash_videos"} />
     {/if}
@@ -544,5 +590,8 @@
   .more-box p { margin: 0; }
   .retry-btn { min-height: 44px; margin-top: var(--s-4); padding: var(--s-2) var(--s-4); border: none; border-radius: var(--s-2); background: var(--text); color: var(--surface); cursor: pointer; }
   .empty { text-align: center; padding: var(--s-8); color: var(--text); }
+  .empty p { margin: 0 0 var(--s-2); }
+  .empty-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: var(--s-2); }
+  .clear-btn { min-height: 44px; padding: var(--s-2) var(--s-4); border: 1px solid var(--line-strong); border-radius: var(--s-2); background: none; color: var(--text); cursor: pointer; }
   .notice { margin: 0; font-size: 0.875rem; color: var(--muted); }
 </style>

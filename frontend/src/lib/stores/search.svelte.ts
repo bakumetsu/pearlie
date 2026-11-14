@@ -6,7 +6,14 @@ import type { SearchState } from "../query";
 import type { Job } from "../jobs/group";
 import { settleQueued } from "../web/saveFlow";
 
-export function createSearch(api: Api, opts?: { debounceMs?: number }) {
+// The last Discover search, kept for the page session so See all can start from it (one way: See all never writes it).
+let discoverQuery = "";
+
+export function getLastDiscoverQuery(): string {
+  return discoverQuery;
+}
+
+export function createSearch(api: Api, opts?: { debounceMs?: number; remember?: boolean }) {
   const debounceMs = opts?.debounceMs ?? 300;
 
   let sections: Record<string, { status: "loading" | "done" | "error"; section: Section | null; error: string | null }> =
@@ -59,6 +66,7 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
 
     retryGen++;
     lastQuery = serialiseQuery(state.chips);
+    if (opts?.remember) discoverQuery = lastQuery;
     lastState = state;
 
     if (ids.length === 0) {
@@ -192,6 +200,7 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
     get banner() { return banner; },
     get loading() { return loading; },
     get saves() { return saves; },
+    get lastQuery() { return lastQuery; },
     run,
     retrySection,
     retryAll,
