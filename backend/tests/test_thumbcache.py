@@ -6,7 +6,7 @@ import pytest
 
 from app import thumbcache
 from app.config import Settings
-from app.thumbcache import ThumbCache, sniff_image_type
+from app.thumbcache import SOURCES, ThumbCache, sniff_image_type
 
 JPEG = b"\xff\xd8\xff\xe0" + b"x" * 60
 PNG = b"\x89PNG\r\n\x1a\n" + b"y" * 60
@@ -197,3 +197,96 @@ def test_settings_default_root(tmp_path: Path) -> None:
     assert s2.thumb_cache_dir is None
     s3 = Settings(mode="fixture", thumb_cache_dir=tmp_path / "tc", _env_file=None)  # type: ignore[call-arg]
     assert s3.thumb_cache_root == tmp_path / "tc"
+
+
+_CC_PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8  # 16-byte header passing sniff_image_type
+
+
+def _cc_src() -> str:
+    return next(iter(SOURCES))
+
+
+def _cc_cache(tmp_path: Path) -> ThumbCache:
+    return ThumbCache(root=tmp_path / "cache")
+
+
+def test_concurrent_put_same_key(tmp_path: Path) -> None:
+    """8 threads put the SAME key concurrently; exactly one file, correct size."""
+    cache = _cc_cache(tmp_path)
+    payload = _CC_PNG + b"filler" * 100
+    errors: list[Exception] = []
+    barrier = threading.Barrier(8)
+
+    def worker() -> None:
+        try:
+            barrier.wait()
+            cache.put(_cc_src(), "post1", payload)
+        except Exception as e:
+            errors.append(e)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors
+    s = cache.stats()
+    assert s["files"] == 1
+    path = cache.path_for(_cc_src(), "post1")
+    assert s["used_bytes"] == path.stat().st_size
+
+
+def test_put_during_rescan_not_lost(tmp_path: Path) -> None:
+    """A put completing mid-walk is reflected in the final rescan totals."""
+    cache = _cc_cache(tmp_path)
+    src = _cc_src()
+    cache.put(src, "seed", _CC_PNG + b"A" * 50)
+
+    original_walk = cache._walk
+    injected = [False]
+
+    def tricky_walk():
+        for i, p in enumerate(original_walk()):
+            if i == 0 and not injected[0]:
+                injected[0] = True
+                cache.put(src, "injected", _CC_PNG + b"B" * 80)
+            yield p
+
+    cache._walk = tricky_walk
+    cache.rescan()
+
+    # Ground-truth: restore and rescan cleanly
+    cache._walk = original_walk
+    cache.rescan()
+
+    s = cache.stats()
+    assert s["files"] == 2
+    expected = (
+        cache.path_for(src, "seed").stat().st_size
+        + cache.path_for(src, "injected").stat().st_size
+    )
+    assert s["used_bytes"] == expected
+
+
+def test_warn_disk_full_logs_once(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """8 concurrent _warn_disk_full calls produce exactly one WARNING in the interval."""
+    cache = _cc_cache(tmp_path)
+    barrier = threading.Barrier(8)
+
+    def worker() -> None:
+        barrier.wait()
+        cache._warn_disk_full()
+
+    with caplog.at_level("WARNING", logger="pearlie.thumbcache"):
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    warns = [
+        r for r in caplog.records
+        if r.levelname == "WARNING" and "thumbcache write failed" in r.getMessage()
+    ]
+    assert len(warns) == 1
