@@ -418,8 +418,8 @@ class StashTarget:
             if image_id is None:
                 self._lookup_miss(dest, stash_path, md5)
                 raise SaveError("image_not_found", "Stash did not index the file", 502)
-        except Exception:
-            # Any failure before the row exists (not only SaveError/StashError)
+        except BaseException:
+            # Any failure (also a cancel) before the row exists (not only SaveError/StashError)
             # must not leave a placed file that nothing tracks.
             self._discard_orphan(dest, resumed)
             raise

@@ -701,6 +701,25 @@ def test_unexpected_error_after_move_removes_orphan_file(
     assert _library_files(settings.stash_default_dir) == []
 
 
+def test_cancel_after_move_removes_orphan_file(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    import asyncio
+
+    patch_folder(monkeypatch)
+    target = make_target()
+
+    def cancel(_path: str) -> str:
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(target._client, "find_image_by_path", cancel)
+    with pytest.raises(asyncio.CancelledError):
+        target.save(make_post(), [])
+    assert _library_files(settings.stash_default_dir) == []
+
+
 def test_unknown_md5_html_download_is_rejected(
     settings: Settings,
     tmp_path: Path,
