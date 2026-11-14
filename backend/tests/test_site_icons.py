@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -49,11 +51,30 @@ def test_success_cached(tmp_path):
 
 def test_only_configured_host_and_no_cookie(tmp_path):
     c, seen = real_client(tmp_path, ok)
-    c.get("/api/site-icons/nhentai", headers={"Cookie": "sid=secret"})
-    assert [r.url.host for r in seen] == ["nhentai.net"]
-    assert str(seen[0].url) == "https://nhentai.net/favicon.ico"
+    c.get("/api/site-icons/gelbooru", headers={"Cookie": "sid=secret"})
+    assert [r.url.host for r in seen] == ["gelbooru.com"]
+    assert str(seen[0].url) == "https://gelbooru.com/favicon.ico"
     assert "cookie" not in seen[0].headers
     assert "authorization" not in seen[0].headers
+
+
+NHENTAI_PNG = Path(__file__).resolve().parent.parent / "app" / "assets" / "nhentai.png"
+
+
+def test_nhentai_static_real(tmp_path):
+    c, seen = real_client(tmp_path, ok)
+    r = c.get("/api/site-icons/nhentai")
+    assert r.status_code == 200
+    assert r.content == NHENTAI_PNG.read_bytes()
+    assert r.headers["content-type"] == "image/png"
+    assert seen == []
+
+
+def test_nhentai_static_fixture(client: TestClient):
+    r = client.get("/api/site-icons/nhentai")
+    assert r.status_code == 200
+    assert r.content == NHENTAI_PNG.read_bytes()
+    assert r.headers["content-type"] == "image/png"
 
 
 def test_404_is_cached_as_miss(tmp_path):
