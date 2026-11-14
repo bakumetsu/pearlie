@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/svelte";
 import ThumbCacheCard from "./ThumbCacheCard.svelte";
+import { tick } from "svelte";
 import { createOptions } from "../stores/options.svelte";
 import type { Api } from "../api/client";
 
@@ -102,6 +103,7 @@ describe("ThumbCacheCard", () => {
 		const { putOptions } = await renderCard({ max_mb: 20480 });
 		const btn = screen.getByRole("button", { name: "Increase size limit" });
 		await fireEvent.click(btn);
+		await tick();
 		expect(putOptions).not.toHaveBeenCalled();
 	});
 
