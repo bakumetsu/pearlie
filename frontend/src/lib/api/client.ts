@@ -9,6 +9,7 @@ export type WebItem = S["WebItem"];
 export type Section = S["Section"];
 export type SearchResponse = S["SearchResponse"];
 export type SaveBody = S["SaveBody"];
+export type PlacementSuggestion = S["PlacementSuggestion"];
 export type SaveAccepted = S["SaveAccepted"];
 export type Health = S["Health"];
 export type LibraryPage = S["Page_LibraryItem_"];
@@ -115,6 +116,7 @@ export interface Api {
   searchFilters(signal?: AbortSignal): Promise<SearchFilters>;
   list(kind: Kind, p: ListParams, signal?: AbortSignal): Promise<LibraryPage>;
   save(body: SaveBody, signal?: AbortSignal): Promise<SaveAccepted>;
+  getPlacement(source: string, postId: string, signal?: AbortSignal): Promise<PlacementSuggestion>;
   health(signal?: AbortSignal): Promise<Health>;
   getItem(kind: Kind, id: string, signal?: AbortSignal): Promise<LibraryItemDetail>;
   patchItem(kind: Kind, id: string, body: PatchBody, signal?: AbortSignal): Promise<LibraryItemDetail>;
@@ -268,6 +270,13 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         },
+        signal,
+      );
+    },
+    getPlacement(source, postId, signal) {
+      return request<PlacementSuggestion>(
+        buildUrl("/api/save/placement", { source, post_id: postId }),
+        undefined,
         signal,
       );
     },

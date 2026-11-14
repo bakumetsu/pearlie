@@ -207,7 +207,11 @@ class KomgaTarget:
         override: str | None,
         notices: list[Problem],
         tag: str,
+        absorb: bool = False,
     ) -> Plan:
+        """*absorb* (the sheet's suggestion) or an *override* (the sheet's confirmed kind)
+        allows the name-prefix join, and only in mode ``suggest``; batch and rule saves
+        send neither, so they match an exact root only."""
         parsed = parse_name(post.title or "", post.tags.get("artist", []))
         index = self._index_cache.get(dest_dir, oneshots.name)
         if index.too_large:
@@ -219,7 +223,10 @@ class KomgaTarget:
             )
             index = NameIndex()
         mode = self._place_mode()
-        plan = make_plan(index, parsed, mode, oneshots.name is not None)
+        prefix_ok = mode == "suggest" and (absorb or override is not None)
+        plan = make_plan(
+            index, parsed, "suggest" if prefix_ok else "auto", oneshots.name is not None
+        )
         if override == "oneshot" and plan.kind == "series":
             plan = Plan("oneshot", None, "", None, "oneshot")
         elif override == "series" and plan.kind == "oneshot":
@@ -241,7 +248,13 @@ class KomgaTarget:
         folder = self._folder(post.source)
         oneshots = self._oneshots(folder, f"source={post.source} post={post.post_id}")
         return self._plan(
-            post, Path(folder), oneshots, None, [], f"source={post.source} post={post.post_id}"
+            post,
+            Path(folder),
+            oneshots,
+            None,
+            [],
+            f"source={post.source} post={post.post_id}",
+            absorb=True,
         )
 
     @staticmethod

@@ -6,6 +6,7 @@
   import { toasts } from "../lib/stores/toasts.svelte";
   import { createSearch } from "../lib/stores/search.svelte";
   import { options } from "../lib/stores/options.svelte";
+  import { placement } from "../lib/stores/placement.svelte";
   import { visibleInSafeMode } from "../lib/stores/safeFilter";
   import { parseSearchParams, buildSearchParams, serialiseQuery, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SiteId } from "../lib/query";
@@ -139,7 +140,9 @@
   );
 
   async function doSave(item: WebItem): Promise<void> {
-    const r = await search.save(item);
+    const answer = await placement.ask(item);
+    if (answer === null) return;
+    const r = await search.save(item, answer.placement);
     switch (r.result) {
       case "queued":
         toasts.push({ kind: "info", message: "Added to queue", actionLabel: "View", href: "/queue" });

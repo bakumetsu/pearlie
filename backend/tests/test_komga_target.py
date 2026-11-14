@@ -304,3 +304,18 @@ def test_suggest_writes_nothing(env) -> None:
     plan = target.suggest(titled("[Foo] My Sister vol 2", "2"))
     assert plan.kind == "series" and plan.series == "My Sister"
     assert sorted(p.name for p in dest.rglob("*")) == before
+
+
+def test_prefix_absorb_only_for_suggestion_and_sheet_override(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    target.save(titled("[Foo] Love vol 2", "1"), [])  # makes the folder "[Foo] Love"
+    longer = titled("[Foo] Love Hotel Nights", "2")
+    # suggestion (sheet preview) joins by prefix
+    assert target.suggest(longer).via == "absorb"
+    # batch/rule save (no placement): exact root only, so a oneshot
+    target.save(longer, [])
+    assert len(list((dest / "[Foo] Love").iterdir())) == 1
+    # sheet save (confirmed kind sent): joins the series
+    target.save(titled("[Foo] Love Story", "3"), [], placement="series")
+    assert len(list((dest / "[Foo] Love").iterdir())) == 2
