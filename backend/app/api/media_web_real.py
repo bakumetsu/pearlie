@@ -41,7 +41,7 @@ STREAM_TIMEOUT = 30.0
 IMAGE_TIME_LIMIT = 300.0
 VIDEO_TIME_LIMIT = 1800.0
 _MEMORY = 5000
-# Thumbnail lane (D-17): own throttle per site. A few misses fly at once; on a back-off, one at a time.
+# Thumbnail lane (D-17): own throttle per site. Misses fly a few at once; one at a time on back-off.
 THUMB_PACE = 0.15
 THUMB_PARALLEL = 4
 MAX_REDIRECTS = 2
