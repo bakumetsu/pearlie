@@ -110,6 +110,33 @@ class KomgaTarget:
         except KomgaError as e:
             raise SaveError(e.code, e.message, e.status) from None
 
+    def _check_mounted(self, folder: str, tag: str) -> None:
+        """Fail when the library root is missing on Pearlie's side.
+
+        A wrong mount or prefix map would otherwise make the save create a
+        fresh folder tree that Komga never scans.
+        """
+        s = self._settings
+        mapped = destinations.to_stash_path(
+            folder, s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
+        )
+        for root in self._roots():
+            root = posixpath.normpath(root.replace("\\", "/"))
+            if mapped != root and not mapped.startswith(root + "/"):
+                continue
+            local = destinations.to_pearlie_path(
+                root, s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
+            )
+            if Path(local).is_dir():
+                return
+            logger.warning("KOMGA %s library root missing on Pearlie side root=%s", tag, local)
+            raise SaveError(
+                "library_not_mounted",
+                f"Komga library {root} is not found at {local} in Pearlie; "
+                "check the Pearlie/Komga path mapping and the mount",
+                422,
+            )
+
     @staticmethod
     def _check_writable(folder: str) -> Path:
         path = Path(folder)
@@ -339,6 +366,7 @@ class KomgaTarget:
         urls = self._urls(post)
         logger.info("KOMGA %s save start pages=%d", tag, len(urls))
         folder = self._folder(post.source)
+        self._check_mounted(folder, tag)
         existed = Path(folder).is_dir()
         dest_dir = self._check_writable(folder)
         if not existed:
@@ -387,8 +415,11 @@ class KomgaTarget:
             self._settings.komga_path_prefix_pearlie,
             self._settings.komga_path_prefix_komga,
         )
-        library_id = self._scan(komga_path, notices)
-        if library_id is not None:
+        library_id, outside = self._scan(komga_path, notices)
+        if outside:
+            self._forget(post)
+            logger.warning("KOMGA %s index row dropped: file is outside every library", tag)
+        elif library_id is not None:
             self._verify(library_id, target.name, komga_path, tag, notices)
         logger.info(
             "KOMGA %s save done pearlie_path=%s komga_path=%s",
@@ -398,24 +429,49 @@ class KomgaTarget:
         )
         return SaveResult(status="saved", image_id=None, dest_path=komga_path, notices=notices)
 
-    def _scan(self, komga_path: str, notices: list[Problem]) -> str | None:
+    def _scan(self, komga_path: str, notices: list[Problem]) -> tuple[str | None, bool]:
+        """Scan the library holding the file; the flag says no library holds it."""
+        outside = False
         try:
             for lib in self._client.list_libraries():
                 root = posixpath.normpath(str(lib.get("root", "")).replace("\\", "/"))
                 if komga_path == root or komga_path.startswith(root + "/"):
                     self._client.scan_library(str(lib["id"]))
                     logger.info("KOMGA scan requested library=%s", lib.get("id"))
-                    return str(lib["id"])
+                    return str(lib["id"]), False
+            outside = True
             raise KomgaError("not_found", "no library holds the folder", 404)
         except KomgaError as e:
             logger.warning("KOMGA scan failed code=%s status=%s", e.code, e.status)
-            notices.append(
-                Problem(
-                    code="scan_failed",
-                    message="file saved; Komga will pick it up on its next scan",
+            if outside:
+                notices.append(
+                    Problem(
+                        code="outside_library",
+                        message=(
+                            "file saved outside every Komga library; "
+                            "check the Pearlie/Komga path mapping"
+                        ),
+                    )
                 )
+            else:
+                notices.append(
+                    Problem(
+                        code="scan_failed",
+                        message="file saved; Komga will pick it up on its next scan",
+                    )
+                )
+            return None, outside
+
+    def _forget(self, post: Post) -> None:
+        conn = connect(self._settings.db_path)
+        try:
+            conn.execute(
+                "DELETE FROM saved_items WHERE target = 'komga' AND source = ? AND post_id = ?",
+                (post.source, post.post_id),
             )
-            return None
+            conn.commit()
+        finally:
+            conn.close()
 
     def _verify(
         self, library_id: str, name: str, komga_path: str, tag: str, notices: list[Problem]

@@ -70,6 +70,7 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         komga_temp_dir=tmp_path / "lib" / ".tmp",
     )
     init_db(settings.db_path)
+    (tmp_path / "lib").mkdir()
     hits: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -395,3 +396,48 @@ def test_prefix_absorb_only_for_suggestion_and_sheet_override(env) -> None:
     # sheet save (confirmed kind sent): joins the series
     target.save(titled("[Foo] Love Story", "3"), [], placement="series")
     assert len(list((dest / "[Foo] Love").iterdir())) == 2
+
+
+def test_missing_library_root_fails_and_creates_nothing(env, tmp_path: Path) -> None:
+    target, komga, settings, dest, _h = env
+    komga.root = (tmp_path / "elsewhere").as_posix()
+    settings.komga_incoming_dir = (tmp_path / "elsewhere" / "incoming").as_posix()
+    with pytest.raises(SaveError) as err:
+        target.save(make_post(), [])
+    assert err.value.code == "library_not_mounted"
+    assert not dest.exists() and not (tmp_path / "elsewhere").exists()
+
+
+def test_library_root_checked_through_prefix_map(env, tmp_path: Path) -> None:
+    target, komga, settings, dest, _h = env
+    komga.root = "/komga/lib"
+    settings.komga_path_prefix_pearlie = (tmp_path / "lib").as_posix()
+    settings.komga_path_prefix_komga = "/komga/lib"
+    assert target.save(make_post(), []).dest_path == "/komga/lib/incoming/" + next(
+        dest.iterdir()
+    ).name
+    assert komga.scanned == ["L1"]
+
+
+def test_to_pearlie_path_roundtrip() -> None:
+    assert destinations.to_pearlie_path("/k/a/b", "/p", "/k") == "/p/a/b"
+    assert destinations.to_pearlie_path("/k", "/p", "/k") == "/p"
+    assert destinations.to_pearlie_path("/x", "/p", "/k") == "/x"
+    assert destinations.to_pearlie_path("/x", "", "") == "/x"
+
+
+def test_file_outside_every_library_leaves_no_index_row(env) -> None:
+    target, komga, settings, _dest, _h = env
+    komga.root = "/somewhere/else"
+    res = target.save(make_post(), [])
+    codes = [n.code for n in res.notices]
+    assert "outside_library" in codes and "scan_failed" not in codes
+    assert _row_count(settings) == 0
+
+
+def test_book_not_listed_yet_keeps_row_for_grace(env) -> None:
+    target, komga, settings, _dest, _h = env
+    komga.visible = False
+    res = target.save(make_post(), [])
+    assert any(n.code == "waiting_for_komga" for n in res.notices)
+    assert _row_count(settings) == 1
