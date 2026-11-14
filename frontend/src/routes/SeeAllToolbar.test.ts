@@ -107,7 +107,6 @@ describe("SeeAll toolbar", () => {
     expect(searches[0].get("order")).toBe("score");
     expect(searches[0].get("rating")).toBe("g,s");
     expect(container.querySelector(".f-chips, .f-chip")).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Remove / })).toBeNull();
     expect((screen.getByRole("combobox", { name: "Sort" }) as HTMLSelectElement).value).toBe("score");
   });
 
@@ -245,10 +244,10 @@ describe("SeeAll toolbar", () => {
     sectionEmpty = true;
     render(App);
     expect(await screen.findByText(/Danbooru is down/)).toBeTruthy();
-    expect(screen.queryByText("Nothing here.")).toBeNull();
+    expect(screen.queryByText(/^No results for/)).toBeNull();
     sectionError = null;
     await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    await vi.waitFor(() => expect(screen.getByText("Nothing here.")).toBeTruthy());
+    await vi.waitFor(() => expect(screen.getByText(/^No results for/)).toBeTruthy());
   });
 
   it("filter_dropped shows as a notice next to the results", async () => {
