@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query, Request
 from app.api.errors import ApiError
 from app.api.library_komga_real import fetch_komga_page
 from app.api.library_stash_real import fetch_stash_page
-from app.api.media_web_real import pick_url, proxy_path, remember, tile_url
+from app.api.media_web_real import media_kind, pick_url, proxy_path, remember, tile_url
 from app.api.search_filters import parse_order, parse_rating, unsupported_notice
 from app.filters.rules import evaluate, load_rules
 from app.komga import Komga, KomgaError, book_item
@@ -187,6 +187,7 @@ def search(
                                 if pick_url(post, "preview")
                                 else ""
                             ),
+                            media_kind=media_kind(post),
                             title=post.title,
                             tags=[
                                 Tag(name=n, scope=kind)

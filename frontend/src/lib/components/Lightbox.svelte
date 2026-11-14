@@ -69,6 +69,9 @@
 
   const title = $derived(item.title ?? `${item.source} #${item.post_id}`);
   const sized = $derived(item.width > 0 && item.height > 0);
+  const mediaStyle = $derived(
+    sized ? `aspect-ratio: ${item.width} / ${item.height}; --ratio: ${item.width / item.height};` : undefined,
+  );
   const backdrop = $derived(backdropStrength(options.values, "lightbox", sfw?.on ?? false));
 </script>
 
@@ -80,7 +83,7 @@
     if (e.target === dialogEl) dialogEl.close();
   }}
 >
-  <Backdrop src={item.preview_url} strength={backdrop} />
+  <Backdrop src={item.media_kind === "video" ? item.thumb_url : item.preview_url} strength={backdrop} />
   <SfwToggle />
   <div class="stage" role="presentation" onpointerdown={swipeDown} onpointerup={swipeUp} onpointercancel={() => (swipeStart = null)}>
     {#if onprev}
@@ -89,7 +92,11 @@
     {#if onnext}
       <button class="nav next" aria-label="Next" onclick={onnext}><Icon name="chevron-right" size={24} /></button>
     {/if}
-    <img src={item.preview_url} alt={item.title ?? ""} style={sized ? `aspect-ratio: ${item.width} / ${item.height}; --ratio: ${item.width / item.height};` : undefined} />
+    {#if item.media_kind === "video"}
+      <video src={item.preview_url} controls loop muted playsinline preload="metadata" style={mediaStyle}></video>
+    {:else}
+      <img src={item.preview_url} alt={item.title ?? ""} style={mediaStyle} />
+    {/if}
   </div>
 
   <div class="panel">
@@ -231,7 +238,8 @@
     right: var(--s-3);
   }
 
-  .stage img {
+  .stage img,
+  .stage video {
     width: min(100cqw, calc(100cqh * var(--ratio)));
     height: auto;
     max-width: 100%;

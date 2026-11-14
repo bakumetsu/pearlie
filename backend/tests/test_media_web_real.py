@@ -155,3 +155,15 @@ def test_nhentai_cover_thumb_and_cookie_not_sent(tmp_path):
     assert r.status_code == 200
     assert "cookie" not in seen[0].headers
     assert seen[0].headers["referer"] == "https://nhentai.net/"
+
+
+def test_media_kind_follows_preview_extension():
+    from app.api.media_web_real import media_kind
+
+    def post(**kw):
+        return Post(source="rule34", post_id="1", tags={}, width=1, height=1, **kw)
+
+    assert media_kind(post(file_url="https://x/a.mp4?v=1")) == "video"
+    assert media_kind(post(file_url="https://x/a.WEBM")) == "video"
+    assert media_kind(post(file_url="https://x/a.gif")) == "image"
+    assert media_kind(post(preview_url="https://x/t.jpg")) == "image"
