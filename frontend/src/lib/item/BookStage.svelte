@@ -13,10 +13,7 @@
     ondelete?: () => void;
   } = $props();
 
-  let readPage = $state<number | null>(null);
-  $effect(() => {
-    readPage = detail.read_page ?? null;
-  });
+  let readPage = $derived<number | null>(detail.read_page ?? null);
 
   const count = $derived(detail.page_count ?? 0);
   const pages = $derived(Array.from({ length: count }, (_, i) => i + 1));
