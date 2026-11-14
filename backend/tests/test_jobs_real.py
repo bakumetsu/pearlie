@@ -371,6 +371,60 @@ def test_placement_endpoint(tmp_path: Path) -> None:
     }
 
 
+def _nhentai_client(tmp_path: Path) -> tuple[TestClient, FakeSource]:
+    client, _ = _komga_client(tmp_path)
+    fake = FakeSource("nhentai")
+    fake.target = "komga"
+    fake.posts["7"] = _make_post("nhentai", "7")
+    client.app.state.sources = {"nhentai": fake}  # type: ignore[attr-defined]
+    client.app.state.komga_target = _FakeKomgaTarget()  # type: ignore[attr-defined]
+    return client, fake
+
+
+def test_placement_reuses_book_cache_for_nhentai(tmp_path: Path) -> None:
+    from app.api.media_web_pages import _load_meta, _nhentai
+
+    client, fake = _nhentai_client(tmp_path)
+
+    class _Req:
+        app = client.app
+
+    req = cast(Any, _Req())
+    _load_meta(req, _nhentai(req), "7")  # the book page load
+    assert fake.calls == ["7"]
+    resp = client.get("/api/save/placement", params={"source": "nhentai", "post_id": "7"})
+    assert resp.status_code == 200
+    assert client.post("/api/save", json={"source": "nhentai", "post_id": "7"}).status_code == 202
+    assert fake.calls == ["7"]  # no second get_post
+
+
+def test_placement_fetches_when_book_not_cached(tmp_path: Path) -> None:
+    client, fake = _nhentai_client(tmp_path)
+    resp = client.get("/api/save/placement", params={"source": "nhentai", "post_id": "7"})
+    assert resp.status_code == 200
+    assert fake.calls == ["7"]
+
+
+def test_parallel_book_loads_share_one_get_post(tmp_path: Path) -> None:
+    import threading
+
+    from app.api.media_web_pages import _load_meta, _nhentai
+
+    client, fake = _nhentai_client(tmp_path)
+
+    class _Req:
+        app = client.app
+
+    req = cast(Any, _Req())
+    src = _nhentai(req)
+    threads = [threading.Thread(target=_load_meta, args=(req, src, "7")) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert fake.calls == ["7"]
+
+
 def test_placement_endpoint_not_komga(tmp_path: Path) -> None:
     client, _, _ = make_client(tmp_path)
     resp = client.get("/api/save/placement", params={"source": "danbooru", "post_id": "1"})

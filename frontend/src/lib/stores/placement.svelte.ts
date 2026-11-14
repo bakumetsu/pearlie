@@ -2,6 +2,8 @@ import { getApi } from "../api/client";
 import type { Api, WebItem, PlacementSuggestion } from "../api/client";
 import { options } from "./options.svelte";
 
+export const CHECK_TIMEOUT_MS = 10_000;
+
 export type PlacementChoice = { kind: "series" | "oneshot" };
 // null = the user closed the sheet: no save.
 export type PlacementAnswer = { placement?: PlacementChoice } | null;
@@ -36,16 +38,23 @@ export function createPlacement(deps: { api: () => Api; mode: () => string | und
     suggestion = null;
     error = "";
     loading = true;
-    deps.api().getPlacement(it.source, it.post_id).then(
+    // A hung check must not hold the sheet: after the timeout it takes the error path.
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), CHECK_TIMEOUT_MS);
+    deps.api().getPlacement(it.source, it.post_id, ctl.signal).then(
       (s) => {
+        clearTimeout(timer);
         if (my !== token) return;
         suggestion = s;
         kind = s.kind;
         loading = false;
       },
       (e: unknown) => {
+        clearTimeout(timer);
         if (my !== token) return;
-        error = e instanceof Error ? e.message : String(e);
+        error = ctl.signal.aborted
+          ? "The check took too long"
+          : e instanceof Error ? e.message : String(e);
         loading = false;
       },
     );

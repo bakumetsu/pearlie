@@ -32,6 +32,7 @@ router = APIRouter(prefix="/api/media/web/nhentai")
 
 META_TTL = 600.0
 META_MAX = 64
+FETCH_STRIPES = 16
 MAX_PAGE_BYTES = 20 * 1024 * 1024
 PAGE_TIMEOUT = 45.0
 THUMB_TIMEOUT = 15.0
@@ -107,6 +108,11 @@ class _MetaCache:
     def __init__(self) -> None:
         self._rows: OrderedDict[str, _Meta] = OrderedDict()
         self._lock = threading.Lock()
+        self._fetch_locks = [threading.Lock() for _ in range(FETCH_STRIPES)]
+
+    def fetch_lock(self, key: str) -> threading.Lock:
+        """One lock per gallery (striped): parallel callers share a single get_post."""
+        return self._fetch_locks[hash(key) % FETCH_STRIPES]
 
     def get(self, key: str) -> _Meta | None:
         with self._lock:
@@ -143,21 +149,34 @@ def _load_meta(request: Request, src: NHentai, gid: str) -> Post:
     version = _rules_version(db_path)
     meta = cache.get(gid)
     if meta is None or meta.rules_version != version:
-        try:
-            post = src.get_post(gid)
-        except SourceError as e:
-            if e.code == "not_found":
-                raise _Refusal(404, "not_found", "Gallery not found") from None
-            if e.code == "rate_limited":
-                raise _Refusal(429, "rate_limited", e.message, 5) from None
-            raise _Refusal(502, "upstream_error", e.message) from None
-        rules = load_rules(db_path)
-        verdict = evaluate(post.tags, rules)
-        hidden = verdict is not None and verdict.decision != "warn"
-        meta = _Meta(post, time.monotonic() + META_TTL, rules.version, hidden)
-        cache.put(gid, meta)
+        with cache.fetch_lock(gid):
+            meta = cache.get(gid)  # a parallel caller may have filled it while we waited
+            if meta is None or meta.rules_version != version:
+                try:
+                    post = src.get_post(gid)
+                except SourceError as e:
+                    if e.code == "not_found":
+                        raise _Refusal(404, "not_found", "Gallery not found") from None
+                    if e.code == "rate_limited":
+                        raise _Refusal(429, "rate_limited", e.message, 5) from None
+                    raise _Refusal(502, "upstream_error", e.message) from None
+                rules = load_rules(db_path)
+                verdict = evaluate(post.tags, rules)
+                hidden = verdict is not None and verdict.decision != "warn"
+                meta = _Meta(post, time.monotonic() + META_TTL, rules.version, hidden)
+                cache.put(gid, meta)
     if meta.hidden:
         raise _Refusal(404, "not_found", "Gallery not found")
+    return meta.post
+
+
+def cached_post(request: Request, gid: str) -> Post | None:
+    """The gallery post when the book page already cached it (fresh, not hidden), else None."""
+    meta = _meta_cache(request).get(gid)
+    if meta is None or meta.hidden:
+        return None
+    if meta.rules_version != _rules_version(request.app.state.settings.db_path):
+        return None
     return meta.post
 
 
