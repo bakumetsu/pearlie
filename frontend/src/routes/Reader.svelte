@@ -148,7 +148,9 @@
 	}
 
 	// ── loading ────────────────────────────────────────────────────────
+	let loadToken = 0;
 	async function load() {
+		const token = ++loadToken;
 		progress.flush();
 		source = buildSource();
 		bookId = source.key;
@@ -165,6 +167,7 @@
 
 		try {
 			const d = await source.load();
+			if (token !== loadToken) return;
 			title = d.title;
 			count = d.count;
 			tpl = d.tpl;
@@ -175,7 +178,7 @@
 			page = clampPage(d.start, count);
 			status = "ready";
 		} catch {
-			status = "error";
+			if (token === loadToken) status = "error";
 		}
 	}
 

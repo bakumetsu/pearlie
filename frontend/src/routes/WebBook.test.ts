@@ -93,6 +93,30 @@ describe("WebBook", () => {
     await waitFor(() => expect(api.webBook).toHaveBeenCalledWith("nhentai", "456"));
   });
 
+  it("ignores a slow response for the old id after the id changed", async () => {
+    const { api, ctx, match } = setup();
+    const mk = (title: string) => ({
+      title_main: title,
+      page_count: 2,
+      page_url: "/p/{n}",
+      page_thumb_url: "/t/{n}",
+      item: { source: "nhentai", post_id: "x", thumb_url: "/c", saveable: true },
+    });
+    let resolveOld: (v: unknown) => void = () => {};
+    const impl = vi.fn((_s: string, id: string) =>
+      id === "123" ? new Promise((r) => (resolveOld = r)) : Promise.resolve(mk("New Book")),
+    );
+    (api as unknown as { webBook: unknown }).webBook = impl;
+    const r = render(WebBook, { props: { match }, context: ctx });
+    await waitFor(() => expect(impl).toHaveBeenCalledTimes(1));
+    await r.rerender({ match: matchRoute("/web/nhentai/456", "") });
+    await waitFor(() => expect(r.getByText("New Book")).toBeTruthy());
+    resolveOld(mk("Old Book"));
+    await new Promise((res) => setTimeout(res, 0));
+    expect(r.queryByText("Old Book")).toBeNull();
+    expect(r.getByText("New Book")).toBeTruthy();
+  });
+
   it("hides Read and the grid for a book with no pages", async () => {
     const { ctx, match } = setup(0);
     const { container, getByText, queryByText } = render(WebBook, { props: { match }, context: ctx });

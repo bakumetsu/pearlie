@@ -34,15 +34,19 @@
   let banOpen = $state(false);
   let last = $state<number | null>(null);
 
+  let loadToken = 0;
   async function load() {
+    const token = ++loadToken;
     status = "loading";
     try {
       if (source !== "nhentai") throw new Error("unsupported source");
-      book = await api.webBook(source, id);
+      const b = await api.webBook(source, id);
+      if (token !== loadToken) return;
+      book = b;
       last = getWebPage(key);
       status = "ready";
     } catch {
-      status = "error";
+      if (token === loadToken) status = "error";
     }
   }
   $effect(() => {
