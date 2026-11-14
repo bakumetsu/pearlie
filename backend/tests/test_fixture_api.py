@@ -350,16 +350,18 @@ def test_save_rejected_422(client):
 
 
 def test_jobs_list_seed(client):
-    """Seed: 20 jobs, filter, retry, delete semantics."""
+    """Seed: 22 jobs, filter, retry, delete semantics."""
     jl = JobList.model_validate(client.get("/api/jobs").json())
-    assert len(jl.items) == 20
+    assert len(jl.items) == 22
     jl_f = JobList.model_validate(client.get("/api/jobs", params={"state": "failed"}).json())
     assert len(jl_f.items) == 2
     assert all(j.state == "failed" for j in jl_f.items)
     assert client.post(f"/api/jobs/{jl_f.items[0].id}/retry").json()["state"] == "queued"
     after = JobList.model_validate(client.get("/api/jobs").json())
-    assert len(after.items) == 20
-    assert len({j.id for j in after.items}) == 20
+    assert len(after.items) == 22
+    assert len({j.id for j in after.items}) == 22
+    states = {j.state for j in jl.items}
+    assert {"scan_wait", "verifying"} <= states
     done = next(j for j in jl.items if j.state == "done")
     assert client.post(f"/api/jobs/{done.id}/retry").status_code == 409
     assert client.delete(f"/api/jobs/{done.id}").status_code == 204

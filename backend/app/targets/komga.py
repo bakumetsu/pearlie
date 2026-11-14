@@ -35,7 +35,7 @@ from app.targets.placement import (
     series_folder_name,
 )
 from app.targets.placement_name import parse_name
-from app.targets.stash import SaveError, SaveResult, _md5_of, _retry_after
+from app.targets.stash import PendingScan, SaveError, SaveResult, _md5_of, _retry_after
 
 logger = logging.getLogger("pearlie.komga")
 
@@ -44,10 +44,22 @@ MAX_PAGES = 1000
 MAX_PAGE_BYTES = 8 * 1024 * 1024
 MAX_GALLERY_BYTES = 500 * 1024 * 1024
 STALE_S = 3600
-VERIFY_TRIES = 5
-VERIFY_DELAY_S = 2.0
 VERIFY_PAGE_SIZE = 50
 STALE_GRACE = "-1 day"  # Komga may not have scanned a fresh save yet
+
+
+def scan_failed_notice() -> Problem:
+    return Problem(code="scan_failed", message="file saved; Komga will pick it up on its next scan")
+
+
+def waiting_for_komga_notice(komga_path: str) -> Problem:
+    return Problem(
+        code="waiting_for_komga",
+        message=(
+            f"waiting for Komga: {komga_path} is not listed yet; "
+            "check the Komga path mapping and the library folder"
+        ),
+    )
 
 
 def _file_name(post: Post) -> str:
@@ -354,7 +366,9 @@ class KomgaTarget:
         placement: str | None = None,
         on_progress: Callable[[int, int], None] | None = None,
     ) -> SaveResult:
-        """Download the gallery, pack it as a CBZ, place it in Komga's folder, scan.
+        """Download the gallery, pack it as a CBZ, place it in Komga's folder.
+
+        The scan is not requested here: a saved result with `pending_scan` goes to ScanWait.
 
         *placement* ("series" or "oneshot") overrides the suggested kind.
         """
@@ -415,34 +429,39 @@ class KomgaTarget:
             self._settings.komga_path_prefix_pearlie,
             self._settings.komga_path_prefix_komga,
         )
-        library_id, outside = self._scan(komga_path, notices)
+        library_id, outside = self._find_library(komga_path, notices)
+        pending: PendingScan | None = None
         if outside:
             self._forget(post)
             logger.warning("KOMGA %s index row dropped: file is outside every library", tag)
         elif library_id is not None:
-            self._verify(library_id, target.name, komga_path, tag, notices)
+            pending = PendingScan(library_id=library_id, name=target.name, komga_path=komga_path)
         logger.info(
             "KOMGA %s save done pearlie_path=%s komga_path=%s",
             tag,
             target.as_posix(),
             komga_path,
         )
-        return SaveResult(status="saved", image_id=None, dest_path=komga_path, notices=notices)
+        return SaveResult(
+            status="saved",
+            image_id=None,
+            dest_path=komga_path,
+            notices=notices,
+            pending_scan=pending,
+        )
 
-    def _scan(self, komga_path: str, notices: list[Problem]) -> tuple[str | None, bool]:
-        """Scan the library holding the file; the flag says no library holds it."""
+    def _find_library(self, komga_path: str, notices: list[Problem]) -> tuple[str | None, bool]:
+        """Find the library holding the file; the flag says no library holds it."""
         outside = False
         try:
             for lib in self._client.list_libraries():
                 root = posixpath.normpath(str(lib.get("root", "")).replace("\\", "/"))
                 if komga_path == root or komga_path.startswith(root + "/"):
-                    self._client.scan_library(str(lib["id"]))
-                    logger.info("KOMGA scan requested library=%s", lib.get("id"))
                     return str(lib["id"]), False
             outside = True
             raise KomgaError("not_found", "no library holds the folder", 404)
         except KomgaError as e:
-            logger.warning("KOMGA scan failed code=%s status=%s", e.code, e.status)
+            logger.warning("KOMGA library lookup failed code=%s status=%s", e.code, e.status)
             if outside:
                 notices.append(
                     Problem(
@@ -454,12 +473,7 @@ class KomgaTarget:
                     )
                 )
             else:
-                notices.append(
-                    Problem(
-                        code="scan_failed",
-                        message="file saved; Komga will pick it up on its next scan",
-                    )
-                )
+                notices.append(scan_failed_notice())
             return None, outside
 
     def _forget(self, post: Post) -> None:
@@ -473,35 +487,24 @@ class KomgaTarget:
         finally:
             conn.close()
 
-    def _verify(
-        self, library_id: str, name: str, komga_path: str, tag: str, notices: list[Problem]
-    ) -> None:
-        """Poll Komga for the new book; add a notice when it does not show up."""
-        for attempt in range(VERIFY_TRIES):
-            if attempt:
-                self._sleep(VERIFY_DELAY_S)
-            try:
-                page = self._client.list_books(
-                    0, VERIFY_PAGE_SIZE, "", "createdDate,desc", library_id=library_id
-                )
-            except KomgaError as e:
-                logger.warning("KOMGA %s verify failed code=%s status=%s", tag, e.code, e.status)
-                return
-            for book in page.get("content", []):
-                url = str(book.get("url", "")).replace("\\", "/")
-                if url == komga_path or posixpath.basename(url) == name:
-                    logger.info("KOMGA %s verified book=%s", tag, book.get("id"))
-                    return
-        logger.warning("KOMGA %s book not found in Komga path=%s", tag, komga_path)
-        notices.append(
-            Problem(
-                code="waiting_for_komga",
-                message=(
-                    f"waiting for Komga: {komga_path} is not listed yet; "
-                    "check the Komga path mapping and the library folder"
-                ),
-            )
-        )
+    def scan(self, library_id: str) -> None:
+        """Ask Komga for one scan of the library; raises KomgaError."""
+        self._client.scan_library(library_id)
+
+    def find_books(self, library_id: str, books: dict[str, PendingScan]) -> set[str]:
+        """Job ids whose book Komga lists now: one list call for the whole batch.
+
+        A book matches by its full path or by its file name. Raises KomgaError.
+        """
+        size = min(500, max(VERIFY_PAGE_SIZE, 2 * len(books)))
+        page = self._client.list_books(0, size, "", "createdDate,desc", library_id=library_id)
+        urls = [str(b.get("url", "")).replace("\\", "/") for b in page.get("content", [])]
+        names = {posixpath.basename(u) for u in urls}
+        found: set[str] = set()
+        for job_id, book in books.items():
+            if book.komga_path in urls or book.name in names:
+                found.add(job_id)
+        return found
 
     @staticmethod
     def _place(

@@ -107,7 +107,8 @@ def test_saves_ordered_cbz_with_comicinfo(env) -> None:
         info = zf.read("ComicInfo.xml").decode()
     assert "<LanguageISO>en</LanguageISO>" in info and "x &amp; y" in info
     assert hits == [f"i.nhentai.net/galleries/123/{n}.jpg" for n in (1, 2, 3)]
-    assert komga.scanned == ["L1"]
+    assert res.pending_scan is not None and res.pending_scan.library_id == "L1"
+    assert komga.scanned == []  # save() no longer scans; ScanWait does
     assert not list(settings.komga_temp_dir.glob("pearlie-*"))
     conn = connect(settings.db_path)
     row = conn.execute("SELECT md5, target, image_id FROM saved_items").fetchone()
@@ -179,7 +180,10 @@ def test_drop_if_gone_matches_book_by_web_link(env) -> None:
     _age_rows(settings)
     komga.list_books = lambda *a, **k: {  # type: ignore[method-assign]
         "content": [
-            {"url": "/lib/Renamed.cbz", "metadata": {"links": [{"url": "https://nhentai.net/g/42/"}]}}
+            {
+                "url": "/lib/Renamed.cbz",
+                "metadata": {"links": [{"url": "https://nhentai.net/g/42/"}]},
+            }
         ]
     }
     assert target.drop_if_gone("nhentai", "42") is False
@@ -214,32 +218,53 @@ def test_name_clash_renames_and_notices(env) -> None:
     assert len(list(dest.iterdir())) == 2
 
 
-def test_scan_failure_is_a_notice(env) -> None:
-    target, komga, _s, dest, _h = env
+def test_scan_call_failure_raises_komga_error(env) -> None:
+    target, komga, _s, _dest, _h = env
     komga.fail_scan = True
+    with pytest.raises(KomgaError):
+        target.scan("L1")
+
+
+def test_library_lookup_failure_is_a_notice(env) -> None:
+    target, komga, _s, dest, _h = env
+
+    real = komga.list_libraries
+
+    def boom() -> list[dict]:
+        if list(dest.glob("*.cbz")):  # the lookup after the file is placed
+            raise KomgaError("upstream_error", "down", 502)
+        return real()
+
+    komga.list_libraries = boom  # type: ignore[method-assign]
     res = target.save(make_post(), [])
-    assert res.status == "saved"
+    assert res.status == "saved" and res.pending_scan is None
     assert [n.code for n in res.notices] == ["oneshots_not_set", "scan_failed"]
     assert len(list(dest.iterdir())) == 1
 
 
-def test_verified_book_has_no_notice(env) -> None:
+def test_save_returns_pending_scan_without_calling_komga(env) -> None:
     target, komga, _s, dest, _h = env
     komga.oneshots = "_oneshots"
     res = target.save(make_post(), [])
     assert res.notices == []
     assert res.dest_path and res.dest_path.startswith(dest.as_posix())
-    assert komga.list_calls == 1
+    assert res.pending_scan is not None
+    assert res.pending_scan.komga_path == res.dest_path
+    assert (komga.list_calls, komga.scanned) == (0, [])
 
 
-def test_missing_book_is_waiting_for_komga(env) -> None:
+def test_find_books_matches_by_path_or_name(env) -> None:
+    from app.targets.stash import PendingScan
+
     target, komga, _s, dest, _h = env
-    komga.visible = False
     res = target.save(make_post(), [])
-    assert res.status == "saved"
-    codes = [n.code for n in res.notices]
-    assert codes == ["oneshots_not_set", "waiting_for_komga"]
-    assert komga.list_calls == 5
+    assert res.pending_scan is not None
+    other = PendingScan(library_id="L1", name="nope.cbz", komga_path="/x/nope.cbz")
+    found = target.find_books("L1", {"1": res.pending_scan, "2": other})
+    assert found == {"1"}
+    assert komga.list_calls == 1
+    komga.visible = False
+    assert target.find_books("L1", {"1": res.pending_scan}) == set()
 
 
 def test_cbz_is_deterministic(env) -> None:
@@ -413,10 +438,10 @@ def test_library_root_checked_through_prefix_map(env, tmp_path: Path) -> None:
     komga.root = "/komga/lib"
     settings.komga_path_prefix_pearlie = (tmp_path / "lib").as_posix()
     settings.komga_path_prefix_komga = "/komga/lib"
-    assert target.save(make_post(), []).dest_path == "/komga/lib/incoming/" + next(
-        dest.iterdir()
-    ).name
-    assert komga.scanned == ["L1"]
+    assert (
+        target.save(make_post(), []).dest_path == "/komga/lib/incoming/" + next(dest.iterdir()).name
+    )
+    assert komga.scanned == []
 
 
 def test_to_pearlie_path_roundtrip() -> None:
@@ -432,6 +457,7 @@ def test_file_outside_every_library_leaves_no_index_row(env) -> None:
     res = target.save(make_post(), [])
     codes = [n.code for n in res.notices]
     assert "outside_library" in codes and "scan_failed" not in codes
+    assert res.pending_scan is None
     assert _row_count(settings) == 0
 
 
@@ -439,5 +465,5 @@ def test_book_not_listed_yet_keeps_row_for_grace(env) -> None:
     target, komga, settings, _dest, _h = env
     komga.visible = False
     res = target.save(make_post(), [])
-    assert any(n.code == "waiting_for_komga" for n in res.notices)
+    assert res.pending_scan is not None
     assert _row_count(settings) == 1

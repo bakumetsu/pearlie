@@ -45,12 +45,21 @@ class SaveError(Exception):
         super().__init__(message)
 
 
+class PendingScan(BaseModel):
+    """A placed file that waits for a Komga library scan."""
+
+    library_id: str
+    name: str
+    komga_path: str
+
+
 class SaveResult(BaseModel):
     """Result of a save operation."""
 
     status: Literal["saved", "duplicate"]
     image_id: str | None = None
     dest_path: str | None = None
+    pending_scan: PendingScan | None = None
     notices: list[Problem] = Field(default_factory=list)
 
 

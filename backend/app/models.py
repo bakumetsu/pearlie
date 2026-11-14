@@ -28,7 +28,9 @@ ViewSource = Literal[
     "rule34",
     "nhentai",
 ]
-JobState = Literal["queued", "running", "done", "failed", "needs_click", "skipped"]
+JobState = Literal[
+    "queued", "running", "scan_wait", "verifying", "done", "failed", "needs_click", "skipped"
+]
 State = Literal["ok", "down", "not_configured"]
 MappingTo = Literal[
     "stash_tag",
