@@ -61,6 +61,7 @@ def test_defaults(any_client: TestClient) -> None:
         "allow_blurred_tags": False,
         "trash_retention_days": 7,
         "images_per_site": 10,
+        "komga_scan_wait_s": 10,
         "infinite_scroll": False,
         "place_mode": "suggest",
         "source_pace": expected_pace,
@@ -376,3 +377,17 @@ def test_place_mode_default_and_roundtrip(any_client: TestClient) -> None:
 
 def test_place_mode_rejects_other_values(any_client: TestClient) -> None:
     assert any_client.put("/api/options", json={"place_mode": "bogus"}).status_code == 422
+
+
+def test_komga_scan_wait_range_and_getter(tmp_path: Path) -> None:
+    from app.api.options import komga_scan_wait_s
+
+    client = real_client(tmp_path)
+    assert komga_scan_wait_s(client.app) == 10.0  # pyright: ignore[reportArgumentType]
+    for ok in (0, 120):
+        r = client.put("/api/options", json={"komga_scan_wait_s": ok})
+        assert r.json()["komga_scan_wait_s"] == ok
+        assert komga_scan_wait_s(client.app) == float(ok)  # pyright: ignore[reportArgumentType]
+    assert client.put("/api/options", json={"komga_scan_wait_s": 121}).status_code == 422
+    assert client.put("/api/options", json={"komga_scan_wait_s": -1}).status_code == 422
+    assert client.put("/api/options", json={"komga_scan_wait_s": "5"}).status_code == 422

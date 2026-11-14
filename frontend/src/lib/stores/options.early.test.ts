@@ -17,6 +17,7 @@ const base: Options = {
   allow_blurred_tags: false,
   trash_retention_days: 7,
   images_per_site: 10,
+  komga_scan_wait_s: 10,
   infinite_scroll: false,
   place_mode: "suggest",
   hidden_sites: [],

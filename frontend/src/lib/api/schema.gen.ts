@@ -1707,6 +1707,11 @@ export interface components {
              */
             images_per_site: number;
             /**
+             * Komga Scan Wait S
+             * @default 10
+             */
+            komga_scan_wait_s: number;
+            /**
              * Infinite Scroll
              * @default false
              */
@@ -1764,6 +1769,8 @@ export interface components {
             trash_retention_days?: number | null;
             /** Images Per Site */
             images_per_site?: number | null;
+            /** Komga Scan Wait S */
+            komga_scan_wait_s?: number | null;
             /** Confirm Purge */
             confirm_purge?: boolean | null;
             /** Infinite Scroll */
