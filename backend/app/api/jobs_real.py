@@ -12,7 +12,7 @@ from app.filters.rules import evaluate, load_rules
 from app.jobs.store import JobStore
 from app.jobs.worker import JobWorker
 from app.models import Job, JobList, PlacementSuggestion, SaveAccepted, SaveBody, WebSource
-from app.sources.base import Source, SourceError
+from app.sources.base import Post, Source, SourceError
 from app.targets.stash import SaveError
 
 router = APIRouter(prefix="/api")
@@ -25,6 +25,17 @@ _VALID_STATES: frozenset[str] = frozenset(
 
 def _store(request: Request) -> JobStore:
     return JobStore(request.app.state.settings.db_path)
+
+
+def _get_post(request: Request, src: Source, post_id: str) -> Post:
+    """get_post, reusing the gallery the book page cached (no second site call)."""
+    if src.id == "nhentai":
+        from app.api.media_web_pages import cached_post
+
+        post = cached_post(request, post_id.strip())
+        if post is not None:
+            return post
+    return src.get_post(post_id)
 
 
 def _worker(request: Request) -> JobWorker | None:
@@ -53,7 +64,7 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
     if existing is not None:
         return SaveAccepted(job_id=existing)
     try:
-        post = src.get_post(body.post_id)
+        post = _get_post(request, src, body.post_id)
     except SourceError as e:
         if e.status == 404 or e.code == "not_found":
             raise ApiError(404, "not_found", "Post not found") from None
@@ -97,7 +108,7 @@ def save_placement(
     if src is None or src.target != "komga" or target is None:
         raise ApiError(422, "no_target", f"{source} does not save to Komga")
     try:
-        post = src.get_post(post_id)
+        post = _get_post(request, src, post_id)
     except SourceError as e:
         if e.status == 404 or e.code == "not_found":
             raise ApiError(404, "not_found", "Post not found") from None

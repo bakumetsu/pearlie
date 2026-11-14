@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createPlacement } from "./placement.svelte";
+import { createPlacement, CHECK_TIMEOUT_MS } from "./placement.svelte";
 import type { Api, WebItem } from "../api/client";
 
 const item = { source: "nhentai", post_id: "7", target: "komga" } as WebItem;
@@ -44,5 +44,23 @@ describe("placement store", () => {
     expect(store.item).not.toBeNull();
     store.cancel();
     expect(await p).toBeNull();
+  });
+
+  it("takes the error path when the check hangs, and then saves without a placement", async () => {
+    vi.useFakeTimers();
+    try {
+      const hang = vi.fn((_s: string, _p: string, signal?: AbortSignal) =>
+        new Promise((_, reject) => signal?.addEventListener("abort", () => reject(new Error("aborted")))));
+      const { store } = make("suggest", hang as never);
+      const p = store.ask(item);
+      expect(store.loading).toBe(true);
+      await vi.advanceTimersByTimeAsync(CHECK_TIMEOUT_MS);
+      expect(store.loading).toBe(false);
+      expect(store.error).toBe("The check took too long");
+      store.confirm();
+      expect(await p).toEqual({});
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
