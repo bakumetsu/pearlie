@@ -2,7 +2,6 @@
 	import { untrack } from "svelte";
 	import { options } from "../stores/options.svelte";
 	import type { OptionsStore } from "../stores/options.svelte";
-	import NumberStepper from "./NumberStepper.svelte";
 
 	type SiteKey = "danbooru" | "gelbooru" | "rule34" | "nhentai";
 
@@ -113,21 +112,19 @@
 		<div class="row">
 			<label class="row-label" for={`pace-${key}`}>{label}</label>
 			<span class="muted">default {meta[key].default}s</span>
-			<NumberStepper label={`${label} seconds`} disabled={meta[key].locked}>
-				<input
-					id={`pace-${key}`}
-					type="number"
-					inputmode="decimal"
-					min={meta[key].default}
-					max={MAX_PACE}
-					step="0.5"
-					aria-label={`${label} seconds between requests`}
-					data-testid={`pace-${key}`}
-					disabled={meta[key].locked}
-					value={fields[key].value}
-					onchange={(e) => handleChange(key, e)}
-				/>
-			</NumberStepper>
+			<input
+				id={`pace-${key}`}
+				type="number"
+				inputmode="decimal"
+				min={meta[key].default}
+				max={MAX_PACE}
+				step="0.5"
+				aria-label={`${label} seconds between requests`}
+				data-testid={`pace-${key}`}
+				disabled={meta[key].locked}
+				value={fields[key].value}
+				onchange={(e) => handleChange(key, e)}
+			/>
 			{#if meta[key].backing_off}
 				<span class="chip" role="status">Backing off</span>
 			{/if}

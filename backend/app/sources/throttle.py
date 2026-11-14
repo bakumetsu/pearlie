@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 from collections.abc import Callable
@@ -85,6 +86,8 @@ class Throttle:
 
     def set_interval(self, v: float) -> None:
         """Change the user-set base interval."""
+        if not math.isfinite(v) or v < 0:
+            raise ValueError("interval must be finite and >= 0")
         with self._lock:
             self._user = v
             if not self.backing_off:
