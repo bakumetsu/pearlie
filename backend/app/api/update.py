@@ -274,7 +274,7 @@ def get_changelog(
     enabled = _get(db_path, "update.check") != "off"
 
     result = checker.cached(view)
-    if result is None and (enabled or refresh):
+    if result is None and enabled:
         result = checker.check(view)
     latest_ref: str | None = None
     if result and result.latest:
@@ -339,7 +339,9 @@ def apply_update(request: Request) -> ApplyOut:
     raw_channel = _get(db_path, "update.channel")
     channel: Literal["main", "dev"] = raw_channel if raw_channel in ("main", "dev") else "main"
 
-    result = checker.cached(channel) or checker.check(channel)
+    result = checker.cached(channel)
+    if result is None and _get(db_path, "update.check") != "off":
+        result = checker.check(channel)
 
     installed = update_version.current_version()
     available = False
