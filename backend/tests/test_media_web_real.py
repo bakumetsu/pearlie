@@ -111,7 +111,7 @@ def test_foreign_host_is_refused(tmp_path):
 
 
 def test_upstream_html_or_error_is_502(tmp_path):
-    for status, ctype in ((200, "text/html"), (500, "image/jpeg")):
+    for status, ctype in ((200, "text/html"), (403, "image/jpeg")):
         client = TestClient(_app(tmp_path, _handler([], status, ctype)))
         r = client.get("/api/media/web/danbooru/7/thumb")
         assert r.status_code == 502, (status, ctype)

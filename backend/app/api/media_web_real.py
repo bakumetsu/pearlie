@@ -478,6 +478,16 @@ async def _run_miss(
             del flights[key]
 
 
+def _is_cf_block(resp: httpx.Response) -> bool:
+    """A 403 from Cloudflare's challenge or block page, not a plain refusal of one file."""
+    if resp.status_code != 403:
+        return False
+    if "cf-mitigated" in resp.headers:
+        return True
+    is_html = resp.headers.get("content-type", "").lower().startswith("text/html")
+    return resp.headers.get("server", "").lower() == "cloudflare" and is_html
+
+
 def _fetch_thumb(src: Source, post_id: str, url: str, lane: Throttle) -> _Thumb | _Refused:
     """One upstream GET: allow-listed host, at most 2 re-checked redirects, 5 MB image only."""
     client: httpx.Client = src._client  # type: ignore[attr-defined]
@@ -505,8 +515,8 @@ def _fetch_thumb(src: Source, post_id: str, url: str, lane: Throttle) -> _Thumb 
                 current = target
                 continue
             retry_after = _retry_after(resp)
-            # 403 is a Cloudflare block: same pause and fall back as 429
-            reported = 429 if status == 403 else status
+            # a Cloudflare 403 block pauses and falls back like a 429; a plain 403 stays a 502
+            reported = 429 if _is_cf_block(resp) else status
             lane.report(reported, retry_after)
             if reported in (429, 503):
                 if main is not None:

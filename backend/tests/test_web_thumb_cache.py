@@ -116,9 +116,16 @@ def test_429_gives_503_retry_after_and_reports_to_both_throttles(tmp_path):
     assert _cached_files(tmp_path) == []
 
 
-def test_403_backs_off_like_429(tmp_path):
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {**JPEG, "cf-mitigated": "challenge"},
+        {"content-type": "text/html; charset=utf-8", "server": "cloudflare"},
+    ],
+)
+def test_cloudflare_403_backs_off_like_429(tmp_path, headers):
     def respond(request):
-        return stream_response(403, b"", JPEG)
+        return stream_response(403, b"", headers)
 
     app, client, _seen = _client(tmp_path, respond)
     _warm(client)
@@ -127,6 +134,19 @@ def test_403_backs_off_like_429(tmp_path):
     assert app.state.web_thumb_lanes["danbooru"].throttle.backing_off
     assert app.state.sources["danbooru"]._throttle.backing_off
     assert _cached_files(tmp_path) == []
+
+
+def test_plain_403_is_502_without_back_off(tmp_path):
+    def respond(request):
+        return stream_response(403, b"", {**JPEG, "server": "cloudflare"})
+
+    app, client, seen = _client(tmp_path, respond)
+    _warm(client)
+    assert client.get("/api/media/web/danbooru/7/thumb").status_code == 502
+    assert not app.state.web_thumb_lanes["danbooru"].throttle.backing_off
+    assert not app.state.sources["danbooru"]._throttle.backing_off
+    client.get("/api/media/web/danbooru/7/thumb")
+    assert len(seen) == 1  # remembered as a failure
 
 
 def _fetch_peak(app, src):
