@@ -125,7 +125,7 @@ describe("SeeAll web lightbox", () => {
     });
     render(App);
     await vi.waitFor(() => expect(document.querySelectorAll(".tile.web")).toHaveLength(1));
-    document.querySelector("button.open")!.click();
+    document.querySelector<HTMLButtonElement>("button.open")!.click();
     await vi.waitFor(() => expect(location.pathname).toBe("/web/nhentai/1"));
     expect(document.querySelector("dialog .title")).toBeNull();
   });
