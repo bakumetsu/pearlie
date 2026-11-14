@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { WebItem } from "../api/client";
-import { saveWebItem, saveStateFor, savedHrefFor } from "./saveFlow";
+import { saveWebItem, saveStateFor, savedHrefFor, settleQueued } from "./saveFlow";
+import type { Job } from "../jobs/group";
 
 const item = { source: "nhentai", post_id: "1" } as WebItem;
 
@@ -44,6 +45,33 @@ describe("save state", () => {
     expect(saveStateFor(saved, undefined)).toBe("in_library");
     expect(saveStateFor(saved, { state: "queued" })).toBe("queued");
     expect(savedHrefFor(saved, undefined)).toBe("/item/books/b1");
+    expect(savedHrefFor(item, undefined)).toBeUndefined();
+  });
+});
+
+describe("settleQueued", () => {
+  const job = (state: string, extra: Partial<Job> = {}) =>
+    ({ source: "danbooru", post_id: "1", state, created_at: "2026-01-01", ...extra }) as Job;
+
+  it("turns a done job into a tick with its library ref", () => {
+    const ref = { kind: "image", id: "5" };
+    expect(settleQueued(["danbooru:1"], [job("done", { library_ref: ref as Job["library_ref"] })])).toEqual({
+      "danbooru:1": { state: "in_library", ref },
+    });
+  });
+
+  it("sends a failed job back to idle and leaves a running job spinning", () => {
+    expect(settleQueued(["danbooru:1"], [job("failed")])).toEqual({ "danbooru:1": "idle" });
+    expect(settleQueued(["danbooru:1"], [job("running")])).toEqual({});
+  });
+
+  it("uses the newest job for the key", () => {
+    const jobs = [job("failed", { created_at: "2026-01-01" }), job("running", { created_at: "2026-01-02" })];
+    expect(settleQueued(["danbooru:1"], jobs)).toEqual({});
+  });
+
+  it("gives no link for a ref without an id", () => {
+    const item = { saved: { kind: "book", id: "" } } as unknown as WebItem;
     expect(savedHrefFor(item, undefined)).toBeUndefined();
   });
 });

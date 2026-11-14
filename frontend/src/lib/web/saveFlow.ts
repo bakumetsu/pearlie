@@ -1,5 +1,6 @@
 import type { WebItem } from "../api/client";
 import { toPlural } from "../item/kinds";
+import type { Job } from "../jobs/group";
 import type { PlacementAnswer } from "../stores/placement.svelte";
 
 export type SaveResult =
@@ -43,5 +44,25 @@ export function saveStateFor(item: WebItem, entry: SaveStateEntry): "idle" | "qu
 
 export function savedHrefFor(item: WebItem, entry: SaveStateEntry): string | undefined {
   const ref = entry?.state === "in_library" && entry.ref ? entry.ref : item.saved;
-  return ref ? `/item/${toPlural(ref.kind) ?? ref.kind}/${ref.id}` : undefined;
+  return ref?.id ? `/item/${toPlural(ref.kind) ?? ref.kind}/${ref.id}` : undefined;
+}
+
+// A queued save follows its job: done or skipped turns into a tick, failed or needs_click goes back to idle.
+export function settleQueued(
+  queuedKeys: string[],
+  jobs: Job[],
+): Record<string, { state: "in_library"; ref?: { kind: string; id: string } } | "idle"> {
+  const out: Record<string, { state: "in_library"; ref?: { kind: string; id: string } } | "idle"> = {};
+  for (const key of queuedKeys) {
+    const job = jobs
+      .filter((j) => `${j.source}:${j.post_id}` === key)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    if (!job) continue;
+    if (job.state === "done" || job.state === "skipped") {
+      out[key] = { state: "in_library", ...(job.library_ref ? { ref: job.library_ref } : {}) };
+    } else if (job.state === "failed" || job.state === "needs_click") {
+      out[key] = "idle";
+    }
+  }
+  return out;
 }

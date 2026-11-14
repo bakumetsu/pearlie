@@ -7,7 +7,7 @@ import type { Api } from "../lib/api/client";
 import { matchRoute } from "../lib/router";
 
 const h = vi.hoisted(() => ({ router: null as unknown }));
-vi.mock("../lib/ctx", () => ({ getRouter: () => h.router }));
+vi.mock("../lib/ctx", () => ({ getRouter: () => h.router, findJobs: () => undefined }));
 
 beforeEach(() => {
   const m = new Map<string, string>();

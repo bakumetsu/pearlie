@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { getApi } from "../lib/api/client";
-  import { getRouter } from "../lib/ctx";
+  import { getRouter, findJobs } from "../lib/ctx";
   import { itemHref, toPlural } from "../lib/item/kinds";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { createSearch } from "../lib/stores/search.svelte";
@@ -27,6 +27,10 @@
   const api = getApi();
   const router = getRouter();
   const search = createSearch(api);
+  const jobsStore = findJobs();
+  $effect(() => {
+    if (jobsStore) search.settle(jobsStore.items);
+  });
 
   const hidden = $derived(options.values?.hidden_sites ?? []);
   // The address keeps the saved sites; a hidden one is only left out of what is shown and searched.

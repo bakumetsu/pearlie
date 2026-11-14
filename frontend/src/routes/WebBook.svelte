@@ -2,7 +2,7 @@
   import { untrack } from "svelte";
   import { getApi } from "../lib/api/client";
   import type { WebBook } from "../lib/api/client";
-  import { getRouter } from "../lib/ctx";
+  import { getRouter, findJobs } from "../lib/ctx";
   import { linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
   import { pageSrc } from "../lib/reader/pages";
@@ -20,6 +20,10 @@
   const api = getApi();
   const router = getRouter();
   const search = createSearch(api);
+  const jobsStore = findJobs();
+  $effect(() => {
+    if (jobsStore) search.settle(jobsStore.items);
+  });
 
   const source = $derived(match.params.source);
   const id = $derived(match.params.id);
@@ -122,7 +126,7 @@
                   disabled={saveState !== "idle" || item.saveable === false}
                   onclick={save}
                 >
-                  <Icon name={saveState === "queued" ? "loader" : saveState === "blocked" ? "alert" : "download"} size={20} />
+                  <span class:spin={saveState === "queued"}><Icon name={saveState === "queued" ? "loader" : saveState === "blocked" ? "alert" : "download"} size={20} /></span>
                 </button>
               {/if}
               <a class="ib sq" href={"https://nhentai.net/g/" + encodeURIComponent(id) + "/"} target="_blank" rel="noopener noreferrer" aria-label="Open on nhentai" title="Open on nhentai"><Icon name="external-link" size={20} /></a>
@@ -209,5 +213,19 @@
     .cover { max-width: none; flex: none; }
     .info { align-items: flex-start; }
     .actions, .ban { justify-content: flex-start; }
+  }
+  .spin {
+    display: inline-flex;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spin {
+      animation: none;
+    }
   }
 </style>

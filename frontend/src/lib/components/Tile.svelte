@@ -350,6 +350,21 @@
       transform: rotate(360deg);
     }
   }
+  @keyframes tick-in {
+    from {
+      transform: scale(0.6);
+      opacity: 0;
+    }
+  }
+  .badge {
+    animation: tick-in 0.2s ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spin,
+    .badge {
+      animation: none;
+    }
+  }
   /* List variant */
   .tile.list {
     display: flex;

@@ -221,3 +221,26 @@ def test_set_post_and_load_post(tmp_path: Path) -> None:
     store.set_post("1", post())
     _, new_json = store.load_post("1")
     assert new_json is not None
+
+
+def test_saved_refs_batch_and_md5(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    assert store.saved_refs("danbooru", []) == {}
+    conn = connect(tmp_path / "p.db")
+    rows = [
+        ("danbooru", "1", "a" * 32, "stash", "42"),
+        ("danbooru", "2", "b" * 32, "komga", ""),
+        ("gelbooru", "9", "c" * 32, "stash", "7"),
+    ]
+    conn.executemany(
+        "INSERT INTO saved_items (source, post_id, md5, target, image_id) VALUES (?, ?, ?, ?, ?)",
+        rows,
+    )
+    conn.commit()
+    conn.close()
+    got = store.saved_refs("danbooru", ["1", "2", "3", "4"], {"3": "C" * 32, "4": "d" * 32})
+    assert got["1"].model_dump() == {"kind": "image", "id": "42"}
+    assert got["2"].model_dump() == {"kind": "book", "id": ""}
+    assert got["3"].id == "7"  # same file saved from another source (md5 pass)
+    assert "4" not in got
+    assert "9" not in store.saved_refs("danbooru", ["9"])

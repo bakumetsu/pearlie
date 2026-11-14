@@ -150,7 +150,7 @@
         </a>
       {:else if saveState === "queued"}
         <button class="save-btn" disabled>
-          <Icon name="loader" size={18} />
+          <span class="spin"><Icon name="loader" size={18} /></span>
           Queued
         </button>
       {:else if saveState === "blocked"}
@@ -411,5 +411,19 @@
     margin: 0;
     font-size: var(--t-12);
     color: var(--muted);
+  }
+  .spin {
+    display: inline-flex;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spin {
+      animation: none;
+    }
   }
 </style>

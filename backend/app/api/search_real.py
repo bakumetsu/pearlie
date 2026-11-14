@@ -25,6 +25,7 @@ from app.models import (
     WebItem,
     WebSource,
 )
+from app.jobs.store import JobStore
 from app.paging import PAGE_SIZE_CAPS, clamp_page_size, pages_for
 from app.sources.base import Post, Source, SourceError
 from app.sources.filters import NOTICE_CODE
@@ -203,6 +204,14 @@ def search(
                             blur=Blur(tag=verdict.tag) if verdict else None,
                         )
                     )
+                saved = JobStore(request.app.state.settings.db_path).saved_refs(
+                    sid,
+                    [p.post_id for p in visible],
+                    {p.post_id: p.md5 for p in visible if p.md5},
+                )
+                for it in items:
+                    if isinstance(it, WebItem):
+                        it.saved = saved.get(it.post_id)
                 remember(request.app, visible, rules.version)
                 if multi:
                     items = items[:18]
