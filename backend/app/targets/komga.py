@@ -47,6 +47,7 @@ STALE_S = 3600
 VERIFY_TRIES = 5
 VERIFY_DELAY_S = 2.0
 VERIFY_PAGE_SIZE = 50
+STALE_GRACE = "-1 day"  # Komga may not have scanned a fresh save yet
 
 
 def _file_name(post: Post) -> str:
@@ -475,6 +476,58 @@ class KomgaTarget:
         finally:
             conn.close()
         return row is not None
+
+    @staticmethod
+    def _book_matches(book: dict, post_id: str) -> bool:
+        """True when a Komga book is the saved copy of *post_id* (file name or Web link)."""
+        url = str(book.get("url", "")).replace("\\", "/")
+        if f"[{post_id}]" in posixpath.basename(url):
+            return True
+        links = (book.get("metadata") or {}).get("links") or []
+        return any(f"/{post_id}/" in str(ln.get("url", "")).rstrip("/") + "/" for ln in links)
+
+    def drop_if_gone(self, source: str, post_id: str) -> bool:
+        """Drop the index row of a post when Komga no longer has its book.
+
+        One search per dedupe hit. A row younger than STALE_GRACE, a Komga error
+        and a full result page keep the row: only a clear "no matching book"
+        counts as gone.
+        """
+        tag = f"source={source} post={post_id}"
+        conn = connect(self._settings.db_path)
+        try:
+            fresh = conn.execute(
+                "SELECT 1 FROM saved_items WHERE target = 'komga' AND source = ? "
+                "AND post_id = ? AND created_at > datetime('now', ?)",
+                (source, post_id, STALE_GRACE),
+            ).fetchone()
+        finally:
+            conn.close()
+        if fresh is not None:
+            logger.info("KOMGA %s stale check skipped: saved within the grace period", tag)
+            return False
+        try:
+            page = self._client.list_books(0, VERIFY_PAGE_SIZE, post_id, "createdDate,desc")
+        except KomgaError as e:
+            logger.warning("KOMGA %s stale check failed code=%s status=%s", tag, e.code, e.status)
+            return False
+        books = page.get("content", [])
+        if any(self._book_matches(b, post_id) for b in books):
+            return False
+        if len(books) >= VERIFY_PAGE_SIZE:
+            logger.warning("KOMGA %s stale check inconclusive: full result page", tag)
+            return False
+        conn = connect(self._settings.db_path)
+        try:
+            conn.execute(
+                "DELETE FROM saved_items WHERE target = 'komga' AND source = ? AND post_id = ?",
+                (source, post_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        logger.info("KOMGA %s stale index row dropped", tag)
+        return True
 
     @staticmethod
     def _duplicate(via: str) -> SaveResult:

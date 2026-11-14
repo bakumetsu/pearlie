@@ -122,6 +122,82 @@ def test_second_save_is_duplicate(env) -> None:
     assert len(list(dest.iterdir())) == 1
 
 
+def _row_count(settings: Settings) -> int:
+    conn = connect(settings.db_path)
+    n = conn.execute("SELECT COUNT(*) FROM saved_items").fetchone()[0]
+    conn.close()
+    return n
+
+
+def _age_rows(settings: Settings) -> None:
+    conn = connect(settings.db_path)
+    conn.execute("UPDATE saved_items SET created_at = datetime('now', '-2 days')")
+    conn.commit()
+    conn.close()
+
+
+def test_drop_if_gone_keeps_fresh_row_before_komga_scan(env) -> None:
+    target, komga, settings, _dest, _h = env
+    target.save(make_post(), [])
+    komga.visible = False
+    assert target.drop_if_gone("nhentai", "42") is False
+    assert _row_count(settings) == 1
+
+
+def test_drop_if_gone_keeps_row_on_full_page(env) -> None:
+    target, komga, settings, _dest, _h = env
+    target.save(make_post(), [])
+    _age_rows(settings)
+    komga.list_books = lambda *a, **k: {  # type: ignore[method-assign]
+        "content": [{"url": f"/lib/other{i}.cbz"} for i in range(50)]
+    }
+    assert target.drop_if_gone("nhentai", "42") is False
+    assert _row_count(settings) == 1
+
+
+def test_drop_if_gone_keeps_row_while_book_exists(env) -> None:
+    target, _komga, settings, _dest, _h = env
+    target.save(make_post(), [])
+    _age_rows(settings)
+    assert target.drop_if_gone("nhentai", "42") is False
+    assert _row_count(settings) == 1
+
+
+def test_drop_if_gone_drops_row_when_book_deleted(env) -> None:
+    target, komga, settings, _dest, _h = env
+    target.save(make_post(), [])
+    _age_rows(settings)
+    komga.visible = False
+    assert target.drop_if_gone("nhentai", "42") is True
+    assert _row_count(settings) == 0
+
+
+def test_drop_if_gone_matches_book_by_web_link(env) -> None:
+    target, komga, settings, _dest, _h = env
+    target.save(make_post(), [])
+    _age_rows(settings)
+    komga.list_books = lambda *a, **k: {  # type: ignore[method-assign]
+        "content": [
+            {"url": "/lib/Renamed.cbz", "metadata": {"links": [{"url": "https://nhentai.net/g/42/"}]}}
+        ]
+    }
+    assert target.drop_if_gone("nhentai", "42") is False
+    assert _row_count(settings) == 1
+
+
+def test_drop_if_gone_keeps_row_on_komga_error(env) -> None:
+    target, komga, settings, _dest, _h = env
+    target.save(make_post(), [])
+    _age_rows(settings)
+
+    def boom(*a, **k):
+        raise KomgaError("upstream_error", "down", 502)
+
+    komga.list_books = boom  # type: ignore[method-assign]
+    assert target.drop_if_gone("nhentai", "42") is False
+    assert _row_count(settings) == 1
+
+
 def test_name_clash_renames_and_notices(env) -> None:
     target, _komga, settings, dest, _h = env
     target.save(make_post(), [])

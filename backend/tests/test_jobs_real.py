@@ -326,6 +326,47 @@ def _komga_client(tmp_path: Path) -> tuple[TestClient, Path]:
     return client, db_path
 
 
+def _komga_row(db_path: Path) -> None:
+    conn = connect(db_path)
+    conn.execute(
+        "INSERT INTO saved_items (source, post_id, md5, target, image_id) VALUES (?, ?, ?, ?, ?)",
+        ("danbooru", "1", "abc", "komga", ""),
+    )
+    conn.commit()
+    conn.close()
+
+
+class _GoneKomgaTarget:
+    def __init__(self, gone: bool, db_path: Path) -> None:
+        self.gone = gone
+        self.db_path = db_path
+
+    def drop_if_gone(self, source: str, post_id: str) -> bool:
+        if self.gone:
+            conn = connect(self.db_path)
+            conn.execute("DELETE FROM saved_items")
+            conn.commit()
+            conn.close()
+        return self.gone
+
+
+def test_save_komga_book_deleted_allows_resave(tmp_path: Path) -> None:
+    client, db_path = _komga_client(tmp_path)
+    _komga_row(db_path)
+    client.app.state.komga_target = _GoneKomgaTarget(True, db_path)  # type: ignore[attr-defined]
+    resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
+    assert resp.status_code == 202
+
+
+def test_save_komga_book_present_is_already_saved(tmp_path: Path) -> None:
+    client, db_path = _komga_client(tmp_path)
+    _komga_row(db_path)
+    client.app.state.komga_target = _GoneKomgaTarget(False, db_path)  # type: ignore[attr-defined]
+    resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "already_saved"
+
+
 def test_save_placement_stored(tmp_path: Path) -> None:
     client, db_path = _komga_client(tmp_path)
     resp = client.post(
