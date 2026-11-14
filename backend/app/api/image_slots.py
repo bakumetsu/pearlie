@@ -32,6 +32,7 @@ SLOW_S = 8.0
 SLOW_RUN = 3
 WAIT_CAP_S = 20.0
 POLL_S = 0.25
+CEILING_TTL_S = 5.0
 STALE_GRANT_S = 180.0  # a slot never finished (stream never started) is taken back
 
 
@@ -55,6 +56,13 @@ class _Entry:
     cancelled: bool = field(default=False, compare=False)
 
 
+def _on_loop(loop: asyncio.AbstractEventLoop) -> bool:
+    try:
+        return asyncio.get_running_loop() is loop
+    except RuntimeError:
+        return False
+
+
 class Slot:
     """One granted fetch slot. `finish` is idempotent and must run on every path."""
 
@@ -69,7 +77,13 @@ class Slot:
         if self.done:
             return
         self.done = True
-        self._limiter._release(self, status, retry_after, self._clock() - self.started)
+        elapsed = self._clock() - self.started
+        loop = self._limiter._loop
+        if loop is not None and loop.is_running() and not _on_loop(loop):
+            # the response body iterates in a worker thread; limiter state belongs to the loop
+            loop.call_soon_threadsafe(self._limiter._release, self, status, retry_after, elapsed)
+            return
+        self._limiter._release(self, status, retry_after, elapsed)
 
 
 class Limiter:
@@ -86,6 +100,7 @@ class Limiter:
         self.ceiling = max(1, ceiling if ceiling is not None else DEFAULT_CEILING[host_class])
         self.slots = min(self.start, self.ceiling)
         self._clock = clock
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._heap: list[_Entry] = []
         self._seq = itertools.count()
         self._active: set[Slot] = set()
@@ -161,7 +176,7 @@ class Limiter:
         wait_cap: float = WAIT_CAP_S,
     ) -> Slot:
         """Wait for a slot by priority; Gone if the client left, Busy after the wait cap."""
-        loop = asyncio.get_running_loop()
+        loop = self._loop = asyncio.get_running_loop()
         entry = _Entry(RANK.get(prio, 0), next(self._seq), loop.create_future())
         heapq.heappush(self._heap, entry)
         self._dispatch()
@@ -193,11 +208,22 @@ class SlotScheduler:
     def __init__(self, ceilings: Callable[[str], int | None] | None = None) -> None:
         self._ceilings = ceilings
         self._limiters: dict[tuple[str, str], Limiter] = {}
+        self._read_at: dict[str, tuple[float, int | None]] = {}
+
+    def _ceiling(self, host_class: str) -> int | None:
+        """The settings ceiling, read at most every CEILING_TTL_S (not one DB read per image)."""
+        if self._ceilings is None:
+            return None
+        now = time.monotonic()
+        hit = self._read_at.get(host_class)
+        if hit is None or now - hit[0] >= CEILING_TTL_S:
+            hit = self._read_at[host_class] = (now, self._ceilings(host_class))
+        return hit[1]
 
     def limiter(self, site: str, host_class: str) -> Limiter:
         key = (site, host_class)
         lim = self._limiters.get(key)
-        ceiling = self._ceilings(host_class) if self._ceilings else None
+        ceiling = self._ceiling(host_class)
         if lim is None:
             lim = self._limiters[key] = Limiter(host_class, ceiling)
         elif ceiling is not None and ceiling != lim.ceiling:
