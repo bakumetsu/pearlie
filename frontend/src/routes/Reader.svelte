@@ -2,6 +2,7 @@
 	import { onMount, onDestroy, untrack } from "svelte";
 	import { getApi } from "../lib/api/client";
 	import type { LibraryItem } from "../lib/api/client";
+	import { komgaSource, webSource, type ReaderSource } from "../lib/reader/source";
 	import { getRouter } from "../lib/ctx";
 	import type { Match } from "../lib/router";
 	import Stage from "../lib/reader/Stage.svelte";
@@ -31,8 +32,20 @@
 	const api = getApi();
 	const router = getRouter();
 
-	const bookId = $derived(match.params.bookId);
+	const routeKey = $derived(
+		match.name === "read-web" ? "web:" + match.params.source + ":" + match.params.id : "komga:" + match.params.bookId,
+	);
 	const seriesId = $derived(match.query.get("series"));
+
+	function buildSource(): ReaderSource {
+		return match.name === "read-web"
+			? webSource(api, match.params.source, match.params.id, match.query)
+			: komgaSource(api, match.params.bookId, match.query);
+	}
+
+	// source is rebuilt in load(); bookId is the progress key of the current source
+	let source: ReaderSource = buildSource();
+	let bookId = $state(source.key);
 
 	// ── state ──────────────────────────────────────────────────────────
 	let status = $state<"loading" | "ready" | "error">("loading");
@@ -68,7 +81,7 @@
 	});
 
 	// ── progress + autohide ────────────────────────────────────────────
-	const progress = createProgress((id, pg, o) => api.saveProgress(id, pg, undefined, o));
+	const progress = createProgress(async (_id, pg, o) => source.saveProgress(pg, count, o));
 	const hide = createAutoHide({
 		blocked: () => popover !== null || thumbsOpen,
 		onchange: (v) => (hidden = v),
@@ -109,6 +122,8 @@
 	// ── loading ────────────────────────────────────────────────────────
 	async function load() {
 		progress.flush();
+		source = buildSource();
+		bookId = source.key;
 		status = "loading";
 		atEnd = false;
 		wide = new Set<number>();
@@ -120,39 +135,22 @@
 		setSettings({ zoom: 100 });
 
 		try {
-			const d = await api.getItem("books", bookId);
+			const d = await source.load();
 			title = d.title;
-			count = d.page_count ?? 0;
-			tpl = d.page_url ?? "";
-			thumbTpl = d.page_thumb_url ?? null;
-
-			const pParam = match.query.get("p");
-			const start = pParam
-				? Number(pParam)
-				: !d.read_page || d.read_page <= 1 || (d.page_count != null && d.read_page >= d.page_count)
-					? 1
-					: d.read_page;
-			page = clampPage(start, count);
+			count = d.count;
+			tpl = d.tpl;
+			thumbTpl = d.thumbTpl;
+			books = d.books;
+			notice = d.notice;
+			page = clampPage(d.start, count);
 			status = "ready";
 		} catch {
 			status = "error";
-			return;
-		}
-
-		if (seriesId) {
-			try {
-				const s = await api.getItem("series", seriesId);
-				books = s.books ?? [];
-				notice = s.notice?.message ?? null;
-			} catch {
-				books = [];
-				notice = null;
-			}
 		}
 	}
 
 	$effect(() => {
-		void bookId;
+		void routeKey;
 		untrack(() => void load());
 	});
 
@@ -168,7 +166,10 @@
 		const g = groupOf(groups, page);
 		progress.set(bookId, g[g.length - 1]);
 		const qs = "?p=" + page + (seriesId ? "&series=" + seriesId : "");
-		router.navigate("/read/" + encodeURIComponent(bookId) + qs, { replace: true });
+		const base = source.kind === "web"
+			? "/read/web/" + match.params.source + "/" + encodeURIComponent(match.params.id)
+			: "/read/" + encodeURIComponent(bookId);
+		router.navigate(base + qs, { replace: true });
 	}
 
 	function turn(d: 1 | -1) {
@@ -207,10 +208,7 @@
 			history.back();
 			return;
 		}
-		router.navigate(
-			seriesId ? "/item/series/" + encodeURIComponent(seriesId) : "/item/books/" + encodeURIComponent(bookId),
-			{ replace: true },
-		);
+		router.navigate(source.backTarget(), { replace: true });
 	}
 
 	function toggleFullscreen() {
