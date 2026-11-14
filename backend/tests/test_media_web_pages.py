@@ -153,6 +153,16 @@ def test_content_type_guard(tmp_path):
     assert r.status_code == 502 and r.json()["code"] == "upstream_error"
 
 
+def test_html_200_does_not_ramp_slots(tmp_path):
+    rig = Rig(tmp_path, ctype="text/html")
+    lim = image_slots.scheduler(rig.app).limiter("nhentai", "i")
+    lim.slots = 4
+    lim._clean = 0
+    for _ in range(40):
+        rig.client.get("/api/media/web/nhentai/7/pages/1")
+    assert lim.slots == 4 and lim.in_flight == 0
+
+
 def test_429_maps_with_retry_after(tmp_path):
     rig = Rig(tmp_path, cdn_status=429, retry=7)
     r = rig.client.get("/api/media/web/nhentai/7/pages/1")
@@ -251,6 +261,28 @@ def test_stream_time_limit_cuts_body():
         slot = await lim.acquire("focus", _never)
         body = image_slots.SlotBody(Resp(), slot, time_limit=250.0, clock=c)
         assert len(list(body)) == 3  # cut after the limit
+        assert lim.in_flight == 0
+
+    asyncio.run(go())
+
+
+def test_strict_body_cut_raises_and_frees_slot():
+    class Resp:
+        status_code = 200
+
+        def iter_raw(self):
+            yield b"xxxx"
+            yield b"yyyy"
+
+        def close(self):
+            pass
+
+    async def go():
+        lim = Limiter("i", clock=Clock())
+        slot = await lim.acquire("focus", _never)
+        body = image_slots.SlotBody(Resp(), slot, max_bytes=6, strict=True)
+        with pytest.raises(image_slots.StreamCut):
+            list(body)
         assert lim.in_flight == 0
 
     asyncio.run(go())

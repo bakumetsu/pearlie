@@ -209,7 +209,7 @@ def _stream_media(
     status = upstream.status_code
     if status not in (200, 206) or not media_type.startswith(("image/", "video/")):
         upstream.close()
-        slot.finish(status, _retry_after(upstream))
+        slot.finish(None if status in (200, 206) else status, _retry_after(upstream))
         if status == 404:
             raise ApiError(404, "not_found", "Media not found")
         code = "rate_limited" if status == 429 else "upstream_error"

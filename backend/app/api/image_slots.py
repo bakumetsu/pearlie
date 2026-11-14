@@ -45,6 +45,10 @@ class Busy(Exception):
     """The queue wait went over the cap."""
 
 
+class StreamCut(Exception):
+    """A strict body was cut short; raised so the client sees a failed transfer."""
+
+
 class Gone(Exception):
     """The client left while the request waited."""
 
@@ -273,7 +277,9 @@ class SlotBody:
         max_bytes: int | None = None,
         time_limit: float = STREAM_LIMIT_S,
         clock: Callable[[], float] = time.monotonic,
+        strict: bool = False,
     ) -> None:
+        self._strict = strict
         self._resp, self._slot = resp, slot
         self._status = resp.status_code
         self._max_bytes = max_bytes
@@ -287,14 +293,18 @@ class SlotBody:
             for chunk in self._resp.iter_raw():
                 sent += len(chunk)
                 if self._max_bytes is not None and sent > self._max_bytes:
-                    return  # cut: the client sees a short body
+                    return self._cut("size limit")
                 yield chunk
                 if self._clock() > self._deadline:
-                    logger.warning("stream cut: time limit")
-                    return
+                    return self._cut("time limit")
             self._complete = True
         finally:
             self.close()
+
+    def _cut(self, why: str) -> None:
+        logger.warning("stream cut: %s", why)
+        if self._strict:
+            raise StreamCut(why)  # headers are sent: abort so no client caches a short body
 
     def close(self) -> None:
         self._resp.close()
