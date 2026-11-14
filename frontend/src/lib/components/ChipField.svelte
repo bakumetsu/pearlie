@@ -11,15 +11,16 @@
     label,
     onsubmit,
     trailing,
+    pending = $bindable(""),
   }: {
     chips: Chip[];
     onchange: (chips: Chip[]) => void;
     label?: string;
     onsubmit?: () => void;
     trailing?: Snippet;
+    pending?: string;
   } = $props();
 
-  let text = $state("");
   const labelId = "chipfield-label";
 </script>
 
@@ -44,20 +45,20 @@
   {/each}
 
   <input
-    bind:value={text}
+    bind:value={pending}
     class="chip-input"
     type="text"
     placeholder={chips.length === 0 ? "Search tags, e.g. cat -dog artist:x" : ""}
     autocomplete="off"
     onkeydown={(e) => {
-      if ((e.key === "Enter" || e.key === ",") && text.trim()) {
+      if ((e.key === "Enter" || e.key === ",") && pending.trim()) {
         e.preventDefault();
-        onchange(commitText(chips, text));
-        text = "";
-      } else if (e.key === "Enter" && !text.trim()) {
+        onchange(commitText(chips, pending));
+        pending = "";
+      } else if (e.key === "Enter" && !pending.trim()) {
         e.preventDefault();
         onsubmit?.();
-      } else if (e.key === "Backspace" && text === "") {
+      } else if (e.key === "Backspace" && pending === "") {
         onchange(removeLastChip(chips));
       }
     }}
@@ -65,12 +66,6 @@
       e.preventDefault();
       const pasted = e.clipboardData?.getData("text/plain") ?? "";
       if (pasted.trim()) onchange(commitText(chips, pasted));
-    }}
-    onblur={() => {
-      if (text.trim()) {
-        onchange(commitText(chips, text));
-        text = "";
-      }
     }}
   />
   {@render trailing?.()}

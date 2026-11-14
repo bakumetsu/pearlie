@@ -8,7 +8,7 @@
   import { options } from "../lib/stores/options.svelte";
   import { placement } from "../lib/stores/placement.svelte";
   import { visibleInSafeMode } from "../lib/stores/safeFilter";
-  import { parseSearchParams, buildSearchParams, serialiseQuery, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
+  import { parseSearchParams, buildSearchParams, serialiseQuery, commitText, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SiteId } from "../lib/query";
   import { hrefOf, linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
@@ -40,7 +40,8 @@
 
   // Chip edits stay in a draft until the user runs the search.
   let draftChips = $derived(query.chips);
-  const dirty = $derived(serialiseQuery(draftChips) !== serialiseQuery(query.chips));
+  let pending = $state("");
+  const dirty = $derived(pending.trim() !== "" || serialiseQuery(draftChips) !== serialiseQuery(query.chips));
 
   let first = true;
   $effect(() => {
@@ -90,7 +91,10 @@
   }
 
   function runSearch(): void {
-    if (dirty) navigateState({ ...saved, chips: draftChips });
+    if (!dirty) return;
+    const next = pending.trim() ? commitText(draftChips, pending) : draftChips;
+    pending = "";
+    navigateState({ ...saved, chips: next });
   }
 
   function handlePillChange(pill: typeof query.pill): void {
@@ -173,7 +177,7 @@
     </div>
     <div class="hfield">
       <div class="search-row">
-        <ChipField chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch}>
+        <ChipField bind:pending chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch}>
           {#snippet trailing()}
             <button
               class="fib"

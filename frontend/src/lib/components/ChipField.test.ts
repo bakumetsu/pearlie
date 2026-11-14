@@ -34,6 +34,16 @@ describe("ChipField", () => {
     expect(onchange).toHaveBeenCalled();
   });
 
+  it("blur does not commit pending text", async () => {
+    const onchange = vi.fn();
+    const { container } = render(ChipField, { props: { chips: [], onchange } });
+    const input = container.querySelector("input")!;
+    await fireEvent.input(input, { target: { value: "cat" } });
+    await fireEvent.blur(input);
+    expect(onchange).not.toHaveBeenCalled();
+    expect((input as HTMLInputElement).value).toBe("cat");
+  });
+
   it("has correct padding in styles", () => {
     expect(src).toContain("padding: 2px 18px 2px var(--s-1)");
   });

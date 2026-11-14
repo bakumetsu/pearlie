@@ -67,15 +67,31 @@ describe("Search chips do not auto-run", () => {
     expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
   });
 
-  it("blur only adds the chip", async () => {
+  it("blur keeps the text uncommitted and shows Search", async () => {
     render(App);
     await settle();
     const base = searchCalls;
-    const input = screen.getByRole("textbox");
+    const input = screen.getByRole("textbox") as HTMLInputElement;
     await fireEvent.input(input, { target: { value: "dog" } });
     await fireEvent.blur(input);
     await settle();
     expect(searchCalls).toBe(base);
+    expect(screen.queryByRole("button", { name: "Remove dog" })).toBeNull();
+    expect(input.value).toBe("dog");
+    expect(screen.getByRole("button", { name: "Search" })).toBeTruthy();
+  });
+
+  it("Search button commits pending text and runs once", async () => {
+    render(App);
+    await settle();
+    const base = searchCalls;
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    await fireEvent.input(input, { target: { value: "dog" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await settle();
+    expect(searchCalls).toBe(base + 1);
+    expect(lastBody).toContain("dog");
+    expect(input.value).toBe("");
     expect(screen.getByRole("button", { name: "Remove dog" })).toBeTruthy();
   });
 
