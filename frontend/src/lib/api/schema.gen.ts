@@ -1698,6 +1698,11 @@ export interface components {
              */
             trash_retention_days: number;
             /**
+             * Images Per Site
+             * @default 10
+             */
+            images_per_site: number;
+            /**
              * Infinite Scroll
              * @default false
              */
@@ -1753,6 +1758,8 @@ export interface components {
             allow_blurred_tags?: boolean | null;
             /** Trash Retention Days */
             trash_retention_days?: number | null;
+            /** Images Per Site */
+            images_per_site?: number | null;
             /** Confirm Purge */
             confirm_purge?: boolean | null;
             /** Infinite Scroll */

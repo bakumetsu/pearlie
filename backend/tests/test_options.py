@@ -60,6 +60,7 @@ def test_defaults(any_client: TestClient) -> None:
         "backdrop_lightbox": True,
         "allow_blurred_tags": False,
         "trash_retention_days": 7,
+        "images_per_site": 10,
         "infinite_scroll": False,
         "place_mode": "suggest",
         "source_pace": expected_pace,

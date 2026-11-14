@@ -6,7 +6,6 @@ import logging
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -17,7 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 
 from app.api.errors import ApiError
-from app.api.image_slots import Busy, Gone, Limiter, Prio, Slot, SlotScheduler, parse_prio
+from app.api.image_slots import Busy, Gone, Limiter, Prio, SlotBody, parse_prio, scheduler
 from app.api.media_web_real import proxy_path
 from app.db import connect
 from app.filters.rules import evaluate, load_rules
@@ -35,11 +34,11 @@ META_MAX = 64
 FETCH_STRIPES = 16
 MAX_PAGE_BYTES = 20 * 1024 * 1024
 PAGE_TIMEOUT = 45.0
+PAGE_TIME_LIMIT = 120.0
 THUMB_TIMEOUT = 15.0
 SHARDS = 4
 PAGE_CACHE_CONTROL = "private, max-age=3600"
 IMAGE_TYPES = frozenset({"image/jpeg", "image/png", "image/webp", "image/gif"})
-_SETTING_KEYS = {"t": "image_slots_thumb_max", "i": "image_slots_page_max"}
 
 
 @dataclass
@@ -69,30 +68,6 @@ def _nhentai(request: Request) -> NHentai:
     if src is None:
         raise ApiError(404, "not_found", "Media not found")
     return cast(NHentai, src)
-
-
-def _db_int(db_path, key: str) -> int | None:
-    conn = connect(db_path)
-    try:
-        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
-    finally:
-        conn.close()
-    try:
-        v = int(row["value"]) if row else None
-    except (ValueError, TypeError):
-        return None
-    return v if v is not None and 1 <= v <= 32 else None
-
-
-def _scheduler(request: Request) -> SlotScheduler:
-    state = request.app.state
-    sched = getattr(state, "image_slots", None)
-    if sched is None:
-        db_path = state.settings.db_path
-        sched = state.image_slots = SlotScheduler(
-            lambda host_class: _db_int(db_path, _SETTING_KEYS[host_class])
-        )
-    return sched
 
 
 def _rules_version(db_path) -> int:
@@ -265,31 +240,6 @@ def _check_response(resp: httpx.Response) -> None:
         raise _Refusal(502, "upstream_error", "The image is too large")
 
 
-class _Body:
-    """Streams the upstream body under the size cap; frees response and slot exactly once."""
-
-    def __init__(self, resp: httpx.Response, slot: Slot) -> None:
-        self._resp, self._slot = resp, slot
-        self._status = resp.status_code
-        self._complete = False
-
-    def __iter__(self) -> Iterator[bytes]:
-        sent = 0
-        try:
-            for chunk in self._resp.iter_raw():
-                sent += len(chunk)
-                if sent > MAX_PAGE_BYTES:
-                    return  # cut: the client sees a short body
-                yield chunk
-            self._complete = True
-        finally:
-            self.close()
-
-    def close(self) -> None:
-        self._resp.close()
-        self._slot.finish(self._status if self._complete else None)
-
-
 async def _fetch_image(request: Request, gid: str, n: int, thumb: bool, prio: Prio) -> Response:
     src = _nhentai(request)
     try:
@@ -298,7 +248,7 @@ async def _fetch_image(request: Request, gid: str, n: int, thumb: bool, prio: Pr
         urls = image_urls(media_id, n, ext, thumb)
         if not urls:
             raise _Refusal(404, "not_found", "Page not found")
-        limiter: Limiter = _scheduler(request).limiter("nhentai", "t" if thumb else "i")
+        limiter: Limiter = scheduler(request.app).limiter("nhentai", "t" if thumb else "i")
         try:
             slot = await limiter.acquire(prio, _disconnected(request))
         except Busy:
@@ -325,7 +275,7 @@ async def _fetch_image(request: Request, gid: str, n: int, thumb: bool, prio: Pr
     except _Refusal as r:
         logger.warning("nhentai gallery=%s page=%d thumb=%s err %d", gid, n, thumb, r.status)
         return _refusal_response(r)
-    body = _Body(resp, slot)
+    body = SlotBody(resp, slot, MAX_PAGE_BYTES, PAGE_TIME_LIMIT)
     media_type = resp.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     headers = {"Cache-Control": PAGE_CACHE_CONTROL}
     if "content-length" in resp.headers:

@@ -158,7 +158,7 @@ def test_429_maps_with_retry_after(tmp_path):
     r = rig.client.get("/api/media/web/nhentai/7/pages/1")
     assert r.status_code == 429 and r.headers["retry-after"] == "7"
     lim = rig.app.state.image_slots.limiter("nhentai", "i")
-    assert lim.slots == 1 and lim.in_flight == 0
+    assert lim.slots == 6 and lim.in_flight == 0
 
 
 def test_prio_unknown_falls_back(rig):
@@ -191,31 +191,69 @@ async def _always() -> bool:
     return True
 
 
-def test_ramp_and_ceiling():
+def test_default_and_ceiling():
     c = Clock()
+    assert Limiter("i", clock=c).slots == 10  # default: faster than a browser
+    assert Limiter("t", clock=c).slots == 10
+    assert Limiter("i", ceiling=99, clock=c).slots == 16  # range 1-16
+    assert Limiter("i", ceiling=0, clock=c).slots == 1
     lim = Limiter("i", ceiling=4, clock=c)
-    assert lim.slots == 2
     for _ in range(40):
         lim._record(200, None, 1.0)
-    assert lim.slots == 4  # never above the ceiling
-    assert Limiter("t", clock=c).slots == 4
+    assert lim.slots == 4  # never above the setting
 
 
-def test_backoff_slow_and_recover():
+def test_backoff_browser_level_lower_then_recover():
     c = Clock()
-    lim = Limiter("t", clock=c)
+    lim = Limiter("i", clock=c)
     lim._record(429, 5.0, 1.0)
-    assert lim.slots == 1 and lim._pause_until == c.t + 5.0
-    for _ in range(30):
+    assert lim.slots == 6 and lim._pause_until == c.t + 5.0  # Retry-After honoured
+    lim._record(503, None, 1.0)
+    assert lim.slots == 6  # same pause: one event
+    c.t += 6.0
+    lim._record(503, None, 1.0)
+    assert lim.slots == 3  # errors continue: lower
+    for _ in range(30 * 20):
         lim._record(200, None, 1.0)
-    assert lim.slots == 2  # +1 per 30 clean after a back-off
+    assert lim.slots == 10  # slow recovery reaches the setting again
+
+
+def test_backoff_below_setting_keeps_setting_cap():
+    c = Clock()
+    lim = Limiter("i", ceiling=3, clock=c)
+    lim._record(429, None, 1.0)
+    assert lim.slots == 3  # browser level never raises above the setting
+
+
+def test_slow_spell():
+    lim = Limiter("i", clock=Clock())
     for _ in range(3):
         lim._record(200, None, 9.0)
-    assert lim.slots == 1  # slow spell
+    assert lim.slots == 6
 
 
-def test_setting_cap_applies():
-    assert Limiter("i", ceiling=1).slots == 1
+def test_stream_time_limit_cuts_body():
+    c = Clock()
+
+    class Resp:
+        status_code = 200
+
+        def iter_raw(self):
+            for _ in range(5):
+                c.t += 100.0
+                yield b"x"
+
+        def close(self):
+            pass
+
+    async def go():
+        lim = Limiter("i", clock=c)
+        slot = await lim.acquire("focus", _never)
+        body = image_slots.SlotBody(Resp(), slot, time_limit=250.0, clock=c)
+        assert len(list(body)) == 3  # cut after the limit
+        assert lim.in_flight == 0
+
+    asyncio.run(go())
 
 
 def test_slot_limit_priority_and_release():

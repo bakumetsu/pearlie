@@ -126,7 +126,8 @@ def test_upstream_429_backs_off_throttle(tmp_path):
     assert app.state.sources["danbooru"]._throttle.backing_off
     full = client.get("/api/media/web/danbooru/7/full")
     assert full.status_code == 502 and full.json()["code"] == "rate_limited"
-    assert app.state.web_media_throttles["danbooru"].backing_off
+    lim = app.state.image_slots.limiter("danbooru", "i")
+    assert lim.slots == 6 and lim.in_flight == 0
 
 
 def test_nhentai_cover_thumb_and_cookie_not_sent(tmp_path):
@@ -179,3 +180,23 @@ def test_retry_after_ignores_non_finite_and_negative() -> None:
     for raw in ("inf", "nan", "-5"):
         assert _retry_after(httpx.Response(429, headers={"Retry-After": raw})) is None
     assert _retry_after(httpx.Response(429, headers={"Retry-After": "7"})) == 7.0
+
+
+def test_images_per_site_setting_sets_slots_and_503_falls_back(tmp_path):
+    app = _app(tmp_path, _handler([], 503))
+    client = TestClient(app)
+    assert client.get("/api/options").json()["images_per_site"] == 10
+    assert client.put("/api/options", json={"images_per_site": 8}).json()["images_per_site"] == 8
+    assert client.put("/api/options", json={"images_per_site": 17}).status_code == 422
+    assert client.put("/api/options", json={"images_per_site": 0}).status_code == 422
+    r = client.get("/api/media/web/danbooru/7/preview")
+    assert r.status_code == 502
+    lim = app.state.image_slots.limiter("danbooru", "i")
+    assert lim.ceiling == 8 and lim.slots == 6 and lim.in_flight == 0
+
+
+def test_preview_stream_frees_slot(tmp_path):
+    app = _app(tmp_path, _handler([]))
+    client = TestClient(app)
+    assert client.get("/api/media/web/danbooru/7/preview").content == IMG
+    assert app.state.image_slots.limiter("danbooru", "i").in_flight == 0

@@ -21,10 +21,11 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 
 from app.api.errors import ApiError
+from app.api.image_slots import Busy, Gone, Slot, SlotBody, parse_prio, scheduler
 from app.db import connect
 from app.filters.rules import evaluate, load_rules
 from app.sources.base import Post, Source, SourceError
-from app.sources.throttle import DEFAULT_PACE, Throttle
+from app.sources.throttle import Throttle
 from app.thumbcache import MAX_THUMB_BYTES, ThumbCache, sniff_image_type
 from app.thumbcache import SOURCES as CACHED_SOURCES
 
@@ -35,8 +36,10 @@ router = APIRouter(prefix="/api/media")
 Kind = Literal["thumb", "preview", "full"]
 
 VIDEO_EXTS = (".mp4", ".webm", ".mov", ".m4v", ".mkv")
-# CDN files are not API calls: a tenth of the API pace, with the same back-off on 429/503.
-MEDIA_PACE_FACTOR = 0.1
+# Preview and full images run through the per-site image slots (setting: images at a time).
+STREAM_TIMEOUT = 30.0
+IMAGE_TIME_LIMIT = 300.0
+VIDEO_TIME_LIMIT = 1800.0
 _MEMORY = 5000
 # Thumbnail lane (D-17): own throttle per site, one miss at a time.
 THUMB_PACE = 0.25
@@ -120,16 +123,6 @@ def remember(app, posts: list[Post], rules_version: int | None = None) -> None:
         mem.put(p)
 
 
-def _throttle(request: Request, src: Source) -> Throttle:
-    state = request.app.state
-    table: dict[str, Throttle] | None = getattr(state, "web_media_throttles", None)
-    if table is None:
-        table = state.web_media_throttles = {}
-    if src.id not in table:
-        table[src.id] = Throttle(DEFAULT_PACE.get(src.id, 1.0) * MEDIA_PACE_FACTOR, site=src.id)
-    return table[src.id]
-
-
 def _referer(src: Source) -> str:
     base = str(getattr(src, "_base_url", ""))
     parts = urlparse(base)
@@ -184,26 +177,48 @@ async def web_media(request: Request, source: str, post_id: str, kind: str) -> R
         raise ApiError(404, "not_found", "Media not found")
     if kind == "thumb":
         return await _thumb(request, src, post_id)
-    return await run_in_threadpool(_stream_media, request, src, post_id, kind)
+    prio = parse_prio(request.query_params.get("prio"), "focus")
+
+    async def gone() -> bool:
+        return await request.is_disconnected()
+
+    limiter = scheduler(request.app).limiter(src.id, "i")
+    try:
+        slot = await limiter.acquire(prio, gone)
+    except Busy:
+        return JSONResponse(
+            status_code=503,
+            content={"code": "busy", "message": "Too many image requests"},
+            headers={"Retry-After": "2", "Cache-Control": "no-store"},
+        )
+    except Gone:
+        return Response(status_code=499)
+    try:
+        return await run_in_threadpool(_stream_media, request, src, post_id, kind, slot)
+    except BaseException:
+        slot.finish(None)  # no-op when the stream code already gave the slot back
+        raise
 
 
-def _stream_media(request: Request, src: Source, post_id: str, kind: str) -> StreamingResponse:
+def _stream_media(
+    request: Request, src: Source, post_id: str, kind: str, slot: Slot
+) -> StreamingResponse:
     url = _resolve(request, src, post_id, kind)  # type: ignore[arg-type]
-    throttle = _throttle(request, src)
     client: httpx.Client = src._client  # type: ignore[attr-defined]
-    throttle.wait()
     try:
         upstream = client.send(
-            client.build_request("GET", url, headers=_request_headers(request, src)),
+            client.build_request(
+                "GET", url, headers=_request_headers(request, src), timeout=STREAM_TIMEOUT
+            ),
             stream=True,
         )
     except httpx.HTTPError:
         raise ApiError(502, "upstream_error", "The site is unreachable") from None
-    throttle.report(upstream.status_code, _retry_after(upstream))
     media_type = upstream.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     status = upstream.status_code
     if status not in (200, 206) or not media_type.startswith(("image/", "video/")):
         upstream.close()
+        slot.finish(status, _retry_after(upstream))
         if status == 404:
             raise ApiError(404, "not_found", "Media not found")
         code = "rate_limited" if status == 429 else "upstream_error"
@@ -212,12 +227,14 @@ def _stream_media(request: Request, src: Source, post_id: str, kind: str) -> Str
     for h in _RELAY_HEADERS:
         if h in upstream.headers:
             headers["-".join(w.capitalize() for w in h.split("-"))] = upstream.headers[h]
+    limit = VIDEO_TIME_LIMIT if media_type.startswith("video/") else IMAGE_TIME_LIMIT
+    body = SlotBody(upstream, slot, time_limit=limit)
     return StreamingResponse(
-        upstream.iter_raw(),
+        iter(body),
         status_code=status,
         media_type=media_type,
         headers=headers,
-        background=BackgroundTask(upstream.close),
+        background=BackgroundTask(body.close),
     )
 
 

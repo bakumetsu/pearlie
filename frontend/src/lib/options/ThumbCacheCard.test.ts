@@ -18,6 +18,7 @@ const defaultBase = {
 	backdrop_lightbox: true,
 	allow_blurred_tags: false,
 	trash_retention_days: 7,
+	images_per_site: 10,
 	source_pace: {},
 	thumb_cache: { max_mb: 1024, used_mb: 12.4, files: 30, available: true },
 };

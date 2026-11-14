@@ -123,6 +123,10 @@ export const SECTIONS: Section[] = [
         rows: [{ label: 'Seconds between requests', hint: 'per-site pace' }],
       },
       {
+        title: 'Browsing',
+        rows: [{ label: 'Images at a time', hint: 'per-site image slots' }],
+      },
+      {
         title: 'Site access',
         rows: [
           { label: 'Test', hint: 'test connection' },
