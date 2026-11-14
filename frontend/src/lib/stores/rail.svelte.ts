@@ -15,7 +15,7 @@ function defaultStorage(): RailStorage | undefined {
   }
 }
 
-/** Desktop rail collapse, remembered per device. Sets data-rail="slim" on root; tokens.css narrows --rail-w. */
+/** Desktop rail collapse, remembered per device. Sets data-rail="hidden" on root; tokens.css sets --rail-w to 0. */
 export function createRail(
   root: HTMLElement = document.documentElement,
   storage: RailStorage | undefined = defaultStorage(),
@@ -37,7 +37,7 @@ export function createRail(
 
   const apply = (): void => {
     if (state) {
-      root.dataset.rail = "slim";
+      root.dataset.rail = "hidden";
     } else {
       delete root.dataset.rail;
     }

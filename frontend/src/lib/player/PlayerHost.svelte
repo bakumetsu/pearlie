@@ -1,7 +1,8 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { player } from "./player.svelte";
-  import { rectFor, toTransform } from "./geometry";
+  import { RAIL_W, rectFor, toTransform } from "./geometry";
+  import { rail } from "../stores/rail.svelte";
   import { setMediaSession, enterPip } from "./pip";
   import PlayerBar from "./PlayerBar.svelte";
 
@@ -71,7 +72,7 @@
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const rect = $derived(rectFor(player.mode, player.slot, vp));
+  const rect = $derived(rectFor(player.mode, player.slot, vp, rail?.collapsed ? 0 : RAIL_W));
 
   // Mini dock is z-index 21 with an opaque background, so the mini video must sit above it.
   const videoStyle = $derived(
