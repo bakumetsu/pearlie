@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from urllib.parse import urljoin, urlparse, urlunparse
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 import httpx
 
@@ -301,7 +301,12 @@ class StashClient:
         if not preview:
             return None
         parsed = urlparse(preview)
-        return urlunparse(("", "", parsed.path, parsed.params, parsed.query, ""))
+        query_params = parse_qsl(parsed.query, keep_blank_values=True)
+        filtered = [(k, v) for k, v in query_params if k.lower() != "apikey"]
+        query = urlencode(filtered)
+        if query:
+            return f"{parsed.path}?{query}"
+        return parsed.path
 
     def open_media(
         self,
