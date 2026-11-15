@@ -282,6 +282,17 @@
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   });
 
+  // Leaving for a tile and coming back reuses the kept grid; remember the scroll place for it.
+  $effect(() => {
+    let y = 0;
+    const onScroll = () => { y = window.scrollY; };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      untrack(() => grid.setScrollY(y));
+    };
+  });
+
   // Scroll to top and focus pager after a page finishes loading
   let lastFocusedKey = "";
   $effect(() => {
@@ -295,7 +306,12 @@
     if (lastFocusedKey === key) return;
     lastFocusedKey = key;
     untrack(() => {
-      if (grid.scrollY > 0) return;
+      if (grid.scrollY > 0) {
+        const y = grid.scrollY;
+        grid.setScrollY(0);
+        tick().then(() => window.scrollTo(0, y));
+        return;
+      }
       window.scrollTo(0, 0);
       (async () => {
         await tick();

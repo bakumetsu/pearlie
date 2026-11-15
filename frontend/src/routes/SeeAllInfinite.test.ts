@@ -153,4 +153,58 @@ describe("SeeAll infinite scroll", () => {
     expect(requested).toEqual([1]);
     await vi.waitFor(() => expect(location.search).not.toContain("page="));
   });
+  it("on: back from another page reuses the loaded tiles, no new request", async () => {
+    const { container } = await firstPage();
+    nearEnd();
+    await vi.waitFor(() => expect(container.querySelectorAll("a.tile").length).toBe(4));
+    nearEnd();
+    await vi.waitFor(() => expect(container.querySelectorAll("a.tile").length).toBe(6));
+    expect(requested).toEqual([1, 2, 3]);
+    const seeAll = location.pathname + location.search;
+    Object.defineProperty(window, "scrollY", { value: 1234, configurable: true });
+    window.dispatchEvent(new Event("scroll"));
+
+    history.pushState({}, "", "/queue");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await vi.waitFor(() => expect(container.querySelectorAll("a.tile").length).toBe(0));
+    history.pushState({}, "", seeAll);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await vi.waitFor(() => expect(container.querySelectorAll("a.tile").length).toBe(6));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(requested).toEqual([1, 2, 3]);
+    expect(window.scrollTo).toHaveBeenLastCalledWith(0, 1234);
+  });
+  it("on: nhentai, open a tile and go back, no new search request", async () => {
+    history.replaceState({}, "", "/see-all?source=nhentai&q=cat");
+    const searched: number[] = [];
+    const base = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, "http://localhost");
+      if (url.pathname === "/api/search") {
+        const p = Number(url.searchParams.get("page") ?? "1");
+        searched.push(p);
+        const items = [1, 2].map((n) => ({ source: "nhentai", post_id: `${p}${n}`, title: `p${p}${n}`, thumb_url: `/t/${p}${n}`, tags: [] }));
+        return Promise.resolve(new Response(JSON.stringify({ sections: [{ id: "nhentai", items, next_page: p < 3 ? p + 1 : null, pages: 3 }] }), { status: 200, headers: { "Content-Type": "application/json" } }));
+      }
+      return (base as typeof fetch)(input, init);
+    });
+    tl = await import("@testing-library/svelte");
+    const { default: App } = await import("../App.svelte");
+    const { container } = tl.render(App);
+    await vi.waitFor(() => expect(container.querySelectorAll(".tile.web").length).toBe(2));
+    nearEnd();
+    await vi.waitFor(() => expect(container.querySelectorAll(".tile.web").length).toBe(4));
+    nearEnd();
+    await vi.waitFor(() => expect(container.querySelectorAll(".tile.web").length).toBe(6));
+    expect(searched).toEqual([1, 2, 3]);
+    const seeAll = location.pathname + location.search;
+
+    container.querySelector<HTMLButtonElement>("button.open")!.click();
+    await vi.waitFor(() => expect(location.pathname).toMatch(/^\/web\/nhentai\//));
+    history.back();
+    await vi.waitFor(() => expect(location.pathname + location.search).toBe(seeAll));
+    await vi.waitFor(() => expect(container.querySelectorAll(".tile.web").length).toBe(6));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(searched).toEqual([1, 2, 3]);
+  });
 });
