@@ -105,4 +105,16 @@ describe("createRail", () => {
     expect(rail.px).toBe(160);
     expect(root.style.getPropertyValue("--rail-w")).toBe("160px");
   });
+
+  it("setWidth(px, false) skips the save until saveWidth()", () => {
+    const root = document.createElement("div");
+    const storage = memoryStorage();
+    const rail = createRail(root, storage);
+    rail.setWidth(120, false);
+    rail.setWidth(130, false);
+    expect(root.style.getPropertyValue("--rail-w")).toBe("130px");
+    expect(storage.data["pearlie.rail.width"]).toBeUndefined();
+    rail.saveWidth();
+    expect(storage.data["pearlie.rail.width"]).toBe("130");
+  });
 });

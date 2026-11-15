@@ -5,7 +5,9 @@ interface RailStore {
   /** Width the layout uses: 0 while collapsed. */
   readonly px: number;
   toggle(): void;
-  setWidth(px: number): void;
+  /** Set the width; pass save=false while dragging and call saveWidth() at the end. */
+  setWidth(px: number, save?: boolean): void;
+  saveWidth(): void;
   resetWidth(): void;
 }
 
@@ -92,9 +94,12 @@ export function createRail(
     get px(): number {
       return state ? 0 : w;
     },
-    setWidth(px: number): void {
+    setWidth(px: number, save = true): void {
       w = clampWidth(px);
       apply();
+      if (save) writeWidth();
+    },
+    saveWidth(): void {
       writeWidth();
     },
     resetWidth(): void {
