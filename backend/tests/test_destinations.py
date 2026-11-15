@@ -353,3 +353,10 @@ def test_api_komga_site_validates_against_komga_roots(tmp_path: Path) -> None:
         assert ok.status_code == 200
         assert ok.json()["items"] == [{"site": "nhentai", "folder": "/mnt/komga/doujin/in"}]
         assert c.delete("/api/destinations/nhentai").status_code == 200
+
+
+def test_validate_folder_rejects_backslash():
+    for bad in ("/data/lib\\..\\..\\x", "/data/lib/a\\b"):
+        with pytest.raises(destinations.DestinationError) as err:
+            destinations.validate_folder(bad, ["/data/lib"])
+        assert err.value.code == "invalid"

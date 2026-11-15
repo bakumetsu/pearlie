@@ -197,3 +197,9 @@ def test_build_index_key_collision_is_deterministic(tmp_path, monkeypatch):
     )
     idx = build_index(tmp_path, None)
     assert idx.series["[a]"]["foo"] == "[A] Foo"
+
+
+def test_clean_folder_name_drops_backslash():
+    assert clean_folder_name("a\\b") == "ab"
+    assert clean_folder_name("..\\..\\x") == "....x"
+    assert clean_folder_name("\\") == "Grouped_Series"

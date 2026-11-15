@@ -43,6 +43,8 @@ def validate_folder(
     prefix_stash: str = "",
 ) -> str:
     """Validate and normalize a destination folder path."""
+    if "\\" in folder:
+        raise DestinationError("invalid", "folder must not contain a backslash", 422)
     if ".." in folder.split("/"):
         raise DestinationError("invalid", "folder must not contain '..'", 422)
     normalized = posixpath.normpath(folder)
