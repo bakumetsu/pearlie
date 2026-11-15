@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 # Bump on every new column or table (test_db.py snapshot guard fails otherwise).
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS jobs (
@@ -96,6 +96,8 @@ def init_db(path: Path) -> None:
     cols = {row[1] for row in conn.execute("PRAGMA table_info(saved_items)")}
     if "image_id" not in cols:
         conn.execute("ALTER TABLE saved_items ADD COLUMN image_id TEXT")
+    if "kind" not in cols:
+        conn.execute("ALTER TABLE saved_items ADD COLUMN kind TEXT NOT NULL DEFAULT 'image'")
     jobs_cols = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
     jobs_migrations: dict[str, str] = {
         "error_code": "error_code TEXT",

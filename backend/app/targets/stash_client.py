@@ -24,6 +24,12 @@ FIND_IMAGE_BY_PATH = (
     " filter: {per_page: 1}) { images { id } } }"
 )
 
+FIND_SCENE_BY_PATH = (
+    "query($v: String!) { findScenes("
+    "scene_filter: {path: {value: $v, modifier: EQUALS}},"
+    " filter: {per_page: 1}) { scenes { id } } }"
+)
+
 METADATA_SCAN = "mutation($p: [String!]) { metadataScan(input: {paths: $p}) }"
 
 FIND_JOB = "query($id: ID!) { findJob(input: {id: $id}) { id status error } }"
@@ -165,6 +171,12 @@ class StashClient:
         data = self._gql(FIND_IMAGE_BY_PATH, {"v": path})
         images = data["findImages"]["images"]
         return images[0]["id"] if images else None
+
+    def find_scene_by_path(self, path: str) -> str | None:
+        """Return the Stash scene id matching *path*, or ``None``."""
+        data = self._gql(FIND_SCENE_BY_PATH, {"v": path})
+        scenes = data["findScenes"]["scenes"]
+        return scenes[0]["id"] if scenes else None
 
     def metadata_scan(self, path: str) -> str:
         """Trigger a metadata scan on *path*; return the job id."""

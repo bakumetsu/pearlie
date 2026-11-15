@@ -88,9 +88,13 @@ def _chunks(items: list[str], size: int = 500):
         yield items[i : i + size]
 
 
-def _ref(target: str, image_id: str | None) -> SavedRef:
+def _ref(target: str, image_id: str | None, kind: str = "image") -> SavedRef:
     # A Komga row has no image id; the marker still shows, without a link.
-    return SavedRef(kind="book" if target == "komga" else "image", id=image_id or "")
+    if target == "komga":
+        return SavedRef(kind="book", id=image_id or "")
+    if kind == "video":
+        return SavedRef(kind="video", id=image_id or "")
+    return SavedRef(kind="image", id=image_id or "")
 
 
 class JobStore:
@@ -110,6 +114,19 @@ class JobStore:
         finally:
             conn.close()
 
+    def saved_kind(self, source: str, post_id: str) -> str:
+        conn = connect(self._path)
+        try:
+            row = conn.execute(
+                "SELECT kind FROM saved_items WHERE source = ? AND post_id = ?",
+                (source, post_id),
+            ).fetchone()
+            if row is None:
+                return "image"
+            return row["kind"] if row["kind"] is not None else "image"
+        finally:
+            conn.close()
+
     def saved_refs(
         self, source: str, post_ids: list[str], md5s: dict[str, str] | None = None
     ) -> dict[str, SavedRef]:
@@ -126,20 +143,23 @@ class JobStore:
             for chunk in _chunks(post_ids):
                 marks = ",".join("?" * len(chunk))
                 for row in conn.execute(
-                    "SELECT post_id, target, image_id FROM saved_items "
+                    "SELECT post_id, target, image_id, kind FROM saved_items "
                     f"WHERE source = ? AND post_id IN ({marks})",
                     (source, *chunk),
                 ):
-                    found[row["post_id"]] = _ref(row["target"], row["image_id"])
+                    found[row["post_id"]] = _ref(
+                        row["target"], row["image_id"], row["kind"]
+                    )
             by_md5 = {m.lower(): pid for pid, m in (md5s or {}).items() if m and pid not in found}
             for chunk in _chunks(list(by_md5)):
                 marks = ",".join("?" * len(chunk))
                 for row in conn.execute(
-                    f"SELECT md5, target, image_id FROM saved_items WHERE md5 IN ({marks})",
+                    f"SELECT md5, target, image_id, kind FROM saved_items WHERE md5 IN ({marks})",
                     tuple(chunk),
                 ):
                     found.setdefault(
-                        by_md5[row["md5"].lower()], _ref(row["target"], row["image_id"])
+                        by_md5[row["md5"].lower()],
+                        _ref(row["target"], row["image_id"], row["kind"])
                     )
             return found
         finally:
