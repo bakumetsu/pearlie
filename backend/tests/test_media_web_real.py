@@ -215,3 +215,27 @@ def test_preview_and_full_apply_rules_to_cold_post(tmp_path):
     for kind in ("preview", "full", "thumb"):
         assert client.get(f"/api/media/web/danbooru/7/{kind}").status_code == 404, kind
     assert [q for q in seen if q.url.host == "cdn.donmai.us"] == []
+
+
+def test_rules_version_is_read_once_per_ttl_and_refreshed_on_save(tmp_path, monkeypatch):
+    from app.api import media_web_real as mw
+    from app.filters.rules import RuleSet, load_rules, save_rules
+
+    app = _app(tmp_path, _handler([]))
+    client = TestClient(app)
+    client.get("/api/search", params={"q": "x", "sources": "danbooru"})
+    mw._version_cache.clear()
+    calls = []
+    orig = mw.connect
+    monkeypatch.setattr(mw, "connect", lambda p: calls.append(p) or orig(p))
+    for _ in range(5):
+        assert client.get("/api/media/web/danbooru/7/thumb").status_code == 200
+    assert len(calls) == 1
+    rules = load_rules(tmp_path / "p.db")
+    save_rules(
+        tmp_path / "p.db",
+        rules.version,
+        RuleSet(rules.version, ["x"], [], [], []),
+    )
+    client.get("/api/media/web/danbooru/7/thumb")
+    assert len(calls) == 2

@@ -71,6 +71,10 @@ def check(post_tags: dict[str, list[str]], reject: Sequence[str]) -> Decision | 
     return None
 
 
+# Bumped after every committed save_rules: readers that cache rules.version drop their copy.
+save_epoch = 0
+
+
 class StaleVersion(Exception):
     """Raised when the rules version has changed since it was read."""
 
@@ -183,6 +187,8 @@ def save_rules(db_path: Path, expected_version: int, new: RuleSet) -> int:
             (str(new_version),),
         )
         conn.execute("COMMIT")
+        global save_epoch
+        save_epoch += 1
         return new_version
     except StaleVersion:
         raise
