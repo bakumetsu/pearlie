@@ -144,8 +144,15 @@ def scene_preview(request: Request, id: str):
     _check_id(id)
     stash = request.app.state.stash
     fwd = _forward_range(request)
+    path = None
     try:
-        upstream = stash.open_media(f"/scene/{id}/preview", headers=fwd)
+        path = stash.scene_preview_path(id)
+    except StashError:
+        pass
+    if path is None:
+        path = f"/scene/{id}/preview"
+    try:
+        upstream = stash.open_media(path, headers=fwd)
     except StashError as err:
         raise ApiError(err.status, err.code, err.message) from None
     return _stream(upstream, "private, max-age=3600")

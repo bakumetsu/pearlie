@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from urllib.parse import urljoin
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse
 
 import httpx
 
@@ -78,6 +78,7 @@ GET_SCENE = (
     "query($id: ID!) { findScene(id: $id) { " + SCENE_FIELDS
     + " sceneStreams { url mime_type label } } }"
 )
+GET_SCENE_PREVIEW = "query($id: ID!) { findScene(id: $id) { paths { preview } } }"
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +287,26 @@ class StashClient:
         """Return the scene dict (with streams) for *id*, or ``None``."""
         data = self._gql(GET_SCENE, {"id": id})
         return data["findScene"]
+
+    def scene_preview_path(self, id: str) -> str | None:
+        """Return the preview path+query from Stash, or ``None``."""
+        data = self._gql(GET_SCENE_PREVIEW, {"id": id})
+        scene = data.get("findScene")
+        if not scene:
+            return None
+        paths = scene.get("paths")
+        if not paths:
+            return None
+        preview = paths.get("preview")
+        if not preview:
+            return None
+        parsed = urlparse(preview)
+        query_params = parse_qsl(parsed.query, keep_blank_values=True)
+        filtered = [(k, v) for k, v in query_params if k.lower() != "apikey"]
+        query = urlencode(filtered)
+        if query:
+            return f"{parsed.path}?{query}"
+        return parsed.path
 
     def open_media(
         self,
