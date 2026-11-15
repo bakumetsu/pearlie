@@ -75,8 +75,9 @@
   const rect = $derived(rectFor(player.mode, player.slot, vp, rail ? rail.px : RAIL_W));
 
   // Mini dock is z-index 21 with an opaque background, so the mini video must sit above it.
+  // In PiP the page box would only show the browser's "playing in picture-in-picture" text, so hide it.
   const videoStyle = $derived(
-    rect === null
+    rect === null || (player.pip && !fs)
       ? "position:fixed;top:0;left:0;z-index:20;background:#000;object-fit:contain;display:none;"
       : `position:fixed;top:0;left:0;z-index:${player.mode === "mini" ? 22 : 20};background:#000;object-fit:contain;width:${rect.w}px;height:${rect.h}px;transform:${toTransform(rect)};`,
   );

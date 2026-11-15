@@ -145,6 +145,31 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     await fetchPage(page);
   }
 
+  // Start a list from items already in hand (a row). Later pages come from the loader, appended.
+  function seed(listKey: string, items: T[], loader: Loader<T>, meta: { total?: number | null; pageSize?: number | null; hasNext: boolean }) {
+    requestToken++;
+    abortInFlight();
+    currentLoader = loader;
+    accumulate = true;
+    state.listKey = listKey;
+    state.items = [...items];
+    resync();
+    state.page = 1;
+    state.lastPage = 1;
+    state.requested = 1;
+    state.total = meta.total ?? null;
+    state.pages = null;
+    state.perPage = meta.pageSize ?? null;
+    state.stats = null;
+    state.hidden = 0;
+    state.hasNext = meta.hasNext;
+    state.status = "done";
+    state.more = "idle";
+    state.error = null;
+    state.scrollY = 0;
+    crossed = false;
+  }
+
   // Infinite scroll: fetch the page after the last loaded one and append it. One request at a
   // time, never past the last page, and a failure waits for an explicit retry.
   async function loadMore(force = false) {
@@ -334,6 +359,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     get scrollY() { return state.scrollY; },
     get ids() { return shown().map(keyOf); },
     open,
+    seed,
     goTo,
     loadMore,
     setAccumulate,

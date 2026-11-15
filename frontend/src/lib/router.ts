@@ -97,11 +97,17 @@ export function createRouter(win: Window = window): Router {
   };
 }
 
-export function linkClick(e: MouseEvent, router: Router): void {
+// True when linkClick will handle the click in this tab (no modifier, other button, target or download).
+export function inPageClick(e: MouseEvent): boolean {
   const a = e.currentTarget as HTMLAnchorElement;
-  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.defaultPrevented) return;
-  if (a.target || a.hasAttribute("download")) return;
-  if (new URL(a.href).origin !== window.location.origin) return;
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.defaultPrevented) return false;
+  if (a.target || a.hasAttribute("download")) return false;
+  return new URL(a.href).origin === window.location.origin;
+}
+
+export function linkClick(e: MouseEvent, router: Router): void {
+  if (!inPageClick(e)) return;
+  const a = e.currentTarget as HTMLAnchorElement;
   e.preventDefault();
   router.navigate(a.pathname + a.search);
 }

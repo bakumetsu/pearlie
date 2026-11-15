@@ -2,7 +2,7 @@
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
   import { itemHref } from "../lib/item/kinds";
-  import { linkClick } from "../lib/router";
+  import { linkClick, inPageClick } from "../lib/router";
   import type { Match } from "../lib/router";
   import type { Kind, LibraryItem } from "../lib/api/client";
   import SectionRow from "../lib/components/SectionRow.svelte";
@@ -11,6 +11,7 @@
   import { SvelteURLSearchParams } from "svelte/reactivity";
   import { HUBS, loadHub, saveHub, hubKinds } from "../lib/library/hub";
   import type { Hub } from "../lib/library/hub";
+  import { seedVideoQueue } from "../lib/item/rowQueue";
 
   const ROW_PAGE_SIZE = 28;
 
@@ -105,6 +106,20 @@
     return fav ? `${base}?favorite=true` : base;
   }
 
+  // A video tile click queues the row's loaded items; further pages load as in See all.
+  function queueVideos(rs: RowState) {
+    const favorite = fav ? true : undefined;
+    seedVideoQueue(
+      "row:library:videos:" + (fav ? "fav" : "all"),
+      rs.items,
+      async (page, signal) => {
+        const r = await api.list("videos", { page, page_size: ROW_PAGE_SIZE, favorite }, signal);
+        return { items: r.items, total: r.total ?? null, next_page: r.next_page ?? null, page: r.page ?? null, pages: r.pages ?? null, page_size: r.page_size ?? null };
+      },
+      { total: rs.total, pageSize: ROW_PAGE_SIZE, hasNext: rs.next_page !== null },
+    );
+  }
+
   function onNav(e: MouseEvent) {
     linkClick(e, router);
   }
@@ -167,7 +182,7 @@
           {/each}
         {:else}
           {#each rs.items as item (item.id)}
-            <Tile item={item} href={itemHref(item)} onnavigate={onNav} landscape />
+            <Tile item={item} href={itemHref(item)} onnavigate={(e) => { if (row.kind === "videos" && inPageClick(e)) queueVideos(rs); onNav(e); }} landscape />
           {/each}
         {/if}
       </SectionRow>

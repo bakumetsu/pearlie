@@ -12,7 +12,9 @@
   import { readSites, writeSites } from "../lib/stores/siteMemory";
   import { parseSearchParams, buildSearchParams, serialiseQuery, commitText, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SiteId } from "../lib/query";
-  import { hrefOf, linkClick } from "../lib/router";
+  import { hrefOf, linkClick, inPageClick } from "../lib/router";
+  import { seedVideoQueue } from "../lib/item/rowQueue";
+  import type { Section } from "../lib/api/client";
   import type { Match } from "../lib/router";
   import type { WebItem } from "../lib/api/client";
   import Icon from "../lib/components/Icon.svelte";
@@ -194,6 +196,22 @@
   );
 
   // The store builds the rows in query order: site rows follow the pill order, library rows keep their place.
+  // A video tile click queues the row's loaded items; further pages load as in See all.
+  function queueVideos(section: Section | null | undefined) {
+    const q = serialiseQuery(query.chips);
+    const pageSize = section?.page_size ?? undefined;
+    seedVideoQueue(
+      "row:discover:videos:" + q,
+      section?.items ?? [],
+      async (page, signal) => {
+        const r = await api.search({ q, sources: ["stash_videos"], page, page_size: pageSize }, signal);
+        const s = r.sections?.find((x: { id: string }) => x.id === "stash_videos");
+        return { items: s?.items ?? [], total: s?.total ?? null, next_page: s?.next_page ?? null, pages: s?.pages ?? null, page_size: s?.page_size ?? null };
+      },
+      { total: section?.total ?? null, pageSize: pageSize ?? null, hasNext: section?.next_page != null },
+    );
+  }
+
   const orderedSections = $derived(Object.entries(search.sections));
 
   const SKELETONS = Array.from({ length: 6 }, (_, i) => i);
@@ -278,7 +296,7 @@
           onretry={() => search.retrySection(id)}
           onnavigate={(e) => linkClick(e, router)}
         >
-          {#each (entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (item.source === "nhentai" ? router.navigate("/web/nhentai/" + encodeURIComponent(item.post_id)) : (lightbox = item))} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
+          {#each (entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (item.source === "nhentai" ? router.navigate("/web/nhentai/" + encodeURIComponent(item.post_id)) : (lightbox = item))} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => { if (id === "stash_videos" && inPageClick(e)) queueVideos(entry.section); linkClick(e, router); }} />{/if}{/each}
         </SectionRow>
       {/if}
     {/each}
