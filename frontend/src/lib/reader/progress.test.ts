@@ -89,4 +89,116 @@ describe("createProgress", () => {
     }).not.toThrow();
     expect(save).toHaveBeenCalledTimes(1);
   });
+
+  it("does not call onFailing before 3 consecutive failures", async () => {
+    save.mockRejectedValue(new Error("db error"));
+    const onFailing = vi.fn();
+    const api = createProgress(save, 800, onFailing);
+
+    api.set("book1", 1);
+    vi.advanceTimersByTime(800);
+    await Promise.resolve();
+
+    api.set("book1", 2);
+    vi.advanceTimersByTime(800);
+    await Promise.resolve();
+
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(onFailing).not.toHaveBeenCalled();
+  });
+
+  it("calls onFailing once at 3 consecutive failures", async () => {
+    save.mockRejectedValue(new Error("db error"));
+    const onFailing = vi.fn();
+    const api = createProgress(save, 800, onFailing);
+
+    api.set("book1", 1);
+    vi.advanceTimersByTime(800);
+    await Promise.resolve();
+
+    api.set("book1", 2);
+    vi.advanceTimersByTime(800);
+    await Promise.resolve();
+
+    api.set("book1", 3);
+    vi.advanceTimersByTime(800);
+    await Promise.resolve();
+
+    expect(onFailing).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onFailing only once even after 5 failures", async () => {
+    save.mockRejectedValue(new Error("db error"));
+    const onFailing = vi.fn();
+    const api = createProgress(save, 800, onFailing);
+
+    for (let i = 1; i <= 5; i++) {
+      api.set("book1", i);
+      vi.advanceTimersByTime(800);
+      await Promise.resolve();
+    }
+
+    expect(save).toHaveBeenCalledTimes(5);
+    expect(onFailing).toHaveBeenCalledTimes(1);
+  });
+
+  it("a success between failures resets the failure count", async () => {
+    save.mockRejectedValue(new Error("db error"));
+    const onFailing = vi.fn();
+    const api = createProgress(save, 800, onFailing);
+
+    api.set("book1", 1);
+    vi.advanceTimersByTime(800);
+    await Promise.resolve();
+
+    api.set("book1", 2);
+    vi.advanceTimersByTime(800);
+    await Promise.resolve();
+    expect(onFailing).not.toHaveBeenCalled();
+
+    // success resets the count
+    save.mockResolvedValue(undefined);
+    api.set("book1", 3);
+    vi.advanceTimersByTime(800);
+    await Promise.resolve();
+
+    // two more failures => count 1,2; must NOT reach 3
+    save.mockRejectedValue(new Error("db error"));
+    api.set("book1", 4);
+    vi.advanceTimersByTime(800);
+    await Promise.resolve();
+
+    api.set("book1", 5);
+    vi.advanceTimersByTime(800);
+    await Promise.resolve();
+
+    expect(onFailing).not.toHaveBeenCalled();
+  });
+
+  it("counts synchronous throws toward the failure threshold", async () => {
+    save.mockImplementation(() => { throw new Error("sync fail"); });
+    const onFailing = vi.fn();
+    const api = createProgress(save, 800, onFailing);
+
+    for (let i = 1; i <= 3; i++) {
+      api.set("book1", i);
+      vi.advanceTimersByTime(800);
+      await Promise.resolve();
+    }
+
+    expect(onFailing).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not throw when onFailing is omitted", async () => {
+    save.mockRejectedValue(new Error("db error"));
+    const api = createProgress(save, 800);
+
+    for (let i = 1; i <= 3; i++) {
+      api.set("book1", i);
+      vi.advanceTimersByTime(800);
+      await Promise.resolve();
+    }
+
+    expect(save).toHaveBeenCalledTimes(3);
+  });
 });

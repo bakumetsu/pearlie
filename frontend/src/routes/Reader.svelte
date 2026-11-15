@@ -109,7 +109,11 @@
 	});
 
 	// ── progress + autohide ────────────────────────────────────────────
-	const progress = createProgress(async (_id, pg, o) => source.saveProgress(pg, count, o));
+	const progress = createProgress(
+		async (_id, pg, o) => source.saveProgress(pg, count, o),
+		800,
+		() => toasts.push({ kind: "info", message: "Reading progress is not being saved." }),
+	);
 	const hide = createAutoHide({
 		blocked: () => popover !== null || thumbsOpen,
 		onchange: (v) => (hidden = v),
