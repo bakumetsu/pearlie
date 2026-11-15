@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup } from "@testing-library/svelte";
+import { render, cleanup, fireEvent, screen } from "@testing-library/svelte";
 import App from "../App.svelte";
 
 const OPTIONS = {
   sfw: false, sfw_set: true, player_rate: 1, player_rate_set: true, profile: "desktop",
   backdrop_strength: 60, backdrop_wall: true, backdrop_item: true, backdrop_lightbox: true,
   allow_blurred_tags: false, trash_retention_days: 7, images_per_site: 10, komga_scan_wait_s: 10,
-  source_pace: {}, hidden_sites: [], site_order: ["danbooru", "gelbooru", "rule34", "nhentai"],
+  source_pace: {}, tapped_first: true, hidden_sites: [], site_order: ["danbooru", "gelbooru", "rule34", "nhentai"],
 };
 
 describe("Remembered site pills", () => {
@@ -59,5 +59,20 @@ describe("Remembered site pills", () => {
     render(App);
     await settle();
     expect(searches[0]).toEqual(["nhentai"]);
+  });
+
+  it("puts the tapped pill first in the rows but keeps the fixed order in the address and memory", async () => {
+    store.set("pearlie.search.sites", "danbooru,gelbooru");
+    history.replaceState({}, "", "/?q=cat&src=web");
+    render(App);
+    await settle();
+    const before = searches.length;
+    await fireEvent.click(screen.getByRole("button", { name: "Rule34" }));
+    await settle();
+    // The tap adds a site, so one new search; the rows move with no further call.
+    expect(searches.length).toBe(before + 1);
+    expect(store.get("pearlie.search.sites")).toBe("danbooru,gelbooru,rule34");
+    expect(new URL(location.href).searchParams.get("sites")).toBe("danbooru,gelbooru,rule34");
+    expect(searches.at(-1)).toEqual(["rule34", "danbooru", "gelbooru"]);
   });
 });
