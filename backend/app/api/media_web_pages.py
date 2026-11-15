@@ -347,11 +347,9 @@ async def book(request: Request, gid: str) -> Response:
     except _Refusal as r:
         return _refusal_response(r)
     data = build_book(post, src.target)
-    data.item.saved = (
-        JobStore(request.app.state.settings.db_path)
-        .saved_refs("nhentai", [post.post_id])
-        .get(post.post_id)
-    )
+    data.item.saved = JobStore(request.app.state.settings.db_path).saved_refs(
+        "nhentai", [post.post_id]
+    ).get(post.post_id)
     data.item.owned = is_owned(data.item.saved)
     return JSONResponse(data.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
 
