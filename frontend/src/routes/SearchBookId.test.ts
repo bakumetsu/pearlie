@@ -21,6 +21,14 @@ describe("Discover book id search", () => {
     vi.unstubAllGlobals();
   });
 
+  async function typeAndEnterless(text: string) {
+    history.replaceState({}, "", "/");
+    render(App);
+    const input = (await screen.findAllByRole("textbox"))[0] as HTMLInputElement;
+    await fireEvent.input(input, { target: { value: text } });
+    return input;
+  }
+
   async function typeAndEnter(text: string) {
     history.replaceState({}, "", "/");
     render(App);
@@ -53,5 +61,28 @@ describe("Discover book id search", () => {
     await fireEvent.keyDown(input, { key: "Enter" });
     await new Promise((r) => setTimeout(r, 30));
     expect(location.pathname).toBe("/");
+  });
+
+  it("the search button with a typed id opens the book page", async () => {
+    const input = await typeAndEnterless("177013");
+    expect(input.value).toBe("177013");
+    await fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await vi.waitFor(() => expect(location.pathname).toBe("/web/nhentai/177013"));
+  });
+
+  it("one committed id chip then the search button opens the book page", async () => {
+    const input = await typeAndEnterless("id:42");
+    await fireEvent.keyDown(input, { key: "," });
+    expect(location.pathname).toBe("/");
+    await fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await vi.waitFor(() => expect(location.pathname).toBe("/web/nhentai/42"));
+  });
+
+  it("a comma commits the id as a chip and does not navigate", async () => {
+    const input = await typeAndEnterless("177013");
+    await fireEvent.keyDown(input, { key: "," });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(location.pathname).toBe("/");
+    expect(input.value).toBe("");
   });
 });

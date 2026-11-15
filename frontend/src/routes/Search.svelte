@@ -114,18 +114,29 @@
     draftChips = chips;
   }
 
-  // A lone book id opens the nhentai book page; with other chips it stays a normal chip.
-  function openBookId(text: string): boolean {
-    const id = draftChips.length === 0 ? nhentaiIdOf(text) : null;
-    if (!id) return false;
+  // A lone book id (typed, or the only chip) opens the nhentai book page; with other chips it stays a chip.
+  function bookIdNow(): string | null {
+    if (draftChips.length === 0) return nhentaiIdOf(pending);
+    if (draftChips.length === 1 && !pending.trim()) return nhentaiIdOf(draftChips[0].raw);
+    return null;
+  }
+
+  function openBook(id: string): void {
     pending = "";
     router.navigate("/web/nhentai/" + id);
+  }
+
+  function interceptEnter(): boolean {
+    const id = bookIdNow();
+    if (!id) return false;
+    openBook(id);
     return true;
   }
 
   function runSearch(): void {
     if (!dirty) return;
-    if (draftChips.length === 1 && !pending.trim() && openBookId(draftChips[0].raw)) return;
+    const id = bookIdNow();
+    if (id) return openBook(id);
     const next = pending.trim() ? commitText(draftChips, pending) : draftChips;
     pending = "";
     navigateState({ ...saved, chips: next });
@@ -235,7 +246,7 @@
     </div>
     <div class="hfield">
       <div class="search-row">
-        <ChipField bind:pending chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch} intercept={openBookId}>
+        <ChipField bind:pending chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch} intercept={interceptEnter}>
           {#snippet trailing()}
             <span class="tail">
               <button
