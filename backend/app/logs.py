@@ -123,7 +123,8 @@ def register_stored_connections(store: object) -> None:
         try:
             values = store.field_values(name)  # type: ignore[attr-defined]
             for fid, v in values.items():
-                if fid != "user_agent" and fid != "cookie" and isinstance(v, str) and v and len(v) < MIN_SECRET_LEN:
+                skip = fid in ("user_agent", "cookie")
+                if not skip and isinstance(v, str) and v and len(v) < MIN_SECRET_LEN:
                     _warn_short(f"{name}.{fid}")
             register_connection_secrets(values)
         except Exception:
