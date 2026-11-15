@@ -110,6 +110,23 @@ describe("createPlayer", () => {
     }
   });
 
+  it("beginNav fallback hides the player when the video ended", () => {
+    vi.useFakeTimers();
+    try {
+      const p = createPlayer();
+      p.open(item1);
+      p.setSlot(item1.id, rect);
+      p.onEnded();
+      p.beginNav();
+      p.releaseSlot(item1.id);
+      vi.advanceTimersByTime(3500);
+      expect(p.mode).toBe("hidden");
+      expect(p.item).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("releaseSlot while paused -> mini, item kept", () => {
     const p = createPlayer();
     p.open(item1);

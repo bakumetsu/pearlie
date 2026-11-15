@@ -53,6 +53,21 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
     }
   }
 
+  function leaveStage(): void {
+    const next = modeOnLeave(state.ended);
+    if (next === "hidden") {
+      el?.pause();
+      state.item = null;
+      state.time = 0;
+      state.duration = 0;
+      state.playing = false;
+      state.ended = false;
+      state.mode = "hidden";
+    } else {
+      state.mode = "mini";
+    }
+  }
+
   function applyRate(): void {
     if (el !== null) {
       el.playbackRate = state.rate;
@@ -96,7 +111,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
         navTimer = null;
         if (!navigating) return;
         navigating = false;
-        if (state.mode === "stage" && state.slot === null) state.mode = "mini";
+        if (state.mode === "stage" && state.slot === null) leaveStage();
       }, 3000);
     },
 
@@ -159,18 +174,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
       if (state.item?.id !== id || state.mode !== "stage") return;
       state.slot = null;
       if (navigating) return;
-      const next = modeOnLeave(state.ended);
-      if (next === "hidden") {
-        el?.pause();
-        state.item = null;
-        state.time = 0;
-        state.duration = 0;
-        state.playing = false;
-        state.ended = false;
-        state.mode = "hidden";
-      } else {
-        state.mode = "mini";
-      }
+      leaveStage();
     },
 
     play(): void {
