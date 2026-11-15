@@ -30,11 +30,15 @@
 <section class="card">
 	<h2 class="card-title">{title}</h2>
 
+	{#if store.error}
+		<div class="row load-error" role="alert"><span class="result err">Could not load connections.</span><button class="btn" onclick={() => store.load(api)}>Retry</button></div>
+	{/if}
+
 	{#each names as { key, label } (key)}
 		<div class="row conn">
 			<span class="row-label">{label}</span>
 			<span class="chip"
-				>{store.loading ? "missing" : store.byName(key)?.key === "set" ? "set" : "missing"}</span
+				>{store.error ? "unknown" : store.loading ? "missing" : store.byName(key)?.key === "set" ? "set" : "missing"}</span
 			>
 			{#if store.byName(key)?.address}
 				<span class="muted">{store.byName(key)?.address}</span>
@@ -75,5 +79,9 @@
 	}
 	.result.err {
 		color: var(--danger-hot);
+	}
+	.load-error .btn {
+		min-height: 44px;
+		min-width: 44px;
 	}
 </style>
