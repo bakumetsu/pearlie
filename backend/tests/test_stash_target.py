@@ -29,13 +29,7 @@ class FakeSource:
     reencoded_hosts: frozenset[str] = frozenset()
 
 
-class VideoSource(FakeSource):
-    file_hosts: tuple[str, ...] = ("cdn.example",)
-    reencoded_hosts: frozenset[str] = frozenset({"cdn.example"})
 
-
-class PlainVideoSource(FakeSource):
-    file_hosts: tuple[str, ...] = ("cdn.example",)
 
     def search(
         self,
@@ -49,6 +43,15 @@ class PlainVideoSource(FakeSource):
 
     def get_post(self, post_id: str) -> Post:
         raise NotImplementedError
+
+
+class VideoSource(FakeSource):
+    file_hosts: tuple[str, ...] = ("cdn.example",)
+    reencoded_hosts: frozenset[str] = frozenset({"cdn.example"})
+
+
+class PlainVideoSource(FakeSource):
+    file_hosts: tuple[str, ...] = ("cdn.example",)
 
 
 def make_graphql_handler(
