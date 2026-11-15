@@ -1763,6 +1763,11 @@ export interface components {
              */
             site_names: boolean;
             /**
+             * Tapped First
+             * @default false
+             */
+            tapped_first: boolean;
+            /**
              * Place Mode
              * @default suggest
              * @enum {string}
@@ -1823,6 +1828,8 @@ export interface components {
             infinite_scroll?: boolean | null;
             /** Site Names */
             site_names?: boolean | null;
+            /** Tapped First */
+            tapped_first?: boolean | null;
             /** Place Mode */
             place_mode?: ("auto" | "suggest") | null;
             /** Source Pace */

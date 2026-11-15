@@ -64,6 +64,7 @@ def test_defaults(any_client: TestClient) -> None:
         "komga_scan_wait_s": 10,
         "infinite_scroll": False,
         "site_names": True,
+        "tapped_first": False,
         "place_mode": "suggest",
         "source_pace": expected_pace,
         "hidden_sites": [],
@@ -101,6 +102,16 @@ def test_site_names_on_then_saved_off(any_client: TestClient) -> None:
     assert touch.json()["site_names"] is False
     r = any_client.put("/api/options", json={"site_names": True})
     assert r.json()["site_names"] is True
+
+
+def test_tapped_first_off_then_saved_on(any_client: TestClient) -> None:
+    assert any_client.get("/api/options").json()["tapped_first"] is False
+    r = any_client.put("/api/options", json={"tapped_first": True})
+    assert r.status_code == 200
+    assert r.json()["tapped_first"] is True
+    touch = any_client.get("/api/options", headers={"X-Pearlie-Device": "touch"})
+    assert touch.json()["tapped_first"] is True
+    assert any_client.put("/api/options", json={"tapped_first": "yes"}).status_code == 422
 
 
 def test_site_names_rejects_non_bool(any_client: TestClient) -> None:

@@ -8,6 +8,7 @@
   import { options } from "../lib/stores/options.svelte";
   import { placement } from "../lib/stores/placement.svelte";
   import { sfw } from "../lib/stores/sfw.svelte";
+  import { tappedSite, firstTapped } from "../lib/stores/tappedSite.svelte";
   import { readSites, writeSites } from "../lib/stores/siteMemory";
   import { parseSearchParams, buildSearchParams, serialiseQuery, commitText, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SiteId } from "../lib/query";
@@ -46,7 +47,11 @@
   const names = $derived(options.values?.site_names ?? true);
   const query = $derived({
     ...saved,
-    sites: siteOrder.filter((id) => effectiveSites(saved.sites, hidden).includes(id)),
+    sites: firstTapped(
+      siteOrder.filter((id) => effectiveSites(saved.sites, hidden).includes(id)),
+      tappedSite.id,
+      options.values?.tapped_first ?? false,
+    ),
   });
 
   // Chip edits stay in a draft until the user runs the search.
@@ -198,7 +203,7 @@
   <header class="header">
     <h1 class="sr-only" tabindex="-1" bind:this={h1}>Discover</h1>
     <div class="hmarks">
-      <SiteMarks sites={query.sites} onsites={handleSitesChange} {hidden} order={siteOrder} onreorder={(o) => options.set({ site_order: o })} {names} />
+      <SiteMarks sites={query.sites} onsites={handleSitesChange} {hidden} order={siteOrder} ontap={(id) => (tappedSite.id = id)} onreorder={(o) => options.set({ site_order: o })} {names} />
     </div>
     <div class="hfield">
       <div class="search-row">

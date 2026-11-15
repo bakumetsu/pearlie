@@ -64,4 +64,13 @@ describe("DiscoverCard", () => {
     await fireEvent.click(sw);
     expect(store.set).toHaveBeenCalledWith({ site_names: false });
   });
+
+  it("saves the tapped-first switch, off by default", async () => {
+    const store = makeStore({ hidden_sites: [] });
+    render(DiscoverCard, { store });
+    const sw = screen.getByRole("switch", { name: "Show the last tapped site first" });
+    expect(sw.getAttribute("aria-checked")).toBe("false");
+    await fireEvent.click(sw);
+    expect(store.set).toHaveBeenCalledWith({ tapped_first: true });
+  });
 });
