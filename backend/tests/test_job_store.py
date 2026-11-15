@@ -35,7 +35,7 @@ def test_enqueue_and_get(tmp_path: Path) -> None:
     assert job.post_id == "1"
     assert job.target == "stash"
     assert job.title == "title"
-    assert job.thumb_url == "https://x/t.jpg"
+    assert job.thumb_url == f"/api/media/web/{job.source}/{job.post_id}/thumb"
     assert job.notices == []
     assert job.library_ref is None
     assert store.get("zzz") is None

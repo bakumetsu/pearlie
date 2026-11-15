@@ -262,6 +262,7 @@ for _p in ("/library/series/{id}", "/library/books/{id}"):
 
 @router.post("/library/komga/books/{id}/progress", response_model=ProgressResult)
 def set_progress(request: Request, id: str, body: ProgressBody) -> ProgressResult:
+    _check_id(id)
     komga: Komga = request.app.state.komga
     try:
         book = komga.get_book(id)
