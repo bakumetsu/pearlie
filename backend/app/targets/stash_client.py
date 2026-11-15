@@ -67,6 +67,12 @@ LIST_IMAGES = (
     "query($f: FindFilterType) { findImages(filter: $f) "
     "{ count megapixels filesize images { " + IMAGE_FIELDS + " } } }"
 )
+LIST_FOLDER_IMAGES = (
+    "query($v: String!, $page: Int!, $n: Int!) { findImages("
+    "image_filter: {path: {value: $v, modifier: INCLUDES}},"
+    " filter: {page: $page, per_page: $n, sort: \"id\", direction: ASC})"
+    " { count images { id visual_files { ... on ImageFile { path basename } } } } }"
+)
 GET_IMAGE = (
     "query($id: ID!) { findImage(id: $id) { " + IMAGE_FIELDS + " } }"
 )
@@ -276,6 +282,12 @@ class StashClient:
         r = data["findImages"]
         agg = {"megapixels": r.get("megapixels"), "size_bytes": r.get("filesize")}
         return r["images"], r["count"], agg
+
+    def list_folder_images(self, folder: str, page: int, per_page: int) -> tuple[list[dict], int]:
+        """Return one page of images whose path contains *folder*, and the total count."""
+        data = self._gql(LIST_FOLDER_IMAGES, {"v": folder, "page": page, "n": per_page})
+        r = data["findImages"]
+        return r["images"], r["count"]
 
     def get_image(self, id: str) -> dict | None:
         """Return the image dict for *id*, or ``None``."""

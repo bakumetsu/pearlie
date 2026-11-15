@@ -24,6 +24,7 @@
   import ImagesPerSiteCard from "../lib/options/ImagesPerSiteCard.svelte";
   import StatusCard from "../lib/options/StatusCard.svelte";
   import UpdateCard from "../lib/options/UpdateCard.svelte";
+  import ImportScanCard from "../lib/options/ImportScanCard.svelte";
   import ThumbCacheCard from "../lib/options/ThumbCacheCard.svelte";
   import ChangelogCard from "../lib/options/ChangelogCard.svelte";
   import LogsCard from "../lib/options/LogsCard.svelte";
@@ -233,6 +234,8 @@
     <!-- shown with Stash -->
   {:else if sectionId === "library" && card.title === "Status"}
     <StatusCard />
+  {:else if sectionId === "library" && card.title === "Import older saves"}
+    <ImportScanCard />
   {:else if sectionId === "cache" && card.title === "Thumbnail cache"}
     <ThumbCacheCard />
   {:else if sectionId === "update" && card.title === "Update"}

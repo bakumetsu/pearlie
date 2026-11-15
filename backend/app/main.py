@@ -21,6 +21,7 @@ from app.api import (
     jobs_real,
     library_komga,
     library_komga_real,
+    library_scan,
     library_stash,
     library_stash_real,
     media_komga,
@@ -357,6 +358,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(search_filters.router)
     app.include_router(destinations.router)
+    app.include_router(library_scan.router)
     app.include_router(view_settings.router)
     app.include_router(tabs.router)
     app.include_router(logs_api.router)

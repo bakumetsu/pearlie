@@ -21,6 +21,7 @@ export type TrashResult = S["TrashResult"];
 export type TrashList = S["TrashList"];
 export type TrashEmptied = S["TrashEmptied"];
 export type ThumbCacheCleared = S["ThumbCacheCleared"];
+export type ScanResult = S["ScanResult"];
 export type TrashPurgePreview = S["TrashPurgePreview"];
 export type RestoreResult = S["RestoreResult"];
 export type RulesBody = S["RulesBody"];
@@ -130,6 +131,7 @@ export interface Api {
   emptyTrash(signal?: AbortSignal): Promise<TrashEmptied>;
   purgePreview(days: number, signal?: AbortSignal): Promise<TrashPurgePreview>;
   clearThumbCache(signal?: AbortSignal): Promise<ThumbCacheCleared>;
+  scanRule34(signal?: AbortSignal): Promise<ScanResult>;
   getRules(signal?: AbortSignal): Promise<RulesBody>;
   putRules(body: RulesPut, signal?: AbortSignal): Promise<RulesBody>;
   rejectTag(tag: string, signal?: AbortSignal): Promise<{ added: boolean; version: number }>;
@@ -341,6 +343,9 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     },
     clearThumbCache(signal) {
       return request<ThumbCacheCleared>(baseUrl + "/api/thumb-cache/clear", { method: "POST" }, signal);
+    },
+    scanRule34(signal) {
+      return request<ScanResult>(baseUrl + "/api/library/scan-rule34", { method: "POST" }, signal);
     },
     getRules(signal) {
       return request<RulesBody>(baseUrl + "/api/rules", undefined, signal);
