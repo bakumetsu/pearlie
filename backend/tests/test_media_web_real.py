@@ -125,7 +125,8 @@ def test_upstream_429_backs_off_throttle(tmp_path):
     assert r.headers["retry-after"]
     assert app.state.sources["danbooru"]._throttle.backing_off
     full = client.get("/api/media/web/danbooru/7/full")
-    assert full.status_code == 502 and full.json()["code"] == "rate_limited"
+    assert full.status_code == 429 and full.json()["code"] == "rate_limited"
+    assert full.headers["retry-after"]
     lim = app.state.image_slots.limiter("danbooru", "i")
     assert lim.slots == 6 and lim.in_flight == 0
 
