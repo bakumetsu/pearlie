@@ -1,0 +1,57 @@
+// @vitest-environment jsdom
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { render, cleanup, fireEvent, screen } from "@testing-library/svelte";
+import App from "../App.svelte";
+
+describe("Discover book id search", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {} });
+    vi.stubGlobal("IntersectionObserver", class { observe() {} disconnect() {} unobserve() {} });
+    vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} unobserve() {} });
+    window.scrollTo = vi.fn();
+    globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, "http://localhost");
+      const body = url.pathname === "/api/search" ? { sections: [] } : {};
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  async function typeAndEnter(text: string) {
+    history.replaceState({}, "", "/");
+    render(App);
+    const input = (await screen.findAllByRole("textbox"))[0] as HTMLInputElement;
+    await fireEvent.input(input, { target: { value: text } });
+    await fireEvent.keyDown(input, { key: "Enter" });
+    return input;
+  }
+
+  it("a plain number opens the nhentai book page", async () => {
+    await typeAndEnter("177013");
+    await vi.waitFor(() => expect(location.pathname).toBe("/web/nhentai/177013"));
+  });
+
+  it("an id: chip opens the nhentai book page", async () => {
+    await typeAndEnter("id:177013");
+    await vi.waitFor(() => expect(location.pathname).toBe("/web/nhentai/177013"));
+  });
+
+  it("other text stays a normal chip", async () => {
+    const input = await typeAndEnter("cat");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(location.pathname).toBe("/");
+    expect(input.value).toBe("");
+  });
+
+  it("a number after another chip stays a chip", async () => {
+    const input = await typeAndEnter("cat");
+    await fireEvent.input(input, { target: { value: "177013" } });
+    await fireEvent.keyDown(input, { key: "Enter" });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(location.pathname).toBe("/");
+  });
+});

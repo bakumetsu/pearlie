@@ -10,7 +10,7 @@
   import { sfw } from "../lib/stores/sfw.svelte";
   import { tappedSite, firstTapped } from "../lib/stores/tappedSite.svelte";
   import { readSites, writeSites } from "../lib/stores/siteMemory";
-  import { parseSearchParams, buildSearchParams, serialiseQuery, commitText, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
+  import { parseSearchParams, buildSearchParams, serialiseQuery, commitText, nhentaiIdOf, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SiteId } from "../lib/query";
   import { hrefOf, linkClick, inPageClick } from "../lib/router";
   import { seedVideoQueue } from "../lib/item/rowQueue";
@@ -114,8 +114,18 @@
     draftChips = chips;
   }
 
+  // A lone book id opens the nhentai book page; with other chips it stays a normal chip.
+  function openBookId(text: string): boolean {
+    const id = draftChips.length === 0 ? nhentaiIdOf(text) : null;
+    if (!id) return false;
+    pending = "";
+    router.navigate("/web/nhentai/" + id);
+    return true;
+  }
+
   function runSearch(): void {
     if (!dirty) return;
+    if (draftChips.length === 1 && !pending.trim() && openBookId(draftChips[0].raw)) return;
     const next = pending.trim() ? commitText(draftChips, pending) : draftChips;
     pending = "";
     navigateState({ ...saved, chips: next });
@@ -225,7 +235,7 @@
     </div>
     <div class="hfield">
       <div class="search-row">
-        <ChipField bind:pending chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch}>
+        <ChipField bind:pending chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch} intercept={openBookId}>
           {#snippet trailing()}
             <span class="tail">
               <button

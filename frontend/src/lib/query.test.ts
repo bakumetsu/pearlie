@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseChip,
+  nhentaiIdOf,
   splitInput,
   commitText,
   removeChipAt,
@@ -150,5 +151,19 @@ describe("webNeedsQuery", () => {
   it("true only when no chips", () => {
     expect(webNeedsQuery({ chips: [], pill: "web", sites: [] })).toBe(true);
     expect(webNeedsQuery({ chips: [parseChip("x")!], pill: "web", sites: [] })).toBe(false);
+  });
+});
+
+describe("nhentaiIdOf", () => {
+  it("accepts a plain number and an id: token", () => {
+    expect(nhentaiIdOf("177013")).toBe("177013");
+    expect(nhentaiIdOf(" id:177013 ")).toBe("177013");
+    expect(nhentaiIdOf("ID:5")).toBe("5");
+  });
+
+  it("rejects everything else", () => {
+    for (const t of ["", "0", "012", "cat", "id:", "id:abc", "-177013", "artist:1", "12 34", "1.5"]) {
+      expect(nhentaiIdOf(t)).toBeNull();
+    }
   });
 });
