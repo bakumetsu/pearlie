@@ -627,6 +627,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rules/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Tag
+         * @description Add one tag to the reject list.
+         */
+        post: operations["reject_tag_api_rules_reject_post"];
+        /**
+         * Unreject Tag
+         * @description Remove one tag from the reject list (the Undo action).
+         */
+        delete: operations["unreject_tag_api_rules_reject_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/rules/test": {
         parameters: {
             query?: never;
@@ -1880,6 +1904,25 @@ export interface components {
             /** Completed */
             completed: boolean;
         };
+        /** RejectAdded */
+        RejectAdded: {
+            /** Added */
+            added: boolean;
+            /** Version */
+            version: number;
+        };
+        /** RejectRemoved */
+        RejectRemoved: {
+            /** Removed */
+            removed: boolean;
+            /** Version */
+            version: number;
+        };
+        /** RejectTagBody */
+        RejectTagBody: {
+            /** Tag */
+            tag: string;
+        };
         /** RestartIn */
         RestartIn: {
             /**
@@ -2410,6 +2453,7 @@ export interface operations {
                 page_size?: number;
                 order?: string;
                 rating?: string;
+                safe?: boolean | null;
             };
             header?: never;
             path?: never;
@@ -3613,6 +3657,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RulesBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_tag_api_rules_reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectTagBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RejectAdded"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unreject_tag_api_rules_reject_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectTagBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RejectRemoved"];
                 };
             };
             /** @description Validation Error */

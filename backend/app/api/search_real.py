@@ -13,6 +13,7 @@ from app.api.media_owned import is_owned
 from app.api.media_web_real import media_kind, pick_url, proxy_path, remember, tile_url
 from app.api.search_filters import parse_order, parse_rating, unsupported_notice
 from app.filters.rules import evaluate, load_rules
+from app.filters.safe_mode import is_hidden_in_safe_mode, resolve_safe
 from app.jobs.store import JobStore
 from app.komga import Komga, KomgaError, book_item
 from app.models import (
@@ -127,8 +128,10 @@ def search(
     page_size: int = Query(60, ge=1, le=200),
     order: str = "",
     rating: str = "",
+    safe: bool | None = None,
 ) -> SearchResponse:
     """Search across configured sources and library sections."""
+    safe_on, allow_blurred = resolve_safe(request, safe)
     order_v = parse_order(order)
     rating_v = parse_rating(rating)
     raw = sources.split(",") if sources else _DEFAULT
@@ -175,6 +178,10 @@ def search(
                     if verdict is not None and verdict.decision != "warn":
                         hidden += 1
                         continue
+                    blur = Blur(tag=verdict.tag) if verdict else None
+                    if is_hidden_in_safe_mode(blur, safe_on, allow_blurred):
+                        hidden += 1
+                        continue
                     visible.append(post)
                     items.append(
                         WebItem(
@@ -202,7 +209,7 @@ def search(
                             page_count=post.page_count,
                             target=typing.cast(Target, getattr(src, "target", "stash")),
                             saveable=getattr(src, "target", "stash") in _SAVE_TARGETS,
-                            blur=Blur(tag=verdict.tag) if verdict else None,
+                            blur=blur,
                         )
                     )
                 saved = JobStore(request.app.state.settings.db_path).saved_refs(

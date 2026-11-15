@@ -365,6 +365,20 @@ class RulesPut(BaseModel):
     mapping: list[RuleMapping] = Field(default_factory=list)
 
 
+class RejectTagBody(BaseModel):
+    tag: str
+
+
+class RejectAdded(BaseModel):
+    added: bool
+    version: int
+
+
+class RejectRemoved(BaseModel):
+    removed: bool
+    version: int
+
+
 class RulesTestBody(BaseModel):
     tags: list[str] = Field(default_factory=list)
 

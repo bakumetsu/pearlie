@@ -39,6 +39,8 @@ function setup(pages = 8) {
     })),
     getRules: vi.fn(async () => ({ version: 1, reject: [], warn: [], require: [], mapping: {} })),
     putRules: vi.fn(async () => ({})),
+    rejectTag: vi.fn(async () => ({ added: true, version: 2 })),
+    unrejectTag: vi.fn(async () => ({ removed: true, version: 3 })),
   } as unknown as Api;
   const router = {
     current: () => matchRoute("/web/nhentai/123", ""),
@@ -82,7 +84,7 @@ describe("WebBook", () => {
     await waitFor(() => getByLabelText("Reject a tag"));
     await fireEvent.click(getByLabelText("Reject a tag"));
     await fireEvent.click(getByRole("group", { name: "Reject a tag" }).querySelectorAll("button")[1]);
-    await waitFor(() => expect(api.putRules).toHaveBeenCalledWith(expect.objectContaining({ reject: ["b"] })));
+    await waitFor(() => expect(api.rejectTag).toHaveBeenCalledWith("b"));
   });
 
   it("loads the new book when the route id changes", async () => {

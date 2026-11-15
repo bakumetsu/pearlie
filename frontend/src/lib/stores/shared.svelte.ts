@@ -1,5 +1,4 @@
 import { createGrid } from "./grid.svelte";
-import { isHiddenInSafeMode } from "./safeFilter";
 import type { LibraryItem, WebItem } from "../api/client";
 import type { Kind } from "../item/kinds";
 
@@ -16,7 +15,7 @@ export function gridFor(kind: Kind | null) {
   const key = kind ?? "web";
   let g = grids[key];
   if (!g) {
-    g = createGrid<LibraryItem | WebItem>(keyOf, (i) => !isHiddenInSafeMode(i));
+    g = createGrid<LibraryItem | WebItem>(keyOf);
     grids[key] = g;
   }
   return g;
