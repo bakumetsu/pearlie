@@ -34,6 +34,7 @@ class Throttle:
         self._current: float = min_interval
         self._clean: int = 0
         self._next_at: float = 0.0
+        self._pause_until: float = 0.0
         self._clock = clock
         self._sleep = sleep
         self._lock = threading.Lock()
@@ -61,12 +62,17 @@ class Throttle:
         with self._lock:
             if status in (429, 503):
                 self._clean = 0
+                now = self._clock()
                 if retry_after is not None:
                     new = min(MAX_WAIT, max(0.0, retry_after))
+                elif now < self._pause_until:
+                    # one back-off per pause: a concurrent 429 from the same burst adds nothing
+                    return
                 else:
                     new = min(MAX_WAIT, (self._current or 1.0) * 2)
                 self._current = max(self._user, new)
-                self._next_at = max(self._next_at, self._clock() + self._current)
+                self._next_at = max(self._next_at, now + self._current)
+                self._pause_until = max(self._pause_until, now + self._current)
                 logger.warning(
                     "THROTTLE site=%s backoff status=%d retry_after=%s wait=%.1fs",
                     self._site,
