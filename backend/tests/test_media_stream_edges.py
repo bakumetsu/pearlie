@@ -34,7 +34,7 @@ def test_slot_touch_keeps_stream_alive(tmp_path):
     asyncio.run(run())
 
 
-def test_slotbody_idle_limit_ignores_wall_clock(tmp_path):
+def test_slotbody_video_past_wall_clock_is_not_cut(tmp_path):
     class FakeResp:
         status_code = 200
 
@@ -67,7 +67,7 @@ def test_slotbody_idle_limit_ignores_wall_clock(tmp_path):
         FakeResp(clock),
         slot,  # pyright: ignore[reportArgumentType]
         time_limit=1.0,
-        idle_limit=60.0,
+        wall_clock=False,
         clock=lambda: clock[0],
     )
     assert b"".join(iter(body)) == b"aaa"
@@ -77,7 +77,7 @@ def test_slotbody_idle_limit_ignores_wall_clock(tmp_path):
     body2 = SlotBody(
         FakeResp(clock2),
         FakeSlot(),  # pyright: ignore[reportArgumentType]
-        time_limit=1.0, idle_limit=None, clock=lambda: clock2[0]
+        time_limit=1.0, wall_clock=True, clock=lambda: clock2[0]
     )
     assert b"".join(iter(body2)) == b"a"
 

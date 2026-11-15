@@ -39,8 +39,6 @@ VIDEO_EXTS = (".mp4", ".webm", ".mov", ".m4v", ".mkv")
 # Preview and full images run through the per-site image slots (setting: images at a time).
 STREAM_TIMEOUT = 30.0
 IMAGE_TIME_LIMIT = 300.0
-# a video ends by silence, not by wall clock: a long film must play to the end
-VIDEO_IDLE_LIMIT = 60.0
 _MEMORY = 5000
 # Thumbnail lane (D-17): own throttle per site. Misses fly a few at once; one at a time on back-off.
 THUMB_PACE = 0.15
@@ -238,7 +236,7 @@ def _stream_media(
         upstream,
         slot,
         time_limit=IMAGE_TIME_LIMIT,
-        idle_limit=VIDEO_IDLE_LIMIT if video else None,
+        wall_clock=not video,  # a long film must play to the end
         chunk_size=CHUNK_SIZE,
         record_status=not video,
     )

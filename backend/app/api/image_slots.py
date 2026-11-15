@@ -281,7 +281,7 @@ class SlotBody:
         slot: Slot,
         max_bytes: int | None = None,
         time_limit: float = STREAM_LIMIT_S,
-        idle_limit: float | None = None,
+        wall_clock: bool = True,
         clock: Callable[[], float] = time.monotonic,
         strict: bool = False,
         chunk_size: int | None = None,
@@ -296,7 +296,7 @@ class SlotBody:
         self._max_bytes = max_bytes
         self._clock = clock
         self._deadline = clock() + time_limit
-        self._idle_limit = idle_limit
+        self._wall_clock = wall_clock
         self._complete = False
 
     def __iter__(self):
@@ -308,8 +308,8 @@ class SlotBody:
                 if self._max_bytes is not None and sent > self._max_bytes:
                     return self._cut("size limit")
                 yield chunk
-                # with idle_limit the stream ends by silence (upstream read timeout), not wall clock
-                if self._idle_limit is None and self._clock() > self._deadline:
+                # a video has no wall clock cap: silence ends it through the upstream read timeout
+                if self._wall_clock and self._clock() > self._deadline:
                     return self._cut("time limit")
             self._complete = True
         finally:
