@@ -18,7 +18,7 @@ export function toPlayerItem(d: LibraryItemDetail): PlayerItem | null {
 }
 
 export function createPlayerNav(deps: {
-  player: { item: PlayerItem | null; mode: string; swap(i: PlayerItem): void };
+  player: { item: PlayerItem | null; mode: string; swap(i: PlayerItem): void; beginNav(): void };
   grid: ListGrid;
   getDetail(kind: "videos", id: string): Promise<LibraryItemDetail>;
   navigate(href: string): void;
@@ -64,6 +64,7 @@ export function createPlayerNav(deps: {
       return;
     }
     if (player.mode === "stage") {
+      player.beginNav();
       navigate(itemHref(target));
     } else {
       try {

@@ -42,6 +42,31 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
   let nav: PlayerNav | null = null;
   let playOnLoad = false;
   let navVersion = $state(0);
+  let navigating = false;
+  let navTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function clearNav(): void {
+    navigating = false;
+    if (navTimer !== null) {
+      clearTimeout(navTimer);
+      navTimer = null;
+    }
+  }
+
+  function leaveStage(): void {
+    const next = modeOnLeave(state.ended);
+    if (next === "hidden") {
+      el?.pause();
+      state.item = null;
+      state.time = 0;
+      state.duration = 0;
+      state.playing = false;
+      state.ended = false;
+      state.mode = "hidden";
+    } else {
+      state.mode = "mini";
+    }
+  }
 
   function applyRate(): void {
     if (el !== null) {
@@ -78,7 +103,20 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
       }
     },
 
+    beginNav(): void {
+      if (state.mode !== "stage") return;
+      clearNav();
+      navigating = true;
+      navTimer = setTimeout(() => {
+        navTimer = null;
+        if (!navigating) return;
+        navigating = false;
+        if (state.mode === "stage" && state.slot === null) leaveStage();
+      }, 3000);
+    },
+
     open(item: PlayerItem): void {
+      clearNav();
       if (state.item?.id === item.id) {
         state.mode = "stage";
         return;
@@ -126,24 +164,17 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
     setSlot(id: string, rect: Rect | null): void {
       if (state.item?.id !== id) return;
       state.slot = rect;
-      if (rect !== null) state.mode = "stage";
+      if (rect !== null) {
+        state.mode = "stage";
+        clearNav();
+      }
     },
 
     releaseSlot(id: string): void {
       if (state.item?.id !== id || state.mode !== "stage") return;
       state.slot = null;
-      const next = modeOnLeave(state.ended);
-      if (next === "hidden") {
-        el?.pause();
-        state.item = null;
-        state.time = 0;
-        state.duration = 0;
-        state.playing = false;
-        state.ended = false;
-        state.mode = "hidden";
-      } else {
-        state.mode = "mini";
-      }
+      if (navigating) return;
+      leaveStage();
     },
 
     play(): void {
