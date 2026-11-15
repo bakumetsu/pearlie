@@ -7,7 +7,7 @@
   import { createSearch } from "../lib/stores/search.svelte";
   import { options } from "../lib/stores/options.svelte";
   import { placement } from "../lib/stores/placement.svelte";
-  import { visibleInSafeMode } from "../lib/stores/safeFilter";
+  import { sfw } from "../lib/stores/sfw.svelte";
   import { parseSearchParams, buildSearchParams, serialiseQuery, commitText, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SiteId } from "../lib/query";
   import { hrefOf, linkClick } from "../lib/router";
@@ -49,8 +49,13 @@
   const dirty = $derived(pending.trim() !== "" || serialiseQuery(draftChips) !== serialiseQuery(query.chips));
 
   let first = true;
+  let lastSafe: boolean | undefined;
   $effect(() => {
-    search.run(query, { immediate: first });
+    // The server drops the safe-mode posts, so a toggle sends the same query again.
+    const safe = sfw?.on ?? false;
+    const toggled = lastSafe !== undefined && safe !== lastSafe;
+    lastSafe = safe;
+    search.run(query, { immediate: first || toggled, force: toggled });
     first = false;
   });
 
@@ -262,7 +267,7 @@
           onretry={() => search.retrySection(id)}
           onnavigate={(e) => linkClick(e, router)}
         >
-          {#each visibleInSafeMode(entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (item.source === "nhentai" ? router.navigate("/web/nhentai/" + encodeURIComponent(item.post_id)) : (lightbox = item))} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
+          {#each (entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (item.source === "nhentai" ? router.navigate("/web/nhentai/" + encodeURIComponent(item.post_id)) : (lightbox = item))} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
         </SectionRow>
       {/if}
     {/each}

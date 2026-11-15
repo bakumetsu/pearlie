@@ -59,7 +59,7 @@ describe("SeeAll infinite scroll", () => {
           return json({ error: { code: "boom", message: "boom" } }, 500);
         }
         return json({
-          items: [tile(`${p}a`), tile(`${p}b`)].map((t) => (blurPage1 && p === 1 ? { ...t, blur: { reason: "x" } } : t)),
+          items: blurPage1 && p === 1 ? [] : [tile(`${p}a`), tile(`${p}b`)],
           page: p,
           page_size: 60,
           total: 6,
@@ -129,7 +129,7 @@ describe("SeeAll infinite scroll", () => {
     expect(requested).toEqual([1, 2, 2]);
   });
 
-  it("on: a first page hidden by the content filter still loads the next page", async () => {
+  it("on: a first page the server left empty (all hidden) still loads the next page", async () => {
     blurPage1 = true;
     const tlm = (tl = await import("@testing-library/svelte"));
     const { default: App } = await import("../App.svelte");

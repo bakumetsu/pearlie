@@ -1,3 +1,4 @@
+import { sfw } from "../stores/sfw.svelte";
 import { getContext, setContext } from "svelte";
 import type { components } from "./schema.gen";
 import { hostBlock } from "../stores/hostBlock.svelte";
@@ -131,6 +132,8 @@ export interface Api {
   clearThumbCache(signal?: AbortSignal): Promise<ThumbCacheCleared>;
   getRules(signal?: AbortSignal): Promise<RulesBody>;
   putRules(body: RulesPut, signal?: AbortSignal): Promise<RulesBody>;
+  rejectTag(tag: string, signal?: AbortSignal): Promise<{ added: boolean; version: number }>;
+  unrejectTag(tag: string, signal?: AbortSignal): Promise<{ removed: boolean; version: number }>;
   jobs(p: { state?: string[] }, signal?: AbortSignal): Promise<JobList>;
   retryJob(id: string, signal?: AbortSignal): Promise<Job>;
   getViewSettings(signal?: AbortSignal): Promise<ViewSettings>;
@@ -242,6 +245,8 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
           page_size: p.page_size !== undefined ? String(p.page_size) : undefined,
           order: p.order,
           rating: p.rating?.length ? p.rating.join(",") : undefined,
+          // The server drops the safe-mode posts; unknown value fails closed.
+          safe: (sfw?.on ?? true) ? "1" : "0",
         }),
         undefined,
         signal,
@@ -348,6 +353,20 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         },
+        signal,
+      );
+    },
+    rejectTag(tag, signal) {
+      return request<{ added: boolean; version: number }>(
+        baseUrl + "/api/rules/reject",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag }) },
+        signal,
+      );
+    },
+    unrejectTag(tag, signal) {
+      return request<{ removed: boolean; version: number }>(
+        baseUrl + "/api/rules/reject",
+        { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag }) },
         signal,
       );
     },

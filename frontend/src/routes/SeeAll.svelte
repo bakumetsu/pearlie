@@ -8,6 +8,7 @@
   import type { Kind, WebItem, LibraryItem } from "../lib/api/client";
   import { ApiError as ApiErrorClass } from "../lib/api/client";
   import { gridFor } from "../lib/stores/shared.svelte";
+  import { sfw } from "../lib/stores/sfw.svelte";
   import Icon from "../lib/components/Icon.svelte";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { onMount } from "svelte";
@@ -189,7 +190,7 @@
   const canReset = $derived(q.trim() !== "" || sort !== "" || rawOrder !== "" || rating.length > 0 || favorite);
 
   const listKey = $derived(
-    [source, q, sort, favorite ? "1" : "0", order, ratingKey, seed ?? "", String(vs.per_page), infinite ? "inf" : "pg"].join("|"),
+    [source, q, sort, favorite ? "1" : "0", order, ratingKey, seed ?? "", String(vs.per_page), infinite ? "inf" : "pg", sfw?.on ? "safe" : "open"].join("|"),
   );
 
   $effect(() => {
