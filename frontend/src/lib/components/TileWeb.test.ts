@@ -61,8 +61,8 @@ describe("Tile web shapes and fallback", () => {
 });
 
 describe("Search rows", () => {
-  it("pins the nhentai row first and gives the video row landscape tiles", () => {
-    expect(searchSrc).toContain('id === "nhentai"');
+  it("does not pin a site row first, and gives the video row landscape tiles", () => {
+    expect(searchSrc).not.toContain('id === "nhentai"');
     expect(searchSrc).toContain('landscape={id === "stash_videos"}');
     expect(searchSrc).toContain('wide={id === "stash_videos"}');
   });

@@ -181,11 +181,8 @@
       )
   );
 
-  // The nhentai row is pinned first; the other rows keep their order.
-  const orderedSections = $derived.by(() => {
-    const all = Object.entries(search.sections);
-    return [...all.filter(([id]) => id === "nhentai"), ...all.filter(([id]) => id !== "nhentai")];
-  });
+  // The store builds the rows in query order: site rows follow the pill order, library rows keep their place.
+  const orderedSections = $derived(Object.entries(search.sections));
 
   const SKELETONS = Array.from({ length: 6 }, (_, i) => i);
 </script>
