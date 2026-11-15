@@ -3,6 +3,7 @@ import re
 import subprocess
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,7 +14,13 @@ class ConfigError(Exception):
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="PEARLIE_", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="PEARLIE_",
+        extra="ignore",
+        # A failed check must not echo the value (an env URL may carry a password).
+        hide_input_in_errors=True,
+    )
 
     mode: Literal["fixture", "real"]
     real: str = ""
@@ -53,6 +60,19 @@ class Settings(BaseSettings):
     @classmethod
     def _blank_log_dir(cls, v: Any) -> Any:
         return None if isinstance(v, str) and not v.strip() else v
+
+    @field_validator("stash_url", "stash_public_url", "komga_url")
+    @classmethod
+    def _no_userinfo(cls, v: str) -> str:
+        """user:pass@ in a URL would reach logs, repr and links: use the API key instead."""
+        try:
+            parts = urlsplit(v)
+            has_userinfo = parts.username is not None or parts.password is not None
+        except ValueError:
+            raise ValueError("not a valid URL") from None
+        if has_userinfo:
+            raise ValueError("URL must not contain user:pass; use the API key setting")
+        return v
 
     @property
     def thumb_cache_root(self) -> Path:
