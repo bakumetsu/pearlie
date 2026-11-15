@@ -17,7 +17,7 @@ from starlette.background import BackgroundTask
 
 from app.api.errors import ApiError
 from app.api.image_slots import Busy, Gone, Limiter, Prio, SlotBody, parse_prio, scheduler
-from app.api.media_owned import is_owned
+from app.api.media_owned import is_owned, try_book_page
 from app.api.media_web_real import proxy_path
 from app.db import connect
 from app.filters.rules import evaluate, load_rules
@@ -244,6 +244,9 @@ def _check_response(resp: httpx.Response) -> None:
 
 async def _fetch_image(request: Request, gid: str, n: int, thumb: bool, prio: Prio) -> Response:
     src = _nhentai(request)
+    owned = await run_in_threadpool(try_book_page, request, gid, n, thumb)
+    if owned is not None:
+        return owned  # served from Komga: no site call, no limiter slot
     try:
         post = await run_in_threadpool(_load_meta, request, src, gid)
         media_id, ext = _page_ext(post, n)
@@ -344,9 +347,11 @@ async def book(request: Request, gid: str) -> Response:
     except _Refusal as r:
         return _refusal_response(r)
     data = build_book(post, src.target)
-    data.item.saved = JobStore(request.app.state.settings.db_path).saved_refs(
-        "nhentai", [post.post_id]
-    ).get(post.post_id)
+    data.item.saved = (
+        JobStore(request.app.state.settings.db_path)
+        .saved_refs("nhentai", [post.post_id])
+        .get(post.post_id)
+    )
     data.item.owned = is_owned(data.item.saved)
     return JSONResponse(data.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
 
