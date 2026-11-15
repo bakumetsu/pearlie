@@ -6,6 +6,7 @@ import type { Api, ConnectionsOut, ConnectionOut, ConnectionIn, ConnectionTest }
 export function createConnections() {
   let data: ConnectionsOut | null = $state(null);
   let loading = $state(false);
+  let error = $state(false);
   let testing: Record<string, boolean> = $state({});
   let results: Record<string, ConnectionTest | undefined> = $state({});
   let inflight: Promise<void> | null = null;
@@ -18,11 +19,13 @@ export function createConnections() {
   function load(api: Api): Promise<void> {
     if (inflight) return inflight;
     inflight = (async () => {
+      error = false;
       loading = true;
       try {
         data = await api.getConnections();
       } catch {
         data = null;
+        error = true;
       } finally {
         loading = false;
         inflight = null;
@@ -65,6 +68,7 @@ export function createConnections() {
   return {
     get data(): ConnectionsOut | null { return data; },
     get loading(): boolean { return loading; },
+    get error(): boolean { return error; },
     get canStore(): boolean { return data?.can_store ?? false; },
     get results(): Record<string, ConnectionTest | undefined> { return results; },
     get testing(): Record<string, boolean> { return testing; },

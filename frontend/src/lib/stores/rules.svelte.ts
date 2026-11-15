@@ -109,6 +109,15 @@ export function createRules(api: Api, opts?: { debounceMs?: number }) {
     conflict = false;
   }
 
+  function snapshot(): Draft | null {
+    return draft;
+  }
+
+  function restore(d: Draft) {
+    if (draft === null && body === null) return;
+    draft = d;
+  }
+
   async function save(): Promise<boolean> {
     if (body === null || draft === null) return false;
     if (!isDirty(draftFrom(body), draft)) return false;
@@ -221,6 +230,8 @@ export function createRules(api: Api, opts?: { debounceMs?: number }) {
     removeMap,
     setMapTarget,
     discard,
+    snapshot,
+    restore,
     save,
     reload,
     importText,
