@@ -1,9 +1,7 @@
 import { describe, it, expect } from "vitest";
-import fs from "node:fs";
+import src from "./SeeAll.svelte?raw";
 
 describe("SeeAll sticky bar scale", () => {
-  const src: string = fs.readFileSync("src/routes/SeeAll.svelte", "utf-8");
-
   it("defines one --bar-scale var and scales the header spacing with it", () => {
     expect(src).toMatch(/--bar-scale:\s*0\.(80|85|95)\s*;/);
     expect(src).toMatch(/padding:\s*calc\(var\(--s-4\) \* var\(--bar-scale\)\) 0/);
