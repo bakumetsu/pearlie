@@ -8,6 +8,7 @@
   import { options } from "../lib/stores/options.svelte";
   import { placement } from "../lib/stores/placement.svelte";
   import { sfw } from "../lib/stores/sfw.svelte";
+  import { readSites, writeSites } from "../lib/stores/siteMemory";
   import { parseSearchParams, buildSearchParams, serialiseQuery, commitText, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SiteId } from "../lib/query";
   import { hrefOf, linkClick } from "../lib/router";
@@ -34,7 +35,12 @@
 
   const hidden = $derived(options.values?.hidden_sites ?? []);
   // The address keeps the saved sites; a hidden one is only left out of what is shown and searched.
-  const saved = $derived(parseSearchParams("?" + match.query.toString()));
+  // A sites param in the address wins; without one, the pills last chosen on this device apply.
+  const saved = $derived.by(() => {
+    const parsed = parseSearchParams("?" + match.query.toString());
+    if (match.query.has("sites")) return parsed;
+    return { ...parsed, sites: readSites() ?? parsed.sites };
+  });
   // The saved site order sets the order of the site rows; the address keeps the fixed order.
   const siteOrder = $derived(orderedSites(options.values?.site_order));
   const names = $derived(options.values?.site_names ?? true);
@@ -93,6 +99,7 @@
   const chips = $derived(filterChips(query));
 
   function navigateState(next: SearchState): void {
+    writeSites(next.sites);
     router.navigate("/" + buildSearchParams(next), { replace: true });
   }
 
