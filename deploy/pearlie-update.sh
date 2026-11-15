@@ -5,6 +5,11 @@ set -euo pipefail
 ROOT="${PEARLIE_ROOT:-/opt/pearlie}"
 API="${PEARLIE_UPDATE_API_BASE:-https://api.github.com/repos/bakumetsu/pearlie}"
 DL="${PEARLIE_UPDATE_DOWNLOAD_BASE:-https://codeload.github.com/bakumetsu/pearlie}"
+# GitHub calls are https only; a base override (the local test server) may use http.
+CURL_PROTO="=https"
+if [[ -n "${PEARLIE_UPDATE_API_BASE:-}" || -n "${PEARLIE_UPDATE_DOWNLOAD_BASE:-}" ]]; then
+  CURL_PROTO="=http,https"
+fi
 JSON_PY="${PEARLIE_JSON_PY:-python3}"
 VENV_PY="${PEARLIE_VENV_PY:-python3}"
 NPM="${PEARLIE_NPM:-npm}"
@@ -240,7 +245,7 @@ except Exception:
   INST_CHANNEL="${INST_CHANNEL%%$'\n'*}"
 }
 http_get() {
-  curl -fsSL --max-time 30 -H 'Accept: application/vnd.github+json' "$1"
+  curl -fsSL --proto "$CURL_PROTO" --proto-redir "$CURL_PROTO" --max-time 30 -H 'Accept: application/vnd.github+json' "$1"
 }
 
 json_field() {
@@ -381,7 +386,7 @@ download_and_extract() {
 
   local tarball="$ROOT/staging/src.tar.gz"
 
-  if ! curl -fsSL --max-filesize 104857600 --max-time 600 -o "$tarball" "$TARGET_URL"; then
+  if ! curl -fsSL --proto "$CURL_PROTO" --proto-redir "$CURL_PROTO" --max-filesize 104857600 --max-time 600 -o "$tarball" "$TARGET_URL"; then
     die "download failed"
   fi
 
