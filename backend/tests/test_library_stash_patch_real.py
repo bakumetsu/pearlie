@@ -23,6 +23,16 @@ def _make_patch_handler(calls: list, state: dict, update_error: bool = False):
         if "findScene(" in query:
             return httpx.Response(200, json={"data": {"findScene": state["scene"]}})
 
+        if "findTags" in query and "v0" in variables:
+            data = {}
+            for k, v in variables.items():
+                low = v.casefold()
+                matches = [t for t in state["existing_tags"] if t["name"].casefold() == low]
+                for t in matches:
+                    state["tag_table"][t["id"]] = t["name"]
+                data["t" + k[1:]] = {"tags": matches}
+            return httpx.Response(200, json={"data": data})
+
         if "findTags" in query:
             name = variables.get("v", "")
             lower_name = name.casefold()
