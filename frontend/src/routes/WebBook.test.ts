@@ -23,7 +23,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function setup(pages = 8) {
+function setup(pages = 8, extra: Record<string, unknown> = {}) {
   const api = {
     webBook: vi.fn(async () => ({
       title_main: "Web Book",
@@ -33,6 +33,7 @@ function setup(pages = 8) {
       language: "English",
       tags: { tag: ["a", "b"] },
       page_count: pages,
+      ...extra,
       page_url: "/api/media/web/nhentai/123/pages/{n}",
       page_thumb_url: "/api/media/web/nhentai/123/pages/{n}/thumb",
       item: { source: "nhentai", post_id: "123", thumb_url: "/cover", saveable: true },
@@ -67,6 +68,23 @@ describe("WebBook", () => {
     await fireEvent.click(getByLabelText("More actions"));
     const link = getByText("Open on nhentai").closest("a") as HTMLAnchorElement;
     expect(link.rel).toBe("noopener noreferrer");
+  });
+
+  it("shows three name lines (romaji, Japanese, English) and no by line", async () => {
+    const { ctx, match } = setup(8, { title: "Romaji Name | English Name", title_main: "Romaji Name", title_sub: "(C100) [Circ (Art)] 日本語 [英訳]" });
+    const { container, getByText, queryByText } = render(WebBook, { props: { match }, context: ctx });
+    await waitFor(() => expect(getByText("Romaji Name")).toBeTruthy());
+    expect(container.querySelector("h1")?.textContent).toBe("Romaji Name");
+    expect([...container.querySelectorAll(".sub")].map((e) => e.textContent)).toEqual(["(C100) [Circ (Art)] 日本語 [英訳]", "English Name"]);
+    expect(container.querySelector(".by")).toBeNull();
+    expect(queryByText(/^by /)).toBeNull();
+  });
+
+  it("shows one name only as the big title", async () => {
+    const { ctx, match } = setup(8, { title: "Only Name", title_main: "Only Name", title_sub: null });
+    const { container, getByText } = render(WebBook, { props: { match }, context: ctx });
+    await waitFor(() => expect(getByText("Only Name")).toBeTruthy());
+    expect(container.querySelectorAll(".sub")).toHaveLength(0);
   });
 
   it("gives at most 4 thumbnails a slot at once (2 focus, 2 prefetch)", async () => {
