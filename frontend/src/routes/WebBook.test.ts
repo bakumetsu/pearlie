@@ -23,7 +23,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function setup(pages = 8) {
+function setup(pages = 8, extra: Record<string, unknown> = {}) {
   const api = {
     webBook: vi.fn(async () => ({
       title_main: "Web Book",
@@ -33,6 +33,7 @@ function setup(pages = 8) {
       language: "English",
       tags: { tag: ["a", "b"] },
       page_count: pages,
+      ...extra,
       page_url: "/api/media/web/nhentai/123/pages/{n}",
       page_thumb_url: "/api/media/web/nhentai/123/pages/{n}/thumb",
       item: { source: "nhentai", post_id: "123", thumb_url: "/cover", saveable: true },
@@ -64,8 +65,26 @@ describe("WebBook", () => {
     expect(container.querySelector(".thumb.last")?.getAttribute("aria-label")).toBe("Page 3");
     await fireEvent.click(getByText("Continue"));
     expect(router.navigate).toHaveBeenCalledWith("/read/web/nhentai/123");
-    const link = getByLabelText("Open on nhentai") as HTMLAnchorElement;
+    await fireEvent.click(getByLabelText("More actions"));
+    const link = getByText("Open on nhentai").closest("a") as HTMLAnchorElement;
     expect(link.rel).toBe("noopener noreferrer");
+  });
+
+  it("shows three name lines (romaji, Japanese, English) and no by line", async () => {
+    const { ctx, match } = setup(8, { title: "Onna Senshi ni Tensei shita Boku", title_main: "I Reincarnated as a Female Warrior, and Now My ...", title_sub: "(C100) [んみゅ (唐辛子ひでゆ)] 女戦士に… [英訳]" });
+    const { container, getByText, queryByText } = render(WebBook, { props: { match }, context: ctx });
+    await waitFor(() => expect(getByText("Onna Senshi ni Tensei shita Boku")).toBeTruthy());
+    expect(container.querySelector("h1")?.textContent).toBe("Onna Senshi ni Tensei shita Boku");
+    expect([...container.querySelectorAll(".sub")].map((e) => e.textContent)).toEqual(["(C100) [んみゅ (唐辛子ひでゆ)] 女戦士に… [英訳]", "I Reincarnated as a Female Warrior, and Now My ..."]);
+    expect(container.querySelector(".by")).toBeNull();
+    expect(queryByText(/^by /)).toBeNull();
+  });
+
+  it("shows one name only as the big title", async () => {
+    const { ctx, match } = setup(8, { title: "Only Name", title_main: "Only Name", title_sub: null });
+    const { container, getByText } = render(WebBook, { props: { match }, context: ctx });
+    await waitFor(() => expect(getByText("Only Name")).toBeTruthy());
+    expect(container.querySelectorAll(".sub")).toHaveLength(0);
   });
 
   it("gives at most 4 thumbnails a slot at once (2 focus, 2 prefetch)", async () => {
@@ -80,9 +99,10 @@ describe("WebBook", () => {
 
   it("rejects a tag from the ban icon", async () => {
     const { api, ctx, match } = setup();
-    const { getByLabelText, getByRole } = render(WebBook, { props: { match }, context: ctx });
-    await waitFor(() => getByLabelText("Reject a tag"));
-    await fireEvent.click(getByLabelText("Reject a tag"));
+    const { getByLabelText, getByRole, getByText } = render(WebBook, { props: { match }, context: ctx });
+    await waitFor(() => getByLabelText("More actions"));
+    await fireEvent.click(getByLabelText("More actions"));
+    await fireEvent.click(getByText("Reject a tag"));
     await fireEvent.click(getByRole("group", { name: "Reject a tag" }).querySelectorAll("button")[1]);
     await waitFor(() => expect(api.rejectTag).toHaveBeenCalledWith("b"));
   });

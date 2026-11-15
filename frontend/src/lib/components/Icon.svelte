@@ -13,7 +13,7 @@
     | "skip-back" | "skip-forward" | "rewind" | "fast-forward" | "replay-10" | "forward-10"
     | "zoom-in" | "zoom-out" | "info" | "order" | "shield"
     | "wand-sparkles" | "mouse-pointer"
-    | "ban" | "octagon-x" | "triangle-alert" | "bug" | "copy" | "history";
+    | "ban" | "octagon-x" | "triangle-alert" | "bug" | "copy" | "history" | "ellipsis";
 
   const paths: Record<IconName, string[]> = {
     "search": [
@@ -419,6 +419,11 @@
     "copy": [
       "M20 8h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2z",
       "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
+    ],
+    "ellipsis": [
+      "M5 12h.01",
+      "M12 12h.01",
+      "M19 12h.01",
     ],
   };
 </script>
