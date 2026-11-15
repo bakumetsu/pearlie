@@ -95,6 +95,24 @@ describe("createPlayer", () => {
     expect(p.mode).toBe("mini");
   });
 
+  it("autoplay in stage: stray re-measure of the old slot keeps the nav, next video autoplays", () => {
+    const p = createPlayer(() => true);
+    p.open(item1);
+    p.setSlot(item1.id, rect);
+    p.onPlaying();
+    p.setNav({ next: () => p.beginNav(), prev: () => {}, canNext: () => true, canPrev: () => false });
+    p.onEnded();
+    p.setSlot(item1.id, rect);
+    p.releaseSlot(item1.id);
+    expect(p.mode).toBe("stage");
+    expect(p.item?.id).toBe("1");
+    p.open(item2);
+    expect(p.item?.id).toBe("2");
+    expect(p.consumePlayOnLoad()).toBe(true);
+    p.setSlot(item2.id, rect);
+    expect(p.mode).toBe("stage");
+  });
+
   it("beginNav falls back to mini when no slot mounts", () => {
     vi.useFakeTimers();
     try {

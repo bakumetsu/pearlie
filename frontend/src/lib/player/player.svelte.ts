@@ -43,6 +43,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
   let playOnLoad = false;
   let navVersion = $state(0);
   let navigating = false;
+  let navFrom: string | null = null;
   let navTimer: ReturnType<typeof setTimeout> | null = null;
 
   function clearNav(): void {
@@ -107,6 +108,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
       if (state.mode !== "stage") return;
       clearNav();
       navigating = true;
+      navFrom = state.item?.id ?? null;
       navTimer = setTimeout(() => {
         navTimer = null;
         if (!navigating) return;
@@ -166,7 +168,8 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
       state.slot = rect;
       if (rect !== null) {
         state.mode = "stage";
-        clearNav();
+        // a stray re-measure of the slot we are leaving must not cancel the nav
+        if (id !== navFrom) clearNav();
       }
     },
 
