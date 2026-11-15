@@ -7,7 +7,6 @@ import time
 
 from fastapi import Request, Response
 
-from app.api.errors import ApiError
 from app.api.media_stash_real import _forward_range, _stream
 from app.jobs.store import JobStore
 from app.models import SavedRef
@@ -28,7 +27,9 @@ def is_owned(ref: SavedRef | None) -> bool:
     return ref is not None and ref.kind in ("image", "video") and bool(ref.id)
 
 
-def lookup(app, source: str, post_id: str, md5: str | None, post_kind: str) -> tuple[str, str] | None:
+def lookup(
+    app, source: str, post_id: str, md5: str | None, post_kind: str
+) -> tuple[str, str] | None:
     """(kind, Stash id) of the saved copy of this post, or None when it cannot be routed."""
     if getattr(app.state, "stash", None) is None:
         return None
@@ -92,10 +93,7 @@ def try_library(request: Request, src: Source, post_id: str, media: str) -> Resp
     """The Stash response for an owned post, or None to use the site (sync, run in a thread)."""
     from app.api.media_web_real import _authorize, media_kind  # late: media_web_real imports us
 
-    try:
-        post = _authorize(request, src, post_id)
-    except ApiError:
-        return None  # the site path raises the real error
+    post = _authorize(request, src, post_id)  # its ApiError is the site path's own error
     app = request.app
     found = lookup(app, src.id, post_id, post.md5, media_kind(post))
     if found is None:

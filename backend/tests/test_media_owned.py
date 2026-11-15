@@ -217,3 +217,18 @@ def test_video_full_streams_scene_and_preview_uses_scene_preview(tmp_path):
         "/scene/42/preview",
     ]
     assert _cdn(site) == []
+
+
+def test_cold_post_get_post_failure_is_asked_once(tmp_path):
+    calls: list[httpx.Request] = []
+
+    def site(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(502, json={})
+
+    app = _app(tmp_path, site)
+    _save(app)
+    _stash(app, _ok)
+    r = TestClient(app).get("/api/media/web/danbooru/7/full")
+    assert r.status_code >= 400
+    assert len(calls) == 1
