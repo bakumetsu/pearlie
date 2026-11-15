@@ -39,7 +39,6 @@ VIDEO_EXTS = (".mp4", ".webm", ".mov", ".m4v", ".mkv")
 # Preview and full images run through the per-site image slots (setting: images at a time).
 STREAM_TIMEOUT = 30.0
 IMAGE_TIME_LIMIT = 300.0
-VIDEO_TIME_LIMIT = 1800.0
 _MEMORY = 5000
 # Thumbnail lane (D-17): own throttle per site. Misses fly a few at once; one at a time on back-off.
 THUMB_PACE = 0.15
@@ -221,8 +220,13 @@ def _stream_media(
         slot.finish(None if status in (200, 206) else status, _retry_after(upstream))
         if status == 404:
             raise ApiError(404, "not_found", "Media not found")
-        code = "rate_limited" if status == 429 else "upstream_error"
-        raise ApiError(502, code, f"The site returned {status}")
+        if status == 429:
+            wait = _retry_after(upstream)
+            retry = str(math.ceil(wait)) if wait is not None else "5"
+            raise ApiError(
+                429, "rate_limited", "The site asked to slow down", headers={"Retry-After": retry}
+            )
+        raise ApiError(502, "upstream_error", f"The site returned {status}")
     headers = {"Cache-Control": "private, max-age=3600"}
     for h in _RELAY_HEADERS:
         if h in upstream.headers:
@@ -231,7 +235,8 @@ def _stream_media(
     body = SlotBody(
         upstream,
         slot,
-        time_limit=VIDEO_TIME_LIMIT if video else IMAGE_TIME_LIMIT,
+        time_limit=IMAGE_TIME_LIMIT,
+        wall_clock=not video,  # a long film must play to the end
         chunk_size=CHUNK_SIZE,
         record_status=not video,
     )

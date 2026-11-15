@@ -12,6 +12,7 @@ from app.targets import stash_library
 from app.targets.stash_client import StashError
 
 router = APIRouter(prefix="/api/media")
+MANIFEST_MAX = 1_000_000  # an HLS manifest is small; more is not a manifest
 
 _NAME_RE = re.compile(r"^(stream\.(mp4|webm|m3u8|ts)|[0-9]+\.ts)$")
 _RESOLUTION_RE = re.compile(r"^[A-Z0-9_]+$")
@@ -189,8 +190,17 @@ def video_segment(request: Request, id: str, name: str):
 
     # HLS manifest: read fully, rewrite, return as text
     if name == "stream.m3u8":
-        body = upstream.read()
-        upstream.close()
+        parts: list[bytes] = []
+        size = 0
+        try:
+            for chunk in upstream.iter_raw(CHUNK_SIZE):
+                size += len(chunk)
+                if size > MANIFEST_MAX:
+                    raise ApiError(502, "upstream_error", "The manifest is too large")
+                parts.append(chunk)
+        finally:
+            upstream.close()
+        body = b"".join(parts)
         text = body.decode("utf-8", errors="replace")
         rewritten = rewrite_m3u8(text)
         return Response(content=rewritten, media_type="application/vnd.apple.mpegurl")

@@ -83,7 +83,12 @@ class Slot:
         self._limiter = limiter
         self._clock = clock
         self.started = clock()
+        self.touched = self.started
         self.done = False
+
+    def touch(self) -> None:
+        """Heartbeat: a stream that still sends bytes keeps its slot."""
+        self.touched = self._clock()
 
     def finish(self, status: int | None = None, retry_after: float | None = None) -> None:
         """Free the slot; `status` is the site's answer (None: aborted, not counted)."""
@@ -132,7 +137,7 @@ class Limiter:
 
     def _dispatch(self) -> None:
         now = self._clock()
-        for slot in [s for s in self._active if now - s.started > STALE_GRANT_S]:
+        for slot in [s for s in self._active if now - s.touched > STALE_GRANT_S]:
             logger.warning("slot reclaimed host=%s", self.host_class)
             slot.finish(None)
         if now < self._pause_until:
@@ -276,6 +281,7 @@ class SlotBody:
         slot: Slot,
         max_bytes: int | None = None,
         time_limit: float = STREAM_LIMIT_S,
+        wall_clock: bool = True,
         clock: Callable[[], float] = time.monotonic,
         strict: bool = False,
         chunk_size: int | None = None,
@@ -290,6 +296,7 @@ class SlotBody:
         self._max_bytes = max_bytes
         self._clock = clock
         self._deadline = clock() + time_limit
+        self._wall_clock = wall_clock
         self._complete = False
 
     def __iter__(self):
@@ -297,10 +304,12 @@ class SlotBody:
         try:
             for chunk in self._resp.iter_raw(*self._chunk):
                 sent += len(chunk)
+                self._slot.touch()
                 if self._max_bytes is not None and sent > self._max_bytes:
                     return self._cut("size limit")
                 yield chunk
-                if self._clock() > self._deadline:
+                # a video has no wall clock cap: silence ends it through the upstream read timeout
+                if self._wall_clock and self._clock() > self._deadline:
                     return self._cut("time limit")
             self._complete = True
         finally:
