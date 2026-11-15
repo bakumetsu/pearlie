@@ -30,7 +30,14 @@ describe("Library video row queue", () => {
     await vi.waitFor(() => expect(document.querySelector('a[href="/item/videos/v1"]')).toBeTruthy());
     await fireEvent.click(document.querySelector('a[href="/item/videos/v1"]')!);
     const g = gridFor("videos");
-    expect(g.items.map((i) => i.id)).toEqual(["v1", "v2"]);
+    expect(g.items.map((i) => ("id" in i ? i.id : ""))).toEqual(["v1", "v2"]);
     expect(g.hasNext).toBe(true);
+  });
+
+  it("a Ctrl-click (new tab) leaves the queue alone", async () => {
+    render(App);
+    await vi.waitFor(() => expect(document.querySelector('a[href="/item/videos/v1"]')).toBeTruthy());
+    await fireEvent.click(document.querySelector('a[href="/item/videos/v1"]')!, { ctrlKey: true });
+    expect(gridFor("videos").items).toEqual([]);
   });
 });

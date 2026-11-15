@@ -2,7 +2,7 @@
   import { getApi } from "../lib/api/client";
   import { getRouter } from "../lib/ctx";
   import { itemHref } from "../lib/item/kinds";
-  import { linkClick } from "../lib/router";
+  import { linkClick, inPageClick } from "../lib/router";
   import type { Match } from "../lib/router";
   import type { Kind, LibraryItem } from "../lib/api/client";
   import SectionRow from "../lib/components/SectionRow.svelte";
@@ -182,7 +182,7 @@
           {/each}
         {:else}
           {#each rs.items as item (item.id)}
-            <Tile item={item} href={itemHref(item)} onnavigate={(e) => { if (row.kind === "videos") queueVideos(rs); onNav(e); }} landscape />
+            <Tile item={item} href={itemHref(item)} onnavigate={(e) => { if (row.kind === "videos" && inPageClick(e)) queueVideos(rs); onNav(e); }} landscape />
           {/each}
         {/if}
       </SectionRow>
