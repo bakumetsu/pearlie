@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 
 function tile(id: string) {
   return { kind: "image", id, title: `img ${id}`, thumb_url: `/t/${id}`, source: "stash", tags: [] };
@@ -19,6 +19,12 @@ describe("SeeAll infinite scroll", () => {
   function nearEnd() {
     for (const o of observers.filter((x) => x.live)) o.cb([{ isIntersecting: true }]);
   }
+
+  // The first import of App.svelte compiles the whole app. Do it here so no test pays for it.
+  beforeAll(async () => {
+    await import("@testing-library/svelte");
+    await import("../App.svelte");
+  }, 60_000);
 
   beforeEach(() => {
     vi.resetModules();
