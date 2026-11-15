@@ -100,6 +100,14 @@ def _ref(target: str, image_id: str | None, kind: str = "image") -> SavedRef:
     return SavedRef(kind="image", id=image_id or "")
 
 
+# Every column _to_job reads; the list view skips post_json (a large blob it never uses).
+_JOB_COLS = (
+    "id, source, post_id, status, error, error_code, target, title, thumb_url, notices, "
+    "library_ref_id, dest_path, pages_done, pages_total, eta_s, scan_due_at, "
+    "created_at, finished_at"
+)
+
+
 class JobStore:
     def __init__(self, db_path: Path) -> None:
         self._path = db_path
@@ -235,7 +243,7 @@ class JobStore:
         offset: int = 0,
     ) -> list[Job]:
         """Newest first; `limit` and `offset` page the result (default: all)."""
-        sql = "SELECT * FROM jobs"
+        sql = f"SELECT {_JOB_COLS} FROM jobs"
         args: list[object] = []
         if states is not None:
             sql += f" WHERE status IN ({','.join('?' for _ in states)})"

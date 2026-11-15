@@ -312,3 +312,22 @@ def test_purge_finished_drops_only_old_terminal_jobs(tmp_path: Path) -> None:
         conn.close()
     assert store.purge_finished(30) == 1
     assert sorted(j.id for j in store.list()) == ["2", "3", "4"]
+
+
+def test_list_does_not_read_post_json(tmp_path: Path, monkeypatch) -> None:
+    import app.jobs.store as store_mod
+
+    store = make(tmp_path)
+    store.enqueue(post(), "stash", "t", "u")
+    seen: list[str] = []
+
+    def traced(path: Path):
+        conn = connect(path)
+        conn.set_trace_callback(seen.append)
+        return conn
+
+    monkeypatch.setattr(store_mod, "connect", traced)
+    jobs = store.list()
+    assert len(jobs) == 1
+    assert not any("post_json" in s for s in seen)
+    assert not any(s.startswith("SELECT *") for s in seen)
