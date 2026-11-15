@@ -575,14 +575,15 @@
 <style>
   .content { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--s-4); }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-  .sticky-header { position: sticky; top: 0; background: var(--surface); z-index: 10; padding: var(--s-4) 0; }
+  /* --bar-scale shrinks the bar's spacing only (80 / 85 / 95 %); every control keeps its 44 px hit area. */
+  .sticky-header { --bar-scale: 0.85; position: sticky; top: 0; background: var(--surface); z-index: 10; padding: calc(var(--s-4) * var(--bar-scale)) 0; }
   .header-row { display: flex; align-items: center; gap: var(--s-4); padding-right: var(--sfw-inset); }
   .back-btn { min-width: 44px; min-height: 44px; display: grid; place-items: center; border: none; background: none; cursor: pointer; color: var(--text); }
   .header-title { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text); }
   .sticky-header { transition: transform 0.2s ease; }
   .sticky-header.hidden { transform: translateY(-100%); }
   @media (prefers-reduced-motion: reduce) { .sticky-header { transition: none; } }
-  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: var(--s-4); }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: calc(var(--s-4) * var(--bar-scale)); }
   @media (min-width: 640px) { .controls { flex-wrap: nowrap; } }
   .shown { font-size: 0.875rem; color: var(--muted); }
   .muted { color: var(--muted); }
