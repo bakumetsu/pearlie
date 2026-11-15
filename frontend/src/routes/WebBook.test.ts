@@ -71,11 +71,11 @@ describe("WebBook", () => {
   });
 
   it("shows three name lines (romaji, Japanese, English) and no by line", async () => {
-    const { ctx, match } = setup(8, { title: "Romaji Name | English Name", title_main: "Romaji Name", title_sub: "(C100) [Circ (Art)] 日本語 [英訳]" });
+    const { ctx, match } = setup(8, { title: "Onna Senshi ni Tensei shita Boku", title_main: "I Reincarnated as a Female Warrior, and Now My ...", title_sub: "(C100) [んみゅ (唐辛子ひでゆ)] 女戦士に… [英訳]" });
     const { container, getByText, queryByText } = render(WebBook, { props: { match }, context: ctx });
-    await waitFor(() => expect(getByText("Romaji Name")).toBeTruthy());
-    expect(container.querySelector("h1")?.textContent).toBe("Romaji Name");
-    expect([...container.querySelectorAll(".sub")].map((e) => e.textContent)).toEqual(["(C100) [Circ (Art)] 日本語 [英訳]", "English Name"]);
+    await waitFor(() => expect(getByText("Onna Senshi ni Tensei shita Boku")).toBeTruthy());
+    expect(container.querySelector("h1")?.textContent).toBe("Onna Senshi ni Tensei shita Boku");
+    expect([...container.querySelectorAll(".sub")].map((e) => e.textContent)).toEqual(["(C100) [んみゅ (唐辛子ひでゆ)] 女戦士に… [英訳]", "I Reincarnated as a Female Warrior, and Now My ..."]);
     expect(container.querySelector(".by")).toBeNull();
     expect(queryByText(/^by /)).toBeNull();
   });
