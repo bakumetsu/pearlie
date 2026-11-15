@@ -48,6 +48,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
 
   function clearNav(): void {
     navigating = false;
+    navFrom = null;
     if (navTimer !== null) {
       clearTimeout(navTimer);
       navTimer = null;

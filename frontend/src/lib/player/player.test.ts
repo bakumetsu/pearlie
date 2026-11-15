@@ -111,6 +111,12 @@ describe("createPlayer", () => {
     expect(p.consumePlayOnLoad()).toBe(true);
     p.setSlot(item2.id, rect);
     expect(p.mode).toBe("stage");
+    // nav finished: open() cleared it, so a later leave goes to the mini dock
+    p.beginNav();
+    p.open(item2);
+    p.setSlot(item2.id, rect);
+    p.releaseSlot(item2.id);
+    expect(p.mode).toBe("mini");
   });
 
   it("beginNav falls back to mini when no slot mounts", () => {
