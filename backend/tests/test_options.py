@@ -422,3 +422,78 @@ def test_komga_scan_wait_range_and_getter(tmp_path: Path) -> None:
     assert client.put("/api/options", json={"komga_scan_wait_s": 121}).status_code == 422
     assert client.put("/api/options", json={"komga_scan_wait_s": -1}).status_code == 422
     assert client.put("/api/options", json={"komga_scan_wait_s": "5"}).status_code == 422
+
+
+# ── out-of-range → 422 ──────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("field", "bad"),
+    [
+        ("images_per_site", 0),
+        ("images_per_site", 17),
+        ("komga_scan_wait_s", -1),
+        ("komga_scan_wait_s", 121),
+        ("trash_retention_days", 0),
+        ("trash_retention_days", 366),
+        ("backdrop_strength", -1),
+        ("backdrop_strength", 101),
+        ("thumb_cache_max_mb", 49),
+        ("thumb_cache_max_mb", 20481),
+    ],
+)
+def test_option_out_of_range_rejected(any_client, field, bad):
+    resp = any_client.put("/api/options", json={field: bad})
+    assert resp.status_code == 422
+
+
+# ── boundary values → 200, round-trips via GET ─────────────────────
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("images_per_site", 1),
+        ("images_per_site", 16),
+        ("komga_scan_wait_s", 0),
+        ("komga_scan_wait_s", 120),
+        ("trash_retention_days", 1),
+        ("trash_retention_days", 365),
+        ("backdrop_strength", 0),
+        ("backdrop_strength", 100),
+    ],
+)
+def test_option_edges_accepted(any_client, field, value):
+    resp = any_client.put("/api/options", json={field: value})
+    assert resp.status_code == 200
+    got = any_client.get("/api/options")
+    assert got.status_code == 200
+    assert got.json()[field] == value
+
+
+@pytest.mark.parametrize("value", [50, 20480])
+def test_thumb_cache_edges_accepted(any_client: TestClient, value: int) -> None:
+    resp = any_client.put("/api/options", json={"thumb_cache_max_mb": value})
+    assert resp.status_code == 200
+    got = any_client.get("/api/options")
+    assert got.json()["thumb_cache"]["max_mb"] == value
+
+
+# ── a rejected PUT must not clobber the stored value ───────────────
+
+
+def test_rejected_option_leaves_stored_value(any_client):
+    assert any_client.put("/api/options", json={"images_per_site": 8}).status_code == 200
+    assert any_client.put("/api/options", json={"images_per_site": 99}).status_code == 422
+    resp = any_client.get("/api/options")
+    assert resp.status_code == 200
+    assert resp.json()["images_per_site"] == 8
+
+
+# ── strict-int: floats and strings are rejected ────────────────────
+
+
+@pytest.mark.parametrize("bad", [5.5, "5"])
+def test_float_and_string_rejected(any_client, bad):
+    resp = any_client.put("/api/options", json={"images_per_site": bad})
+    assert resp.status_code == 422

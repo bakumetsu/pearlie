@@ -754,6 +754,20 @@ case_host_auto() {
   expect "host_autox: step" "$(status_get step)" config
 }
 
+case_port_range() {
+  local bad
+  for bad in 0 00 65536 99999 -1 8o; do
+    new_case "port_$bad"
+    seed_install 1.0.0
+    printf 'port=%s\n' "$bad" > "$ROOT/update.conf"
+    printf '{"state":"running","step":"x"}\n' > "$ROOT/update-status.json"
+    run_update --from-ui
+    expect "port_$bad: RC" "$RC" 1
+    expect "port_$bad: state" "$(status_get state)" failed
+    expect "port_$bad: step" "$(status_get step)" config
+  done
+}
+
 case_integrity() {
   new_case integrity_mismatch
   seed_install 1.0.0
@@ -1051,7 +1065,7 @@ case_rollback_none() {
   expect "rollback_nobackup: no systemctl stop" "$(stub_calls 'systemctl stop')" 0
 }
 
-CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_integrity case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_unit_sync case_installer_defaults case_previous_and_schema case_rollback_code_only case_rollback_restore case_rollback_fail case_rollback_none case_update_integrity case_installer_fetch)
+CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_integrity case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_port_range case_unit_sync case_installer_defaults case_previous_and_schema case_rollback_code_only case_rollback_restore case_rollback_fail case_rollback_none case_update_integrity case_installer_fetch)
 
 for c in "${CASES[@]}"; do
   "$c"
