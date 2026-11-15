@@ -49,6 +49,7 @@ from app.api.errors import ApiError, stub_router
 from app.api.errors import install as install_errors
 from app.api.guard import mutation_guard
 from app.api.health import router as health_router
+from app.api.security_headers import SecurityHeaders
 from app.config import ConfigError, Settings, load_settings
 from app.connections_store import ConnectionStore
 from app.db import connect, init_db
@@ -224,6 +225,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(lifespan=lifespan, dependencies=[Depends(mutation_guard)])
     install_errors(app)
+    app.add_middleware(SecurityHeaders)
     app.state.settings = settings
     app.state.update_root = runner.LAYOUT_ROOT
     app.state.update_run = subprocess.run
