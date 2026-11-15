@@ -24,8 +24,8 @@ function playerWith(
   item: PlayerItem | null,
   mode: string,
   swap = vi.fn(),
-): { item: PlayerItem | null; mode: string; swap: (i: PlayerItem) => void } {
-  return { item, mode, swap };
+): { item: PlayerItem | null; mode: string; swap: (i: PlayerItem) => void; beginNav: () => void } {
+  return { item, mode, swap, beginNav: vi.fn() };
 }
 
 const v1: PlayerItem = { id: "v1", title: "V1", streamUrl: "s1", posterUrl: "t1", href: "/library/videos/v1" };
