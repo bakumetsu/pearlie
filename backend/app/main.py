@@ -388,7 +388,12 @@ def run() -> None:
         settings = load_settings()
     except ConfigError as err:
         raise SystemExit(str(err)) from None
-    uvicorn.run(create_app(settings), host=settings.host, port=settings.port)
+    uvicorn.run(
+        create_app(settings),
+        host=settings.host,
+        port=settings.port,
+        log_config=logs.uvicorn_log_config(),
+    )
 
 
 if __name__ == "__main__":
