@@ -286,7 +286,8 @@ except Exception:
 # a release tag must never move: refuse when the installed tag now points to another commit
 check_moved_tag() {
   [[ "$CHANNEL" == "main" && "$INST_CHANNEL" == "main" ]] || return 0
-  if ! printf '%s' "$INST_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'     || ! printf '%s' "$INST_COMMIT" | grep -qE '^[0-9a-f]{40}$'; then
+  if ! printf '%s' "$INST_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' \
+    || ! printf '%s' "$INST_COMMIT" | grep -qE '^[0-9a-f]{40}$'; then
     log "moved-tag check skipped: installed commit unknown"
     return 0
   fi

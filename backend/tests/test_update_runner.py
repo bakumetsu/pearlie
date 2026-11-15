@@ -107,9 +107,7 @@ def test_write_conf_appends_missing_channel(tmp_path: Path) -> None:
 
 def test_write_conf_keeps_require_verified(tmp_path: Path) -> None:
     (tmp_path / "update.conf").write_text(
-        "channel=main
-require_verified=on
-", encoding="utf-8"
+        "channel=main\nrequire_verified=on\n", encoding="utf-8"
     )
     write_conf(tmp_path, channel="dev")
     lines = (tmp_path / "update.conf").read_text(encoding="utf-8").splitlines()
