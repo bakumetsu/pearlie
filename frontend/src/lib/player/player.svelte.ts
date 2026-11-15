@@ -35,6 +35,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
     rate: 1,
     loop: false,
     sourceIdx: -1,
+    pip: false,
   });
 
   let el: VideoLike | null = null;
@@ -94,6 +95,9 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
     get sourceIdx(): number { return state.sourceIdx; },
     get slot(): Rect | null { return state.slot; },
     get failed(): boolean { return state.failed; },
+    get pip(): boolean { return state.pip; },
+
+    setPip(on: boolean): void { state.pip = on; },
 
     attach(v: VideoLike | null): void {
       el = v;

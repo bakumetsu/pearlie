@@ -36,7 +36,7 @@
   }
 </script>
 
-{#if player.mode === "mini" && player.item !== null}
+{#if player.mode === "mini" && player.item !== null && !player.pip}
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <section class="dock" aria-label="Mini player" onkeydown={onKeydown}>
     <div class="spacer"></div>

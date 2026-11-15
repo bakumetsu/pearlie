@@ -3,7 +3,7 @@
   import { player } from "./player.svelte";
   import { RAIL_W, rectFor, toTransform } from "./geometry";
   import { rail } from "../stores/rail.svelte";
-  import { setMediaSession, enterPip } from "./pip";
+  import { setMediaSession, enterPip, watchPip, type PipVideo } from "./pip";
   import PlayerBar from "./PlayerBar.svelte";
 
   let video: HTMLVideoElement | null = null;
@@ -87,13 +87,22 @@
   });
 
   $effect(() => {
+    if (video === null) return;
+    return watchPip(video as PipVideo, (on) => player.setPip(on));
+  });
+
+  $effect(() => {
     const item = player.item;
+    const canPrev = player.canPrev;
+    const canNext = player.canNext;
     setMediaSession(
       navigator,
       item ? { title: item.title, poster: item.posterUrl } : null,
       {
         play: () => player.play(),
         pause: () => player.pause(),
+        prev: canPrev ? () => player.prev() : null,
+        next: canNext ? () => player.next() : null,
         enterPip: () => {
           if (video) void enterPip(document, video as Parameters<typeof enterPip>[1]);
         },

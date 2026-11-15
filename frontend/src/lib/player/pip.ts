@@ -74,6 +74,8 @@ export type SessionHandlers = {
   play: () => void;
   pause: () => void;
   enterPip?: () => void;
+  prev?: (() => void) | null;
+  next?: (() => void) | null;
 };
 
 export function setMediaSession(
@@ -85,12 +87,17 @@ export function setMediaSession(
 
   const ms = nav.mediaSession;
   const enterPipAction = "enterpictureinpicture" as unknown as MediaSessionAction;
+  const setTrack = (action: MediaSessionAction, fn: (() => void) | null | undefined): void => {
+    try { ms.setActionHandler(action, fn ?? null); } catch { /* unsupported */ }
+  };
 
   if (meta === null) {
     ms.metadata = null;
     try { ms.setActionHandler("play", null); } catch { /* unsupported */ }
     try { ms.setActionHandler("pause", null); } catch { /* unsupported */ }
     try { ms.setActionHandler(enterPipAction, null); } catch { /* unsupported */ }
+    setTrack("previoustrack", null);
+    setTrack("nexttrack", null);
     return;
   }
 
@@ -102,7 +109,25 @@ export function setMediaSession(
   try { ms.setActionHandler("play", h.play); } catch { /* unsupported */ }
   try { ms.setActionHandler("pause", h.pause); } catch { /* unsupported */ }
 
+  setTrack("previoustrack", h.prev);
+  setTrack("nexttrack", h.next);
+
   if (h.enterPip) {
     try { ms.setActionHandler(enterPipAction, h.enterPip); } catch { /* unsupported */ }
   }
+}
+
+/** Calls on(true/false) when the video enters or leaves PiP (standard and WebKit events). */
+export function watchPip(v: PipVideo, on: (active: boolean) => void): () => void {
+  const enter = () => on(true);
+  const leave = () => on(false);
+  const webkit = () => on(v.webkitPresentationMode === "picture-in-picture");
+  v.addEventListener("enterpictureinpicture", enter);
+  v.addEventListener("leavepictureinpicture", leave);
+  v.addEventListener("webkitpresentationmodechanged", webkit);
+  return () => {
+    v.removeEventListener("enterpictureinpicture", enter);
+    v.removeEventListener("leavepictureinpicture", leave);
+    v.removeEventListener("webkitpresentationmodechanged", webkit);
+  };
 }

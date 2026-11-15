@@ -77,3 +77,28 @@ describe("MiniDock controls: prev/next only", () => {
     expect(prev!.disabled).toBe(true);
   });
 });
+
+describe("MiniDock in PiP", () => {
+  const item = { id: "v2", title: "t", streamUrl: "/s", posterUrl: "/p", href: "/item/videos/v2" };
+
+  afterEach(() => {
+    cleanup();
+    player.setPip(false);
+    player.close();
+  });
+
+  it("hides while PiP is active and shows again when PiP ends", () => {
+    player.open(item);
+    player.setSlot("v2", { x: 0, y: 0, w: 100, h: 100 });
+    player.releaseSlot("v2");
+    render(MiniDock);
+    flushSync();
+    expect(document.querySelector('[aria-label="Mini player"]')).not.toBeNull();
+    player.setPip(true);
+    flushSync();
+    expect(document.querySelector('[aria-label="Mini player"]')).toBeNull();
+    player.setPip(false);
+    flushSync();
+    expect(document.querySelector('[aria-label="Mini player"]')).not.toBeNull();
+  });
+});
