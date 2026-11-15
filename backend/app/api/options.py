@@ -151,6 +151,18 @@ def _read_db(request: Request, key: str) -> str | None:
     return row["value"] if row is not None else None
 
 
+def read_option(request: Request, key: str) -> str | None:
+    """Read one stored option value (memory in fixture mode, SQLite in real mode)."""
+    if request.app.state.settings.mode == "fixture":
+        return _read_mem(request, key)
+    return _read_db(request, key)
+
+
+def detect_profile(request: Request) -> Literal["desktop", "touch"]:
+    """Public name for the profile of the calling device."""
+    return _detect_profile(request)
+
+
 def _write_db(request: Request, key: str, value: str) -> None:
     conn = connect(request.app.state.settings.db_path)
     try:

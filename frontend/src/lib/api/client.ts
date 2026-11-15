@@ -1,7 +1,7 @@
-import { sfw } from "../stores/sfw.svelte";
 import { getContext, setContext } from "svelte";
 import type { components } from "./schema.gen";
 import { hostBlock } from "../stores/hostBlock.svelte";
+import { sfw } from "../stores/sfw.svelte";
 
 type S = components["schemas"];
 

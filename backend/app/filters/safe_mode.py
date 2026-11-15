@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import Request
 
-from app.api.options import _detect_profile, _read_db, _read_mem
+from app.api.options import detect_profile, read_option
 from app.models import Blur
 
 
@@ -14,11 +14,7 @@ def is_hidden_in_safe_mode(blur: Blur | None, safe: bool, allow_blurred: bool) -
 
 
 def _stored(request: Request, key: str) -> bool:
-    if request.app.state.settings.mode == "fixture":
-        raw = _read_mem(request, key)
-    else:
-        raw = _read_db(request, key)
-    return raw == "1"
+    return read_option(request, key) == "1"
 
 
 def resolve_safe(request: Request, safe_param: bool | None) -> tuple[bool, bool]:
@@ -30,6 +26,6 @@ def resolve_safe(request: Request, safe_param: bool | None) -> tuple[bool, bool]
     safe = (
         safe_param
         if safe_param is not None
-        else _stored(request, f"options.{_detect_profile(request)}.sfw")
+        else _stored(request, f"options.{detect_profile(request)}.sfw")
     )
     return safe, _stored(request, "options.global.allow_blurred_tags")
