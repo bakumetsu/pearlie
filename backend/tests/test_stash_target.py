@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -25,6 +26,16 @@ class FakeSource:
     id: str = "fake"
     target: str = "stash"
     file_hosts: tuple[str, ...] = ("img.example",)
+    reencoded_hosts: frozenset[str] = frozenset()
+
+
+class VideoSource(FakeSource):
+    file_hosts: tuple[str, ...] = ("cdn.example",)
+    reencoded_hosts: frozenset[str] = frozenset({"cdn.example"})
+
+
+class PlainVideoSource(FakeSource):
+    file_hosts: tuple[str, ...] = ("cdn.example",)
 
     def search(
         self,
@@ -44,6 +55,8 @@ def make_graphql_handler(
     calls: list[tuple[str, dict]],
     checksum_ids: Sequence[str] = (),
     path_ids: Sequence[str] = ("7",),
+    scene_path_ids: Sequence[str] = (),
+    scene_update_error: bool = False,
     job_status: str = "FINISHED",
     tag_hits: Sequence[list[dict]] = (),
     tag_create_error: bool = False,
@@ -81,6 +94,28 @@ def make_graphql_handler(
             iid = str(variables.get("id", ""))
             found = None if iid in missing_images else {"id": iid}
             return httpx.Response(200, json={"data": {"findImage": found}})
+
+        if "findScenes" in query:
+            scenes = [{"id": s} for s in scene_path_ids]
+            return httpx.Response(
+                200, json={"data": {"findScenes": {"scenes": scenes}}}
+            )
+
+        if "findScene(" in query:
+            sid = str(variables.get("id", ""))
+            return httpx.Response(
+                200, json={"data": {"findScene": {"id": sid}}}
+            )
+
+        if "sceneUpdate" in query:
+            scene_id = str((variables.get("i") or {}).get("id", "s1"))
+            if scene_update_error:
+                return httpx.Response(
+                    200, json={"errors": [{"message": "x"}]}
+                )
+            return httpx.Response(
+                200, json={"data": {"sceneUpdate": {"id": scene_id}}}
+            )
 
         if "findImages" in query:
             if "checksum" in query:
@@ -144,23 +179,26 @@ def make_site_handler(
     requests: list[httpx.Request],
     content: bytes = b"pngbytes",
     content_length: int | None = None,
+    content_type: str | None = None,
 ) -> Callable[[httpx.Request], httpx.Response]:
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
         headers: dict[str, str] = {}
         if content_length is not None:
             headers["content-length"] = str(content_length)
+        if content_type is not None:
+            headers["content-type"] = content_type
         return httpx.Response(200, content=content, headers=headers)
 
     return handler
 
 
-def make_post(md5: str = MD5) -> Post:
+def make_post(md5: str = MD5, url: str = URL) -> Post:
     return Post(
         source="fake",
         post_id="42",
         md5=md5,
-        file_url=URL,
+        file_url=url,
         source_url="http://site/post/42",
     )
 
@@ -206,13 +244,16 @@ def make_target(
     def _make(
         checksum_ids: Sequence[str] = (),
         path_ids: Sequence[str] = ("7",),
+        scene_path_ids: Sequence[str] = (),
         content: bytes = b"pngbytes",
         content_length: int | None = None,
+        content_type: str | None = None,
         job_status: str = "FINISHED",
         tag_hits: Sequence[list[dict]] = (),
         tag_create_error: bool = False,
         image_update_error: bool = False,
         missing_images: Sequence[str] = (),
+        source: Source | None = None,
         api_key: str = "k",
         clock: Callable[[], float] | None = None,
     ) -> StashTarget:
@@ -221,6 +262,7 @@ def make_target(
                 graphql_calls,
                 checksum_ids,
                 path_ids,
+                scene_path_ids=scene_path_ids,
                 job_status=job_status,
                 tag_hits=tag_hits,
                 tag_create_error=tag_create_error,
@@ -229,7 +271,7 @@ def make_target(
             )
         )
         site = httpx.MockTransport(
-            make_site_handler(site_requests, content, content_length)
+            make_site_handler(site_requests, content, content_length, content_type)
         )
         client = StashClient(
             base_url="http://stash",
@@ -237,7 +279,7 @@ def make_target(
             client=httpx.Client(base_url="http://stash", transport=graphql),
         )
         http = httpx.Client(base_url="http://site", transport=site)
-        sources: dict[str, Source] = {"fake": FakeSource()}
+        sources: dict[str, Source] = {"fake": source if source is not None else FakeSource()}
         return StashTarget(
             settings,
             client,
@@ -266,9 +308,14 @@ def saved_item(settings: Settings) -> None:
 def op_name(query: str) -> str:
     if "checksum" in query:
         return "checksum"
+    if "findScenes" in query:
+        return "scene_path"
     if "findImages" in query:
         return "path"
-    for name in ("stashes", "metadataScan", "findJob", "findTags", "tagCreate", "imageUpdate"):
+    for name in (
+        "stashes", "metadataScan", "findJob", "findTags",
+        "tagCreate", "imageUpdate", "sceneUpdate",
+    ):
         if name in query:
             return name
     return query
@@ -568,6 +615,202 @@ def test_md5_mismatch(
     with pytest.raises(stash.SaveError) as exc:
         target.save(post, [])
     assert exc.value.code == "md5_mismatch"
+
+
+def test_video_saved_as_scene(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+    graphql_calls: list[tuple[str, dict]],
+) -> None:
+    patch_folder(monkeypatch)
+    content = b"mp4bytes"
+    md5 = hashlib.md5(content).hexdigest()
+    post = make_post(md5=md5, url="http://cdn.example/a/f.mp4")
+    target = make_target(
+        path_ids=(),
+        scene_path_ids=("9",),
+        content=content,
+        content_type="video/mp4",
+        source=VideoSource(),
+    )
+    result = target.save(post, [])
+    assert result.image_id == "9"
+    row = connect(settings.db_path).execute("SELECT kind FROM saved_items").fetchone()
+    assert row["kind"] == "video"
+    ops = [op_name(c[0]) for c in graphql_calls]
+    assert "sceneUpdate" in ops
+    assert "imageUpdate" not in ops
+    scene_update = next(c for c in graphql_calls if op_name(c[0]) == "sceneUpdate")
+    assert "tag_ids" in scene_update[1]["i"]
+    assert scene_update[1]["i"]["id"] == "9"
+    assert "urls" in scene_update[1]["i"]
+    assert scene_update[1]["i"]["urls"] == ["http://site/post/42"]
+
+
+def test_video_image_row_kind_image(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target()
+    post = make_post()
+    target.save(post, [])
+    row = connect(settings.db_path).execute("SELECT kind FROM saved_items").fetchone()
+    assert row["kind"] == "image"
+
+
+def test_video_gif_falls_back_to_scene(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    post = make_post(md5=hashlib.md5(b"gifbytes").hexdigest(), url="http://cdn.example/a/a.gif")
+    target = make_target(
+        path_ids=(),
+        scene_path_ids=("5",),
+        content=b"gifbytes",
+        source=VideoSource(),
+    )
+    result = target.save(post, [])
+    assert result.image_id == "5"
+    row = connect(settings.db_path).execute("SELECT kind FROM saved_items").fetchone()
+    assert row["kind"] == "video"
+
+
+def test_video_lookup_miss_image_not_found(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    content = b"mp4bytes"
+    md5 = hashlib.md5(content).hexdigest()
+    post = make_post(md5=md5, url="http://cdn.example/a/f.mp4")
+    target = make_target(
+        path_ids=(),
+        scene_path_ids=(),
+        content=content,
+        content_type="video/mp4",
+        source=VideoSource(),
+    )
+    with pytest.raises(stash.SaveError) as exc:
+        target.save(post, [])
+    assert exc.value.code == "image_not_found"
+
+
+def test_video_reencoded_host_accepts_mismatch(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    content = b"mp4bytes"
+    post = make_post(md5="0" * 32, url="http://cdn.example/a/f.mp4")
+    target = make_target(
+        path_ids=(),
+        scene_path_ids=("9",),
+        content=content,
+        content_type="video/mp4",
+        source=VideoSource(),
+    )
+    result = target.save(post, [])
+    assert result.image_id == "9"
+    row = connect(settings.db_path).execute("SELECT md5 FROM saved_items").fetchone()
+    assert row["md5"] == "0" * 32
+
+
+def test_video_refusal_png_on_video_host(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(content=b"pngbytes", content_type="image/png", source=VideoSource())
+    post = make_post(md5="0" * 32, url="http://cdn.example/a/f.png")
+    with pytest.raises(stash.SaveError) as exc:
+        target.save(post, [])
+    assert exc.value.code == "md5_mismatch"
+
+
+def test_video_refusal_wrong_content_type(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    content = b"mp4bytes"
+    target = make_target(content=content, content_type="text/html", source=VideoSource())
+    post = make_post(md5="0" * 32, url="http://cdn.example/a/f.mp4")
+    with pytest.raises(stash.SaveError) as exc:
+        target.save(post, [])
+    assert exc.value.code == "md5_mismatch"
+
+
+def test_video_refusal_size_mismatch(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    content = b"mp4bytes"
+    target = make_target(
+        content=content,
+        content_length=len(content) + 64,
+        content_type="video/mp4",
+        source=VideoSource(),
+    )
+    post = make_post(md5=hashlib.md5(content).hexdigest(), url="http://cdn.example/a/f.mp4")
+    with pytest.raises(stash.SaveError) as exc:
+        target.save(post, [])
+    assert exc.value.code == "size_mismatch"
+
+
+def test_video_refusal_plain_source(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    content = b"mp4bytes"
+    target = make_target(
+        content=content,
+        content_type="video/mp4",
+        source=PlainVideoSource(),
+    )
+    post = make_post(md5="0" * 32, url="http://cdn.example/a/f.mp4")
+    with pytest.raises(stash.SaveError) as exc:
+        target.save(post, [])
+    assert exc.value.code == "md5_mismatch"
+
+
+def test_video_init_db_adds_kind_column(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "stash.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("CREATE TABLE saved_items (id INTEGER PRIMARY KEY, md5 TEXT)")
+    conn.execute("INSERT INTO saved_items (md5) VALUES ('abc')")
+    conn.commit()
+    conn.close()
+    init_db(db_path)
+    conn = sqlite3.connect(str(db_path))
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(saved_items)")]
+    assert "kind" in cols
+    row = conn.execute("SELECT kind FROM saved_items").fetchone()
+    conn.close()
+    assert row[0] == "image"
 
 
 def test_host_not_allowed(

@@ -244,3 +244,31 @@ def test_saved_refs_batch_and_md5(tmp_path: Path) -> None:
     assert got["3"].id == "7"  # same file saved from another source (md5 pass)
     assert "4" not in got
     assert "9" not in store.saved_refs("danbooru", ["9"])
+
+
+def test_saved_refs_video_kind(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    conn = connect(tmp_path / "p.db")
+    rows = [
+        ("danbooru", "30", "a" * 32, "stash", "30", "video"),
+        ("danbooru", "31", "b" * 32, "stash", "31", "image"),
+        ("danbooru", "32", "c" * 32, "komga", "", "image"),
+    ]
+    conn.executemany(
+        "INSERT INTO saved_items (source, post_id, md5, target, image_id, kind) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        rows,
+    )
+    conn.commit()
+    conn.close()
+    got = store.saved_refs("danbooru", ["30", "31", "32"])
+    assert got["30"].kind == "video"
+    assert got["30"].id == "30"
+    assert got["31"].kind == "image"
+    assert got["31"].id == "31"
+    assert got["32"].kind == "book"
+    assert got["32"].id == ""
+    assert store.saved_kind("danbooru", "30") == "video"
+    assert store.saved_kind("danbooru", "31") == "image"
+    md5_got = store.saved_refs("danbooru", ["99"], {"99": "a" * 32})
+    assert md5_got["99"].kind == "video"

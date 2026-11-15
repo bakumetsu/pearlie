@@ -49,6 +49,7 @@ class DapiSource:
     target = "stash"
     default_base_url = "https://api.rule34.xxx"
     extra_file_hosts: tuple[str, ...] = ()
+    reencoded_hosts: frozenset[str] = frozenset()
     md5_key = "hash"
     file_hosts: tuple[str, ...]
 
@@ -183,6 +184,8 @@ class Rule34(DapiSource):
         "rule34.xxx", "img.rule34.xxx", "wimg.rule34.xxx", "api-cdn.rule34.xxx",
         "api-cdn-mp4.rule34.xxx",
     )
+    # CDN re-encodes videos; their MD5 differs from the post MD5
+    reencoded_hosts = frozenset({"api-cdn-mp4.rule34.xxx"})
     md5_key = "hash"
 
 

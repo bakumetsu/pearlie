@@ -176,7 +176,9 @@ class StashTarget:
             parts.append(detail)
         logger.error("%s%s", logs.ctx(), " ".join(parts))
 
-    def _download(self, url: str, post: Post, ext: str) -> tuple[Path, str]:
+    _VIDEO_EXT = {".mp4", ".webm"}
+
+    def _download(self, url: str, post: Post, ext: str, lenient: bool = False) -> tuple[Path, str]:
         """Stream the file to a temp .part file and verify size/MD5."""
         md5_placeholder = (post.md5 or "unknown").lower()
         part_path = self._temp_path(post, md5_placeholder, ext, part=True)
@@ -207,6 +209,7 @@ class StashTarget:
                     if ctype.startswith("text/") or ctype in _NON_MEDIA_TYPES:
                         self._fail_log("download", "bad_content", url, detail=f"type={ctype}")
                         raise SaveError("bad_content", "download is not a media file", 502)
+                ctype_full = response.headers.get("content-type", "").split(";")[0].strip().lower()
                 content_length = response.headers.get("content-length")
                 if response.headers.get("content-encoding", "identity").lower() != "identity":
                     # Content-Length counts the encoded bytes; we write the decoded ones.
@@ -240,9 +243,23 @@ class StashTarget:
             self._fail_log("download", "size_mismatch", url, detail=info)
             raise SaveError("size_mismatch", "downloaded size differs from Content-Length", 502)
         if post.md5 and post.md5.lower() != digest:
-            part_path.unlink(missing_ok=True)
-            self._fail_log("download", "md5_mismatch", url, detail=info)
-            raise SaveError("md5_mismatch", "downloaded file does not match the post MD5", 502)
+            host = urlparse(url).hostname or ""
+            if (
+                lenient
+                and ext in self._VIDEO_EXT
+                and ctype_full.startswith("video/")
+                and bytes_written > 0
+                and (content_length is None or int(content_length) == bytes_written)
+            ):
+                logger.warning(
+                    "%sstep=download md5_mismatch_accepted "
+                    "post=%s host=%s md5_expected=%s md5_got=%s",
+                    logs.ctx(), post.post_id, host, post.md5.lower(), digest,
+                )
+            else:
+                part_path.unlink(missing_ok=True)
+                self._fail_log("download", "md5_mismatch", url, detail=info)
+                raise SaveError("md5_mismatch", "downloaded file does not match the post MD5", 502)
         match = "yes" if post.md5 else "n/a"
         logger.info("%sstep=download %s %s match=%s", logs.ctx(), logs.safe_url(url), info, match)
 
@@ -367,7 +384,11 @@ class StashTarget:
         except destinations.DestinationError as e:
             raise SaveError(e.code, e.message, e.status) from e
 
-        temp, md5 = self._download(url, post, ext)
+        source_obj = self._sources.get(post.source)
+        url_host = urlparse(url).hostname or ""
+        lenient = url_host in getattr(source_obj, "reencoded_hosts", frozenset())
+        temp, md5 = self._download(url, post, ext, lenient=lenient)
+        index_md5 = post.md5 or md5
 
         if post.md5 is None:
             dup = self._dedupe(post.source, post.post_id, md5)
@@ -420,9 +441,22 @@ class StashTarget:
                 self._fail_log("scan", e.code, error=e.message)
                 raise
 
-            image_id = self._client.find_image_by_path(stash_path)
+            kind = "video" if ext in self._VIDEO_EXT else "image"
+            if kind == "video":
+                image_id = self._client.find_scene_by_path(stash_path)
+                if image_id is None:
+                    image_id = self._client.find_image_by_path(stash_path)
+                    if image_id is not None:
+                        kind = "image"
+            else:
+                image_id = self._client.find_image_by_path(stash_path)
+                if image_id is None:
+                    image_id = self._client.find_scene_by_path(stash_path)
+                    if image_id is not None:
+                        kind = "video"
             logger.info(
-                "%sstep=lookup path=%s result=%s", logs.ctx(), stash_path, image_id or "none"
+                "%sstep=lookup path=%s result=%s kind=%s",
+                logs.ctx(), stash_path, image_id or "none", kind,
             )
             if image_id is None:
                 self._lookup_miss(dest, stash_path, md5)
@@ -436,11 +470,17 @@ class StashTarget:
         created: list[str] = []
         try:
             tag_ids, created = self._tag_ids(tags)
-            self._client.image_update(
-                image_id,
-                tag_ids,
-                [post.source_url] if post.source_url else [],
-            )
+            if kind == "video":
+                self._client.update_item(
+                    "scenes", image_id,
+                    {"tag_ids": tag_ids, "urls": [post.source_url] if post.source_url else []},
+                )
+            else:
+                self._client.image_update(
+                    image_id,
+                    tag_ids,
+                    [post.source_url] if post.source_url else [],
+                )
             logger.info(
                 "%sstep=tags applied=%d created=%s imageUpdate=ok",
                 logs.ctx(),
@@ -459,14 +499,15 @@ class StashTarget:
                 )
             )
 
-        self._record(post, md5, image_id)
+        self._record(post, index_md5, image_id, kind)
         logger.info(
-            "%sstep=record source=%s post=%s md5=%s image=%s",
+            "%sstep=record source=%s post=%s md5=%s image=%s kind=%s",
             logs.ctx(),
             post.source,
             post.post_id,
-            md5,
+            index_md5,
             image_id,
+            kind,
         )
 
         return SaveResult(
@@ -529,7 +570,7 @@ class StashTarget:
             "%sstep=lookup code=image_not_found path=%s md5=%s", logs.ctx(), stash_path, md5
         )
 
-    def drop_if_gone(self, image_id: str) -> bool:
+    def drop_if_gone(self, image_id: str, kind: str = "image") -> bool:
         """Drop the index rows of *image_id* when Stash no longer has that image.
 
         One lookup per dedupe hit. A Stash error or a row without an image id
@@ -538,7 +579,12 @@ class StashTarget:
         if not image_id:
             return False
         try:
-            if self._client.get_image(image_id) is not None:
+            entity = (
+                self._client.get_scene(image_id)
+                if kind == "video"
+                else self._client.get_image(image_id)
+            )
+            if entity is not None:
                 return False
         except Exception as e:
             logger.warning(
@@ -566,31 +612,33 @@ class StashTarget:
         md5 = md5.lower() if md5 else md5
         conn = connect(self._settings.db_path)
         try:
-            hits: list[tuple[str, str]] = []
+            hits: list[tuple[str, str, str]] = []
             cur = conn.execute(
-                "SELECT image_id FROM saved_items "
+                "SELECT image_id, kind FROM saved_items "
                 "WHERE source = ? AND post_id = ?",
                 (source, post_id),
             )
             row = cur.fetchone()
             if row is not None:
-                hits.append((row["image_id"] or "", "saved_items by post"))
+                hits.append((row["image_id"] or "", row["kind"] or "image", "saved_items by post"))
             if md5:
                 cur = conn.execute(
-                    "SELECT image_id FROM saved_items WHERE md5 = ? LIMIT 1",
+                    "SELECT image_id, kind FROM saved_items WHERE md5 = ? LIMIT 1",
                     (md5,),
                 )
                 row = cur.fetchone()
                 if row is not None:
-                    hits.append((row["image_id"] or "", "saved_items by md5"))
+                    hits.append(
+                        (row["image_id"] or "", row["kind"] or "image", "saved_items by md5")
+                    )
         finally:
             conn.close()
 
         gone: set[str] = set()
-        for image_id, via in hits:
+        for image_id, kind, via in hits:
             if image_id in gone:
                 continue
-            if self.drop_if_gone(image_id):
+            if self.drop_if_gone(image_id, kind):
                 gone.add(image_id)
                 continue
             return (image_id, via)
@@ -602,20 +650,20 @@ class StashTarget:
                 return (img, "Stash checksum")
         return None
 
-    def _record(self, post: Post, md5: str, image_id: str) -> None:
-        self._insert(post.source, post.post_id, md5, image_id)
+    def _record(self, post: Post, md5: str, image_id: str, kind: str = "image") -> None:
+        self._insert(post.source, post.post_id, md5, image_id, kind)
 
     def _insert(
-        self, source: str, post_id: str, md5: str | None, image_id: str
+        self, source: str, post_id: str, md5: str | None, image_id: str, kind: str = "image"
     ) -> None:
         md5 = md5.lower() if md5 else md5
         conn = connect(self._settings.db_path)
         try:
             conn.execute(
                 "INSERT OR IGNORE INTO saved_items "
-                "(source, post_id, md5, target, image_id) "
-                "VALUES (?, ?, ?, 'stash', ?)",
-                (source, post_id, md5, image_id),
+                "(source, post_id, md5, target, image_id, kind) "
+                "VALUES (?, ?, ?, 'stash', ?, ?)",
+                (source, post_id, md5, image_id, kind),
             )
             conn.commit()
         finally:
