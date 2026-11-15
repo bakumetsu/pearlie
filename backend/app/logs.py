@@ -68,12 +68,28 @@ def register_secrets(values: Iterable[str | None]) -> None:
         register_secret(v)
 
 
+_short_warned: set[str] = set()
+
+
+def _warn_short(name: str) -> None:
+    with _secrets_lock:
+        if name in _short_warned:
+            return
+        _short_warned.add(name)
+    logging.getLogger("pearlie.logs").warning(
+        "secret setting %s is shorter than %d chars and is not scrubbed from logs",
+        name,
+        MIN_SECRET_LEN,
+    )
+
+
 def clear_secrets() -> None:
     """Forget the registry (tests only)."""
     global _secrets_sorted
     with _secrets_lock:
         _secrets.clear()
         _secrets_sorted = ()
+        _short_warned.clear()
 
 
 def register_settings_secrets(settings: object) -> None:
@@ -91,6 +107,8 @@ def register_settings_secrets(settings: object) -> None:
         text = getter() if getter is not None else val
         if not isinstance(text, str) or not text:
             continue
+        if len(text) < MIN_SECRET_LEN:
+            _warn_short(name)
         register_secret(text)
         if name == "nhentai_cookies":
             for part in text.split(";"):
@@ -103,7 +121,12 @@ def register_stored_connections(store: object) -> None:
 
     for name in NAMES:
         try:
-            register_connection_secrets(store.field_values(name))  # type: ignore[attr-defined]
+            values = store.field_values(name)  # type: ignore[attr-defined]
+            for fid, v in values.items():
+                skip = fid in ("user_agent", "cookie")
+                if not skip and isinstance(v, str) and v and len(v) < MIN_SECRET_LEN:
+                    _warn_short(f"{name}.{fid}")
+            register_connection_secrets(values)
         except Exception:
             pass
 
