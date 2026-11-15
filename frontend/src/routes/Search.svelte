@@ -205,11 +205,6 @@
         <ChipField bind:pending chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch}>
           {#snippet trailing()}
             <span class="tail">
-              {#if dirty}
-                <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
-                  <Icon name="search" size={20} />
-                </button>
-              {/if}
               <button
                 class="fib"
                 bind:this={fibEl}
@@ -222,6 +217,13 @@
                 <Icon name="sliders" size={20} />
                 {#if chips.length}<b>{chips.length}</b>{/if}
               </button>
+              <span class="search-slot">
+                {#if dirty}
+                  <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
+                    <Icon name="search" size={20} />
+                  </button>
+                {/if}
+              </span>
             </span>
           {/snippet}
         </ChipField>
@@ -468,6 +470,13 @@
 
   .page.phone .content {
     padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Reserved slot: Filters keeps its place when the button appears. */
+  .search-slot {
+    flex: none;
+    width: 44px;
+    height: 44px;
   }
 
   .search-btn {

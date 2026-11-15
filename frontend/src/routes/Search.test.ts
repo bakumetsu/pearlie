@@ -72,6 +72,12 @@ describe("Search chips do not auto-run", () => {
     expect(screen.getByRole("button", { name: "Search" })).toBeTruthy();
     // The button sits inside the field, so the field keeps its width.
     expect(screen.getByRole("button", { name: "Search" }).closest(".field")).not.toBeNull();
+    // Search comes after Filters; Filters stays in place because the slot is always there.
+    const search = screen.getByRole("button", { name: "Search" });
+    const filters = screen.getByRole("button", { name: /^Filters/ });
+    expect(filters.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(search.closest(".search-slot")).not.toBeNull();
+    expect(filters.nextElementSibling).toBe(search.closest(".search-slot"));
 
     await fireEvent.click(screen.getByRole("button", { name: "Remove dog" }));
     await settle();
