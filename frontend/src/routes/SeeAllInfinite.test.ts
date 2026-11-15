@@ -201,8 +201,8 @@ describe("SeeAll infinite scroll", () => {
 
     container.querySelector<HTMLButtonElement>("button.open")!.click();
     await vi.waitFor(() => expect(location.pathname).toMatch(/^\/web\/nhentai\//));
-    history.pushState({}, "", seeAll);
-    window.dispatchEvent(new PopStateEvent("popstate"));
+    history.back();
+    await vi.waitFor(() => expect(location.pathname + location.search).toBe(seeAll));
     await vi.waitFor(() => expect(container.querySelectorAll(".tile.web").length).toBe(6));
     await new Promise((r) => setTimeout(r, 50));
     expect(searched).toEqual([1, 2, 3]);
