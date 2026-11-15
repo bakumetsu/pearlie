@@ -179,6 +179,27 @@ class JobStore:
         finally:
             conn.close()
 
+    def import_saved(self, source: str, rows: list[tuple[str, str, str]]) -> int:
+        """Index Stash images saved earlier: rows are (post id, MD5, image id).
+
+        Existing rows stay as they are, so a rerun adds nothing. Returns the new row count.
+        """
+        conn = connect(self._path)
+        try:
+            added = 0
+            for post_id, md5, image_id in rows:
+                cur = conn.execute(
+                    "INSERT OR IGNORE INTO saved_items "
+                    "(source, post_id, md5, target, image_id, kind, imported) "
+                    "VALUES (?, ?, ?, 'stash', ?, 'image', 1)",
+                    (source, post_id, md5.lower(), image_id),
+                )
+                added += cur.rowcount
+            conn.commit()
+            return added
+        finally:
+            conn.close()
+
     def active_job_id(self, source: str, post_id: str) -> str | None:
         conn = connect(self._path)
         try:

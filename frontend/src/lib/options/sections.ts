@@ -162,6 +162,12 @@ export const SECTIONS: Section[] = [
           { label: 'Health', hint: 'Stash, Komga, database, mounts, sites' },
         ],
       },
+      {
+        title: 'Import older saves',
+        rows: [
+          { label: 'Scan rule34 folder', hint: 'mark older Stash images as in library' },
+        ],
+      },
     ],
   },
   {

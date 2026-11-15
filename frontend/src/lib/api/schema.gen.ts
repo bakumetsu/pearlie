@@ -845,6 +845,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/library/scan-rule34": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Scan Rule34 */
+        post: operations["scan_rule34_api_library_scan_rule34_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/view-settings": {
         parameters: {
             query?: never;
@@ -2051,6 +2068,15 @@ export interface components {
             kind: "image" | "video" | "series" | "book";
             /** Id */
             id: string;
+        };
+        /** ScanResult */
+        ScanResult: {
+            /** Found */
+            found: number;
+            /** Imported */
+            imported: number;
+            /** Skipped */
+            skipped: number;
         };
         /** ScenarioBody */
         ScenarioBody: {
@@ -4085,6 +4111,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scan_rule34_api_library_scan_rule34_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanResult"];
                 };
             };
         };
