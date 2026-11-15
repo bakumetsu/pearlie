@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.api.errors import ApiError
 from app.api.image_slots import Busy, Gone, Slot, SlotBody, parse_prio, scheduler
+from app.api.media_owned import try_library
 from app.api.relay import CHUNK_SIZE, relay
 from app.db import connect
 from app.filters.rules import evaluate, load_rules
@@ -168,6 +169,9 @@ async def web_media(request: Request, source: str, post_id: str, kind: str) -> R
         raise ApiError(404, "not_found", "Media not found")
     if kind == "thumb":
         return await _thumb(request, src, post_id)
+    owned = await run_in_threadpool(try_library, request, src, post_id, kind)
+    if owned is not None:
+        return owned  # served from the library: no site call, no limiter slot
     prio = parse_prio(request.query_params.get("prio"), "focus")
 
     async def gone() -> bool:
