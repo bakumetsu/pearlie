@@ -217,6 +217,51 @@ def test_preview_and_full_apply_rules_to_cold_post(tmp_path):
     assert [q for q in seen if q.url.host == "cdn.donmai.us"] == []
 
 
+def test_cold_authorize_runs_before_the_image_slot_is_taken(tmp_path):
+    from app.api.image_slots import scheduler
+
+    app = _app(tmp_path, _handler([]))
+    src = app.state.sources["danbooru"]
+    in_flight: list[int] = []
+    orig = src.get_post
+
+    def spy(post_id):
+        in_flight.append(scheduler(app).limiter("danbooru", "i").in_flight)
+        return orig(post_id)
+
+    src.get_post = spy
+    r = TestClient(app).get("/api/media/web/danbooru/7/preview")
+    assert r.status_code == 200
+    assert in_flight == [0]  # the throttle wait inside get_post held no slot
+
+
+def test_response_never_iterated_still_frees_upstream_and_slot(tmp_path):
+    import asyncio
+
+    from starlette.requests import Request
+
+    from app.api import media_web_real as mw
+    from app.api.image_slots import scheduler
+
+    app = _app(tmp_path, _handler([]))
+    src = app.state.sources["danbooru"]
+    limiter = scheduler(app).limiter("danbooru", "i")
+
+    async def go():
+        async def never():
+            return False
+
+        slot = await limiter.acquire("focus", never)
+        request = Request({"type": "http", "headers": [], "query_string": b"", "app": app})
+        resp = mw._stream_media(request, src, "https://cdn.donmai.us/original/7.jpg", slot)
+        assert limiter.in_flight == 1
+        assert resp.background is not None  # runs even when the body generator never starts
+        await resp.background()
+        assert limiter.in_flight == 0
+
+    asyncio.run(go())
+
+
 def test_rules_version_is_read_once_per_ttl_and_refreshed_on_save(tmp_path, monkeypatch):
     from app.api import media_web_real as mw
     from app.filters.rules import RuleSet, load_rules, save_rules
