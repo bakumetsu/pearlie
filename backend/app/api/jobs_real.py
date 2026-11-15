@@ -58,7 +58,6 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
         kind = store.saved_kind(body.source, body.post_id)
         if request.app.state.stash_target.drop_if_gone(image_id, kind):
             image_id = store.saved_image_id(body.source, body.post_id)
-            kind = store.saved_kind(body.source, body.post_id)
     elif image_id == "" and src.target == "komga":
         # Same for Komga: one search, drop the row if the book was deleted there.
         komga_target = getattr(request.app.state, "komga_target", None)

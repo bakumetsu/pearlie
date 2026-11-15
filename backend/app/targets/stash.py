@@ -192,6 +192,7 @@ class StashTarget:
 
         started = self._clock()
         status: int | None = None
+        ctype = ""
         try:
             with self._http.stream("GET", url, follow_redirects=False) as response:
                 status = response.status_code
@@ -204,12 +205,11 @@ class StashTarget:
                         f"download returned {response.status_code}",
                         502,
                     )
+                ctype = response.headers.get("content-type", "").split(";")[0].strip().lower()
                 if not post.md5:
-                    ctype = response.headers.get("content-type", "").split(";")[0].strip().lower()
                     if ctype.startswith("text/") or ctype in _NON_MEDIA_TYPES:
                         self._fail_log("download", "bad_content", url, detail=f"type={ctype}")
                         raise SaveError("bad_content", "download is not a media file", 502)
-                ctype_full = response.headers.get("content-type", "").split(";")[0].strip().lower()
                 content_length = response.headers.get("content-length")
                 if response.headers.get("content-encoding", "identity").lower() != "identity":
                     # Content-Length counts the encoded bytes; we write the decoded ones.
@@ -247,7 +247,7 @@ class StashTarget:
             if (
                 lenient
                 and ext in self._VIDEO_EXT
-                and ctype_full.startswith("video/")
+                and ctype.startswith("video/")
                 and bytes_written > 0
                 and (content_length is None or int(content_length) == bytes_written)
             ):
