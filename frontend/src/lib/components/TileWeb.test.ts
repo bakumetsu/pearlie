@@ -60,3 +60,25 @@ describe("Search rows", () => {
     expect(searchSrc).toContain('wide={id === "stash_videos"}');
   });
 });
+
+describe("Tile grid cost", () => {
+  it("web grid tile is content-visibility sized by its aspect and decodes async", () => {
+    const { container } = render(Tile, { item: web(), variant: "grid" });
+    const root = container.querySelector<HTMLElement>(".tile")!;
+    expect(root.classList.contains("cv")).toBe(true);
+    expect(root.style.aspectRatio).toBe("800 / 400");
+    expect(container.querySelector("img")!.getAttribute("decoding")).toBe("async");
+  });
+
+  it("list tile is not content-visibility", () => {
+    const { container } = render(Tile, { item: web(), variant: "list" });
+    expect(container.querySelector(".tile")!.classList.contains("cv")).toBe(false);
+  });
+
+  it("library image tile decodes async", () => {
+    const item = { kind: "image", id: "1", title: "T", thumb_url: "/t.jpg", added_at: "2025-01-01T00:00:00Z", favorite: false };
+    const { container } = render(Tile, { item: item as never, href: "/x" });
+    expect(container.querySelector("img")!.getAttribute("decoding")).toBe("async");
+    expect(container.querySelector(".tile")!.classList.contains("cv")).toBe(true);
+  });
+});

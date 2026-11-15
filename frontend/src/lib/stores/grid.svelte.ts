@@ -1,3 +1,5 @@
+import { SvelteSet } from "svelte/reactivity";
+
 export type PageResult<T> = {
   items: T[];
   total: number | null;
@@ -46,6 +48,13 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
   let controller: AbortController | null = null;
   let currentLoader: Loader<T> | null = null;
   let accumulate = false;
+  // Keys of state.items, kept in step with it so loadMore never rescans the list.
+  const seenKeys = new SvelteSet<string>();
+
+  function resync() {
+    seenKeys.clear();
+    for (const t of state.items) seenKeys.add(keyOf(t));
+  }
 
   function abortInFlight() {
     if (controller) {
@@ -59,6 +68,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     abortInFlight();
     currentLoader = null;
     state.items = [];
+    seenKeys.clear();
     state.total = null;
     state.page = 1;
     state.lastPage = 1;
@@ -92,6 +102,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
       const result = await loader(page, abortController.signal);
       if (token !== requestToken) return;
       state.items = result.items;
+      resync();
       state.total = result.total;
       state.page = result.page ?? page;
       state.lastPage = state.page;
@@ -120,6 +131,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     currentLoader = loader;
     state.listKey = listKey;
     state.items = [];
+    seenKeys.clear();
     state.page = page;
     state.lastPage = page;
     state.total = null;
@@ -148,9 +160,14 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     try {
       const result = await loader(next, abortController.signal);
       if (token !== requestToken) return;
-      const seen: Record<string, true> = {};
-      for (const t of state.items) seen[keyOf(t)] = true;
-      state.items = [...state.items, ...result.items.filter((t) => !seen[keyOf(t)])];
+      const fresh: T[] = [];
+      for (const t of result.items) {
+        const k = keyOf(t);
+        if (seenKeys.has(k)) continue;
+        seenKeys.add(k);
+        fresh.push(t);
+      }
+      if (fresh.length) state.items.push(...fresh);
       state.total = result.total;
       state.lastPage = result.page ?? next;
       state.pages = result.pages ?? state.pages;
@@ -179,6 +196,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     requestToken++;
     abortInFlight();
     state.items = [];
+    seenKeys.clear();
     await fetchPage(p);
   }
 
@@ -228,6 +246,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     if (index < 0 || index >= state.items.length) return undefined;
     const removed = state.items[index];
     state.items = state.items.filter((_, i) => i !== index);
+    seenKeys.delete(keyOf(removed));
     if (typeof state.total === "number") {
       state.total--;
       if (state.pages !== null && typeof state.perPage === "number" && state.perPage > 0) {
@@ -238,7 +257,8 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
   }
 
   function insertAt(item: T, index: number) {
-    if (state.items.some((existing) => keyOf(existing) === keyOf(item))) return;
+    if (seenKeys.has(keyOf(item))) return;
+    seenKeys.add(keyOf(item));
     const clamped = Math.max(0, Math.min(index, state.items.length));
     state.items = [...state.items.slice(0, clamped), item, ...state.items.slice(clamped)];
     if (typeof state.total === "number") {
@@ -280,6 +300,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
 
   function restoreSnapshot(snap: GridSnapshot<T>) {
     state.items = [...snap.items];
+    resync();
     state.page = snap.page;
     state.lastPage = snap.page;
     state.requested = snap.page;

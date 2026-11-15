@@ -81,3 +81,28 @@ describe("grid infinite", () => {
     expect(grid.page).toBe(1);
   });
 });
+
+describe("grid append cost", () => {
+  it("loadMore appends in place and keeps dedupe after removals", async () => {
+    const loader = vi.fn(async (p: number) => mk(p, p === 2 ? [{ id: "p1" }, { id: "p2" }] : [{ id: `p${p}` }]));
+    const grid = g();
+    await grid.open("k", loader);
+    const before = grid.items;
+    await grid.loadMore();
+    expect(grid.items).toBe(before);
+    expect(grid.items.map((i) => i.id)).toEqual(["p1", "p2"]);
+    grid.removeById("p1");
+    grid.restore({ item: { id: "p1" }, index: 0 });
+    await grid.loadMore();
+    expect(grid.items.map((i) => i.id)).toEqual(["p1", "p2", "p3"]);
+  });
+
+  it("a removed id can come back on a later page", async () => {
+    const loader = vi.fn(async (p: number) => mk(p, p === 2 ? [{ id: "p1" }] : [{ id: `p${p}` }]));
+    const grid = g();
+    await grid.open("k", loader);
+    grid.removeById("p1");
+    await grid.loadMore();
+    expect(grid.items.map((i) => i.id)).toEqual(["p1"]);
+  });
+});
