@@ -316,9 +316,9 @@ class StashClient:
         timeout: float | None = None,
     ) -> httpx.Response:
         """Open a streamed media response from Stash. Caller must close it."""
-        extra = {} if timeout is None else {"timeout": timeout}
+        limit = httpx.USE_CLIENT_DEFAULT if timeout is None else timeout
         request = self._client.build_request(
-            "GET", path, params=params, headers=headers, **extra
+            "GET", path, params=params, headers=headers, timeout=limit
         )
         origin = request.url
         hops = 0
@@ -344,7 +344,9 @@ class StashClient:
                 # Never send the ApiKey to another host.
                 raise StashError("upstream_error", "Stash redirect not followed")
             hops += 1
-            request = self._client.build_request("GET", target, headers=headers, **extra)
+            request = self._client.build_request(
+                "GET", target, headers=headers, timeout=limit
+            )
 
         status = response.status_code
         if status == 404:
