@@ -20,6 +20,33 @@
     { name: "options", label: "Options", icon: "wrench", path: "/options" },
   ] as const;
 
+  let dragging = $state(false);
+
+  function startDrag(e: PointerEvent): void {
+    if (!rail || e.button !== 0) return;
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragging = true;
+  }
+
+  function moveDrag(e: PointerEvent): void {
+    if (dragging) rail?.setWidth(e.clientX);
+  }
+
+  function endDrag(): void {
+    dragging = false;
+  }
+
+  function keyResize(e: KeyboardEvent): void {
+    if (!rail) return;
+    const step = e.shiftKey ? 32 : 8;
+    if (e.key === "ArrowLeft") rail.setWidth(rail.width - step);
+    else if (e.key === "ArrowRight") rail.setWidth(rail.width + step);
+    else if (e.key === "Enter" || e.key === "Home") rail.resetWidth();
+    else return;
+    e.preventDefault();
+  }
+
   function isActive(name: string): boolean {
     if (name === "library") {
       return current === "library" || current.startsWith("library_");
@@ -28,7 +55,7 @@
   }
 </script>
 
-<nav class="nav {variant}" aria-label="Main">
+<nav class="nav {variant}" class:dragging aria-label="Main">
   {#each items as item (item.name)}
     <a
       href={item.path}
@@ -53,6 +80,23 @@
     >
       <Icon name="chevrons-left" size={20} />
     </button>
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+    <div
+      class="rail-resize"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize navigation (double-click to reset)"
+      aria-valuemin={72}
+      aria-valuemax={240}
+      aria-valuenow={rail.width}
+      tabindex="0"
+      onpointerdown={startDrag}
+      onpointermove={moveDrag}
+      onpointerup={endDrag}
+      onpointercancel={endDrag}
+      ondblclick={() => rail?.resetWidth()}
+      onkeydown={keyResize}
+    ></div>
   {/if}
 </nav>
 {#if variant === "rail" && rail?.collapsed}

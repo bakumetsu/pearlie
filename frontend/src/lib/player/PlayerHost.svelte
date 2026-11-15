@@ -72,7 +72,7 @@
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const rect = $derived(rectFor(player.mode, player.slot, vp, rail?.collapsed ? 0 : RAIL_W));
+  const rect = $derived(rectFor(player.mode, player.slot, vp, rail ? rail.px : RAIL_W));
 
   // Mini dock is z-index 21 with an opaque background, so the mini video must sit above it.
   const videoStyle = $derived(

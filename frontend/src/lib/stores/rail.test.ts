@@ -57,4 +57,52 @@ describe("createRail", () => {
     expect(rail.collapsed).toBe(true);
     expect(root.dataset.rail).toBe("hidden");
   });
+
+  it("setWidth clamps to 72-240, saves and sets --rail-w", () => {
+    const root = document.createElement("div");
+    const storage = memoryStorage();
+    const rail = createRail(root, storage);
+    rail.setWidth(150);
+    expect(rail.width).toBe(150);
+    expect(rail.px).toBe(150);
+    expect(root.style.getPropertyValue("--rail-w")).toBe("150px");
+    expect(storage.data["pearlie.rail.width"]).toBe("150");
+    rail.setWidth(900);
+    expect(rail.width).toBe(240);
+    rail.setWidth(10);
+    expect(rail.width).toBe(72);
+    expect(root.style.getPropertyValue("--rail-w")).toBe("");
+  });
+
+  it("resetWidth returns to 72", () => {
+    const root = document.createElement("div");
+    const storage = memoryStorage();
+    const rail = createRail(root, storage);
+    rail.setWidth(200);
+    rail.resetWidth();
+    expect(rail.width).toBe(72);
+    expect(root.style.getPropertyValue("--rail-w")).toBe("");
+    expect(storage.data["pearlie.rail.width"]).toBe("72");
+  });
+
+  it("restores the saved width and ignores bad values", () => {
+    const root = document.createElement("div");
+    const rail = createRail(root, memoryStorage({ "pearlie.rail.width": "180" }));
+    expect(rail.width).toBe(180);
+    expect(root.style.getPropertyValue("--rail-w")).toBe("180px");
+    const bad = createRail(document.createElement("div"), memoryStorage({ "pearlie.rail.width": "abc" }));
+    expect(bad.width).toBe(72);
+  });
+
+  it("collapsed rail uses 0 px and keeps the width choice", () => {
+    const root = document.createElement("div");
+    const rail = createRail(root, memoryStorage({ "pearlie.rail.width": "160" }));
+    rail.toggle();
+    expect(rail.px).toBe(0);
+    expect(rail.width).toBe(160);
+    expect(root.style.getPropertyValue("--rail-w")).toBe("");
+    rail.toggle();
+    expect(rail.px).toBe(160);
+    expect(root.style.getPropertyValue("--rail-w")).toBe("160px");
+  });
 });
