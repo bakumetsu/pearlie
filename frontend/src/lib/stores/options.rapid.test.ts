@@ -26,6 +26,7 @@ function makeOptions(overrides: Partial<Options> = {}): Options {
     komga_scan_wait_s: 10,
     infinite_scroll: false,
     site_names: true,
+    tapped_first: false,
     place_mode: "suggest",
     hidden_sites: [],
     site_order: [],
