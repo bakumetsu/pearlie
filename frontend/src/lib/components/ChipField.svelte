@@ -10,6 +10,7 @@
     onchange,
     label,
     onsubmit,
+    intercept,
     trailing,
     pending = $bindable(""),
   }: {
@@ -17,6 +18,8 @@
     onchange: (chips: Chip[]) => void;
     label?: string;
     onsubmit?: () => void;
+    /** Called on Enter before the typed text becomes a chip; true means handled. */
+    intercept?: () => boolean;
     trailing?: Snippet;
     pending?: string;
   } = $props();
@@ -53,6 +56,7 @@
     onkeydown={(e) => {
       if ((e.key === "Enter" || e.key === ",") && pending.trim()) {
         e.preventDefault();
+        if (e.key === "Enter" && intercept?.()) return;
         onchange(commitText(chips, pending));
         pending = "";
       } else if (e.key === "Enter" && !pending.trim()) {

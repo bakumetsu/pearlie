@@ -35,6 +35,12 @@ export function parseChip(token: string): Chip | null {
   return { raw, exclude, scope, value };
 }
 
+/** nhentai book id from a lone "177013" or "id:177013" token, else null. */
+export function nhentaiIdOf(text: string): string | null {
+  const m = /^(?:id:)?([1-9]\d*)$/i.exec(text.trim());
+  return m ? m[1] : null;
+}
+
 /** Split text on whitespace and commas, dropping empty tokens. */
 export function splitInput(text: string): string[] {
   return text.split(/[\s,]+/).filter((t) => t !== "");
