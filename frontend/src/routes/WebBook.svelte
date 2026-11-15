@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { getApi } from "../lib/api/client";
+  import { ApiError } from "../lib/api/client";
   import type { WebBook } from "../lib/api/client";
   import { getRouter, findJobs } from "../lib/ctx";
   import { linkClick } from "../lib/router";
@@ -33,11 +34,13 @@
   let status = $state<"loading" | "ready" | "error">("loading");
   let banOpen = $state(false);
   let last = $state<number | null>(null);
+  let errorText = $state("Could not load this book.");
 
   let loadToken = 0;
   async function load() {
     const token = ++loadToken;
     status = "loading";
+    errorText = "Could not load this book.";
     try {
       if (source !== "nhentai") throw new Error("unsupported source");
       const b = await api.webBook(source, id);
@@ -45,8 +48,10 @@
       book = b;
       last = getWebPage(key);
       status = "ready";
-    } catch {
-      if (token === loadToken) status = "error";
+    } catch (e) {
+      if (token !== loadToken) return;
+      if (e instanceof ApiError && e.message) errorText = e.message;
+      status = "error";
     }
   }
   $effect(() => {
@@ -98,7 +103,7 @@
     <p class="note" role="status">Loading…</p>
   {:else if status === "error" || !book || !item}
     <div class="note">
-      <p>Could not load this book.</p>
+      <p>{errorText}</p>
       <button class="btn" type="button" onclick={load}><Icon name="refresh" size={18} /> Retry</button>
     </div>
   {:else}
