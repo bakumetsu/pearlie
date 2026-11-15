@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, cleanup, waitFor, fireEvent } from "@testing-library/svelte";
 import WebBook from "./WebBook.svelte";
-import { API_CONTEXT_KEY } from "../lib/api/client";
+import { API_CONTEXT_KEY, ApiError } from "../lib/api/client";
 import type { Api } from "../lib/api/client";
 import { matchRoute } from "../lib/router";
 
@@ -125,5 +125,14 @@ describe("WebBook", () => {
     await waitFor(() => expect(getByText("This book has no pages.")).toBeTruthy());
     expect(queryByText("Read")).toBeNull();
     expect(container.querySelector(".grid")).toBeNull();
+  });
+
+  it("shows the reason the server gave when the book does not load", async () => {
+    const { api, ctx, match } = setup();
+    (api as unknown as { webBook: unknown }).webBook = vi.fn(async () => {
+      throw new ApiError(404, "hidden_by_rule", "Hidden by your reject rule: pregnant");
+    });
+    const { getByText } = render(WebBook, { props: { match }, context: ctx });
+    await waitFor(() => expect(getByText("Hidden by your reject rule: pregnant")).toBeTruthy());
   });
 });

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
@@ -489,3 +490,46 @@ def test_job_thumb_goes_through_media_proxy(tmp_path: Path) -> None:
     listed = client.get("/api/jobs").json()["items"]
     assert [j["thumb_url"] for j in listed] == ["/api/media/web/danbooru/1/thumb"]
     assert "x/t.jpg" not in client.get("/api/jobs").text
+
+
+def test_book_hidden_by_rule_names_layer_and_tag(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    from app.api.media_web_pages import _load_meta, _nhentai, _Refusal
+    from app.filters.rules import RuleSet
+
+    client, fake = _nhentai_client(tmp_path)
+    fake.posts["7"].tags = {"general": ["pregnant"]}
+
+    class _Req:
+        app = client.app
+
+    req = cast(Any, _Req())
+    rules = RuleSet(version=1, reject=["pregnant"], warn=[], require=[], mapping=[])
+    with (
+        patch("app.api.media_web_pages.load_rules", return_value=rules),
+        caplog.at_level("INFO", logger="pearlie.media_web_pages"),
+        pytest.raises(_Refusal) as exc,
+    ):
+        _load_meta(req, _nhentai(req), "7")
+    assert exc.value.code == "hidden_by_rule"
+    assert exc.value.message == "Hidden by your reject rule: pregnant"
+    assert "layer=reject rule=pregnant tag=pregnant" in caplog.text
+
+
+def test_book_upstream_failure_is_named_and_logged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    from app.api.media_web_pages import _load_meta, _nhentai, _Refusal
+
+    client, _ = _nhentai_client(tmp_path)
+
+    class _Req:
+        app = client.app
+
+    req = cast(Any, _Req())
+    with caplog.at_level("INFO", logger="pearlie.media_web_pages"), pytest.raises(_Refusal) as exc:
+        _load_meta(req, _nhentai(req), "999")  # not in the fake source
+    assert exc.value.status == 404
+    assert exc.value.message == "nhentai: not found"
+    assert "book load failed: gid=999 reason=upstream" in caplog.text

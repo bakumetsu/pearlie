@@ -20,7 +20,7 @@ from app.api.image_slots import Busy, Gone, Limiter, Prio, SlotBody, parse_prio,
 from app.api.media_owned import is_owned, try_book_page
 from app.api.media_web_real import proxy_path
 from app.db import connect
-from app.filters.rules import evaluate, load_rules
+from app.filters.rules import Verdict, evaluate, load_rules
 from app.jobs.store import JobStore
 from app.models import Tag, WebBook, WebItem
 from app.sources.base import Post, SourceError
@@ -49,6 +49,7 @@ class _Meta:
     expires: float
     rules_version: int
     hidden: bool
+    verdict: Verdict | None = None
 
 
 class _Refusal(Exception):
@@ -120,6 +121,7 @@ def _meta_cache(request: Request) -> _MetaCache:
 def _load_meta(request: Request, src: NHentai, gid: str) -> Post:
     """The gallery post (10-min cache, one API call per gallery); hidden by rules is 404."""
     if not gid.isdigit():
+        logger.info("book load failed: gid=%s reason=bad_id", gid)
         raise _Refusal(404, "not_found", "Gallery not found")
     db_path = request.app.state.settings.db_path
     cache = _meta_cache(request)
@@ -132,18 +134,36 @@ def _load_meta(request: Request, src: NHentai, gid: str) -> Post:
                 try:
                     post = src.get_post(gid)
                 except SourceError as e:
+                    logger.info(
+                        "book load failed: gid=%s reason=upstream code=%s status=%s",
+                        gid,
+                        e.code,
+                        e.status,
+                    )
                     if e.code == "not_found":
-                        raise _Refusal(404, "not_found", "Gallery not found") from None
+                        raise _Refusal(404, "not_found", "nhentai: not found") from None
                     if e.code == "rate_limited":
                         raise _Refusal(429, "rate_limited", e.message, 5) from None
-                    raise _Refusal(502, "upstream_error", e.message) from None
+                    raise _Refusal(502, "upstream_error", "nhentai did not answer") from None
                 rules = load_rules(db_path)
                 verdict = evaluate(post.tags, rules)
                 hidden = verdict is not None and verdict.decision != "warn"
-                meta = _Meta(post, time.monotonic() + META_TTL, rules.version, hidden)
+                meta = _Meta(post, time.monotonic() + META_TTL, rules.version, hidden, verdict)
                 cache.put(gid, meta)
     if meta.hidden:
-        raise _Refusal(404, "not_found", "Gallery not found")
+        v = meta.verdict
+        if v is None:
+            raise _Refusal(404, "not_found", "Gallery not found")
+        logger.info(
+            "book load failed: gid=%s reason=hidden layer=%s rule=%s tag=%s",
+            gid,
+            v.layer,
+            v.rule,
+            v.tag,
+        )
+        raise _Refusal(
+            404, "hidden_by_rule", f"Hidden by your {v.layer} rule: {v.tag or v.rule}"
+        )
     return meta.post
 
 
