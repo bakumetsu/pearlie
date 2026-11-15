@@ -88,7 +88,11 @@
 
   $effect(() => {
     if (video === null) return;
-    return watchPip(video as PipVideo, (on) => player.setPip(on));
+    const stop = watchPip(video as PipVideo, (on) => player.setPip(on));
+    return () => {
+      stop();
+      player.setPip(false);
+    };
   });
 
   $effect(() => {

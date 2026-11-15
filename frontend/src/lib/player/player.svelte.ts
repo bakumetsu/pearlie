@@ -65,6 +65,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
       state.duration = 0;
       state.playing = false;
       state.ended = false;
+      state.pip = false;
       state.mode = "hidden";
     } else {
       state.mode = "mini";
@@ -315,6 +316,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
       state.playing = false;
       state.ended = false;
       state.slot = null;
+      state.pip = false;
       state.mode = "hidden";
       state.failed = false;
       state.loop = false;
