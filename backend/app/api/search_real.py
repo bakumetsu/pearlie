@@ -12,6 +12,7 @@ from app.api.library_stash_real import fetch_stash_page
 from app.api.media_web_real import media_kind, pick_url, proxy_path, remember, tile_url
 from app.api.search_filters import parse_order, parse_rating, unsupported_notice
 from app.filters.rules import evaluate, load_rules
+from app.api.media_owned import is_owned
 from app.jobs.store import JobStore
 from app.komga import Komga, KomgaError, book_item
 from app.models import (
@@ -212,6 +213,7 @@ def search(
                 for it in items:
                     if isinstance(it, WebItem):
                         it.saved = saved.get(it.post_id)
+                        it.owned = is_owned(it.saved)
                 remember(request.app, visible, rules.version)
                 if multi:
                     items = items[:18]

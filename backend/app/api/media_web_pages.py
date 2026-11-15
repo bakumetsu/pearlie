@@ -20,6 +20,7 @@ from app.api.image_slots import Busy, Gone, Limiter, Prio, SlotBody, parse_prio,
 from app.api.media_web_real import proxy_path
 from app.db import connect
 from app.filters.rules import evaluate, load_rules
+from app.api.media_owned import is_owned
 from app.jobs.store import JobStore
 from app.models import Tag, WebBook, WebItem
 from app.sources.base import Post, SourceError
@@ -346,6 +347,7 @@ async def book(request: Request, gid: str) -> Response:
     data.item.saved = JobStore(request.app.state.settings.db_path).saved_refs(
         "nhentai", [post.post_id]
     ).get(post.post_id)
+    data.item.owned = is_owned(data.item.saved)
     return JSONResponse(data.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
 
 

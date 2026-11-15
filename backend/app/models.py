@@ -138,6 +138,7 @@ class WebItem(BaseModel):
     target: Target
     saveable: bool = True  # false while the source's target has no save path (no Save button)
     saved: SavedRef | None = None
+    owned: bool = False  # saved to Stash: the viewer shows the library icon
     blur: Blur | None = None
 
 

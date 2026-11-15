@@ -2385,6 +2385,11 @@ export interface components {
              */
             saveable: boolean;
             saved?: components["schemas"]["SavedRef"] | null;
+            /**
+             * Owned
+             * @default false
+             */
+            owned: boolean;
             blur?: components["schemas"]["Blur"] | null;
         };
     };
