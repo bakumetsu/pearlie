@@ -272,3 +272,43 @@ def test_saved_refs_video_kind(tmp_path: Path) -> None:
     assert store.saved_kind("danbooru", "31") == "image"
     md5_got = store.saved_refs("danbooru", ["99"], {"99": "a" * 32})
     assert md5_got["99"].kind == "video"
+
+
+def test_list_pages_with_limit_and_offset(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    for i in range(5):
+        store.enqueue(post(str(i)), "stash", "t", "u")
+    assert [j.id for j in store.list(limit=2)] == ["5", "4"]
+    assert [j.id for j in store.list(limit=2, offset=2)] == ["3", "2"]
+    assert len(store.list()) == 5
+
+
+def test_jobs_status_index_exists(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    conn = connect(tmp_path / "p.db")
+    try:
+        names = {r[1] for r in conn.execute("PRAGMA index_list(jobs)")}
+    finally:
+        conn.close()
+    assert "idx_jobs_status_id" in names
+    del store
+
+
+def test_purge_finished_drops_only_old_terminal_jobs(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    for i in range(4):
+        store.enqueue(post(str(i)), "stash", "t", "u")
+    conn = connect(tmp_path / "p.db")
+    try:
+        conn.execute(
+            "UPDATE jobs SET status='done', finished_at=datetime('now','-40 days') WHERE id=1"
+        )
+        conn.execute("UPDATE jobs SET status='done', finished_at=datetime('now') WHERE id=2")
+        conn.execute(
+            "UPDATE jobs SET status='failed', finished_at=datetime('now','-40 days') WHERE id=3"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    assert store.purge_finished(30) == 1
+    assert sorted(j.id for j in store.list()) == ["2", "3", "4"]

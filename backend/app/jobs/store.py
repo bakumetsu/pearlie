@@ -228,18 +228,39 @@ class JobStore:
         finally:
             conn.close()
 
-    def list(self, states: set[str] | None = None) -> list[Job]:
+    def list(
+        self,
+        states: set[str] | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[Job]:
+        """Newest first; `limit` and `offset` page the result (default: all)."""
+        sql = "SELECT * FROM jobs"
+        args: list[object] = []
+        if states is not None:
+            sql += f" WHERE status IN ({','.join('?' for _ in states)})"
+            args.extend(states)
+        sql += " ORDER BY id DESC"
+        if limit is not None:
+            sql += " LIMIT ? OFFSET ?"
+            args.extend((limit, max(0, offset)))
         conn = connect(self._path)
         try:
-            if states is not None:
-                placeholders = ",".join("?" for _ in states)
-                rows = conn.execute(
-                    f"SELECT * FROM jobs WHERE status IN ({placeholders}) ORDER BY id DESC",
-                    tuple(states),
-                ).fetchall()
-            else:
-                rows = conn.execute("SELECT * FROM jobs ORDER BY id DESC").fetchall()
-            return [_to_job(r) for r in rows]
+            return [_to_job(r) for r in conn.execute(sql, tuple(args)).fetchall()]
+        finally:
+            conn.close()
+
+    def purge_finished(self, older_than_days: int) -> int:
+        """Delete done/skipped jobs finished more than `older_than_days` ago."""
+        conn = connect(self._path)
+        try:
+            cur = conn.execute(
+                "DELETE FROM jobs WHERE status IN ('done', 'skipped') "
+                "AND finished_at IS NOT NULL AND finished_at < datetime('now', ?)",
+                (f"-{int(older_than_days)} days",),
+            )
+            conn.commit()
+            return cur.rowcount
         finally:
             conn.close()
 

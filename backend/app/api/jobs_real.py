@@ -136,11 +136,16 @@ def save_placement(
 
 
 @router.get("/jobs")
-def list_jobs(request: Request, state: str | None = Query(None)) -> JobList:
-    """List jobs, optionally filtered by state CSV."""
+def list_jobs(
+    request: Request,
+    state: str | None = Query(None),
+    limit: int | None = Query(None, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> JobList:
+    """List jobs, optionally filtered by state CSV and paged by limit/offset."""
     store = _store(request)
     if state is None:
-        return JobList(items=store.list(None))
+        return JobList(items=store.list(None, limit, offset))
     states: set[str] = set()
     for s in state.split(","):
         s = s.strip()
@@ -149,7 +154,7 @@ def list_jobs(request: Request, state: str | None = Query(None)) -> JobList:
         if s not in _VALID_STATES:
             raise ApiError(422, "invalid", f"Unknown state {s}", field="state")
         states.add(s)
-    return JobList(items=store.list(states or None))
+    return JobList(items=store.list(states or None, limit, offset))
 
 
 @router.get("/jobs/{id}")
