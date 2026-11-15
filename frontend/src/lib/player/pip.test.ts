@@ -5,6 +5,7 @@ import {
   enterPip,
   exitPip,
   setMediaSession,
+  watchPip,
   type PipVideo,
   type SessionHandlers,
 } from "./pip";
@@ -192,5 +193,46 @@ describe("setMediaSession", () => {
     expect(() => setMediaSession(nav, { title: "Song", poster: "cover.png" }, h)).not.toThrow();
     expect(setHandler).toHaveBeenCalledWith("play", h.play);
     expect(setHandler).toHaveBeenCalledWith("pause", h.pause);
+  });
+});
+
+describe("setMediaSession track handlers", () => {
+  function setup() {
+    const setHandler = vi.fn();
+    const nav = { mediaSession: { metadata: null, setActionHandler: setHandler } } as unknown as Navigator;
+    vi.stubGlobal("MediaMetadata", class { constructor(public init: unknown) {} });
+    return { setHandler, nav };
+  }
+
+  it("registers previoustrack and nexttrack when given", () => {
+    const { setHandler, nav } = setup();
+    const h: SessionHandlers = { play: vi.fn(), pause: vi.fn(), prev: vi.fn(), next: vi.fn() };
+    setMediaSession(nav, { title: "t", poster: "p" }, h);
+    expect(setHandler).toHaveBeenCalledWith("previoustrack", h.prev);
+    expect(setHandler).toHaveBeenCalledWith("nexttrack", h.next);
+  });
+
+  it("clears a track handler that is null, and both when meta is null", () => {
+    const { setHandler, nav } = setup();
+    setMediaSession(nav, { title: "t", poster: "p" }, { play: vi.fn(), pause: vi.fn(), prev: null, next: vi.fn() });
+    expect(setHandler).toHaveBeenCalledWith("previoustrack", null);
+    setHandler.mockClear();
+    setMediaSession(nav, null, { play: vi.fn(), pause: vi.fn() });
+    expect(setHandler).toHaveBeenCalledWith("previoustrack", null);
+    expect(setHandler).toHaveBeenCalledWith("nexttrack", null);
+  });
+});
+
+describe("watchPip", () => {
+  it("reports enter and leave, and stops after cleanup", () => {
+    const v = document.createElement("video") as PipVideo;
+    const on = vi.fn();
+    const stop = watchPip(v, on);
+    v.dispatchEvent(new Event("enterpictureinpicture"));
+    v.dispatchEvent(new Event("leavepictureinpicture"));
+    expect(on.mock.calls).toEqual([[true], [false]]);
+    stop();
+    v.dispatchEvent(new Event("enterpictureinpicture"));
+    expect(on).toHaveBeenCalledTimes(2);
   });
 });
