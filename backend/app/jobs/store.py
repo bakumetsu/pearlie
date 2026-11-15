@@ -55,7 +55,10 @@ def _to_job(row: sqlite3.Row) -> Job:
         "source": row["source"],
         "post_id": row["post_id"],
         "title": row["title"],
-        "thumb_url": row["thumb_url"],
+        # The stored value is a site CDN URL; the browser only gets the media proxy path.
+        "thumb_url": (
+            f"/api/media/web/{row['source']}/{row['post_id']}/thumb" if row["thumb_url"] else ""
+        ),
         "target": row["target"],
         "state": row["status"],
         "progress": _progress(row),

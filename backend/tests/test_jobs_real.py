@@ -478,3 +478,14 @@ def test_placement_endpoint_unknown_post(tmp_path: Path) -> None:
     client.app.state.komga_target = _FakeKomgaTarget()  # type: ignore[attr-defined]
     resp = client.get("/api/save/placement", params={"source": "danbooru", "post_id": "99"})
     assert resp.status_code == 404
+
+
+def test_job_thumb_goes_through_media_proxy(tmp_path: Path) -> None:
+    """A queue row never carries a site CDN URL, only the media proxy path."""
+    client, _, _ = make_client(tmp_path)
+    job_id = client.post("/api/save", json={"source": "danbooru", "post_id": "1"}).json()["job_id"]
+    one = client.get(f"/api/jobs/{job_id}").json()
+    assert one["thumb_url"] == "/api/media/web/danbooru/1/thumb"
+    listed = client.get("/api/jobs").json()["items"]
+    assert [j["thumb_url"] for j in listed] == ["/api/media/web/danbooru/1/thumb"]
+    assert "x/t.jpg" not in client.get("/api/jobs").text
