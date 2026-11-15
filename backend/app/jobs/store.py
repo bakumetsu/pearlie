@@ -91,10 +91,12 @@ def _chunks(items: list[str], size: int = 500):
         yield items[i : i + size]
 
 
-def _ref(target: str, image_id: str | None, kind: str = "image") -> SavedRef:
-    # A Komga row has no image id; the marker still shows, without a link.
+def _ref(
+    target: str, image_id: str | None, kind: str = "image", library_id: str | None = None
+) -> SavedRef:
+    # A Komga row has no image id: its book id (when known) is in `library_id`.
     if target == "komga":
-        return SavedRef(kind="book", id=image_id or "")
+        return SavedRef(kind="book", id=library_id or "")
     if kind == "video":
         return SavedRef(kind="video", id=image_id or "")
     return SavedRef(kind="image", id=image_id or "")
@@ -154,23 +156,24 @@ class JobStore:
             for chunk in _chunks(post_ids):
                 marks = ",".join("?" * len(chunk))
                 for row in conn.execute(
-                    "SELECT post_id, target, image_id, kind FROM saved_items "
+                    "SELECT post_id, target, image_id, kind, library_id FROM saved_items "
                     f"WHERE source = ? AND post_id IN ({marks})",
                     (source, *chunk),
                 ):
                     found[row["post_id"]] = _ref(
-                        row["target"], row["image_id"], row["kind"]
+                        row["target"], row["image_id"], row["kind"], row["library_id"]
                     )
             by_md5 = {m.lower(): pid for pid, m in (md5s or {}).items() if m and pid not in found}
             for chunk in _chunks(list(by_md5)):
                 marks = ",".join("?" * len(chunk))
                 for row in conn.execute(
-                    f"SELECT md5, target, image_id, kind FROM saved_items WHERE md5 IN ({marks})",
+                    "SELECT md5, target, image_id, kind, library_id FROM saved_items "
+                    f"WHERE md5 IN ({marks})",
                     tuple(chunk),
                 ):
                     found.setdefault(
                         by_md5[row["md5"].lower()],
-                        _ref(row["target"], row["image_id"], row["kind"])
+                        _ref(row["target"], row["image_id"], row["kind"], row["library_id"]),
                     )
             return found
         finally:

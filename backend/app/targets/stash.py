@@ -51,6 +51,8 @@ class PendingScan(BaseModel):
     library_id: str
     name: str
     komga_path: str
+    source: str = ""
+    post_id: str = ""
 
 
 class SaveResult(BaseModel):

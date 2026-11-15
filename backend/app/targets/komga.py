@@ -9,6 +9,7 @@ import os
 import posixpath
 import re
 import shutil
+import sqlite3
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -435,7 +436,13 @@ class KomgaTarget:
             self._forget(post)
             logger.warning("KOMGA %s index row dropped: file is outside every library", tag)
         elif library_id is not None:
-            pending = PendingScan(library_id=library_id, name=target.name, komga_path=komga_path)
+            pending = PendingScan(
+                library_id=library_id,
+                name=target.name,
+                komga_path=komga_path,
+                source=post.source,
+                post_id=post.post_id,
+            )
         logger.info(
             "KOMGA %s save done pearlie_path=%s komga_path=%s",
             tag,
@@ -499,12 +506,31 @@ class KomgaTarget:
         size = min(500, max(VERIFY_PAGE_SIZE, 2 * len(books)))
         page = self._client.list_books(0, size, "", "createdDate,desc", library_id=library_id)
         urls = [str(b.get("url", "")).replace("\\", "/") for b in page.get("content", [])]
-        names = {posixpath.basename(u) for u in urls}
         found: set[str] = set()
         for job_id, book in books.items():
-            if book.komga_path in urls or book.name in names:
-                found.add(job_id)
+            for url, b in zip(urls, page.get("content", []), strict=True):
+                if book.komga_path == url or book.name == posixpath.basename(url):
+                    found.add(job_id)
+                    self._record_book(book, str(b.get("id", "")))
+                    break
         return found
+
+    def _record_book(self, pending: PendingScan, book_id: str) -> None:
+        """Keep the Komga book id in the saved index row (D-28 Part B); never fails a save."""
+        if not book_id or not pending.post_id:
+            return
+        conn = connect(self._settings.db_path)
+        try:
+            conn.execute(
+                "UPDATE saved_items SET library_id = ? WHERE target = 'komga' "
+                "AND source = ? AND post_id = ? AND library_id IS NULL",
+                (book_id, pending.source, pending.post_id),
+            )
+            conn.commit()
+        except sqlite3.Error:
+            logger.warning("KOMGA book id not stored post=%s", pending.post_id)
+        finally:
+            conn.close()
 
     @staticmethod
     def _place(
