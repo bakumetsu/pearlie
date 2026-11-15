@@ -51,6 +51,13 @@ describe("Tile web shapes and fallback", () => {
     await fireEvent.click(container.querySelector<HTMLElement>(".retry")!);
     expect(img().getAttribute("src")).toBe(proxied);
   });
+
+  it("no thumb and no preview shows 'No preview' with no img and no Retry", () => {
+    const { container, getByText } = render(Tile, { item: web({ thumb_url: "", preview_url: "" }) });
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector(".retry")).toBeNull();
+    expect(getByText("No preview")).toBeTruthy();
+  });
 });
 
 describe("Search rows", () => {

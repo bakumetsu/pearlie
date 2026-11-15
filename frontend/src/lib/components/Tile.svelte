@@ -32,7 +32,7 @@
     }
   });
   function webSrc(w: WebItem): string {
-    return stage === 1 ? w.preview_url : w.thumb_url;
+    return stage === 1 ? w.preview_url : w.thumb_url || w.preview_url;
   }
   function onWebError() {
     const w = item as WebItem;
@@ -124,7 +124,12 @@
   {@const w = item as WebItem}
   <div class="tile web {variant}" class:cv={variant !== "list"} style:aspect-ratio={variant !== "list" ? aspectRatio : undefined}>
     <div class="media" style:aspect-ratio={aspectRatio}>
-      {#if stage === 2}
+      {#if !w.thumb_url && !w.preview_url}
+        <div class="thumb-fail">
+          <Icon name="image" size={24} />
+          <span class="no-preview">No preview</span>
+        </div>
+      {:else if stage === 2}
         <div class="thumb-fail">
           <Icon name="image" size={24} />
           <button class="retry" onclick={(e) => { e.stopPropagation(); stage = 0; }}>Retry</button>
