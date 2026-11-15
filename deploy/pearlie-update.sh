@@ -331,6 +331,26 @@ except Exception:
 '
 }
 
+# prints ".N" (commits on dev since the last release tag), or nothing if GitHub cannot say
+dev_counter() {
+  local tags last cmp n
+  tags=$(http_get "$API/tags" 2>/dev/null) || return 0
+  last=$(highest_tag "$tags")
+  [[ -n "$last" && "$TARGET_COMMIT" =~ ^[0-9a-f]{40}$ ]] || return 0
+  cmp=$(http_get "$API/compare/$last...$TARGET_COMMIT" 2>/dev/null) || return 0
+  n=$(printf '%s' "$cmp" | "$JSON_PY" -c '
+import sys, json
+try:
+  v = json.load(sys.stdin).get("ahead_by")
+  if isinstance(v, int) and not isinstance(v, bool) and v >= 0:
+    print(v)
+except Exception:
+  pass
+')
+  [[ "$n" =~ ^[0-9]+$ ]] && printf '.%s' "$n"
+  return 0
+}
+
 resolve_target() {
   STEP="resolve"
   if [ "$CHANNEL" = "dev" ]; then
@@ -540,7 +560,7 @@ download_and_extract() {
   if [ "$CHANNEL" = "dev" ]; then
     local base
     base=$(grep -m1 '^version[[:space:]]*=' "$REL/app/backend/pyproject.toml" | sed 's/.*"\(.*\)".*/\1/')
-    TARGET_VERSION="${base}-dev"
+    TARGET_VERSION="${base}-dev$(dev_counter)"
   fi
 
   write_version_json
