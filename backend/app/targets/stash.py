@@ -718,15 +718,17 @@ class StashTarget:
                 names.append(n)
         ids: list[str] = []
         created: list[str] = []
+        hits = self._client.find_tags_many(names) if names else {}
         for n in names:
-            tid, was_created = self._tag_id(n)
+            tid, was_created = self._tag_id(n, hits[n])
             ids.append(tid)
             if was_created:
                 created.append(n)
         return ids, created
 
-    def _tag_id(self, name: str) -> tuple[str, bool]:
-        hits = self._client.find_tags(name)
+    def _tag_id(self, name: str, hits: list[dict] | None = None) -> tuple[str, bool]:
+        if hits is None:
+            hits = self._client.find_tags(name)
         for h in hits:
             if h["name"].lower() == name:
                 return h["id"], False

@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_active
     ON jobs (source, post_id)
     WHERE status IN ('queued', 'running', 'scan_wait', 'verifying');
+CREATE INDEX IF NOT EXISTS idx_jobs_status_id ON jobs (status, id);
 CREATE TABLE IF NOT EXISTS saved_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source TEXT NOT NULL,

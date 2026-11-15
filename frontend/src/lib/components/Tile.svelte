@@ -122,7 +122,7 @@
 
 {#if isWeb}
   {@const w = item as WebItem}
-  <div class="tile web {variant}">
+  <div class="tile web {variant}" class:cv={variant !== "list"} style:aspect-ratio={variant !== "list" ? aspectRatio : undefined}>
     <div class="media" style:aspect-ratio={aspectRatio}>
       {#if stage === 2}
         <div class="thumb-fail">
@@ -130,7 +130,7 @@
           <button class="retry" onclick={(e) => { e.stopPropagation(); stage = 0; }}>Retry</button>
         </div>
       {:else}
-        <img src={webSrc(w)} alt="" loading="lazy" referrerpolicy="no-referrer" class:blur-img={blurred} onerror={onWebError} />
+        <img src={webSrc(w)} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" class:blur-img={blurred} onerror={onWebError} />
       {/if}
       <button class="open" onclick={handleOpenClick} aria-label={`${w.source} #${w.post_id}`} title={`${w.source} #${w.post_id}`}></button>
       {#if blurred}
@@ -158,12 +158,12 @@
   </div>
 {:else}
   {@const l = item as LibraryItem}
-  <a class="tile lib {variant}" href={href} data-key={`${l.kind}:${l.id}`} onclick={handleLibClick}>
+  <a class="tile lib {variant}" class:cv={variant !== "list" && l.kind === "image"} style:aspect-ratio={variant !== "list" && l.kind === "image" ? aspectRatio : undefined} href={href} data-key={`${l.kind}:${l.id}`} onclick={handleLibClick}>
     {#if l.kind === "video"}
       <VideoCard item={l} {variant} {aspectRatio} {blurred} {landscape} meta={metaLine()} onmediaclick={handleMediaClick} onmediakeydown={handleMediaKeydown} />
     {:else}
     <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick} role="button" tabindex="0" onkeydown={handleMediaKeydown}>
-      <img src={l.thumb_url} alt="" loading="lazy" class:blur-img={blurred} />
+      <img src={l.thumb_url} alt="" loading="lazy" decoding="async" class:blur-img={blurred} />
       {#if variant !== "list" && l.favorite}
         <FavBadge />
       {/if}
@@ -195,6 +195,11 @@
     cursor: pointer;
     text-decoration: none;
     color: inherit;
+  }
+  /* Off-screen tiles skip layout and paint; aspect-ratio keeps their height stable. */
+  .tile.cv {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 200px;
   }
   .tile.lib {
     display: block;

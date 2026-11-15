@@ -20,6 +20,8 @@ from app.targets.stash_client import StashError
 
 logger = logging.getLogger("pearlie.jobs")
 
+JOB_RETENTION_DAYS = 30
+
 
 class SaveTarget(Protocol):
     def save(self, post: Post, tags: list[str]) -> SaveResult: ...
@@ -59,6 +61,9 @@ class JobWorker:
 
     def recover(self) -> int:
         count = self._store.requeue_running()
+        purged = self._store.purge_finished(JOB_RETENTION_DAYS)
+        if purged:
+            logger.info("JOBS purged old finished jobs=%d", purged)
         if self.scan_wait is not None:
             pending = self._store.scan_pending()
             for job_id, source_id, library_id, name, komga_path in pending:

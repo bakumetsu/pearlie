@@ -197,6 +197,24 @@ class StashClient:
         data = self._gql(FIND_TAGS, {"v": name})
         return data["findTags"]["tags"]
 
+    def find_tags_many(self, names: list[str]) -> dict[str, list[dict]]:
+        """Look up several tag names in one aliased GraphQL request per 20 names."""
+        found: dict[str, list[dict]] = {}
+        for i in range(0, len(names), 20):
+            chunk = names[i : i + 20]
+            decl = ", ".join(f"$v{k}: String!" for k in range(len(chunk)))
+            body = " ".join(
+                f"t{k}: findTags(tag_filter: {{name: {{value: $v{k}, modifier: EQUALS}}}},"
+                " filter: {per_page: 25}) { tags { id name } }"
+                for k in range(len(chunk))
+            )
+            data = self._gql(
+                f"query({decl}) {{ {body} }}", {f"v{k}": n for k, n in enumerate(chunk)}
+            )
+            for k, n in enumerate(chunk):
+                found[n] = data[f"t{k}"]["tags"]
+        return found
+
     def tag_create(self, name: str) -> str:
         """Create a tag with *name*; return the new tag id."""
         data = self._gql(TAG_CREATE, {"n": name})
@@ -213,8 +231,9 @@ class StashClient:
         """Resolve tag *names* to Stash tag ids, creating any missing tags."""
         ids: list[str] = []
         seen: set[str] = set()
+        hits = self.find_tags_many(list(dict.fromkeys(names)))
         for name in names:
-            tags = self.find_tags(name)
+            tags = hits[name]
             tag_id = None
             for t in tags:
                 if t["name"].casefold() == name.casefold():
