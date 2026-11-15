@@ -24,6 +24,9 @@ def _proxy(
         raise ApiError(err.status, err.code, err.message) from None
 
     media_type = upstream.headers.get("content-type", "application/octet-stream")
+    if not media_type.split(";", 1)[0].strip().lower().startswith("image/"):
+        upstream.close()
+        raise ApiError(502, "upstream_error", "Komga returned a non-image")
     headers: dict[str, str] = {"Cache-Control": f"private, max-age={max_age}"}
     if "content-length" in upstream.headers:
         headers["Content-Length"] = upstream.headers["content-length"]

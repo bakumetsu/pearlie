@@ -2,6 +2,12 @@ import { describe, it, expect, vi } from "vitest";
 import { matchRoute, hrefOf, createRouter, linkClick, ROUTES } from "./router";
 
 describe("matchRoute", () => {
+  it("keeps a malformed % segment instead of throwing", () => {
+    const m = matchRoute("/library/%E0%A4%A", "", [{ name: "x", pattern: "/library/:id" }]);
+    expect(m.name).toBe("x");
+    expect(m.params.id).toBe("%E0%A4%A");
+  });
+
   it("matches root", () => {
     const m = matchRoute("/", "");
     expect(m.name).toBe("discover");

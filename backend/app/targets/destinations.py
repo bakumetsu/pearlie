@@ -25,6 +25,17 @@ def to_stash_path(path: str, prefix_pearlie: str = "", prefix_stash: str = "") -
     return path
 
 
+def to_pearlie_path(path: str, prefix_pearlie: str = "", prefix_stash: str = "") -> str:
+    """Map a Stash/Komga path back to its Pearlie equivalent."""
+    if not prefix_stash:
+        return path
+    if path == prefix_stash:
+        return prefix_pearlie
+    if path.startswith(prefix_stash + "/"):
+        return prefix_pearlie + path[len(prefix_stash):]
+    return path
+
+
 def validate_folder(
     folder: str,
     library_paths: list[str],
@@ -32,6 +43,8 @@ def validate_folder(
     prefix_stash: str = "",
 ) -> str:
     """Validate and normalize a destination folder path."""
+    if "\\" in folder:
+        raise DestinationError("invalid", "folder must not contain a backslash", 422)
     if ".." in folder.split("/"):
         raise DestinationError("invalid", "folder must not contain '..'", 422)
     normalized = posixpath.normpath(folder)

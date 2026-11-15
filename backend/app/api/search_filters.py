@@ -8,7 +8,7 @@ from app.api.errors import ApiError
 from app.models import FiltersResponse, SourceFilters
 from app.paging import PAGE_SIZE_CAPS, preset_options
 from app.sources.filters import (
-    ORDERS,
+    ALL_ORDERS,
     RATINGS,
     normalize_rating,
     supported_orders,
@@ -28,7 +28,7 @@ def parse_order(order: str) -> str | None:
     value = order.strip().lower()
     if value in ("", "newest"):
         return None
-    if value not in ORDERS:
+    if value not in ALL_ORDERS:
         raise ApiError(422, "invalid", f"Unknown order {order}", field="order")
     return value
 
@@ -43,9 +43,9 @@ def parse_rating(rating: str) -> list[str]:
 
 
 def unsupported_notice(source: str, order: str | None, rating: list[str]) -> str | None:
-    """Notice text for filters a site cannot take at all (nhentai)."""
+    """Notice text for filters a site cannot take (an order it lacks, nhentai ratings)."""
     dropped = []
-    if order and not supported_orders(source):
+    if order and order not in supported_orders(source):
         dropped.append("Order")
     if rating and not supported_ratings(source):
         dropped.append("Rating")
@@ -66,6 +66,7 @@ def search_filters(request: Request) -> FiltersResponse:
     out: dict[str, SourceFilters] = {}
     for sid in _LIBRARY:
         out[sid] = SourceFilters(
+            search=True,
             sort=_LIBRARY_SORTS,
             favorite=True,
             per_page_options=preset_options(sid),
@@ -73,6 +74,7 @@ def search_filters(request: Request) -> FiltersResponse:
         )
     for sid in _WEB:
         out[sid] = SourceFilters(
+            search=True,
             order=supported_orders(sid),
             rating=supported_ratings(sid),
             per_page_options=preset_options(sid),

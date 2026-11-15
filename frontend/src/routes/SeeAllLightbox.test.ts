@@ -110,4 +110,23 @@ describe("SeeAll web lightbox", () => {
     document.querySelector("dialog")!.close();
     await vi.waitFor(() => expect(document.querySelector("dialog")).toBeNull());
   });
+
+  it("nhentai tile navigates to /web/nhentai/:id instead of opening lightbox", async () => {
+    history.replaceState(null, "", "/see-all?source=nhentai&q=cat");
+    globalThis.fetch = vi.fn(async (url: string | URL | Request) => {
+      const u = String(url);
+      if (u.includes("/api/search")) {
+        return new Response(
+          JSON.stringify({ sections: [{ id: "nhentai", items: [{ ...web("1"), source: "nhentai" }] }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("null", { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(App);
+    await vi.waitFor(() => expect(document.querySelectorAll(".tile.web")).toHaveLength(1));
+    document.querySelector<HTMLButtonElement>("button.open")!.click();
+    await vi.waitFor(() => expect(location.pathname).toBe("/web/nhentai/1"));
+    expect(document.querySelector("dialog .title")).toBeNull();
+  });
 });

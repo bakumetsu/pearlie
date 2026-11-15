@@ -55,15 +55,20 @@ def test_defaults(any_client: TestClient) -> None:
         "player_rate_set": False,
         "profile": "desktop",
         "backdrop_strength": 60,
-        "backdrop_wall": True,
-        "backdrop_item": True,
-        "backdrop_lightbox": True,
+        "backdrop_wall": False,
+        "backdrop_item": False,
+        "backdrop_lightbox": False,
         "allow_blurred_tags": False,
         "trash_retention_days": 7,
+        "images_per_site": 10,
+        "komga_scan_wait_s": 10,
         "infinite_scroll": False,
+        "site_names": True,
+        "place_mode": "suggest",
         "source_pace": expected_pace,
         "hidden_sites": [],
         "site_order": ["danbooru", "gelbooru", "rule34", "nhentai"],
+        "thumb_cache": {"max_mb": 1024, "used_mb": 0.0, "files": 0, "available": True},
     }
 
 
@@ -85,9 +90,39 @@ def test_infinite_scroll_rejects_non_bool(any_client: TestClient) -> None:
     assert r.status_code == 422
 
 
+def test_site_names_on_then_saved_off(any_client: TestClient) -> None:
+    assert any_client.get("/api/options").json()["site_names"] is True
+    r = any_client.put("/api/options", json={"site_names": False})
+    assert r.status_code == 200
+    assert r.json()["site_names"] is False
+    assert any_client.get("/api/options").json()["site_names"] is False
+    # Global: the touch profile sees the same value
+    touch = any_client.get("/api/options", headers={"X-Pearlie-Device": "touch"})
+    assert touch.json()["site_names"] is False
+    r = any_client.put("/api/options", json={"site_names": True})
+    assert r.json()["site_names"] is True
+
+
+def test_site_names_rejects_non_bool(any_client: TestClient) -> None:
+    r = any_client.put("/api/options", json={"site_names": "yes"})
+    assert r.status_code == 422
+
+
 # ---------------------------------------------------------------------------
 # Partial PUT then GET
 # ---------------------------------------------------------------------------
+
+
+def test_backdrop_switches_default_off_and_saved_value_stays(any_client: TestClient) -> None:
+    d = any_client.get("/api/options").json()
+    assert d["backdrop_wall"] is False
+    assert d["backdrop_item"] is False
+    assert d["backdrop_lightbox"] is False
+    any_client.put("/api/options", json={"backdrop_wall": True})
+    d = any_client.get("/api/options").json()
+    assert d["backdrop_wall"] is True
+    assert d["backdrop_item"] is False
+    assert d["backdrop_lightbox"] is False
 
 
 def test_partial_put_then_get(any_client: TestClient) -> None:
@@ -100,7 +135,7 @@ def test_partial_put_then_get(any_client: TestClient) -> None:
     # Untouched fields keep defaults
     assert data["player_rate"] == 1.0
     assert data["player_rate_set"] is False
-    assert data["backdrop_wall"] is True
+    assert data["backdrop_wall"] is False
     assert data["trash_retention_days"] == 7
 
     r2 = any_client.get("/api/options")
@@ -128,9 +163,7 @@ def test_profiles_separate_sf_rate_global_shared(any_client: TestClient) -> None
     )
 
     # Desktop sees its own profile values
-    d = any_client.get(
-        "/api/options", headers={"X-Pearlie-Device": "desktop"}
-    ).json()
+    d = any_client.get("/api/options", headers={"X-Pearlie-Device": "desktop"}).json()
     assert d["sfw"] is True
     assert d["sfw_set"] is True
     assert d["player_rate"] == 1.5
@@ -138,9 +171,7 @@ def test_profiles_separate_sf_rate_global_shared(any_client: TestClient) -> None
     assert d["backdrop_strength"] == 90
 
     # Touch sees default profile values but shared global
-    t = any_client.get(
-        "/api/options", headers={"X-Pearlie-Device": "touch"}
-    ).json()
+    t = any_client.get("/api/options", headers={"X-Pearlie-Device": "touch"}).json()
     assert t["sfw"] is False
     assert t["sfw_set"] is False
     assert t["player_rate"] == 1.0
@@ -363,3 +394,31 @@ def test_source_pace_backing_off(any_client: TestClient) -> None:
     throttles["danbooru"].report(429)
     r = any_client.get("/api/options")
     assert r.json()["source_pace"]["danbooru"]["backing_off"] is True
+
+
+def test_place_mode_default_and_roundtrip(any_client: TestClient) -> None:
+    assert any_client.get("/api/options").json()["place_mode"] == "suggest"
+    resp = any_client.put("/api/options", json={"place_mode": "auto"})
+    assert resp.status_code == 200
+    assert resp.json()["place_mode"] == "auto"
+    assert any_client.get("/api/options").json()["place_mode"] == "auto"
+    resp = any_client.put("/api/options", json={"place_mode": "suggest"})
+    assert resp.json()["place_mode"] == "suggest"
+
+
+def test_place_mode_rejects_other_values(any_client: TestClient) -> None:
+    assert any_client.put("/api/options", json={"place_mode": "bogus"}).status_code == 422
+
+
+def test_komga_scan_wait_range_and_getter(tmp_path: Path) -> None:
+    from app.api.options import komga_scan_wait_s
+
+    client = real_client(tmp_path)
+    assert komga_scan_wait_s(client.app) == 10.0  # pyright: ignore[reportArgumentType]
+    for ok in (0, 120):
+        r = client.put("/api/options", json={"komga_scan_wait_s": ok})
+        assert r.json()["komga_scan_wait_s"] == ok
+        assert komga_scan_wait_s(client.app) == float(ok)  # pyright: ignore[reportArgumentType]
+    assert client.put("/api/options", json={"komga_scan_wait_s": 121}).status_code == 422
+    assert client.put("/api/options", json={"komga_scan_wait_s": -1}).status_code == 422
+    assert client.put("/api/options", json={"komga_scan_wait_s": "5"}).status_code == 422

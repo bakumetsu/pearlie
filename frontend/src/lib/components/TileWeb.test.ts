@@ -38,6 +38,19 @@ describe("Tile web shapes and fallback", () => {
     await fireEvent.click(container.querySelector<HTMLElement>(".retry")!);
     expect(img().getAttribute("src")).toBe("/t.jpg");
   });
+
+  it("proxied thumb error goes to placeholder, never preview_url; Retry asks the proxy again", async () => {
+    const proxied = "/api/media/web/danbooru/1/thumb";
+    const { container } = render(Tile, {
+      item: web({ thumb_url: proxied, preview_url: "/api/media/web/danbooru/1/preview" }),
+    });
+    const img = () => container.querySelector("img")!;
+    expect(img().getAttribute("src")).toBe(proxied);
+    await fireEvent.error(img());
+    expect(container.querySelector("img")).toBeNull();
+    await fireEvent.click(container.querySelector<HTMLElement>(".retry")!);
+    expect(img().getAttribute("src")).toBe(proxied);
+  });
 });
 
 describe("Search rows", () => {

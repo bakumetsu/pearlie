@@ -165,4 +165,57 @@ describe("SaveFoldersCard", () => {
     await fireEvent.click(screen.getByTestId("save-nhentai"));
     await waitFor(() => expect(put).toHaveBeenCalledWith("nhentai", "/mnt/komga/doujin/in"));
   });
+
+  it("shows the placement switch, writes the mode and shows the oneshots line", async () => {
+    const set = vi.fn();
+    const store = { values: { place_mode: "suggest" }, set } as never;
+    const { api } = makeApi({
+      getDestinations: vi.fn().mockResolvedValue(
+        dest({ komga_sites: ["nhentai"], komga_oneshots_dir: "_oneshots" }),
+      ),
+    });
+    render(SaveFoldersCard, { api, store });
+    expect((await screen.findByTestId("oneshots-line")).textContent).toContain("_oneshots");
+    expect(screen.getByTestId("place-suggest").getAttribute("aria-checked")).toBe("true");
+    await fireEvent.click(screen.getByTestId("place-auto"));
+    expect(set).toHaveBeenCalledWith({ place_mode: "auto" });
+  });
+
+  it("steps the Komga scan delay by 5 s and stops at 0 and 120", async () => {
+    const set = vi.fn();
+    const store = { values: { place_mode: "suggest", komga_scan_wait_s: 10 }, set } as never;
+    const { api } = makeApi({
+      getDestinations: vi.fn().mockResolvedValue(dest({ komga_sites: ["nhentai"] })),
+    });
+    render(SaveFoldersCard, { api, store });
+    expect((await screen.findByTestId("scan-wait-value")).textContent).toBe("10 s");
+    await fireEvent.click(screen.getByTestId("scan-wait-plus"));
+    expect(set).toHaveBeenLastCalledWith({ komga_scan_wait_s: 15 });
+    await fireEvent.click(screen.getByTestId("scan-wait-minus"));
+    expect(set).toHaveBeenLastCalledWith({ komga_scan_wait_s: 5 });
+  });
+
+  it("disables the stepper at its limits", async () => {
+    const mkStore = (n: number) => ({ values: { place_mode: "suggest", komga_scan_wait_s: n }, set: vi.fn() }) as never;
+    const getDestinations = vi.fn().mockResolvedValue(dest({ komga_sites: ["nhentai"] }));
+    const lo = render(SaveFoldersCard, { api: makeApi({ getDestinations }).api, store: mkStore(0) });
+    expect(((await lo.findByTestId("scan-wait-minus")) as HTMLButtonElement).disabled).toBe(true);
+    lo.unmount();
+    const hi = render(SaveFoldersCard, { api: makeApi({ getDestinations }).api, store: mkStore(120) });
+    expect(((await hi.findByTestId("scan-wait-plus")) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("says when Komga has no oneshots folder and hides the switch without Komga sites", async () => {
+    const store = { values: { place_mode: "suggest" }, set: vi.fn() } as never;
+    const a = makeApi({
+      getDestinations: vi.fn().mockResolvedValue(dest({ komga_sites: ["nhentai"] })),
+    });
+    render(SaveFoldersCard, { api: a.api, store });
+    expect((await screen.findByTestId("oneshots-line")).textContent).toContain("not set");
+    cleanup();
+    const b = makeApi();
+    render(SaveFoldersCard, { api: b.api, store });
+    await screen.findByTestId("folder-danbooru");
+    expect(screen.queryByTestId("place-mode")).toBeNull();
+  });
 });

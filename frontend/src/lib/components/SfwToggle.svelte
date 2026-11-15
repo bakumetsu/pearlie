@@ -27,15 +27,17 @@
     display: grid;
     place-items: center;
     border-radius: 999px;
-    border: 1px solid var(--line-strong);
-    background: rgb(20 20 24 / 0.82);
-    backdrop-filter: blur(8px);
+    border: none;
+    background: none;
+    color: var(--text);
     cursor: pointer;
+  }
+  .sfw-toggle:hover {
+    background: var(--line);
   }
   .sfw-toggle[aria-pressed="true"] {
     background: var(--accent-bg);
     color: var(--accent);
-    border-color: var(--accent);
   }
   .sfw-toggle:focus-visible {
     outline: 2px solid var(--accent);

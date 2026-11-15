@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, FastAPI, Request
@@ -27,6 +28,15 @@ class SitePace(BaseModel):
     backing_off: bool
 
 
+class ThumbCacheInfo(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_mb: int
+    used_mb: float
+    files: int
+    available: bool
+
+
 class Options(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -37,15 +47,20 @@ class Options(BaseModel):
     profile: Literal["desktop", "touch"] = "desktop"
 
     backdrop_strength: StrictInt = Field(default=60, ge=0, le=100)
-    backdrop_wall: StrictBool = True
-    backdrop_item: StrictBool = True
-    backdrop_lightbox: StrictBool = True
+    backdrop_wall: StrictBool = False
+    backdrop_item: StrictBool = False
+    backdrop_lightbox: StrictBool = False
     allow_blurred_tags: StrictBool = False
     trash_retention_days: StrictInt = Field(default=7, ge=1, le=365)
+    images_per_site: StrictInt = Field(default=10, ge=1, le=16)
+    komga_scan_wait_s: StrictInt = Field(default=10, ge=0, le=120)
     infinite_scroll: StrictBool = False
+    site_names: StrictBool = True
+    place_mode: Literal["auto", "suggest"] = "suggest"
     source_pace: dict[str, SitePace] = {}
     hidden_sites: list[str] = []
     site_order: list[str] = []
+    thumb_cache: ThumbCacheInfo = ThumbCacheInfo(max_mb=1024, used_mb=0.0, files=0, available=True)
 
     @field_validator("player_rate")
     @classmethod
@@ -66,11 +81,16 @@ class OptionsUpdate(BaseModel):
     backdrop_lightbox: StrictBool | None = None
     allow_blurred_tags: StrictBool | None = None
     trash_retention_days: StrictInt | None = Field(default=None, ge=1, le=365)
+    images_per_site: StrictInt | None = Field(default=None, ge=1, le=16)
+    komga_scan_wait_s: StrictInt | None = Field(default=None, ge=0, le=120)
     confirm_purge: StrictBool | None = None
     infinite_scroll: StrictBool | None = None
+    site_names: StrictBool | None = None
+    place_mode: Literal["auto", "suggest"] | None = None
     source_pace: dict[str, float] | None = None
     hidden_sites: list[str] | None = None
     site_order: list[str] | None = None
+    thumb_cache_max_mb: StrictInt | None = Field(default=None, ge=50, le=20480)
 
     @field_validator("player_rate")
     @classmethod
@@ -78,6 +98,12 @@ class OptionsUpdate(BaseModel):
         if v is not None and v not in ALLOWED_RATES:
             raise ValueError(f"player_rate must be one of {ALLOWED_RATES}")
         return v
+
+
+class ThumbCacheCleared(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    freed_mb: float
 
 
 def _detect_profile(request: Request) -> Literal["desktop", "touch"]:
@@ -136,6 +162,73 @@ def _write_db(request: Request, key: str, value: str) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def stored_thumb_cache_mb(db_path: Path) -> int | None:
+    """Saved cap from the settings table, or None when unset or out of range."""
+    conn = connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", ("thumbcache.max_mb",)
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return None
+    try:
+        v = int(row["value"])
+    except (ValueError, TypeError):
+        return None
+    return v if 50 <= v <= 20480 else None
+
+
+def _thumb_cache_max_mb(request: Request) -> int:
+    fixture = request.app.state.settings.mode == "fixture"
+    key = "thumbcache.max_mb"
+    raw = _read_mem(request, key) if fixture else _read_db(request, key)
+    if raw is None:
+        return 1024
+    try:
+        v = int(raw)
+    except (ValueError, TypeError):
+        return 1024
+    if not (50 <= v <= 20480):
+        return 1024
+    return v
+
+
+IMAGES_PER_SITE_KEY = "options.global.images_per_site"
+KOMGA_SCAN_WAIT_KEY = "options.global.komga_scan_wait_s"
+
+
+def images_per_site(app: FastAPI) -> int:
+    """Images fetched at a time per site for web browsing streams (default 10, 1-16)."""
+    if app.state.settings.mode == "fixture":
+        mem: dict[str, str] | None = getattr(app.state, "options_mem", None)
+        raw = mem.get(IMAGES_PER_SITE_KEY) if mem else None
+    else:
+        conn = connect(app.state.settings.db_path)
+        try:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (IMAGES_PER_SITE_KEY,)
+            ).fetchone()
+        finally:
+            conn.close()
+        raw = row["value"] if row is not None else None
+    return min(16, max(1, int(_num(raw, 10))))
+
+
+def komga_scan_wait_s(app: FastAPI) -> float:
+    """Seconds Pearlie waits after the last save before Komga scans (default 10, 0-120)."""
+    conn = connect(app.state.settings.db_path)
+    try:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", (KOMGA_SCAN_WAIT_KEY,)
+        ).fetchone()
+    finally:
+        conn.close()
+    raw = row["value"] if row is not None else None
+    return float(min(120, max(0, int(_num(raw, 10)))))
 
 
 def _effective_pace(app: FastAPI, site: str) -> tuple[float, bool]:
@@ -200,13 +293,13 @@ def get_options(request: Request) -> Options:
     backdrop_strength: int = min(100, max(0, int(_num(bs_raw, 60))))
 
     bw_raw = read("options.global.backdrop_wall")
-    backdrop_wall: bool = bw_raw == "1" if bw_raw is not None else True
+    backdrop_wall: bool = bw_raw == "1" if bw_raw is not None else False
 
     bi_raw = read("options.global.backdrop_item")
-    backdrop_item: bool = bi_raw == "1" if bi_raw is not None else True
+    backdrop_item: bool = bi_raw == "1" if bi_raw is not None else False
 
     bl_raw = read("options.global.backdrop_lightbox")
-    backdrop_lightbox: bool = bl_raw == "1" if bl_raw is not None else True
+    backdrop_lightbox: bool = bl_raw == "1" if bl_raw is not None else False
 
     abt_raw = read("options.global.allow_blurred_tags")
     allow_blurred_tags: bool = abt_raw == "1" if abt_raw is not None else False
@@ -215,8 +308,19 @@ def get_options(request: Request) -> Options:
     trd_raw = str(store.retention_days) if fixture else read("options.global.trash_retention_days")
     trash_retention_days: int = min(365, max(1, int(_num(trd_raw, 7))))
 
+    ips = min(16, max(1, int(_num(read(IMAGES_PER_SITE_KEY), 10))))
+
+    komga_scan_wait_s = min(120, max(0, int(_num(read(KOMGA_SCAN_WAIT_KEY), 10))))
+
     is_raw = read("options.global.infinite_scroll")
     infinite_scroll: bool = is_raw == "1"
+
+    sn_raw = read("options.global.site_names")
+    site_names: bool = sn_raw != "0"
+
+    place_mode: Literal["auto", "suggest"] = (
+        "auto" if read("komga.place_mode") == "auto" else "suggest"
+    )
 
     # Source pace
     source_pace: dict[str, SitePace] = {}
@@ -239,6 +343,32 @@ def get_options(request: Request) -> Options:
     site_order = list(dict.fromkeys(s for s in so_raw if s in DEFAULT_PACE))
     site_order += [s for s in DEFAULT_PACE if s not in site_order]
 
+    # Thumb cache
+    if fixture:
+        thumb_cache = ThumbCacheInfo(
+            max_mb=_thumb_cache_max_mb(request),
+            used_mb=0.0,
+            files=0,
+            available=True,
+        )
+    else:
+        cache = getattr(request.app.state, "thumb_cache", None)
+        if cache is not None:
+            stats = cache.stats()
+            thumb_cache = ThumbCacheInfo(
+                max_mb=stats["max_mb"],
+                used_mb=stats["used_mb"],
+                files=stats["files"],
+                available=stats["available"],
+            )
+        else:
+            thumb_cache = ThumbCacheInfo(
+                max_mb=_thumb_cache_max_mb(request),
+                used_mb=0.0,
+                files=0,
+                available=False,
+            )
+
     return Options(
         sfw=sfw_val,
         sfw_set=sfw_set,
@@ -251,10 +381,15 @@ def get_options(request: Request) -> Options:
         backdrop_lightbox=backdrop_lightbox,
         allow_blurred_tags=allow_blurred_tags,
         trash_retention_days=trash_retention_days,
+        images_per_site=ips,
+        komga_scan_wait_s=komga_scan_wait_s,
         infinite_scroll=infinite_scroll,
+        site_names=site_names,
+        place_mode=place_mode,
         source_pace=source_pace,
         hidden_sites=hidden_sites,
         site_order=site_order,
+        thumb_cache=thumb_cache,
     )
 
 
@@ -287,10 +422,19 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
         write("options.global.allow_blurred_tags", "1" if body.allow_blurred_tags else "0")
     if body.infinite_scroll is not None:
         write("options.global.infinite_scroll", "1" if body.infinite_scroll else "0")
+    if body.site_names is not None:
+        write("options.global.site_names", "1" if body.site_names else "0")
+    if body.place_mode is not None:
+        write("komga.place_mode", body.place_mode)
     if body.trash_retention_days is not None:
         write("options.global.trash_retention_days", str(body.trash_retention_days))
         if fixture:
             store.set_retention(body.trash_retention_days, purge=body.confirm_purge is True)
+
+    if body.images_per_site is not None:
+        write(IMAGES_PER_SITE_KEY, str(body.images_per_site))
+    if body.komga_scan_wait_s is not None:
+        write(KOMGA_SCAN_WAIT_KEY, str(body.komga_scan_wait_s))
 
     if body.hidden_sites is not None:
         for site in body.hidden_sites:
@@ -325,4 +469,20 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
             if site in throttles:
                 throttles[site].set_interval(value)
 
+    if body.thumb_cache_max_mb is not None:
+        write("thumbcache.max_mb", str(body.thumb_cache_max_mb))
+        cache = getattr(request.app.state, "thumb_cache", None)
+        if cache is not None:
+            cache.set_max_mb(body.thumb_cache_max_mb)
+
     return get_options(request)
+
+
+@router.post("/thumb-cache/clear", response_model=ThumbCacheCleared)
+def clear_thumb_cache(request: Request) -> ThumbCacheCleared:
+    cache = getattr(request.app.state, "thumb_cache", None)
+    if cache is not None:
+        freed_mb = round(cache.clear() / (1024 * 1024), 1)
+    else:
+        freed_mb = 0.0
+    return ThumbCacheCleared(freed_mb=freed_mb)

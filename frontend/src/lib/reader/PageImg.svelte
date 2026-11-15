@@ -32,6 +32,7 @@
 <style>
 	.tile{position:relative;flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#1b1b1f}
 	.tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block}
+	.tile + .tile::after{content:"";position:absolute;top:0;bottom:0;left:0;width:1px;background:rgb(255 255 255 / .22);pointer-events:none}
 	.ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text);opacity:.55;font-variant-numeric:tabular-nums}
 	.retry{min-width:44px;min-height:44px;padding:0 12px;border:1px solid var(--line-strong);border-radius:6px;background:transparent;color:var(--text);font:inherit;cursor:pointer}
 	:focus-visible{outline:2px solid var(--accent)}

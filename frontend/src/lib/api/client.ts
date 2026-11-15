@@ -6,9 +6,11 @@ type S = components["schemas"];
 
 export type LibraryItem = S["LibraryItem"];
 export type WebItem = S["WebItem"];
+export type WebBook = S["WebBook"];
 export type Section = S["Section"];
 export type SearchResponse = S["SearchResponse"];
 export type SaveBody = S["SaveBody"];
+export type PlacementSuggestion = S["PlacementSuggestion"];
 export type SaveAccepted = S["SaveAccepted"];
 export type Health = S["Health"];
 export type LibraryPage = S["Page_LibraryItem_"];
@@ -17,6 +19,7 @@ export type PatchBody = S["PatchBody"];
 export type TrashResult = S["TrashResult"];
 export type TrashList = S["TrashList"];
 export type TrashEmptied = S["TrashEmptied"];
+export type ThumbCacheCleared = S["ThumbCacheCleared"];
 export type TrashPurgePreview = S["TrashPurgePreview"];
 export type RestoreResult = S["RestoreResult"];
 export type RulesBody = S["RulesBody"];
@@ -95,6 +98,7 @@ export type ListParams = {
 
 // GET /api/search/filters: what each source supports (design D-16 section 5).
 export type SourceFilters = {
+  search?: boolean; // the source can take a search
   order?: string[];
   rating?: string[];
   per_page_options?: number[];
@@ -114,14 +118,17 @@ export interface Api {
   searchFilters(signal?: AbortSignal): Promise<SearchFilters>;
   list(kind: Kind, p: ListParams, signal?: AbortSignal): Promise<LibraryPage>;
   save(body: SaveBody, signal?: AbortSignal): Promise<SaveAccepted>;
+  getPlacement(source: string, postId: string, signal?: AbortSignal): Promise<PlacementSuggestion>;
   health(signal?: AbortSignal): Promise<Health>;
   getItem(kind: Kind, id: string, signal?: AbortSignal): Promise<LibraryItemDetail>;
+  webBook(source: string, id: string, signal?: AbortSignal): Promise<WebBook>;
   patchItem(kind: Kind, id: string, body: PatchBody, signal?: AbortSignal): Promise<LibraryItemDetail>;
   deleteItem(kind: Kind, id: string, signal?: AbortSignal): Promise<TrashResult>;
   restore(token: string, signal?: AbortSignal): Promise<RestoreResult>;
   listTrash(signal?: AbortSignal): Promise<TrashList>;
   emptyTrash(signal?: AbortSignal): Promise<TrashEmptied>;
   purgePreview(days: number, signal?: AbortSignal): Promise<TrashPurgePreview>;
+  clearThumbCache(signal?: AbortSignal): Promise<ThumbCacheCleared>;
   getRules(signal?: AbortSignal): Promise<RulesBody>;
   putRules(body: RulesPut, signal?: AbortSignal): Promise<RulesBody>;
   jobs(p: { state?: string[] }, signal?: AbortSignal): Promise<JobList>;
@@ -269,12 +276,26 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         signal,
       );
     },
+    getPlacement(source, postId, signal) {
+      return request<PlacementSuggestion>(
+        buildUrl("/api/save/placement", { source, post_id: postId }),
+        undefined,
+        signal,
+      );
+    },
     health(signal) {
       return request<Health>(baseUrl + "/api/health", undefined, signal);
     },
     getItem(kind, id, signal) {
       return request<LibraryItemDetail>(
         baseUrl + "/api/library/" + kind + "/" + encodeURIComponent(id),
+        undefined,
+        signal,
+      );
+    },
+    webBook(source, id, signal) {
+      return request<WebBook>(
+        baseUrl + "/api/media/web/" + encodeURIComponent(source) + "/" + encodeURIComponent(id) + "/book",
         undefined,
         signal,
       );
@@ -312,6 +333,9 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     },
     purgePreview(days, signal) {
       return request<TrashPurgePreview>(baseUrl + "/api/trash/purge-preview?days=" + encodeURIComponent(String(days)), undefined, signal);
+    },
+    clearThumbCache(signal) {
+      return request<ThumbCacheCleared>(baseUrl + "/api/thumb-cache/clear", { method: "POST" }, signal);
     },
     getRules(signal) {
       return request<RulesBody>(baseUrl + "/api/rules", undefined, signal);

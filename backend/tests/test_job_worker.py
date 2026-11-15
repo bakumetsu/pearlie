@@ -490,3 +490,34 @@ def test_failed_finish_does_not_leave_job_running(
     assert job.state == "failed"
     assert job.error_code == "unexpected_error"
     assert calls == ["done", "failed", "failed"]
+
+
+def test_komga_progress_stored_and_cleared(tmp_path: Path) -> None:
+    from app.targets.komga import KomgaTarget
+
+    seen: list[tuple[int | None, int | None, float | None, float]] = []
+
+    class FakeKomga(KomgaTarget):
+        def __init__(self) -> None:  # no real client
+            pass
+
+        def save(self, post, tags, placement=None, on_progress=None):  # type: ignore[no-untyped-def]
+            assert on_progress is not None
+            for n in (1, 2):
+                ck.advance(3.0)
+                on_progress(n, 4)
+                job = store.get(jid)
+                assert job is not None
+                seen.append((job.pages_done, job.pages_total, job.eta_s, job.progress))
+            return SaveResult(status="saved", image_id="9")
+
+    worker, store, _t, sources, ck = make(tmp_path)
+    worker._targets = {"stash": FakeKomga()}  # type: ignore[assignment]
+    jid = enqueue(store, sources, "danbooru", "1")
+    worker.run_once()
+    assert seen == [(1, 4, 9.0, 0.25), (2, 4, 6.0, 0.5)]
+    job = store.get(jid)
+    assert job is not None
+    assert job.state == "done"
+    assert job.progress == 1.0
+    assert job.eta_s is None

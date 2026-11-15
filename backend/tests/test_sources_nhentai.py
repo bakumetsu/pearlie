@@ -78,6 +78,7 @@ def test_build_query() -> None:
         'artist:"foo bar" "big breasts" -tag:"x"'
     )
     assert build_query([]) == ""
+    assert build_query(['tag:a"b']) == 'tag:"a b"'
 
 
 def test_search_parse_and_paging() -> None:
@@ -135,7 +136,12 @@ def test_real_gallery_sample() -> None:
     assert p.tags["general"] == ["big breasts", "sole male"]
     assert p.preview_url == "https://t.nhentai.net/galleries/4302773/cover.webp.webp"
     assert (p.width, p.height) == (350, 495)
-    assert p.extra == {"media_id": "4302773", "page_exts": ["webp", "webp", "webp"]}
+    assert p.extra == {
+        "media_id": "4302773",
+        "page_exts": ["webp", "webp", "webp"],
+        "title_english": ("Making a Harem of the Three Bitchy Gal Sisters - All Chapters + Bonus"),
+        "title_japanese": None,
+    }
     assert src.page_urls(p) == [
         f"https://i.nhentai.net/galleries/4302773/{n}.webp" for n in (1, 2, 3)
     ]
@@ -148,7 +154,12 @@ def test_gallery_fields_and_page_urls() -> None:
     assert p.preview_url == "https://t.nhentai.net/galleries/901/cover.jpg"
     assert p.tags["general"] == ["big breasts", "x"]
     assert p.tags["artist"] == ["some artist"] and p.tags["parody"] == ["original"]
-    assert p.extra == {"media_id": "901", "page_exts": ["jpg", "png"]}
+    assert p.extra == {
+        "media_id": "901",
+        "page_exts": ["jpg", "png"],
+        "title_english": "Eng 1",
+        "title_japanese": None,
+    }
     assert src.page_urls(p) == [
         "https://i.nhentai.net/galleries/901/1.jpg",
         "https://i.nhentai.net/galleries/901/2.png",
@@ -194,6 +205,32 @@ def test_empty_query_lists_all_and_last_page() -> None:
     assert page.posts == [] and page.next_page is None
 
 
+@pytest.mark.parametrize("order", ["popular-today", "popular-week", "popular-month", "popular"])
+def test_popular_sorts_use_search_endpoint(order: str) -> None:
+    seen: list[httpx.URL] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req.url)
+        return httpx.Response(200, json={"result": [], "num_pages": 1, "per_page": 25})
+
+    src = make(handler)
+    src.search([], page=2, order=order)
+    src.search(["artist:foo"], order=order)
+    assert [u.path for u in seen] == ["/api/v2/search"] * 2
+    assert seen[0].params["sort"] == order and seen[0].params["page"] == "2"
+    assert seen[0].params["query"] == "pages:>0"
+    assert seen[1].params["query"] == 'artist:"foo"'
+
+
+def test_newest_sends_no_sort() -> None:
+    def handler(req: httpx.Request) -> httpx.Response:
+        assert "sort" not in req.url.params
+        return httpx.Response(200, json={"result": [], "num_pages": 1, "per_page": 25})
+
+    make(handler).search(["x"], order="newest")
+    make(handler).search([], order=None)
+
+
 def test_get_post_and_errors() -> None:
     codes = {5: 404, 6: 429, 7: 403, 8: 503, 9: 500}
 
@@ -214,6 +251,24 @@ def test_get_post_and_errors() -> None:
     with pytest.raises(SourceError) as e:
         src.get_post("abc")
     assert e.value.code == "not_found"
+
+
+def test_403_message_and_default_user_agent() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req)
+        return httpx.Response(403, text="Just a moment...")
+
+    with pytest.raises(SourceError) as e:
+        NHentai(
+            client=httpx.Client(transport=httpx.MockTransport(handler)), throttle=Throttle(0.0)
+        ).search(["a"])
+    assert e.value.status == 403
+    assert "Cloudflare" in e.value.message
+    assert seen[0].url.path.startswith("/api/v2/")
+    assert seen[0].headers["user-agent"]
+    assert "cookie" not in seen[0].headers
 
 
 def test_unreachable_and_bad_json() -> None:

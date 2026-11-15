@@ -243,6 +243,21 @@ describe("VideoCard", () => {
     expect(container.querySelector("img")).not.toBeNull();
   });
 
+  it("does not retry the preview after it failed to load", async () => {
+    const { container } = render(VideoCard, baseProps);
+    const media = container.querySelector(".media")!;
+
+    ptr(media, "pointerenter", "mouse");
+    await Promise.resolve();
+    container.querySelector("video")!.dispatchEvent(new Event("error"));
+    await Promise.resolve();
+    ptr(media, "pointerleave", "mouse");
+    ptr(media, "pointerenter", "mouse");
+    await Promise.resolve();
+
+    expect(container.querySelector("video")).toBeNull();
+  });
+
   // ── 10. Rule-blurred card keeps its preview blurred ─────────────────
 
   it("blurs the preview video when the card is rule-blurred", async () => {

@@ -17,6 +17,10 @@ export function groupJobs(jobs: Job[]): JobGroups {
     .filter((j) => j.state === "queued")
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
+  const byCreated = (a: Job, b: Job) => a.created_at.localeCompare(b.created_at);
+  const scanWait = jobs.filter((j) => j.state === "scan_wait").sort(byCreated);
+  const verifying = jobs.filter((j) => j.state === "verifying").sort(byCreated);
+
   const attention = jobs
     .filter((j) => j.state === "failed" || j.state === "needs_click")
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -32,22 +36,22 @@ export function groupJobs(jobs: Job[]): JobGroups {
     .slice(0, 50);
 
   return {
-    active: [...running, ...queued],
+    active: [...running, ...scanWait, ...verifying, ...queued],
     attention,
     done,
   };
 }
 
+const IN_PROGRESS: Job["state"][] = ["queued", "running", "scan_wait", "verifying"];
+
 export function activeCount(jobs: Job[]): number {
-  return jobs.filter(
-    (j) => j.state === "running" || j.state === "queued",
-  ).length;
+  return jobs.filter((j) => IN_PROGRESS.includes(j.state)).length;
 }
 
 export function pollDelayMs(jobs: Job[], visible: boolean): number {
   if (
     visible &&
-    jobs.some((j) => j.state === "running" || j.state === "queued")
+    jobs.some((j) => IN_PROGRESS.includes(j.state))
   ) {
     return 2000;
   }
@@ -55,9 +59,21 @@ export function pollDelayMs(jobs: Job[], visible: boolean): number {
 }
 
 export function etaLabel(job: Job): string | null {
+  if (job.state === "running" && job.pages_total) {
+    const pages = `${job.pages_done ?? 0}/${job.pages_total} pages`;
+    return job.eta_s != null && job.eta_s > 0
+      ? `${pages}, ~${Math.ceil(job.eta_s)} s left`
+      : pages;
+  }
   if (job.state === "queued" && job.eta_s != null && job.eta_s > 0) {
     return `waits ${Math.ceil(job.eta_s)} s`;
   }
+  if (job.state === "scan_wait") {
+    return job.eta_s != null && job.eta_s > 0
+      ? `scan in ${Math.ceil(job.eta_s)} s`
+      : "scan starts soon";
+  }
+  if (job.state === "verifying") return "looking for the book";
   return null;
 }
 
@@ -67,6 +83,8 @@ export function stateInfo(
   const map: Record<Job["state"], { label: string; icon: IconName }> = {
     queued: { label: "Queued", icon: "clock" },
     running: { label: "Running", icon: "download" },
+    scan_wait: { label: "Waiting for Komga", icon: "clock" },
+    verifying: { label: "Checking Komga", icon: "refresh" },
     done: { label: "Done", icon: "check" },
     failed: { label: "Failed", icon: "alert" },
     needs_click: { label: "Needs a click", icon: "alert" },

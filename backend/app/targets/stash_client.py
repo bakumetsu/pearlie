@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse
+
 import httpx
 
 from app.logs import install_http_hooks
@@ -20,6 +22,12 @@ FIND_IMAGE_BY_PATH = (
     "query($v: String!) { findImages("
     "image_filter: {path: {value: $v, modifier: EQUALS}},"
     " filter: {per_page: 1}) { images { id } } }"
+)
+
+FIND_SCENE_BY_PATH = (
+    "query($v: String!) { findScenes("
+    "scene_filter: {path: {value: $v, modifier: EQUALS}},"
+    " filter: {per_page: 1}) { scenes { id } } }"
 )
 
 METADATA_SCAN = "mutation($p: [String!]) { metadataScan(input: {paths: $p}) }"
@@ -70,11 +78,16 @@ GET_SCENE = (
     "query($id: ID!) { findScene(id: $id) { " + SCENE_FIELDS
     + " sceneStreams { url mime_type label } } }"
 )
+GET_SCENE_PREVIEW = "query($id: ID!) { findScene(id: $id) { paths { preview } } }"
 
 
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
+
+
+_REDIRECTS = (301, 302, 303, 307, 308)
+_MAX_HOPS = 2
 
 
 class StashError(Exception):
@@ -159,6 +172,12 @@ class StashClient:
         data = self._gql(FIND_IMAGE_BY_PATH, {"v": path})
         images = data["findImages"]["images"]
         return images[0]["id"] if images else None
+
+    def find_scene_by_path(self, path: str) -> str | None:
+        """Return the Stash scene id matching *path*, or ``None``."""
+        data = self._gql(FIND_SCENE_BY_PATH, {"v": path})
+        scenes = data["findScenes"]["scenes"]
+        return scenes[0]["id"] if scenes else None
 
     def metadata_scan(self, path: str) -> str:
         """Trigger a metadata scan on *path*; return the job id."""
@@ -269,6 +288,26 @@ class StashClient:
         data = self._gql(GET_SCENE, {"id": id})
         return data["findScene"]
 
+    def scene_preview_path(self, id: str) -> str | None:
+        """Return the preview path+query from Stash, or ``None``."""
+        data = self._gql(GET_SCENE_PREVIEW, {"id": id})
+        scene = data.get("findScene")
+        if not scene:
+            return None
+        paths = scene.get("paths")
+        if not paths:
+            return None
+        preview = paths.get("preview")
+        if not preview:
+            return None
+        parsed = urlparse(preview)
+        query_params = parse_qsl(parsed.query, keep_blank_values=True)
+        filtered = [(k, v) for k, v in query_params if k.lower() != "apikey"]
+        query = urlencode(filtered)
+        if query:
+            return f"{parsed.path}?{query}"
+        return parsed.path
+
     def open_media(
         self,
         path: str,
@@ -279,12 +318,31 @@ class StashClient:
         request = self._client.build_request(
             "GET", path, params=params, headers=headers
         )
-        try:
-            response = self._client.send(
-                request, stream=True, follow_redirects=False
-            )
-        except httpx.HTTPError as exc:
-            raise StashError("upstream_error", "Stash is not reachable") from exc
+        origin = request.url
+        hops = 0
+        while True:
+            try:
+                response = self._client.send(
+                    request, stream=True, follow_redirects=False
+                )
+            except httpx.HTTPError as exc:
+                raise StashError("upstream_error", "Stash is not reachable") from exc
+            if response.status_code not in _REDIRECTS:
+                break
+            location = response.headers.get("location")
+            response.close()
+            if not location or hops >= _MAX_HOPS:
+                raise StashError("upstream_error", "Stash redirect not followed")
+            target = httpx.URL(urljoin(str(request.url), location))
+            if (target.scheme, target.host, target.port) != (
+                origin.scheme,
+                origin.host,
+                origin.port,
+            ):
+                # Never send the ApiKey to another host.
+                raise StashError("upstream_error", "Stash redirect not followed")
+            hops += 1
+            request = self._client.build_request("GET", target, headers=headers)
 
         status = response.status_code
         if status == 404:

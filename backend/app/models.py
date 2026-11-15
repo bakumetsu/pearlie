@@ -28,7 +28,9 @@ ViewSource = Literal[
     "rule34",
     "nhentai",
 ]
-JobState = Literal["queued", "running", "done", "failed", "needs_click", "skipped"]
+JobState = Literal[
+    "queued", "running", "scan_wait", "verifying", "done", "failed", "needs_click", "skipped"
+]
 State = Literal["ok", "down", "not_configured"]
 MappingTo = Literal[
     "stash_tag",
@@ -127,6 +129,7 @@ class WebItem(BaseModel):
     post_id: str
     thumb_url: str
     preview_url: str
+    media_kind: Literal["image", "video"] = "image"  # what preview_url serves; set by the backend
     title: str | None = None
     tags: list[Tag] = Field(default_factory=list)
     width: int
@@ -136,6 +139,24 @@ class WebItem(BaseModel):
     saveable: bool = True  # false while the source's target has no save path (no Save button)
     saved: SavedRef | None = None
     blur: Blur | None = None
+
+
+class WebBook(BaseModel):
+    """nhentai gallery for the web book page (title parsed by the backend)."""
+
+    title: str | None = None
+    title_main: str
+    title_sub: str | None = None
+    artist: str | None = None
+    circle: str | None = None
+    event: str | None = None
+    language: str | None = None
+    translator: str | None = None
+    tags: dict[str, list[str]] = Field(default_factory=dict)
+    page_count: int
+    page_url: str = Field(description="URL template with a literal {n} (1-based page number).")
+    page_thumb_url: str = Field(description="Like page_url, for the page thumbnail.")
+    item: WebItem
 
 
 class PageStats(BaseModel):
@@ -182,6 +203,7 @@ class Section(BaseModel):
 class SourceFilters(BaseModel):
     """What the order/rating/per-page toolbar may offer for one source."""
 
+    search: bool = True  # the source can take a search
     order: list[str] = Field(default_factory=list)
     rating: list[str] = Field(default_factory=list)
     sort: list[str] = Field(default_factory=list)  # library sources only
@@ -225,9 +247,12 @@ class Job(BaseModel):
     state: JobState
     progress: float = 0.0
     eta_s: float | None = None
+    pages_done: int | None = None
+    pages_total: int | None = None
     error: str | None = None
     error_code: str | None = None
     library_ref: SavedRef | None = None
+    dest_path: str | None = None
     notices: list[Problem] = Field(default_factory=list)
     created_at: str
     finished_at: str | None = None
@@ -282,9 +307,26 @@ class ProgressResult(BaseModel):
     completed: bool
 
 
+PlacementKind = Literal["series", "oneshot"]
+
+
+class PlacementBody(BaseModel):
+    kind: PlacementKind
+
+
 class SaveBody(BaseModel):
     source: WebSource
     post_id: str
+    placement: PlacementBody | None = None
+
+
+class PlacementSuggestion(BaseModel):
+    kind: PlacementKind
+    series: str | None
+    number: str | None
+    joins_existing: bool
+    moves_first: bool
+    reason: str
 
 
 class SaveAccepted(BaseModel):
@@ -381,6 +423,7 @@ class Destinations(BaseModel):
     komga_sites: list[str] = Field(default_factory=list)
     komga_library_paths: list[str] = Field(default_factory=list)
     komga_library_error: str | None = None
+    komga_oneshots_dir: str | None = None
 
 
 class MappingBody(BaseModel):

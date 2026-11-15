@@ -86,9 +86,9 @@ describe("ImageViewerCard", () => {
 		const slider = screen.getByLabelText("Backdrop strength") as HTMLInputElement;
 		expect(slider.value).toBe("60");
 
-		expect(screen.getByRole("switch", { name: "Show backdrop in wall overlay" }).getAttribute("aria-checked")).toBe("true");
-		expect(screen.getByRole("switch", { name: "Show backdrop on item page" }).getAttribute("aria-checked")).toBe("true");
-		expect(screen.getByRole("switch", { name: "Show backdrop in lightbox" }).getAttribute("aria-checked")).toBe("true");
+		expect(screen.getByRole("switch", { name: "Show backdrop in wall overlay" }).getAttribute("aria-checked")).toBe("false");
+		expect(screen.getByRole("switch", { name: "Show backdrop on item page" }).getAttribute("aria-checked")).toBe("false");
+		expect(screen.getByRole("switch", { name: "Show backdrop in lightbox" }).getAttribute("aria-checked")).toBe("false");
 	});
 
 	it("preview backdrop present at default strength, gone after slider set to 0", async () => {

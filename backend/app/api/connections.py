@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Literal
 
-import httpx
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, SecretStr, StrictBool
 
 from app.api.errors import ApiError
 from app.api.guard import write_guard
+from app.api.health import clear_health_cache
+from app.connection_probe import probe_connection
 from app.connections_store import (
     FIELDS,
     FIXED_HOSTS,
@@ -19,10 +19,6 @@ from app.connections_store import (
     ConnectionStore,
     StoreError,
 )
-from app.logs import install_http_hooks
-from app.sources.auth import build_auth
-
-logger = logging.getLogger("pearlie")
 
 router = APIRouter(prefix="/api/connections")
 
@@ -136,6 +132,7 @@ def put_connection(request: Request, name: str, body: ConnectionIn) -> Connectio
             raise ApiError(404, "not_found", "unknown connection") from exc
         raise ApiError(500, "error", "unexpected store error") from exc
     out = _build_out(name, store)
+    clear_health_cache(request.app)
     if name in ("stash", "komga"):
         from app.main import rebuild_client
 
@@ -145,65 +142,8 @@ def put_connection(request: Request, name: str, body: ConnectionIn) -> Connectio
 
 @router.post("/{name}/test", response_model=TestOut, dependencies=[Depends(write_guard)])
 def test_connection(request: Request, name: str) -> TestOut:
-    store: ConnectionStore = request.app.state.connection_store
     if name not in NAMES:
         raise ApiError(404, "not_found", "unknown connection")
 
-    address = store.address(name)
-    if not address:
-        return TestOut(ok=False, message="not configured")
-
-    settings = request.app.state.settings
-    transport: httpx.BaseTransport | None = getattr(request.app.state, "connection_transport", None)
-    if settings.mode == "fixture" and transport is None:
-        return TestOut(ok=False, message="fixture mode: no real connection")
-
-    secret = store.effective_secret(name)
-    site_auth = build_auth(name, store.field_values(name))
-    if site_auth.missing:
-        return TestOut(ok=False, message="missing: " + ", ".join(site_auth.missing))
-
-    method: str = "GET"
-    url: str = ""
-    headers: dict[str, str] = dict(site_auth.headers)
-    json_body: dict[str, str] | None = None
-    params: dict[str, str] | None = None
-
-    if name == "stash":
-        method = "POST"
-        url = address + "/graphql"
-        json_body = {"query": "{ version { version } }"}
-        if secret:
-            headers["ApiKey"] = secret
-    elif name == "komga":
-        url = address + "/api/v1/libraries"
-        if secret:
-            headers["X-API-Key"] = secret
-    elif name == "danbooru":
-        url = address + "/posts.json?limit=1"
-    elif name in ("gelbooru", "rule34"):
-        url = address + "/index.php"
-        params = {"page": "dapi", "s": "post", "q": "index", "json": "1", "limit": "1"}
-        params.update(site_auth.params)
-    elif name == "nhentai":
-        url = address + "/api/v2/search?query=a"
-
-    client = install_http_hooks(
-        httpx.Client(transport=transport, timeout=10.0, follow_redirects=False), name
-    )
-    try:
-        if method == "POST":
-            resp = client.post(url, json=json_body, headers=headers)
-        else:
-            resp = client.get(url, params=params, headers=headers, auth=site_auth.basic)
-    except httpx.HTTPError as exc:
-        logger.warning("connection test for %s failed: %s", name, type(exc).__name__)
-        return TestOut(ok=False, message="unreachable")
-    finally:
-        client.close()
-
-    if resp.status_code == 200:
-        return TestOut(ok=True, message="connected")
-    if resp.status_code in (401, 403):
-        return TestOut(ok=False, message="key rejected")
-    return TestOut(ok=False, message=f"HTTP {resp.status_code}")
+    result = probe_connection(request.app, name)
+    return TestOut(ok=result.ok, message=result.message)

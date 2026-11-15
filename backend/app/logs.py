@@ -230,6 +230,35 @@ class ScrubFilter(logging.Filter):
         return True
 
 
+class UvicornScrubFilter(logging.Filter):
+    """Scrubs uvicorn console records. Access args stay a tuple: uvicorn's formatter unpacks it."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) == 5 and record.name == "uvicorn.access":
+            # (client_addr, method, full_path, http_version, status_code): drop the query.
+            client, method, full_path, version, status = args
+            path = str(full_path).split("?", 1)[0]
+            if "?" in str(full_path):
+                path += "?***"
+            record.args = (client, method, scrub(path), version, status)
+            return True
+        return ScrubFilter().filter(record)
+
+
+def uvicorn_log_config() -> dict:
+    """uvicorn's default log config with the scrub filter on both console handlers."""
+    from copy import deepcopy
+
+    from uvicorn.config import LOGGING_CONFIG
+
+    config = deepcopy(LOGGING_CONFIG)
+    config["filters"] = {"scrub": {"()": "app.logs.UvicornScrubFilter"}}
+    for handler in config["handlers"].values():
+        handler["filters"] = ["scrub"]
+    return config
+
+
 class NameFilter(logging.Filter):
     """Passes pearlie*, app.* and uvicorn.error (not uvicorn.access, not httpx)."""
 
@@ -492,7 +521,9 @@ def install_http_hooks(client: httpx.Client, site: str, save: bool = False) -> h
         ok = 200 <= status < 300
         where = safe_url(str(req.url))
         line = f"OUT site={site} {req.method} {where} status={status} ms={_ms(req)}"
-        if site == "stash":
+        # Stash media is streamed (open_media): reading its body here would consume it.
+        streamed = site == "stash" and not req.url.path.endswith("/graphql")
+        if site == "stash" and not streamed:
             line += f" op={_gql_op(req)}"
             err = _gql_error(resp) if ok else ""
             if err:
@@ -501,7 +532,7 @@ def install_http_hooks(client: httpx.Client, site: str, save: bool = False) -> h
             hdrs = _header_line(resp)
             if hdrs:
                 line += " " + hdrs
-            if _out.isEnabledFor(logging.DEBUG):
+            if not streamed and _out.isEnabledFor(logging.DEBUG):
                 try:
                     resp.read()
                     body = resp.text[:_SNIPPET]

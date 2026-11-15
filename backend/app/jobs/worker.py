@@ -10,9 +10,12 @@ from pathlib import Path
 from typing import Protocol
 
 from app import logs
+from app.jobs.scan_wait import ScanWait
 from app.jobs.store import JobStore
+from app.models import Problem
 from app.sources.base import Post, Source, SourceError
-from app.targets.stash import SaveError, SaveResult
+from app.targets.komga import KomgaTarget
+from app.targets.stash import PendingScan, SaveError, SaveResult
 from app.targets.stash_client import StashError
 
 logger = logging.getLogger("pearlie.jobs")
@@ -32,6 +35,7 @@ class JobWorker:
         clock: Callable[[], float] = time.monotonic,
         workers: int = 1,
         startup_hooks: Sequence[Callable[[], object]] = (),
+        scan_wait_s: Callable[[], float] = lambda: 10.0,
     ) -> None:
         self._store = JobStore(db_path)
         self._sources = sources
@@ -46,9 +50,25 @@ class JobWorker:
         self._cond = threading.Condition()
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
+        komga = next((t for t in targets.values() if isinstance(t, KomgaTarget)), None)
+        self.scan_wait: ScanWait | None = (
+            ScanWait(komga, self._store, self.finish_saved, wait_s=scan_wait_s, clock=clock)
+            if komga is not None
+            else None
+        )
 
     def recover(self) -> int:
         count = self._store.requeue_running()
+        if self.scan_wait is not None:
+            pending = self._store.scan_pending()
+            for job_id, source_id, library_id, name, komga_path in pending:
+                self.scan_wait.add(
+                    job_id,
+                    source_id,
+                    PendingScan(library_id=library_id, name=name, komga_path=komga_path),
+                )
+            if pending:
+                logger.info("KOMGA scan wait re-armed after restart jobs=%d", len(pending))
         for hook in self._startup_hooks:
             try:
                 hook()
@@ -59,6 +79,8 @@ class JobWorker:
     def start(self) -> None:
         self.recover()
         self._stop.clear()
+        if self.scan_wait is not None:
+            self.scan_wait.start()
         for n in range(self._workers):
             t = threading.Thread(target=self._loop, name=f"pearlie-job-{n}", daemon=True)
             t.start()
@@ -71,6 +93,8 @@ class JobWorker:
         for t in self._threads:
             t.join(timeout=timeout)
         self._threads.clear()
+        if self.scan_wait is not None:
+            self.scan_wait.stop(timeout)
 
     def wake(self) -> None:
         with self._cond:
@@ -133,6 +157,29 @@ class JobWorker:
         extra = f" code={code} message={message}" if code else ""
         logger.log(level, "job=%s end state=%s%s", job_id, state, extra)
 
+    def finish_saved(
+        self,
+        job_id: str,
+        source_id: str,
+        notices: list[Problem],
+        dest_path: str | None,
+        library_ref_id: str | None,
+    ) -> None:
+        """End a saved job Done; the worker and ScanWait both end jobs through here."""
+        job = self._store.get(job_id)
+        token = logs.set_job(job_id, source_id, job.post_id if job else "")
+        try:
+            self._store.finish(
+                job_id,
+                "done",
+                notices=notices,
+                library_ref_id=library_ref_id,
+                dest_path=dest_path,
+            )
+            self._end(job_id, "done", message=f"image={library_ref_id}")
+        finally:
+            logs.reset_job(token)
+
     def _run(self, job_id: str, source_id: str) -> None:
         job = self._store.get(job_id)
         token = logs.set_job(job_id, source_id, job.post_id if job else "")
@@ -143,6 +190,20 @@ class JobWorker:
         finally:
             logs.reset_job(token)
 
+    def _progress_cb(self, job_id: str) -> Callable[[int, int], None]:
+        """Store pages done/total and a linear eta after each page."""
+        t0 = self._clock()
+
+        def report(done: int, total: int) -> None:
+            elapsed = max(0.0, self._clock() - t0)
+            eta = elapsed / done * (total - done) if done > 0 else None
+            try:
+                self._store.set_progress(job_id, done, total, eta)
+            except Exception as e:
+                logger.warning("job=%s progress write failed: %s", job_id, type(e).__name__)
+
+        return report
+
     def _finish_failed(self, job_id: str, error: str, error_code: str) -> None:
         """Write the failed row; retry once so a transient DB error cannot leave it running."""
         for attempt in (1, 2):
@@ -150,9 +211,7 @@ class JobWorker:
                 self._store.finish(job_id, "failed", error=error, error_code=error_code)
                 return
             except Exception as e:
-                logger.error(
-                    "job=%s finish failed (try %d): %s", job_id, attempt, type(e).__name__
-                )
+                logger.error("job=%s finish failed (try %d): %s", job_id, attempt, type(e).__name__)
                 if attempt == 1:
                     time.sleep(0.2)
 
@@ -194,13 +253,26 @@ class JobWorker:
                 post = Post.model_validate_json(post_json)
 
             tags = sorted({tag for group in post.tags.values() for tag in group})
-            result = target.save(post, tags)
+            placement = self._store.load_placement(job_id)
+            if isinstance(target, KomgaTarget):
+                result = target.save(
+                    post, tags, placement=placement, on_progress=self._progress_cb(job_id)
+                )
+            else:
+                result = target.save(post, tags)
 
             if result.status == "saved":
-                self._store.finish(
-                    job_id, "done", notices=result.notices, library_ref_id=result.image_id
-                )
-                self._end(job_id, "done", message=f"image={result.image_id}")
+                if result.pending_scan is not None and self.scan_wait is not None:
+                    pending = result.pending_scan
+                    self._store.mark_scan_wait(
+                        job_id, pending.library_id, pending.name, result.dest_path, result.notices
+                    )
+                    self.scan_wait.add(job_id, source_id, pending)
+                    logger.info("job=%s saved, waiting for Komga scan", job_id)
+                else:
+                    self.finish_saved(
+                        job_id, source_id, result.notices, result.dest_path, result.image_id
+                    )
             elif result.status == "duplicate":
                 error = result.notices[0].message if result.notices else "already saved"
                 self._store.finish(
@@ -231,6 +303,4 @@ class JobWorker:
             self._finish_failed(
                 job_id, f"unexpected error ({type(e).__name__})", "unexpected_error"
             )
-            self._end(
-                job_id, "failed", "unexpected_error", type(e).__name__, logging.ERROR
-            )
+            self._end(job_id, "failed", "unexpected_error", type(e).__name__, logging.ERROR)

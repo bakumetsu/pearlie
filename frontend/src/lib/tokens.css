@@ -40,8 +40,9 @@
   --font: "Inter Variable", system-ui, sans-serif;
 }
 
-:root[data-rail="slim"] {
-  --rail-w: 56px;
+/* Hidden rail: the whole rail is gone; Nav shows a small re-open button. */
+:root[data-rail="hidden"] {
+  --rail-w: 0px;
 }
 
 * {

@@ -3,8 +3,17 @@ import { ApiError } from "../api/client";
 import type { Api, Section, WebItem } from "../api/client";
 import { sectionsFor, serialiseQuery } from "../query";
 import type { SearchState } from "../query";
+import type { Job } from "../jobs/group";
+import { settleQueued } from "../web/saveFlow";
 
-export function createSearch(api: Api, opts?: { debounceMs?: number }) {
+// The last Discover search, kept for the page session so See all can start from it (one way: See all never writes it).
+let discoverQuery = "";
+
+export function getLastDiscoverQuery(): string {
+  return discoverQuery;
+}
+
+export function createSearch(api: Api, opts?: { debounceMs?: number; remember?: boolean }) {
   const debounceMs = opts?.debounceMs ?? 300;
 
   let sections: Record<string, { status: "loading" | "done" | "error"; section: Section | null; error: string | null }> =
@@ -17,6 +26,9 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let controller: AbortController | null = null;
   let token = 0;
+  // Retries have their own tokens: a retry must not make the main search or another retry stale.
+  let retryGen = 0;
+  const retryTokens: Record<string, number> = {};
   let lastQuery = "";
   let lastState: SearchState | null = null;
   let lastKey: string | null = null;
@@ -52,7 +64,9 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
       controller = null;
     }
 
+    retryGen++;
     lastQuery = serialiseQuery(state.chips);
+    if (opts?.remember) discoverQuery = lastQuery;
     lastState = state;
 
     if (ids.length === 0) {
@@ -109,14 +123,15 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
     if (sections[id] === undefined) return;
     sections[id] = { status: "loading", section: null, error: null };
 
-    token++;
-    const myToken = token;
+    const gen = retryGen;
+    const myToken = (retryTokens[id] = (retryTokens[id] ?? 0) + 1);
+    const stale = () => gen !== retryGen || myToken !== retryTokens[id];
     const ctrl = new AbortController();
 
     api
       .search({ q: lastQuery, sources: [id] }, ctrl.signal)
       .then((res) => {
-        if (myToken !== token) return;
+        if (stale()) return;
         const sec = (res.sections ?? []).find((s: Section) => (s as { id: string }).id === id);
         if (sec && (sec as { error?: { message: string } }).error) {
           sections[id] = { status: "error", section: null, error: (sec as { error: { message: string } }).error.message };
@@ -125,7 +140,7 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
         }
       })
       .catch((e: unknown) => {
-        if (myToken !== token) return;
+        if (stale()) return;
         if ((e as { name?: string }).name === "AbortError") return;
         const msg = e instanceof Error ? e.message : String(e);
         sections[id] = { status: "error", section: null, error: msg };
@@ -146,11 +161,11 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
     loading = false;
   }
 
-  async function save(item: WebItem) {
+  async function save(item: WebItem, placement?: { kind: "series" | "oneshot" }) {
     const key = `${item.source}:${item.post_id}`;
     saves[key] = { state: "queued" };
     try {
-      await api.save({ source: item.source, post_id: item.post_id });
+      await api.save({ source: item.source, post_id: item.post_id, ...(placement ? { placement } : {}) });
       return { result: "queued" as const };
     } catch (e: unknown) {
       if (e instanceof ApiError && e.status === 409) {
@@ -167,6 +182,15 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
     }
   }
 
+  function settle(jobs: Job[]) {
+    const queued = Object.keys(saves).filter((k) => saves[k]?.state === "queued");
+    if (queued.length === 0) return;
+    for (const [key, next] of Object.entries(settleQueued(queued, jobs))) {
+      if (next === "idle") delete saves[key];
+      else saves[key] = next;
+    }
+  }
+
   function saveStateOf(item: WebItem) {
     return saves[`${item.source}:${item.post_id}`];
   }
@@ -176,11 +200,13 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
     get banner() { return banner; },
     get loading() { return loading; },
     get saves() { return saves; },
+    get lastQuery() { return lastQuery; },
     run,
     retrySection,
     retryAll,
     cancel,
     save,
     saveStateOf,
+    settle,
   };
 }

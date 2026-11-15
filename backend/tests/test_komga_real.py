@@ -277,6 +277,18 @@ def test_book_detail_page_url(tmp_path):
     assert r.json()["page_thumb_url"] == "/api/media/komga/books/b1/pages/{n}/thumb"
 
 
+def test_book_detail_read_page(tmp_path):
+    """Book detail carries the Komga read progress page as read_page."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/api/v1/books/b1":
+            return httpx.Response(200, json={**book_dto(pages=7), "readProgress": {"page": 4}})
+        return httpx.Response(404)
+
+    client = make_client(tmp_path, handler)
+    assert client.get("/api/library/books/b1").json()["read_page"] == 4
+
+
 def test_progress_completed_flag(tmp_path):
     """Progress POST marks completed when page equals page_count."""
     recorded: list[dict] = []

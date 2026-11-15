@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon, { type IconName } from "../components/Icon.svelte";
   import type { Mode, Fit } from "./pages";
+  import type { SaveSlot } from "./saveSlot";
 
   let {
     fit,
@@ -18,6 +19,7 @@
     onzoomin,
     onzoomout,
     onzoomreset,
+    save,
   }: {
     fit: Fit;
     mode: Mode;
@@ -34,6 +36,7 @@
     onzoomin: () => void;
     onzoomout: () => void;
     onzoomreset: () => void;
+    save?: SaveSlot;
   } = $props();
 
   let zoomOpen = $state(false);
@@ -88,6 +91,21 @@
   >
     <Icon name={fullscreen ? "minimize" : "maximize"} size={20} />
   </button>
+  {#if save}
+    {#if save.state === "in_library" && save.href}
+      <a class="btn" href={save.href} aria-label="In library" title="In library"><Icon name="check" size={20} /></a>
+    {:else}
+      <button
+        class="btn"
+        aria-label={save.state === "queued" ? "Saving" : save.state === "blocked" ? "Blocked by a rule" : save.state === "in_library" ? "In library" : "Save"}
+        title="Save"
+        disabled={save.state !== "idle" || save.disabled}
+        onclick={save.onsave}
+      >
+        <Icon name={save.state === "queued" ? "loader" : save.state === "blocked" ? "alert" : save.state === "in_library" ? "check" : "download"} size={20} />
+      </button>
+    {/if}
+  {/if}
   <button class="btn" aria-label="Keys" title="Keys (?)" onclick={onhelp}>
     <Icon name="help" size={20} />
   </button>

@@ -129,3 +129,16 @@ describe("formatTime", () => {
     expect(formatTime(-5)).toBe("0:00");
   });
 });
+
+describe("hidden rail", () => {
+  it("dock bar starts at the left edge when railW is 0", () => {
+    expect(dockBarRect(VP, 0)).toEqual({ ...DOCK_BAR, x: 0, w: VP.w });
+  });
+
+  it("dock video and rectFor follow railW", () => {
+    const shifted = { ...DOCK_VIDEO_RECT, x: DOCK_VIDEO_RECT.x - 72 };
+    expect(dockVideoRect(VP, 0)).toEqual(shifted);
+    expect(rectFor("mini", null, VP, 0)).toEqual(shifted);
+    expect(rectFor("stage", null, VP, 0)).toEqual(shifted);
+  });
+});

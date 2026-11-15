@@ -2,30 +2,30 @@ export type Rect = { x: number; y: number; w: number; h: number };
 export type Viewport = { w: number; h: number };
 export type PlayerMode = "hidden" | "mini" | "stage";
 
-export const RAIL_W = 72;
+export const RAIL_W = 72; // matches --rail-w in tokens.css; callers pass 0 when the rail is hidden
 export const DOCK_H = 72;
 export const DOCK_VIDEO = { w: 96, h: 54 };
 export const DOCK_PAD = 9; // (DOCK_H - DOCK_VIDEO.h) / 2 vertical, also used as left padding after the rail
 
-export function dockBarRect(vp: Viewport): Rect {
-  return { x: RAIL_W, y: vp.h - DOCK_H, w: vp.w - RAIL_W, h: DOCK_H };
+export function dockBarRect(vp: Viewport, railW: number = RAIL_W): Rect {
+  return { x: railW, y: vp.h - DOCK_H, w: vp.w - railW, h: DOCK_H };
 }
 
-export function dockVideoRect(vp: Viewport): Rect {
+export function dockVideoRect(vp: Viewport, railW: number = RAIL_W): Rect {
   return {
-    x: RAIL_W + DOCK_PAD + 3,
+    x: railW + DOCK_PAD + 3,
     y: vp.h - DOCK_H + DOCK_PAD,
     w: DOCK_VIDEO.w,
     h: DOCK_VIDEO.h,
   };
 }
 
-export function rectFor(mode: PlayerMode, slot: Rect | null, vp: Viewport): Rect | null {
+export function rectFor(mode: PlayerMode, slot: Rect | null, vp: Viewport, railW: number = RAIL_W): Rect | null {
   if (mode === "hidden") return null;
-  if (mode === "mini") return dockVideoRect(vp);
+  if (mode === "mini") return dockVideoRect(vp, railW);
   // stage: use slot when valid, else fall back to dock
   if (slot !== null && slot.w > 0 && slot.h > 0) return slot;
-  return dockVideoRect(vp);
+  return dockVideoRect(vp, railW);
 }
 
 export function rectsEqual(a: Rect | null, b: Rect | null): boolean {

@@ -52,7 +52,7 @@ def _filtered(source: str, q: str, order: str | None, rating: list[str]) -> tupl
     wanted = [r for r in rating if r in allowed]
     items = [
         it
-        for it in store.web_items(source, order if allowed else None, wanted)
+        for it in store.web_items(source, order if allowed and order == "score" else None, wanted)
         if store.matches([t.name for t in it.tags], it.tags, it.title or "", q)
     ]
     return items, notes

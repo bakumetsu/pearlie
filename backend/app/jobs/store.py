@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.db import connect
@@ -20,18 +21,52 @@ def _utc_iso(value: str | None) -> str | None:
     return value.replace(" ", "T", 1) + "Z"
 
 
+def _progress(row: sqlite3.Row) -> float:
+    if row["status"] in ("done", "scan_wait", "verifying"):
+        return 1.0
+    total = row["pages_total"]
+    if row["status"] == "running" and total:
+        return min(1.0, max(0.0, (row["pages_done"] or 0) / total))
+    return 0.0
+
+
+def _wait_left(due_at: str | None) -> float | None:
+    """Seconds until a stored UTC `scan_due_at` (never below 0)."""
+    if not due_at:
+        return None
+    try:
+        due = datetime.fromisoformat(due_at).replace(tzinfo=UTC)
+    except ValueError:
+        return None
+    return max(0.0, (due - datetime.now(UTC)).total_seconds())
+
+
+def _eta(row: sqlite3.Row) -> float | None:
+    if row["status"] == "running":
+        return row["eta_s"]
+    if row["status"] == "scan_wait":
+        return _wait_left(row["scan_due_at"])
+    return None
+
+
 def _to_job(row: sqlite3.Row) -> Job:
     data: dict[str, object] = {
         "id": str(row["id"]),
         "source": row["source"],
         "post_id": row["post_id"],
         "title": row["title"],
-        "thumb_url": row["thumb_url"],
+        # The stored value is a site CDN URL; the browser only gets the media proxy path.
+        "thumb_url": (
+            f"/api/media/web/{row['source']}/{row['post_id']}/thumb" if row["thumb_url"] else ""
+        ),
         "target": row["target"],
         "state": row["status"],
-        "progress": 1.0 if row["status"] == "done" else 0.0,
-        "eta_s": None,
+        "progress": _progress(row),
+        "eta_s": _eta(row),
+        "pages_done": row["pages_done"],
+        "pages_total": row["pages_total"],
         "error": row["error"],
+        "dest_path": row["dest_path"],
         "error_code": row["error_code"],
         "library_ref": None,
         "created_at": _utc_iso(row["created_at"]),
@@ -42,6 +77,27 @@ def _to_job(row: sqlite3.Row) -> Job:
         data["library_ref"] = SavedRef(kind=kind, id=row["library_ref_id"])
     data["notices"] = [Problem(**n) for n in json.loads(row["notices"])]
     return Job.model_validate(data)
+
+
+def _db_time(value: datetime | None) -> str | None:
+    """Naive UTC text, as SQLite CURRENT_TIMESTAMP writes it."""
+    if value is None:
+        return None
+    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _chunks(items: list[str], size: int = 500):
+    for i in range(0, len(items), size):
+        yield items[i : i + size]
+
+
+def _ref(target: str, image_id: str | None, kind: str = "image") -> SavedRef:
+    # A Komga row has no image id; the marker still shows, without a link.
+    if target == "komga":
+        return SavedRef(kind="book", id=image_id or "")
+    if kind == "video":
+        return SavedRef(kind="video", id=image_id or "")
+    return SavedRef(kind="image", id=image_id or "")
 
 
 class JobStore:
@@ -61,12 +117,63 @@ class JobStore:
         finally:
             conn.close()
 
+    def saved_kind(self, source: str, post_id: str) -> str:
+        conn = connect(self._path)
+        try:
+            row = conn.execute(
+                "SELECT kind FROM saved_items WHERE source = ? AND post_id = ?",
+                (source, post_id),
+            ).fetchone()
+            if row is None:
+                return "image"
+            return row["kind"] if row["kind"] is not None else "image"
+        finally:
+            conn.close()
+
+    def saved_refs(
+        self, source: str, post_ids: list[str], md5s: dict[str, str] | None = None
+    ) -> dict[str, SavedRef]:
+        """One batched lookup for a page: post id to the library ref of its saved copy.
+
+        `md5s` (post id to MD5) adds a second pass that also matches the same file
+        saved from another source or post.
+        """
+        if not post_ids:
+            return {}
+        conn = connect(self._path)
+        try:
+            found: dict[str, SavedRef] = {}
+            for chunk in _chunks(post_ids):
+                marks = ",".join("?" * len(chunk))
+                for row in conn.execute(
+                    "SELECT post_id, target, image_id, kind FROM saved_items "
+                    f"WHERE source = ? AND post_id IN ({marks})",
+                    (source, *chunk),
+                ):
+                    found[row["post_id"]] = _ref(
+                        row["target"], row["image_id"], row["kind"]
+                    )
+            by_md5 = {m.lower(): pid for pid, m in (md5s or {}).items() if m and pid not in found}
+            for chunk in _chunks(list(by_md5)):
+                marks = ",".join("?" * len(chunk))
+                for row in conn.execute(
+                    f"SELECT md5, target, image_id, kind FROM saved_items WHERE md5 IN ({marks})",
+                    tuple(chunk),
+                ):
+                    found.setdefault(
+                        by_md5[row["md5"].lower()],
+                        _ref(row["target"], row["image_id"], row["kind"])
+                    )
+            return found
+        finally:
+            conn.close()
+
     def active_job_id(self, source: str, post_id: str) -> str | None:
         conn = connect(self._path)
         try:
             row = conn.execute(
                 "SELECT id FROM jobs WHERE source = ? AND post_id = ? "
-                "AND status IN ('queued', 'running')",
+                "AND status IN ('queued', 'running', 'scan_wait', 'verifying')",
                 (source, post_id),
             ).fetchone()
             if row is None:
@@ -75,15 +182,17 @@ class JobStore:
         finally:
             conn.close()
 
-    def enqueue(self, post: Post, target: str, title: str, thumb_url: str) -> str:
+    def enqueue(
+        self, post: Post, target: str, title: str, thumb_url: str, placement: str | None = None
+    ) -> str:
         conn = connect(self._path)
         try:
             for _ in range(3):
                 try:
                     cur = conn.execute(
                         "INSERT INTO jobs "
-                        "(source, post_id, status, target, title, thumb_url, post_json) "
-                        "VALUES (?, ?, 'queued', ?, ?, ?, ?)",
+                        "(source, post_id, status, target, title, thumb_url, post_json, placement) "
+                        "VALUES (?, ?, 'queued', ?, ?, ?, ?, ?)",
                         (
                             post.source,
                             post.post_id,
@@ -91,6 +200,7 @@ class JobStore:
                             title,
                             thumb_url,
                             post.model_dump_json(),
+                            json.dumps({"kind": placement}) if placement else None,
                         ),
                     )
                     conn.commit()
@@ -139,8 +249,9 @@ class JobStore:
             try:
                 cur = conn.execute(
                     "UPDATE jobs SET status='queued', error=NULL, error_code=NULL, "
-                    "notices='[]', post_json=NULL, library_ref_id=NULL, "
+                    "notices='[]', post_json=NULL, library_ref_id=NULL, dest_path=NULL, "
                     "started_at=NULL, finished_at=NULL, attempts=attempts+1, restarts=0, "
+                    "pages_done=NULL, pages_total=NULL, eta_s=NULL, "
                     "updated_at=CURRENT_TIMESTAMP "
                     "WHERE id=? AND status IN ('failed', 'needs_click')",
                     (job_id,),
@@ -191,10 +302,102 @@ class JobStore:
             )
             cur = conn.execute(
                 "UPDATE jobs SET status='queued', started_at=NULL, restarts=restarts+1, "
+                "pages_done=NULL, pages_total=NULL, eta_s=NULL, "
                 "updated_at=CURRENT_TIMESTAMP WHERE status='running'"
             )
             conn.commit()
             return cur.rowcount
+        finally:
+            conn.close()
+
+    def mark_scan_wait(
+        self,
+        job_id: str,
+        library_id: str,
+        name: str,
+        dest_path: str | None,
+        notices: list[Problem],
+        due_at: datetime | None = None,
+    ) -> None:
+        """A saved file waits for its library scan; the job stays active."""
+        conn = connect(self._path)
+        try:
+            conn.execute(
+                "UPDATE jobs SET status='scan_wait', scan_library_id=?, scan_name=?, "
+                "dest_path=?, notices=?, scan_due_at=?, pages_done=NULL, pages_total=NULL, "
+                "eta_s=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (
+                    library_id,
+                    name,
+                    dest_path,
+                    json.dumps([n.model_dump() for n in notices]),
+                    _db_time(due_at),
+                    job_id,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def set_scan_due(self, job_ids: list[str], due_at: datetime | None) -> None:
+        """Move the countdown of waiting jobs (None clears it)."""
+        if not job_ids:
+            return
+        conn = connect(self._path)
+        try:
+            for chunk in _chunks(job_ids):
+                marks = ",".join("?" * len(chunk))
+                conn.execute(
+                    "UPDATE jobs SET scan_due_at=?, updated_at=CURRENT_TIMESTAMP "
+                    f"WHERE status='scan_wait' AND id IN ({marks})",
+                    (_db_time(due_at), *chunk),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def set_verifying(self, job_ids: list[str]) -> None:
+        if not job_ids:
+            return
+        conn = connect(self._path)
+        try:
+            for chunk in _chunks(job_ids):
+                marks = ",".join("?" * len(chunk))
+                conn.execute(
+                    "UPDATE jobs SET status='verifying', scan_due_at=NULL, "
+                    f"updated_at=CURRENT_TIMESTAMP WHERE status='scan_wait' AND id IN ({marks})",
+                    tuple(chunk),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def scan_pending(self) -> list[tuple[str, str, str, str, str]]:
+        """Jobs left waiting or checking at a restart, put back to `scan_wait`.
+
+        Returns (job id, source, library id, name, komga path) rows, oldest first.
+        """
+        conn = connect(self._path)
+        try:
+            conn.execute(
+                "UPDATE jobs SET status='scan_wait', scan_due_at=NULL, "
+                "updated_at=CURRENT_TIMESTAMP WHERE status='verifying'"
+            )
+            conn.commit()
+            rows = conn.execute(
+                "SELECT id, source, scan_library_id, scan_name, dest_path FROM jobs "
+                "WHERE status='scan_wait' AND scan_library_id IS NOT NULL ORDER BY id"
+            ).fetchall()
+            return [
+                (
+                    str(r["id"]),
+                    r["source"],
+                    r["scan_library_id"],
+                    r["scan_name"] or "",
+                    r["dest_path"] or "",
+                )
+                for r in rows
+            ]
         finally:
             conn.close()
 
@@ -241,6 +444,35 @@ class JobStore:
         finally:
             conn.close()
 
+    def load_placement(self, job_id: str) -> str | None:
+        """The save-dialog override ("series" or "oneshot") stored with the job, if any."""
+        conn = connect(self._path)
+        try:
+            row = conn.execute("SELECT placement FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        finally:
+            conn.close()
+        if row is None or not row["placement"]:
+            return None
+        try:
+            kind = json.loads(row["placement"]).get("kind")
+        except (ValueError, AttributeError):
+            return None
+        return kind if kind in ("series", "oneshot") else None
+
+    def set_progress(
+        self, job_id: str, pages_done: int, pages_total: int, eta_s: float | None
+    ) -> None:
+        conn = connect(self._path)
+        try:
+            conn.execute(
+                "UPDATE jobs SET pages_done=?, pages_total=?, eta_s=?, "
+                "updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='running'",
+                (pages_done, pages_total, eta_s, job_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
     def set_post(self, job_id: str, post: Post) -> None:
         conn = connect(self._path)
         try:
@@ -260,6 +492,7 @@ class JobStore:
         error_code: str | None = None,
         notices: list[Problem] | None = None,
         library_ref_id: str | None = None,
+        dest_path: str | None = None,
     ) -> None:
         if notices is not None:
             notices_json = json.dumps([n.model_dump() for n in notices])
@@ -269,9 +502,9 @@ class JobStore:
         try:
             conn.execute(
                 "UPDATE jobs SET status=?, error=?, error_code=?, notices=?, "
-                "library_ref_id=?, finished_at=CURRENT_TIMESTAMP, "
+                "library_ref_id=?, dest_path=?, finished_at=CURRENT_TIMESTAMP, "
                 "updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                (state, error, error_code, notices_json, library_ref_id, job_id),
+                (state, error, error_code, notices_json, library_ref_id, dest_path, job_id),
             )
             conn.commit()
         finally:

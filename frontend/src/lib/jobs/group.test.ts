@@ -115,8 +115,20 @@ describe("pollDelayMs", () => {
 });
 
 describe("etaLabel", () => {
-  it("returns null for running job", () => {
+  it("returns null for running job without pages", () => {
     expect(etaLabel(mk({ state: "running", eta_s: 5 }))).toBeNull();
+  });
+
+  it("shows pages and time left for a running job", () => {
+    expect(
+      etaLabel(mk({ state: "running", pages_done: 2, pages_total: 8, eta_s: 4.2 })),
+    ).toBe("2/8 pages, ~5 s left");
+  });
+
+  it("shows pages only when no eta yet", () => {
+    expect(etaLabel(mk({ state: "running", pages_done: 0, pages_total: 8 }))).toBe(
+      "0/8 pages",
+    );
   });
 
   it("returns null when eta_s is 0", () => {
@@ -224,5 +236,42 @@ describe("needsFolderFix", () => {
     expect(needsFolderFix(mk({ state: "failed", error_code: "download_failed" }))).toBe(false);
     expect(needsFolderFix(mk({ state: "failed", error: "folder is not inside a Stash library path" }))).toBe(false);
     expect(needsFolderFix(mk({ state: "queued", error_code: "outside_library" }))).toBe(false);
+  });
+});
+
+describe("Komga scan states", () => {
+  it("orders Active: running, scan_wait, verifying, queued", () => {
+    const jobs = [
+      mk({ id: "q", state: "queued", created_at: "2025-01-01T00:00:00Z" }),
+      mk({ id: "v", state: "verifying", created_at: "2025-01-02T00:00:00Z" }),
+      mk({ id: "s", state: "scan_wait", created_at: "2025-01-03T00:00:00Z" }),
+      mk({ id: "r", state: "running", created_at: "2025-01-04T00:00:00Z" }),
+    ];
+    const groups = groupJobs(jobs);
+    expect(groups.active.map((j) => j.id)).toEqual(["r", "s", "v", "q"]);
+    expect(groups.attention).toEqual([]);
+  });
+
+  it("counts them as active and keeps the 2 s poll", () => {
+    for (const state of ["scan_wait", "verifying"] as const) {
+      expect(activeCount([mk({ state })])).toBe(1);
+      expect(pollDelayMs([mk({ state })], true)).toBe(2000);
+    }
+  });
+
+  it("labels the countdown and the check", () => {
+    expect(etaLabel(mk({ state: "scan_wait", eta_s: 6.2 }))).toBe("scan in 7 s");
+    expect(etaLabel(mk({ state: "verifying" }))).toBe("looking for the book");
+    expect(stateInfo("scan_wait").label).toBe("Waiting for Komga");
+    expect(stateInfo("verifying").label).toBe("Checking Komga");
+  });
+
+  it("allows Remove, not Cancel or Retry", () => {
+    for (const state of ["scan_wait", "verifying"] as const) {
+      const j = mk({ state });
+      expect(canRemove(j)).toBe(true);
+      expect(removeLabel(j)).toBe("Remove");
+      expect(canRetry(j)).toBe(false);
+    }
   });
 });

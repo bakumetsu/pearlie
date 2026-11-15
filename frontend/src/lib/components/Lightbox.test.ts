@@ -59,6 +59,18 @@ describe("Lightbox", () => {
     vi.useRealTimers();
   });
 
+  it("renders a video element for video items and an img otherwise", () => {
+    for (const [kind, sel, other] of [["video", "video", "img"], ["image", "img", "video"]] as const) {
+      const item = { source: "x", post_id: "1", preview_url: "/p", thumb_url: "/t", media_kind: kind, width: 10, height: 10, tags: [] } as never;
+      const r = render(Lightbox, { props: { item, onsave: () => {}, onclose: () => {} } });
+      const el = document.querySelector(`.stage ${sel}`) as HTMLElement | null;
+      expect(el?.getAttribute("src")).toBe("/p");
+      expect(document.querySelector(`.stage ${other}`)).toBeNull();
+      if (kind === "video") expect(el?.hasAttribute("controls")).toBe(true);
+      r.unmount();
+    }
+  });
+
   it("shows Save for a saveable item and hides it when saveable is false", () => {
     for (const [saveable, count] of [[true, 1], [false, 0]] as const) {
       const item = { source: "x", post_id: "1", preview_url: "http://mock/p.jpg", thumb_url: "http://mock/t.jpg", width: 10, height: 10, tags: [], saveable } as never;

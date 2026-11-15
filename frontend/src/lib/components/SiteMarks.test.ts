@@ -33,7 +33,7 @@ describe("SiteMarks", () => {
     const btn = screen.getByRole("button", { name: "Gelbooru" });
     await fireEvent.error(btn.querySelector("img")!);
     expect(btn.querySelector("img")).toBeNull();
-    expect(btn.textContent?.trim()).toBe("G");
+    expect(btn.querySelector(".mk")?.textContent?.trim()).toBe("G");
     expect(container.querySelectorAll("img")).toHaveLength(3);
   });
 
@@ -44,6 +44,19 @@ describe("SiteMarks", () => {
       "Danbooru",
       "nhentai",
     ]);
+  });
+
+  it("shows site names on inactive pills by default", () => {
+    render(SiteMarks, { sites: [], onsites: () => {} });
+    const marks = screen.getByRole("group", { name: "Sites" });
+    const names = Array.from(marks.querySelectorAll(".mk-name")).map((el) => el.textContent);
+    expect(names).toEqual(["Danbooru", "Gelbooru", "Rule34", "nhentai"]);
+  });
+
+  it("hides site names with names={false}", () => {
+    render(SiteMarks, { sites: ["danbooru"], onsites: () => {}, names: false });
+    const marks = screen.getByRole("group", { name: "Sites" });
+    expect(marks.querySelectorAll(".mk-name")).toHaveLength(0);
   });
 });
 

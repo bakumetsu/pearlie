@@ -13,6 +13,8 @@ export const ROUTES: RouteDef[] = [
   { name: "library_books", pattern: "/library/komga/books" },
   { name: "item", pattern: "/item/:kinds/:id" },
   { name: "read", pattern: "/read/:bookId" },
+  { name: "read-web", pattern: "/read/web/:source/:id" },
+  { name: "web-book", pattern: "/web/:source/:id" },
   { name: "queue", pattern: "/queue" },
   { name: "trash", pattern: "/trash" },
   { name: "options", pattern: "/options" },
@@ -33,7 +35,13 @@ export function matchRoute(pathname: string, search: string, routes: RouteDef[] 
     let ok = true;
     for (let i = 0; i < patSegs.length; i++) {
       if (patSegs[i].startsWith(":")) {
-        params[patSegs[i].slice(1)] = decodeURIComponent(pathSegs[i]);
+        let value = pathSegs[i];
+        try {
+          value = decodeURIComponent(value);
+        } catch {
+          // malformed % escape: keep the raw segment
+        }
+        params[patSegs[i].slice(1)] = value;
       } else if (patSegs[i] !== pathSegs[i]) {
         ok = false;
         break;

@@ -10,6 +10,7 @@
 
 	import type { Mode, Fit, Dir } from "./pages";
 	import type { LibraryItem } from "../api/client";
+	import type { SaveSlot } from "./saveSlot";
 
 	type Props = {
 		hidden: boolean;
@@ -52,6 +53,7 @@
 		onclosepopover: () => void;
 		onhover: (v: boolean) => void;
 		onfocus: (v: boolean) => void;
+		save?: SaveSlot;
 	};
 
 	let {
@@ -95,6 +97,7 @@
 		onclosepopover,
 		onhover,
 		onfocus,
+		save,
 	}: Props = $props();
 </script>
 
@@ -109,7 +112,7 @@
 	onfocusout={() => onfocus(false)}
 >
 	<BookPill {title} {index} {total} {hasSeries} {onprev} {onnext} {onlist} />
-	<Rail {fit} {mode} {fullscreen} settingsOpen={popover === "settings"} {zoom} {hidden} {onback} {onsettings} {onfit} {onmode} {onfullscreen} {onhelp} {onzoomin} {onzoomout} {onzoomreset} />
+	<Rail {fit} {mode} {fullscreen} settingsOpen={popover === "settings"} {zoom} {hidden} {onback} {onsettings} {onfit} {onmode} {onfullscreen} {onhelp} {onzoomin} {onzoomout} {onzoomreset} {save} />
 	<BottomCard {count} {shown} {dir} {thumbsOpen} {onjump} {onthumbs} />
 	{#if thumbsOpen}
 		<ThumbStrip {count} {shown} template={thumbTpl} {wide} {onjump} />

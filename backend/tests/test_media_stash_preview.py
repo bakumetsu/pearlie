@@ -17,6 +17,8 @@ def test_preview_ranged_request_returns_206(tmp_path: Path) -> None:
     seen: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> Any:
+        if request.method == "POST" and request.url.path == "/graphql":
+            return httpx.Response(200, json={"data": {"findScene": {"paths": {"preview": None}}}})
         seen.append(request)
         return stream_response(
             206,
@@ -43,6 +45,8 @@ def test_preview_full_request_returns_200(tmp_path: Path) -> None:
     seen: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> Any:
+        if request.method == "POST" and request.url.path == "/graphql":
+            return httpx.Response(200, json={"data": {"findScene": {"paths": {"preview": None}}}})
         seen.append(request)
         return stream_response(
             200,
@@ -65,6 +69,8 @@ def test_preview_never_leaks_key(tmp_path: Path) -> None:
     seen: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> Any:
+        if request.method == "POST" and request.url.path == "/graphql":
+            return httpx.Response(200, json={"data": {"findScene": {"paths": {"preview": None}}}})
         seen.append(request)
         return stream_response(200, b"payload", {"Content-Type": "video/mp4"})
 
@@ -158,9 +164,91 @@ def test_fixture_items_carry_card_fields(client: TestClient) -> None:
 
 def test_preview_upstream_404_is_404(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> Any:
+        if request.method == "POST" and request.url.path == "/graphql":
+            return httpx.Response(200, json={"data": {"findScene": {"paths": {"preview": None}}}})
         return stream_response(404, b"", {"Content-Type": "text/plain"})
 
     client = make_client(tmp_path, handler)
     r = client.get("/api/media/stash/scene/7/preview")
 
     assert r.status_code == 404
+
+
+def test_preview_graphql_path_with_query(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> Any:
+        if request.method == "POST" and request.url.path == "/graphql":
+            return httpx.Response(200, json={
+                "data": {"findScene": {"paths": {"preview": "http://stash:9999/scene/7/preview?t=123"}}},
+            })
+        seen.append(request)
+        return stream_response(200, b"vid", {"Content-Type": "video/mp4"})
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/media/stash/scene/7/preview")
+
+    assert r.status_code == 200
+    assert str(seen[0].url) == f"{URL}/scene/7/preview?t=123"
+
+
+def test_preview_fallback_when_paths_null(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> Any:
+        if request.method == "POST" and request.url.path == "/graphql":
+            return httpx.Response(200, json={"data": {"findScene": {"paths": None}}})
+        seen.append(request)
+        return stream_response(200, b"vid", {"Content-Type": "video/mp4"})
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/media/stash/scene/7/preview")
+
+    assert r.status_code == 200
+    assert str(seen[0].url) == f"{URL}/scene/7/preview"
+
+
+def test_preview_fallback_on_graphql_error(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> Any:
+        if request.method == "POST" and request.url.path == "/graphql":
+            return httpx.Response(400, json={"errors": [{"message": "bad"}]})
+        seen.append(request)
+        return stream_response(200, b"vid", {"Content-Type": "video/mp4"})
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/media/stash/scene/7/preview")
+
+    assert r.status_code == 200
+    assert str(seen[0].url) == f"{URL}/scene/7/preview"
+
+
+def test_preview_upstream_404_code_not_found(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> Any:
+        if request.method == "POST" and request.url.path == "/graphql":
+            return httpx.Response(200, json={"data": {"findScene": {"paths": {"preview": None}}}})
+        return stream_response(404, b"", {"Content-Type": "text/plain"})
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/media/stash/scene/7/preview")
+
+    assert r.status_code == 404
+    assert r.json()["code"] == "not_found"
+
+
+def test_preview_strips_apikey(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> Any:
+        if request.method == "POST" and request.url.path == "/graphql":
+            return httpx.Response(200, json={"data": {"findScene": {"paths": {"preview": "http://stash:9999/scene/47/preview?apikey=SECRET&x=1"}}}})
+        seen.append(request)
+        return stream_response(200, b"vid", {"Content-Type": "video/mp4"})
+
+    client = make_client(tmp_path, handler)
+    r = client.get("/api/media/stash/scene/47/preview")
+
+    assert r.status_code == 200
+    assert str(seen[0].url) == f"{URL}/scene/47/preview?x=1"
+    assert "SECRET" not in str(seen[0].url)

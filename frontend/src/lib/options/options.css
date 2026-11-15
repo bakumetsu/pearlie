@@ -95,6 +95,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+.options .card input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.options .card input[type="number"]::-webkit-inner-spin-button,
+.options .card input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .options .card input[type="number"]:disabled {
   opacity: 0.5;
   cursor: not-allowed;

@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api")
 
 _SOURCES = {"web"} | set(get_args(ViewSource))
 _SITES = set(get_args(WebSource))
-_ORDERS = ("newest", "score")
+_ORDERS = ("newest", "score")  # saved tabs keep the two shared orders
 _RATINGS = ("g", "s", "q", "e")
 
 

@@ -21,8 +21,10 @@
   import ImageViewerCard from "../lib/options/ImageViewerCard.svelte";
   import ListsCard from "../lib/options/ListsCard.svelte";
   import DownloadsCard from "../lib/options/DownloadsCard.svelte";
+  import ImagesPerSiteCard from "../lib/options/ImagesPerSiteCard.svelte";
   import StatusCard from "../lib/options/StatusCard.svelte";
   import UpdateCard from "../lib/options/UpdateCard.svelte";
+  import ThumbCacheCard from "../lib/options/ThumbCacheCard.svelte";
   import ChangelogCard from "../lib/options/ChangelogCard.svelte";
   import LogsCard from "../lib/options/LogsCard.svelte";
   import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
@@ -217,6 +219,8 @@
     <DiscoverCard />
   {:else if sectionId === "sources" && card.title === "Downloads"}
     <DownloadsCard />
+  {:else if sectionId === "sources" && card.title === "Browsing"}
+    <ImagesPerSiteCard />
   {:else if sectionId === "save-folders" && card.title === "Save folders"}
     <SaveFoldersCard />
   {:else if sectionId === "trash" && card.title === "Retention"}
@@ -229,6 +233,8 @@
     <!-- shown with Stash -->
   {:else if sectionId === "library" && card.title === "Status"}
     <StatusCard />
+  {:else if sectionId === "cache" && card.title === "Thumbnail cache"}
+    <ThumbCacheCard />
   {:else if sectionId === "update" && card.title === "Update"}
     <UpdateCard />
   {:else if sectionId === "changelog" && card.title === "Changelog"}

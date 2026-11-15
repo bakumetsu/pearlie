@@ -119,4 +119,34 @@ describe("DownloadsCard", () => {
     await vi.waitFor(() => expect(input.value).toBe("1"));
     expect(screen.queryByRole("alert")).toBeNull();
   });
+
+  it("typing a decimal into danbooru saves the fractional pace", () => {
+    const store = makeStore({ source_pace: pace() });
+    render(DownloadsCard, { store });
+
+    const input = screen.getByTestId("pace-danbooru");
+    fireEvent.change(input, { target: { value: "1.5" } });
+
+    expect(store.set).toHaveBeenCalledWith({ source_pace: { danbooru: 1.5 } });
+  });
+
+  it("typing below danbooru minimum shows alert and does not call set", async () => {
+    const store = makeStore({ source_pace: pace() });
+    render(DownloadsCard, { store });
+
+    const input = screen.getByTestId("pace-danbooru");
+    fireEvent.change(input, { target: { value: "0.5" } });
+
+    expect(store.set).not.toHaveBeenCalled();
+    expect((await screen.findByRole("alert")).textContent).toBe("Minimum is 1s");
+  });
+
+  it("locked rule34 input is disabled", () => {
+    const store = makeStore({ source_pace: pace({ rule34: { locked: true } }) });
+    render(DownloadsCard, { store });
+
+    const input = screen.getByTestId("pace-rule34") as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+  });
+
 });

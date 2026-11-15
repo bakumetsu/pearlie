@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -82,26 +83,27 @@ def _collect_all_pages(
 
 
 def test_list(client: Any, settings: Any, tmp_path: Path) -> None:
+    TODAY = date.today().isoformat()
+    YESTERDAY = (date.today() - timedelta(days=1)).isoformat()
+    OLD = (date.today() - timedelta(days=12)).isoformat()
     ld = _log_dir(client)
     ld.mkdir(parents=True, exist_ok=True)
 
     day_file(
         ld,
-        "2026-11-13",
+        TODAY,
         [
-            _line("2026-11-13 10:00:00.000", "INFO", "pearlie.app", "a"),
-            _line("2026-11-13 10:00:01.000", "INFO", "pearlie.app", "b"),
+            _line(f"{TODAY} 10:00:00.000", "INFO", "pearlie.app", "a"),
+            _line(f"{TODAY} 10:00:01.000", "INFO", "pearlie.app", "b"),
         ],
     )
-    day_file(ld, "2026-11-12", [_line("2026-11-12 10:00:00.000", "INFO", "pearlie.app", "c")])
+    day_file(ld, YESTERDAY, [_line(f"{YESTERDAY} 10:00:00.000", "INFO", "pearlie.app", "c")])
 
     # non-log file that must NOT appear
     (ld / "notes.txt").write_text("ignore me", encoding="utf-8")
 
     # file older than keep_days (8 days) – should not be listed
-    old = day_file(
-        ld, "2026-11-01", [_line("2026-11-01 10:00:00.000", "INFO", "pearlie.app", "old")]
-    )
+    old = day_file(ld, OLD, [_line(f"{OLD} 10:00:00.000", "INFO", "pearlie.app", "old")])
 
     r = client.get("/api/logs")
     assert r.status_code == 200, r.text
@@ -115,12 +117,12 @@ def test_list(client: Any, settings: Any, tmp_path: Path) -> None:
 
     files = body["files"]
     # newest first
-    assert [f["date"] for f in files] == ["2026-11-13", "2026-11-12"]
+    assert [f["date"] for f in files] == [TODAY, YESTERDAY]
     # notes.txt not listed
     assert all(f["date"] != "notes" for f in files)
     # per-file fields
     f0 = files[0]
-    assert f0["date"] == "2026-11-13"
+    assert f0["date"] == TODAY
     assert f0["size_bytes"] > 0
     assert f0["lines"] == 2
 

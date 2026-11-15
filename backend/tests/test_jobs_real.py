@@ -46,9 +46,7 @@ def _make_post(source_id: str, pid: str) -> Post:
     )
 
 
-def make_client(
-    tmp_path: Path, **kwargs: object
-) -> tuple[TestClient, dict[str, FakeSource], Path]:
+def make_client(tmp_path: Path, **kwargs: object) -> tuple[TestClient, dict[str, FakeSource], Path]:
     db_path = tmp_path / "p.db"
     init_db(db_path)
     settings = Settings(
@@ -113,8 +111,7 @@ def test_save_already_saved(tmp_path: Path) -> None:
     client, _, db_path = make_client(tmp_path)
     conn = connect(db_path)
     conn.execute(
-        "INSERT INTO saved_items (source, post_id, md5, target, image_id) "
-        "VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO saved_items (source, post_id, md5, target, image_id) VALUES (?, ?, ?, ?, ?)",
         ("danbooru", "1", "abc", "stash", "42"),
     )
     conn.commit()
@@ -129,8 +126,7 @@ def test_save_stale_index_row_allowed(tmp_path: Path) -> None:
     client, _, db_path = make_client(tmp_path)
     conn = connect(db_path)
     conn.execute(
-        "INSERT INTO saved_items (source, post_id, md5, target, image_id) "
-        "VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO saved_items (source, post_id, md5, target, image_id) VALUES (?, ?, ?, ?, ?)",
         ("danbooru", "1", "abc", "stash", "42"),
     )
     conn.commit()
@@ -321,3 +317,175 @@ def test_save_komga_source_queues_with_title(tmp_path: Path) -> None:
     job = client.get(f"/api/jobs/{resp.json()['job_id']}").json()
     assert job["target"] == "komga"
     assert job["title"] == "Some Gallery"
+
+
+def _komga_client(tmp_path: Path) -> tuple[TestClient, Path]:
+    client, sources, db_path = make_client(tmp_path)
+    sources["danbooru"].target = "komga"
+    client.app.state.komga = object()  # type: ignore[attr-defined]
+    return client, db_path
+
+
+def _komga_row(db_path: Path) -> None:
+    conn = connect(db_path)
+    conn.execute(
+        "INSERT INTO saved_items (source, post_id, md5, target, image_id) VALUES (?, ?, ?, ?, ?)",
+        ("danbooru", "1", "abc", "komga", ""),
+    )
+    conn.commit()
+    conn.close()
+
+
+class _GoneKomgaTarget:
+    def __init__(self, gone: bool, db_path: Path) -> None:
+        self.gone = gone
+        self.db_path = db_path
+
+    def drop_if_gone(self, source: str, post_id: str) -> bool:
+        if self.gone:
+            conn = connect(self.db_path)
+            conn.execute("DELETE FROM saved_items")
+            conn.commit()
+            conn.close()
+        return self.gone
+
+
+def test_save_komga_book_deleted_allows_resave(tmp_path: Path) -> None:
+    client, db_path = _komga_client(tmp_path)
+    _komga_row(db_path)
+    client.app.state.komga_target = _GoneKomgaTarget(True, db_path)  # type: ignore[attr-defined]
+    resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
+    assert resp.status_code == 202
+
+
+def test_save_komga_book_present_is_already_saved(tmp_path: Path) -> None:
+    client, db_path = _komga_client(tmp_path)
+    _komga_row(db_path)
+    client.app.state.komga_target = _GoneKomgaTarget(False, db_path)  # type: ignore[attr-defined]
+    resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "already_saved"
+
+
+def test_save_placement_stored(tmp_path: Path) -> None:
+    client, db_path = _komga_client(tmp_path)
+    resp = client.post(
+        "/api/save",
+        json={"source": "danbooru", "post_id": "1", "placement": {"kind": "oneshot"}},
+    )
+    assert resp.status_code == 202
+    assert JobStore(db_path).load_placement(resp.json()["job_id"]) == "oneshot"
+
+
+def test_save_without_placement_stores_none(tmp_path: Path) -> None:
+    client, db_path = _komga_client(tmp_path)
+    resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
+    assert JobStore(db_path).load_placement(resp.json()["job_id"]) is None
+
+
+@pytest.mark.parametrize("bad", [{"kind": "bogus"}, {"kind": None}, "series", {}])
+def test_save_placement_invalid_is_422(tmp_path: Path, bad: object) -> None:
+    client, _ = _komga_client(tmp_path)
+    resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1", "placement": bad})
+    assert resp.status_code == 422
+
+
+class _FakeKomgaTarget:
+    def suggest(self, post: Post) -> Any:
+        from app.targets.placement import Plan
+
+        return Plan("series", "Root", "2", "[A] Root", "folder", ("Root.cbz",))
+
+
+def test_placement_endpoint(tmp_path: Path) -> None:
+    client, _ = _komga_client(tmp_path)
+    client.app.state.komga_target = _FakeKomgaTarget()  # type: ignore[attr-defined]
+    resp = client.get("/api/save/placement", params={"source": "danbooru", "post_id": "1"})
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "kind": "series",
+        "series": "Root",
+        "number": "2",
+        "joins_existing": True,
+        "moves_first": True,
+        "reason": "folder",
+    }
+
+
+def _nhentai_client(tmp_path: Path) -> tuple[TestClient, FakeSource]:
+    client, _ = _komga_client(tmp_path)
+    fake = FakeSource("nhentai")
+    fake.target = "komga"
+    fake.posts["7"] = _make_post("nhentai", "7")
+    client.app.state.sources = {"nhentai": fake}  # type: ignore[attr-defined]
+    client.app.state.komga_target = _FakeKomgaTarget()  # type: ignore[attr-defined]
+    return client, fake
+
+
+def test_placement_reuses_book_cache_for_nhentai(tmp_path: Path) -> None:
+    from app.api.media_web_pages import _load_meta, _nhentai
+
+    client, fake = _nhentai_client(tmp_path)
+
+    class _Req:
+        app = client.app
+
+    req = cast(Any, _Req())
+    _load_meta(req, _nhentai(req), "7")  # the book page load
+    assert fake.calls == ["7"]
+    resp = client.get("/api/save/placement", params={"source": "nhentai", "post_id": "7"})
+    assert resp.status_code == 200
+    assert client.post("/api/save", json={"source": "nhentai", "post_id": "7"}).status_code == 202
+    assert fake.calls == ["7"]  # no second get_post
+
+
+def test_placement_fetches_when_book_not_cached(tmp_path: Path) -> None:
+    client, fake = _nhentai_client(tmp_path)
+    resp = client.get("/api/save/placement", params={"source": "nhentai", "post_id": "7"})
+    assert resp.status_code == 200
+    assert fake.calls == ["7"]
+
+
+def test_parallel_book_loads_share_one_get_post(tmp_path: Path) -> None:
+    import threading
+
+    from app.api.media_web_pages import _load_meta, _nhentai
+
+    client, fake = _nhentai_client(tmp_path)
+
+    class _Req:
+        app = client.app
+
+    req = cast(Any, _Req())
+    src = _nhentai(req)
+    threads = [threading.Thread(target=_load_meta, args=(req, src, "7")) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert fake.calls == ["7"]
+
+
+def test_placement_endpoint_not_komga(tmp_path: Path) -> None:
+    client, _, _ = make_client(tmp_path)
+    resp = client.get("/api/save/placement", params={"source": "danbooru", "post_id": "1"})
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "no_target"
+
+
+def test_placement_endpoint_unknown_post(tmp_path: Path) -> None:
+    client, _ = _komga_client(tmp_path)
+    client.app.state.komga_target = _FakeKomgaTarget()  # type: ignore[attr-defined]
+    resp = client.get("/api/save/placement", params={"source": "danbooru", "post_id": "99"})
+    assert resp.status_code == 404
+
+
+def test_job_thumb_goes_through_media_proxy(tmp_path: Path) -> None:
+    """A queue row never carries a site CDN URL, only the media proxy path."""
+    client, _, _ = make_client(tmp_path)
+    job_id = client.post("/api/save", json={"source": "danbooru", "post_id": "1"}).json()["job_id"]
+    one = client.get(f"/api/jobs/{job_id}").json()
+    assert one["thumb_url"] == "/api/media/web/danbooru/1/thumb"
+    listed = client.get("/api/jobs").json()["items"]
+    assert [j["thumb_url"] for j in listed] == ["/api/media/web/danbooru/1/thumb"]
+    assert "x/t.jpg" not in client.get("/api/jobs").text

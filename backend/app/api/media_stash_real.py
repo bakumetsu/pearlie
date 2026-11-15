@@ -5,13 +5,14 @@ from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response, StreamingResponse
-from starlette.background import BackgroundTask
 
 from app.api.errors import ApiError
+from app.api.relay import CHUNK_SIZE, relay
 from app.targets import stash_library
 from app.targets.stash_client import StashError
 
 router = APIRouter(prefix="/api/media")
+MANIFEST_MAX = 1_000_000  # an HLS manifest is small; more is not a manifest
 
 _NAME_RE = re.compile(r"^(stream\.(mp4|webm|m3u8|ts)|[0-9]+\.ts)$")
 _RESOLUTION_RE = re.compile(r"^[A-Z0-9_]+$")
@@ -46,11 +47,10 @@ def _stream(upstream, cache: str) -> StreamingResponse:
         if h in upstream.headers:
             headers[h.replace("-", " ").title().replace(" ", "-")] = upstream.headers[h]
     return StreamingResponse(
-        upstream.iter_raw(),
+        relay(upstream.iter_raw(CHUNK_SIZE), upstream.close),
         status_code=upstream.status_code,
         media_type=media_type,
         headers=headers,
-        background=BackgroundTask(upstream.close),
     )
 
 
@@ -144,8 +144,15 @@ def scene_preview(request: Request, id: str):
     _check_id(id)
     stash = request.app.state.stash
     fwd = _forward_range(request)
+    path = None
     try:
-        upstream = stash.open_media(f"/scene/{id}/preview", headers=fwd)
+        path = stash.scene_preview_path(id)
+    except StashError:
+        pass
+    if path is None:
+        path = f"/scene/{id}/preview"
+    try:
+        upstream = stash.open_media(path, headers=fwd)
     except StashError as err:
         raise ApiError(err.status, err.code, err.message) from None
     return _stream(upstream, "private, max-age=3600")
@@ -190,8 +197,17 @@ def video_segment(request: Request, id: str, name: str):
 
     # HLS manifest: read fully, rewrite, return as text
     if name == "stream.m3u8":
-        body = upstream.read()
-        upstream.close()
+        parts: list[bytes] = []
+        size = 0
+        try:
+            for chunk in upstream.iter_raw(CHUNK_SIZE):
+                size += len(chunk)
+                if size > MANIFEST_MAX:
+                    raise ApiError(502, "upstream_error", "The manifest is too large")
+                parts.append(chunk)
+        finally:
+            upstream.close()
+        body = b"".join(parts)
         text = body.decode("utf-8", errors="replace")
         rewritten = rewrite_m3u8(text)
         return Response(content=rewritten, media_type="application/vnd.apple.mpegurl")

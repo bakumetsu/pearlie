@@ -53,6 +53,17 @@ describe("TrashRetentionCard", () => {
     expect(input.value).toBe("7");
   });
 
+  it("typing 8 raises retention and saves it", async () => {
+    const { store, putOptions } = await makeStore(7);
+    const { api: cardApi, purgePreview } = makeCardApi(0);
+    render(TrashRetentionCard, { store, api: cardApi });
+    const input = screen.getByTestId("trash-retention") as HTMLInputElement;
+    input.value = "8";
+    await fireEvent.change(input);
+    expect(purgePreview).not.toHaveBeenCalled();
+    await waitFor(() => expect(putOptions).toHaveBeenCalledWith({ trash_retention_days: 8 }));
+  });
+
   it("raising 7 → 14: no dialog, purgePreview not called, putOptions called", async () => {
     const { store, putOptions } = await makeStore(7);
     const { api: cardApi, purgePreview } = makeCardApi(0);

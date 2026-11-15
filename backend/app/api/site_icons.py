@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from pathlib import Path
 from typing import Literal
 
 import httpx
@@ -17,6 +18,8 @@ logger = logging.getLogger("pearlie")
 
 router = APIRouter(prefix="/api")
 
+NHENTAI_ICON = Path(__file__).resolve().parent.parent / "assets" / "nhentai.png"
+HEADERS = {"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"}
 MAX_ICON_BYTES = 65536
 HIT_TTL_S = 30 * 86400
 MISS_TTL_S = 86400
@@ -123,6 +126,13 @@ def _icon(request: Request, site: str) -> tuple[bytes, str] | None:
 def get_site_icon(
     request: Request, site: Literal["danbooru", "gelbooru", "rule34", "nhentai"]
 ) -> Response:
+    # nhentai's /favicon.ico is 404; serve the static file from the repo instead.
+    if site == "nhentai":
+        return Response(
+            content=NHENTAI_ICON.read_bytes(),
+            media_type="image/png",
+            headers=HEADERS,
+        )
     # Fixture mode never reaches out; the UI shows the letter mark.
     if request.app.state.settings.mode == "fixture":
         raise ApiError(404, "not_found", "no icon")
@@ -132,5 +142,5 @@ def get_site_icon(
     return Response(
         content=got[0],
         media_type=got[1],
-        headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"},
+        headers=HEADERS,
     )

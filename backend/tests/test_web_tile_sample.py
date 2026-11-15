@@ -191,4 +191,5 @@ def test_end_to_end_thumb_url(tmp_path):
     resp = client.get("/api/search", params={"q": "x", "sources": "danbooru"})
     assert resp.status_code == 200
     items = resp.json()["sections"][0]["items"]
-    assert items[0]["thumb_url"] == sample_url
+    assert items[0]["thumb_url"] == "/api/media/web/danbooru/7/thumb"
+    assert items[0]["preview_url"] == "/api/media/web/danbooru/7/preview"

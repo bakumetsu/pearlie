@@ -10,6 +10,7 @@ from app.paging import clamp_page_size
 from app.sources.auth import SiteAuth, build_auth
 from app.sources.base import Post, SearchPage, SourceError
 from app.sources.danbooru import _retry_after
+from app.sources.filters import NHENTAI_SORTS
 from app.sources.throttle import DEFAULT_PACE, Throttle
 
 API_HOST = "nhentai.net"
@@ -30,7 +31,7 @@ def _term(token: str) -> str:
         prefix = f"{kind}:"
     else:
         prefix, name = "", body
-    name = name.replace("_", " ").strip()
+    name = name.replace("_", " ").replace('"', " ").strip()
     return f'{neg}{prefix}"{name}"' if name else ""
 
 
@@ -114,7 +115,8 @@ class NHentai:
         if status in (403, 503):
             raise SourceError(
                 "upstream_error",
-                "nhentai blocked the request (check the cookie and User-Agent)",
+                "nhentai blocked the request (Cloudflare check): "
+                "set the cookie and User-Agent in Options",
                 status,
             )
         if status >= 400:
@@ -139,7 +141,13 @@ class NHentai:
         clamp_page_size(self.id, page_size or self._page_size)
         page = max(page, 1)
         query = build_query(tags)
-        if query:
+        sort = NHENTAI_SORTS.get(order or "")
+        if sort:
+            # The listing endpoint has no sort; match-all search takes one.
+            data = self._get(
+                "/api/v2/search", {"query": query or "pages:>0", "page": page, "sort": sort}
+            )
+        elif query:
             data = self._get("/api/v2/search", {"query": query, "page": page})
         else:
             data = self._get("/api/v2/galleries", {"page": page})
@@ -226,5 +234,10 @@ class NHentai:
                 or None
             ),
             page_count=count if isinstance(count, int) else (len(exts) or None),
-            extra={"media_id": media_id, "page_exts": exts},
+            extra={
+                "media_id": media_id,
+                "page_exts": exts,
+                "title_english": title.get("english") or None,
+                "title_japanese": title.get("japanese") or None,
+            },
         )

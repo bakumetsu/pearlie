@@ -1,7 +1,8 @@
 <script lang="ts">
   import { untrack, tick } from "svelte";
   import { getApi } from "../lib/api/client";
-  import { getRouter } from "../lib/ctx";
+  import { getRouter, findJobs } from "../lib/ctx";
+  import { settleQueued } from "../lib/web/saveFlow";
   import { linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
   import type { Kind, WebItem, LibraryItem } from "../lib/api/client";
@@ -13,6 +14,7 @@
   import { SvelteURLSearchParams } from "svelte/reactivity";
   import { viewSettings } from "../lib/stores/viewSettings.svelte";
   import { options } from "../lib/stores/options.svelte";
+  import { placement } from "../lib/stores/placement.svelte";
   import { pageOf, remapPage } from "../lib/browse/pager";
   import type { Mode } from "../lib/browse/layout";
   import ResultsGrid from "../lib/browse/ResultsGrid.svelte";
@@ -21,7 +23,10 @@
   import WallOverlay from "../lib/browse/WallOverlay.svelte";
   import Lightbox from "../lib/components/Lightbox.svelte";
   import Toolbar from "../lib/browse/Toolbar.svelte";
-  import { parseOrder, parseRating, ORDER_LABELS, RATING_LABELS } from "../lib/browse/filters";
+  import SeeAllSearch from "../lib/browse/SeeAllSearch.svelte";
+  import { getLastDiscoverQuery } from "../lib/stores/search.svelte";
+  import { nextAutohide } from "../lib/browse/autohide";
+  import { parseOrder, parseRating } from "../lib/browse/filters";
   import type { SourceFilters } from "../lib/api/client";
   import { parseOpen, openKey, withOpen, findTile } from "../lib/browse/overlayState";
 
@@ -33,7 +38,20 @@
   let h1: HTMLHeadingElement | undefined;
   let notice = $state<string | null>(null);
 
+  // Opened without a q: start from the last Discover search (one way; See all never writes it back).
+  // The grid waits for the prefilled address, so the first request already carries it.
+  const prefillQ = match.query.get("q") ? "" : getLastDiscoverQuery().trim();
+  let prefilling = $state(prefillQ !== "");
+
   onMount(() => {
+    if (prefillQ) {
+      const qs = new SvelteURLSearchParams(match.query);
+      qs.set("q", prefillQ);
+      // After a tick: the app shell subscribes to the router after its children mount.
+      tick().then(() => router.navigate(match.path + `?${qs.toString()}`, { replace: true }));
+      // The grid effect clears the flag once the prefilled q arrives; this timer only guards a missed update.
+      setTimeout(() => { prefilling = false; }, 1000);
+    }
     h1?.focus();
     viewSettings.load(api);
     // Capability list for the toolbar. No answer yet or a failed call: no Order/Rating controls, plain list.
@@ -53,6 +71,7 @@
   });
 
   const q = $derived(match.query.get("q") ?? "");
+  $effect(() => { if (q) prefilling = false; });
   const sort = $derived(match.query.get("sort") ?? "");
   const favorite = $derived(match.query.get("favorite") === "true");
   const caps = $derived(filterCaps[source]);
@@ -163,7 +182,11 @@
   const ratingKey = $derived(rating.join(","));
   // A blocked Order is off for the request and the chip; the URL keeps the pick for when the words shrink.
   const order = $derived(orderBlocked ? "" : rawOrder);
-  const showFilters = $derived(!isLibrary && caps !== undefined && ((caps.order?.length ?? 0) > 1 || (caps.rating?.length ?? 0) > 0));
+  // One Sort control: library lists use `sort`, web lists use `order`. komga_series has no caps row yet, so the library falls back to the fixed list.
+  const sortOptions = $derived(isLibrary ? (caps?.sort?.length ? caps.sort : ["newest", "rating", "random"]) : orderOptions);
+  const sortValue = $derived(isLibrary ? sort : order);
+  const favoritesAvail = $derived(isLibrary && (caps?.favorite ?? true));
+  const canReset = $derived(q.trim() !== "" || sort !== "" || rawOrder !== "" || rating.length > 0 || favorite);
 
   const listKey = $derived(
     [source, q, sort, favorite ? "1" : "0", order, ratingKey, seed ?? "", String(vs.per_page), infinite ? "inf" : "pg"].join("|"),
@@ -171,7 +194,7 @@
 
   $effect(() => {
     if (!viewSettings.ready || !options.ready) return;
-    if (pendingCloseQuery !== null) return;
+    if (pendingCloseQuery !== null || prefilling) return;
     const inf = infinite;
     const k = sourceToKind(source);
     const src = source;
@@ -283,11 +306,24 @@
   // --- save state for web items ---
   let saveStates = $state<Record<string, "queued" | "in_library">>({});
 
+  const jobsStore = findJobs();
+  $effect(() => {
+    if (!jobsStore) return;
+    const jobs = jobsStore.items;
+    const queued = Object.keys(untrack(() => saveStates)).filter((k) => saveStates[k] === "queued");
+    for (const [key, next] of Object.entries(settleQueued(queued, jobs))) {
+      if (next === "idle") delete saveStates[key];
+      else saveStates[key] = "in_library";
+    }
+  });
+
   async function handleSave(item: WebItem) {
     const key = item.source + ":" + item.post_id;
+    const answer = await placement.ask(item);
+    if (answer === null) return;
     saveStates[key] = "queued";
     try {
-      await api.save({ source: item.source, post_id: item.post_id });
+      await api.save({ source: item.source, post_id: item.post_id, ...answer });
       toasts.push({ kind: "info", message: "Added to queue", actionLabel: "View", href: "/queue" });
     } catch (e) {
       if (e instanceof ApiErrorClass && e.status === 409) {
@@ -320,32 +356,54 @@
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   }
 
-  function onSortChange(value: string) {
+  // One toolbar change (or one sheet Apply) is one navigation, so one request.
+  function onToolbar(next: { sort: string; rating: string[] }) {
     const qs = new SvelteURLSearchParams(match.query);
     qs.delete("page");
-    if (value) {
-      qs.set("sort", value);
-      if (value === "random") {
-        qs.set("seed", String(Math.floor(Math.random() * 1e8)));
+    if (isLibrary) {
+      if (next.sort) {
+        qs.set("sort", next.sort);
+        if (next.sort === "random") {
+          if (sort !== "random") qs.set("seed", String(Math.floor(Math.random() * 1e8)));
+        } else qs.delete("seed");
       } else {
+        qs.delete("sort");
         qs.delete("seed");
       }
     } else {
-      qs.delete("sort");
-      qs.delete("seed");
+      if (next.sort) qs.set("order", next.sort);
+      else qs.delete("order");
+      if (next.rating.length) qs.set("rating", next.rating.join(","));
+      else qs.delete("rating");
     }
     const search = qs.toString();
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   }
 
-  // One filter change (or one sheet Apply) is one navigation, so one request.
-  function onFilters(next: { order: string; rating: string[] }) {
+  // Reset clears the search and every filter in one request.
+  function onReset() {
+    const qs = new SvelteURLSearchParams(match.query);
+    for (const k of ["q", "sort", "order", "rating", "favorite", "seed", "page"]) qs.delete(k);
+    const search = qs.toString();
+    router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
+  }
+
+  function setQuery(next: string) {
+    const text = next.trim();
+    if (text === q.trim()) return;
     const qs = new SvelteURLSearchParams(match.query);
     qs.delete("page");
-    if (next.order) qs.set("order", next.order);
-    else qs.delete("order");
-    if (next.rating.length) qs.set("rating", next.rating.join(","));
-    else qs.delete("rating");
+    if (text) qs.set("q", text);
+    else qs.delete("q");
+    const search = qs.toString();
+    router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
+  }
+
+  const filtersSet = $derived(sort !== "" || rawOrder !== "" || rating.length > 0 || favorite);
+
+  function clearFilters() {
+    const qs = new SvelteURLSearchParams(match.query);
+    for (const k of ["sort", "order", "rating", "favorite", "seed", "page"]) qs.delete(k);
     const search = qs.toString();
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   }
@@ -404,68 +462,48 @@
     }
   }
 
+  // Hide the sticky header on scroll down, show on scroll up. Never while a menu or sheet is open.
+  let barHidden = $state(false);
+  let headerEl: HTMLElement | undefined = $state();
+  let lastY = 0;
+
+  function onScrollBar() {
+    const blocked = !!headerEl?.querySelector('[aria-expanded="true"], [role="dialog"]');
+    const next = nextAutohide(barHidden, lastY, window.scrollY, blocked);
+    lastY = next.lastY;
+    if (next.hidden !== barHidden) barHidden = next.hidden;
+  }
+
   function onNav(e: MouseEvent) {
     linkClick(e, router);
   }
 
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} onscroll={onScrollBar} />
 
 <div class="content" inert={openId !== null}>
   <h1 class="sr-only" tabindex="-1" bind:this={h1}>{title}</h1>
 
-  <header class="sticky-header">
+  <header class="sticky-header" class:hidden={barHidden} bind:this={headerEl} onfocusin={() => (barHidden = false)}>
     <div class="header-row">
       <button class="back-btn" aria-label="Back" onclick={() => history.back()}>
         <Icon name="arrow-left" size={20} />
       </button>
       <h2 class="header-title">{title}{grid.total != null ? ` (${grid.total})` : ""}</h2>
-      {#if !isLibrary && grid.total == null && grid.status === "done"}<span class="shown" data-testid="shown">{grid.items.length} shown</span>{/if}
+      {#if !isLibrary && grid.total == null && grid.status === "done" && grid.items.length > 0}<span class="shown" data-testid="shown">{grid.items.length} shown</span>{/if}
     </div>
 
-    {#if q}
-      <div class="q-chips">
-        <span class="q-chip">{q}</span>
-      </div>
+    {#if caps?.search !== false}
+      <SeeAllSearch value={q} web={!isLibrary} onsubmit={setQuery} />
     {/if}
 
-    {#if showFilters && (order || rating.length)}
-      <div class="f-chips">
-        {#if order}
-          <button type="button" class="f-chip" aria-label={`Remove ${ORDER_LABELS[order] ?? order}`} onclick={() => onFilters({ order: "", rating })}>{ORDER_LABELS[order] ?? order}<Icon name="x" size={14} /></button>
-        {/if}
-        {#each rating as r (r)}
-          <button type="button" class="f-chip" aria-label={`Remove ${RATING_LABELS[r] ?? r}`} onclick={() => onFilters({ order, rating: rating.filter((x) => x !== r) })}>{RATING_LABELS[r] ?? r}<Icon name="x" size={14} /></button>
-        {/each}
-      </div>
-    {/if}
-
-    {#if isLibrary}
-      <div class="controls">
-        <select aria-label="Sort" class="sort-select" value={sort} onchange={(e) => onSortChange((e.target as HTMLSelectElement).value)}>
-          <option value="">Newest</option>
-          <option value="rating">Rating</option>
-          <option value="random">Random</option>
-        </select>
-        <button
-          class="fav-toggle"
-          aria-pressed={favorite}
-          onclick={onFavToggle}
-        >
-          <Icon name={favorite ? "heart-filled" : "heart"} size={16} />
-          Favorites
-        </button>
-      </div>
-    {/if}
-    {#if showFilters}
-      <div class="controls">
-        <Toolbar {order} {rating} orders={orderOptions} ratings={ratingOptions} {orderBlocked} onapply={onFilters} />
-      </div>
-    {/if}
+    <div class="controls">
+      <Toolbar sort={sortValue} {rating} sorts={sortOptions} ratings={isLibrary ? [] : ratingOptions} {orderBlocked} favorites={favoritesAvail} {favorite} {canReset} onapply={onToolbar} onfavorite={onFavToggle} onreset={onReset} />
     {#if viewSettings.ready}
       <ViewBar modes={vs.modes as Mode[]} mode={vs.mode as Mode} perPage={vs.per_page} zoom={vs.zoom} options={vs.per_page_options} max={vs.per_page_max} onmode={onMode} onperpage={onPerPage} onzoom={onZoom} onzoompreview={onZoomPreview} />
     {/if}
+    </div>
   </header>
 
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
@@ -484,9 +522,21 @@
         <button class="retry-btn" onclick={() => grid.retry()}>Retry</button>
       </div>
     {:else if grid.items.length === 0}
-      <div class="empty">Nothing here.</div>
+      <div class="empty" data-testid="empty">
+        {#if q.trim()}
+          <p>No results for “{q.trim()}”</p>
+        {:else if filtersSet}
+          <p>Nothing matches these filters</p>
+        {:else}
+          <p>Nothing here.</p>
+        {/if}
+        <div class="empty-actions">
+          {#if q.trim()}<button class="clear-btn" type="button" onclick={() => setQuery("")}>Clear search</button>{/if}
+          {#if filtersSet}<button class="clear-btn" type="button" onclick={clearFilters}>Clear filters</button>{/if}
+        </div>
+      </div>
     {:else}
-      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => (lightboxKey = webKey(w))} landscape={source === "stash_videos"} />
+      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => (w.source === "nhentai" ? router.navigate("/web/nhentai/" + encodeURIComponent(w.post_id)) : (lightboxKey = webKey(w)))} landscape={source === "stash_videos"} />
     {/if}
 
     {#if infinite && grid.status === "done"}
@@ -528,17 +578,20 @@
   .header-row { display: flex; align-items: center; gap: var(--s-4); padding-right: var(--sfw-inset); }
   .back-btn { min-width: 44px; min-height: 44px; display: grid; place-items: center; border: none; background: none; cursor: pointer; color: var(--text); }
   .header-title { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text); }
-  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); margin-top: var(--s-4); }
-  .sort-select { min-height: 44px; padding: var(--s-2) var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: var(--surface); color: var(--text); }
+  .sticky-header { transition: transform 0.2s ease; }
+  .sticky-header.hidden { transform: translateY(-100%); }
+  @media (prefers-reduced-motion: reduce) { .sticky-header { transition: none; } }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: var(--s-4); }
+  @media (min-width: 640px) { .controls { flex-wrap: nowrap; } }
   .shown { font-size: 0.875rem; color: var(--muted); }
-  .f-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
-  .f-chip { min-height: 44px; display: inline-flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-4); background: none; color: var(--text); cursor: pointer; font: inherit; }
-  .fav-toggle { min-height: 44px; display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); border: 1px solid var(--text); border-radius: var(--s-2); background: none; color: var(--text); cursor: pointer; }
   .muted { color: var(--muted); }
   .error-box { padding: var(--s-4); text-align: center; color: var(--text); }
   .more-box { min-height: 44px; padding: var(--s-4); text-align: center; color: var(--text); }
   .more-box p { margin: 0; }
   .retry-btn { min-height: 44px; margin-top: var(--s-4); padding: var(--s-2) var(--s-4); border: none; border-radius: var(--s-2); background: var(--text); color: var(--surface); cursor: pointer; }
   .empty { text-align: center; padding: var(--s-8); color: var(--text); }
+  .empty p { margin: 0 0 var(--s-2); }
+  .empty-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: var(--s-2); }
+  .clear-btn { min-height: 44px; padding: var(--s-2) var(--s-4); border: 1px solid var(--line-strong); border-radius: var(--s-2); background: none; color: var(--text); cursor: pointer; }
   .notice { margin: 0; font-size: 0.875rem; color: var(--muted); }
 </style>

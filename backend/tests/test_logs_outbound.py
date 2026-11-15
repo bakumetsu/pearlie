@@ -14,7 +14,7 @@ from app.komga import Komga
 from app.sources.dapi import Rule34
 from app.sources.nhentai import NHentai
 from app.sources.throttle import Throttle
-from app.targets.stash_client import StashClient
+from app.targets.stash_client import StashClient, StashError
 
 SENTINEL = "SENTINEL-KEY-0123456789abcdef"
 
@@ -115,6 +115,34 @@ def test_stash_line_has_operation_and_graphql_error(cap):
     client.post("/graphql", json={"query": "query($v: String!) { findImages { id } }"})
     assert "op=ImageUpdate" in cap.lines[0] and "gql_error='bad thing'" in cap.lines[0]
     assert "op=findImages" in cap.lines[1]
+
+
+def test_stash_streamed_media_body_survives_hooks(cap):
+    """The hooks must not consume streamed media (thumb, poster, stream)."""
+    body = b"\x89PNG-" + b"x" * 4096
+
+    def handler(request):
+        if request.url.path == "/graphql":
+            return httpx.Response(200, json={"errors": [{"message": "bad thing"}]})
+        if request.url.path == "/scene/9/missing":
+            return httpx.Response(500, content=body)
+        return httpx.Response(200, content=body, headers={"content-type": "image/png"})
+
+    stash = StashClient("http://x.test", SENTINEL, client=hooked(handler, "stash"))
+    for path in ("/scene/9/screenshot", "/scene/9/webp", "/scene/9/stream"):
+        resp = stash.open_media(path)
+        try:
+            assert b"".join(resp.iter_bytes()) == body
+        finally:
+            resp.close()
+    # a failed stream is not read by the hook either
+    with pytest.raises(StashError):
+        stash.open_media("/scene/9/missing")
+    stash._client.post("/graphql", json={"query": "query { findScenes { id } }"})
+    gql_lines = [x for x in cap.lines if "/graphql" in x]
+    assert "gql_error='bad thing'" in gql_lines[0]
+    media_lines = [x for x in cap.lines if "/scene/" in x]
+    assert media_lines and all("op=" not in x and "body=" not in x for x in media_lines)
 
 
 def test_default_clients_are_hooked():

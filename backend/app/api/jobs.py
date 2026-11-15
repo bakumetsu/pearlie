@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, Query, Response
 
 from app.api.errors import ApiError
 from app.fixtures.jobs import BadState, Conflict, Rejected
 from app.fixtures.scenarios import active, slow_dependency
 from app.fixtures.store import store
-from app.models import Job, JobList, SaveAccepted, SaveBody
+from app.models import Job, JobList, PlacementSuggestion, SaveAccepted, SaveBody, WebSource
 
 router = APIRouter(prefix="/api", dependencies=[Depends(slow_dependency)])
 
@@ -37,6 +39,23 @@ def save(body: SaveBody) -> SaveAccepted:
             alias=None,
         ) from None
     return SaveAccepted(job_id=job_id)
+
+
+@router.get("/save/placement")
+def save_placement(
+    source: Annotated[WebSource, Query()], post_id: Annotated[str, Query()]
+) -> PlacementSuggestion:
+    """Suggest series or oneshot for a Komga save (fixture: always a oneshot)."""
+    if store.web_raw(source, post_id) is None:
+        raise ApiError(404, "not_found", "Post not found")
+    return PlacementSuggestion(
+        kind="oneshot",
+        series=None,
+        number=None,
+        joins_existing=False,
+        moves_first=False,
+        reason="oneshot",
+    )
 
 
 @router.get("/jobs")

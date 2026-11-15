@@ -368,6 +368,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/media/web/nhentai/{gid}/book": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Book */
+        get: operations["book_api_media_web_nhentai__gid__book_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/media/web/nhentai/{gid}/pages/{n}/thumb": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Page Thumb */
+        get: operations["page_thumb_api_media_web_nhentai__gid__pages__n__thumb_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/media/web/nhentai/{gid}/pages/{n}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Page */
+        get: operations["page_api_media_web_nhentai__gid__pages__n__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/media/komga/series/{id}/thumb": {
         parameters: {
             query?: never;
@@ -462,6 +513,26 @@ export interface paths {
          * @description Queue a new save job.
          */
         post: operations["save_api_save_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/save/placement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Save Placement
+         * @description Suggest series or oneshot for a Komga save (fixture: always a oneshot).
+         */
+        get: operations["save_placement_api_save_placement_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -907,6 +978,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/thumb-cache/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear Thumb Cache */
+        post: operations["clear_thumb_cache_api_thumb_cache_clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/connections": {
         parameters: {
             query?: never;
@@ -1261,6 +1349,8 @@ export interface components {
             komga_library_paths?: string[];
             /** Komga Library Error */
             komga_library_error?: string | null;
+            /** Komga Oneshots Dir */
+            komga_oneshots_dir?: string | null;
         };
         /** FieldOut */
         FieldOut: {
@@ -1353,7 +1443,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "queued" | "running" | "done" | "failed" | "needs_click" | "skipped";
+            state: "queued" | "running" | "scan_wait" | "verifying" | "done" | "failed" | "needs_click" | "skipped";
             /**
              * Progress
              * @default 0
@@ -1361,11 +1451,17 @@ export interface components {
             progress: number;
             /** Eta S */
             eta_s?: number | null;
+            /** Pages Done */
+            pages_done?: number | null;
+            /** Pages Total */
+            pages_total?: number | null;
             /** Error */
             error?: string | null;
             /** Error Code */
             error_code?: string | null;
             library_ref?: components["schemas"]["SavedRef"] | null;
+            /** Dest Path */
+            dest_path?: string | null;
             /** Notices */
             notices?: components["schemas"]["Problem"][];
             /** Created At */
@@ -1582,17 +1678,17 @@ export interface components {
             backdrop_strength: number;
             /**
              * Backdrop Wall
-             * @default true
+             * @default false
              */
             backdrop_wall: boolean;
             /**
              * Backdrop Item
-             * @default true
+             * @default false
              */
             backdrop_item: boolean;
             /**
              * Backdrop Lightbox
-             * @default true
+             * @default false
              */
             backdrop_lightbox: boolean;
             /**
@@ -1606,10 +1702,31 @@ export interface components {
              */
             trash_retention_days: number;
             /**
+             * Images Per Site
+             * @default 10
+             */
+            images_per_site: number;
+            /**
+             * Komga Scan Wait S
+             * @default 10
+             */
+            komga_scan_wait_s: number;
+            /**
              * Infinite Scroll
              * @default false
              */
             infinite_scroll: boolean;
+            /**
+             * Site Names
+             * @default true
+             */
+            site_names: boolean;
+            /**
+             * Place Mode
+             * @default suggest
+             * @enum {string}
+             */
+            place_mode: "auto" | "suggest";
             /**
              * Source Pace
              * @default {}
@@ -1627,6 +1744,15 @@ export interface components {
              * @default []
              */
             site_order: string[];
+            /**
+             * @default {
+             *       "max_mb": 1024,
+             *       "used_mb": 0,
+             *       "files": 0,
+             *       "available": true
+             *     }
+             */
+            thumb_cache: components["schemas"]["ThumbCacheInfo"];
         };
         /** OptionsUpdate */
         OptionsUpdate: {
@@ -1646,10 +1772,18 @@ export interface components {
             allow_blurred_tags?: boolean | null;
             /** Trash Retention Days */
             trash_retention_days?: number | null;
+            /** Images Per Site */
+            images_per_site?: number | null;
+            /** Komga Scan Wait S */
+            komga_scan_wait_s?: number | null;
             /** Confirm Purge */
             confirm_purge?: boolean | null;
             /** Infinite Scroll */
             infinite_scroll?: boolean | null;
+            /** Site Names */
+            site_names?: boolean | null;
+            /** Place Mode */
+            place_mode?: ("auto" | "suggest") | null;
             /** Source Pace */
             source_pace?: {
                 [key: string]: number;
@@ -1658,6 +1792,8 @@ export interface components {
             hidden_sites?: string[] | null;
             /** Site Order */
             site_order?: string[] | null;
+            /** Thumb Cache Max Mb */
+            thumb_cache_max_mb?: number | null;
         };
         /** PageStats */
         PageStats: {
@@ -1693,6 +1829,32 @@ export interface components {
             favorite?: boolean | null;
             /** Tags */
             tags?: string[] | null;
+        };
+        /** PlacementBody */
+        PlacementBody: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "series" | "oneshot";
+        };
+        /** PlacementSuggestion */
+        PlacementSuggestion: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "series" | "oneshot";
+            /** Series */
+            series: string | null;
+            /** Number */
+            number: string | null;
+            /** Joins Existing */
+            joins_existing: boolean;
+            /** Moves First */
+            moves_first: boolean;
+            /** Reason */
+            reason: string;
         };
         /** PlayerSettings */
         PlayerSettings: {
@@ -1835,6 +1997,7 @@ export interface components {
             source: "danbooru" | "gelbooru" | "rule34" | "nhentai";
             /** Post Id */
             post_id: string;
+            placement?: components["schemas"]["PlacementBody"] | null;
         };
         /** SavedRef */
         SavedRef: {
@@ -1919,6 +2082,11 @@ export interface components {
          * @description What the order/rating/per-page toolbar may offer for one source.
          */
         SourceFilters: {
+            /**
+             * Search
+             * @default true
+             */
+            search: boolean;
             /** Order */
             order?: string[];
             /** Rating */
@@ -2036,6 +2204,22 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** ThumbCacheCleared */
+        ThumbCacheCleared: {
+            /** Freed Mb */
+            freed_mb: number;
+        };
+        /** ThumbCacheInfo */
+        ThumbCacheInfo: {
+            /** Max Mb */
+            max_mb: number;
+            /** Used Mb */
+            used_mb: number;
+            /** Files */
+            files: number;
+            /** Available */
+            available: boolean;
+        };
         /** TrashEmptied */
         TrashEmptied: {
             /** Removed */
@@ -2122,6 +2306,45 @@ export interface components {
                 [key: string]: components["schemas"]["ViewSettingItem"];
             };
         };
+        /**
+         * WebBook
+         * @description nhentai gallery for the web book page (title parsed by the backend).
+         */
+        WebBook: {
+            /** Title */
+            title?: string | null;
+            /** Title Main */
+            title_main: string;
+            /** Title Sub */
+            title_sub?: string | null;
+            /** Artist */
+            artist?: string | null;
+            /** Circle */
+            circle?: string | null;
+            /** Event */
+            event?: string | null;
+            /** Language */
+            language?: string | null;
+            /** Translator */
+            translator?: string | null;
+            /** Tags */
+            tags?: {
+                [key: string]: string[];
+            };
+            /** Page Count */
+            page_count: number;
+            /**
+             * Page Url
+             * @description URL template with a literal {n} (1-based page number).
+             */
+            page_url: string;
+            /**
+             * Page Thumb Url
+             * @description Like page_url, for the page thumbnail.
+             */
+            page_thumb_url: string;
+            item: components["schemas"]["WebItem"];
+        };
         /** WebItem */
         WebItem: {
             /**
@@ -2135,6 +2358,12 @@ export interface components {
             thumb_url: string;
             /** Preview Url */
             preview_url: string;
+            /**
+             * Media Kind
+             * @default image
+             * @enum {string}
+             */
+            media_kind: "image" | "video";
             /** Title */
             title?: string | null;
             /** Tags */
@@ -2931,6 +3160,101 @@ export interface operations {
             };
         };
     };
+    book_api_media_web_nhentai__gid__book_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebBook"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    page_thumb_api_media_web_nhentai__gid__pages__n__thumb_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+                n: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    page_api_media_web_nhentai__gid__pages__n__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+                n: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     komga_series_thumb_api_media_komga_series__id__thumb_get: {
         parameters: {
             query?: never;
@@ -3077,6 +3401,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SaveAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_placement_api_save_placement_get: {
+        parameters: {
+            query: {
+                source: "danbooru" | "gelbooru" | "rule34" | "nhentai";
+                post_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementSuggestion"];
                 };
             };
             /** @description Validation Error */
@@ -3978,6 +4334,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_thumb_cache_api_thumb_cache_clear_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThumbCacheCleared"];
                 };
             };
         };

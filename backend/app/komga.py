@@ -97,13 +97,16 @@ class Komga:
         q: str,
         sort: str,
         series_id: str | None = None,
+        library_id: str | None = None,
     ) -> dict:
-        """Return one page of books, optionally filtered to a single series."""
+        """Return one page of books, optionally filtered to a series or a library."""
         body: dict = {}
         if q:
             body["fullTextSearch"] = q
         if series_id is not None:
             body["condition"] = {"seriesId": {"operator": "is", "value": series_id}}
+        elif library_id is not None:
+            body["condition"] = {"libraryId": {"operator": "is", "value": library_id}}
         try:
             resp = self._client.post(
                 "/api/v1/books/list",

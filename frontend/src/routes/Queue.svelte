@@ -103,6 +103,9 @@
       <span class="chip {job.state}">
         <Icon name={info.icon} size={14} /> {info.label}
       </span>
+      {#if job.state === "done" && job.dest_path}
+        <span class="muted path">{job.dest_path}</span>
+      {/if}
       {#if eta}
         <span class="eta">{eta}</span>
       {/if}
@@ -223,6 +226,12 @@
 
   .title a:hover {
     text-decoration: underline;
+  }
+
+  .muted.path {
+    text-transform: none;
+    word-break: break-all;
+    white-space: normal;
   }
 
   .muted {

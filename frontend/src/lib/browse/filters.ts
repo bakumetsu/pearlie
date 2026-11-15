@@ -1,7 +1,23 @@
 // Web-site filter state for the See-all toolbar (design D-16). URL form: order=score, rating=g,s.
 // Defaults (newest, any rating) are omitted from the URL.
 
-export const ORDER_LABELS: Record<string, string> = { newest: "Newest", score: "Top score" };
+export const ORDER_LABELS: Record<string, string> = {
+  newest: "Newest",
+  score: "Top score",
+  "popular-today": "Popular today",
+  "popular-week": "Popular this week",
+  "popular-month": "Popular this month",
+  popular: "Popular all time",
+  rating: "Rating",
+  random: "Random",
+};
+
+// Label for a sort value; an unknown value shows its raw name capitalised (no blank option).
+export function sortLabel(v: string): string {
+  if (ORDER_LABELS[v]) return ORDER_LABELS[v];
+  const t = v.replace(/[-_]+/g, " ").trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "Newest";
+}
 export const RATING_LABELS: Record<string, string> = {
   g: "General",
   s: "Sensitive",

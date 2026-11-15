@@ -27,7 +27,7 @@ describe("createRail", () => {
     const rail = createRail(root, storage);
     rail.toggle();
     expect(rail.collapsed).toBe(true);
-    expect(root.dataset.rail).toBe("slim");
+    expect(root.dataset.rail).toBe("hidden");
     expect(storage.data["pearlie.rail.collapsed"]).toBe("1");
     rail.toggle();
     expect(root.dataset.rail).toBeUndefined();
@@ -38,7 +38,7 @@ describe("createRail", () => {
     const root = document.createElement("div");
     const rail = createRail(root, memoryStorage({ "pearlie.rail.collapsed": "1" }));
     expect(rail.collapsed).toBe(true);
-    expect(root.dataset.rail).toBe("slim");
+    expect(root.dataset.rail).toBe("hidden");
   });
 
   it("works when storage throws", () => {
@@ -55,6 +55,6 @@ describe("createRail", () => {
     expect(rail.collapsed).toBe(false);
     rail.toggle();
     expect(rail.collapsed).toBe(true);
-    expect(root.dataset.rail).toBe("slim");
+    expect(root.dataset.rail).toBe("hidden");
   });
 });

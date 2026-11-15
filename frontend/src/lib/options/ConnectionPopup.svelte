@@ -167,14 +167,14 @@
 	}
 </script>
 
-<div class="overlay" on:click={handleOverlayClick}>
+<div class="overlay" onclick={handleOverlayClick}>
 	<div
 		class="dialog"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="conn-popup-title"
 		bind:this={dialogEl}
-		on:keydown={handleKeydown}
+		onkeydown={handleKeydown}
 	>
 		<h2 id="conn-popup-title" class="card-title">Edit {label}</h2>
 
@@ -206,7 +206,7 @@
 						type={f.primary ? "password" : "text"}
 						autocomplete="off"
 						value={values[f.id] ?? ""}
-						on:input={(e) => {
+						oninput={(e) => {
 							values = { ...values, [f.id]: e.currentTarget.value };
 							touched = { ...touched, [f.id]: true };
 						}}
@@ -235,7 +235,7 @@
 				autocomplete="off"
 				bind:this={keyInput}
 				bind:value={key}
-				on:input={() => (touched = { ...touched, key: true })}
+				oninput={() => (touched = { ...touched, key: true })}
 				placeholder={(keySet || keyLocked) && !touched.key ? MASK : ""}
 				disabled={keyLocked || !store.canStore}
 			/>
@@ -260,8 +260,8 @@
 		{/if}
 
 		<div class="row actions">
-			<button class="btn" disabled={busy} on:click={onclose}>Cancel</button>
-			<button class="btn primary" disabled={busy} on:click={handleSaveAndTest}>Save</button>
+			<button class="btn" disabled={busy} onclick={onclose}>Cancel</button>
+			<button class="btn primary" disabled={busy} onclick={handleSaveAndTest}>Save</button>
 		</div>
 	</div>
 </div>
@@ -363,16 +363,5 @@
 	.actions {
 		justify-content: flex-end;
 		margin-top: var(--pad, 16px);
-	}
-
-	@media (max-width: 768px) {
-		.overlay {
-			align-items: flex-end;
-		}
-		.dialog {
-			width: 100%;
-			max-width: none;
-			border-radius: var(--radius, 8px) var(--radius, 8px) 0 0;
-		}
 	}
 </style>

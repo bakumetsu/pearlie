@@ -23,7 +23,6 @@
 		onsize,
 		onturn,
 		ontoggle,
-		onzoom,
 		onzoomstep,
 	}: {
 		shown: number[];
@@ -37,7 +36,6 @@
 		onsize: (n: number, w: number, h: number) => void;
 		onturn: (delta: 1 | -1) => void;
 		ontoggle: () => void;
-		onzoom: (z: number) => void;
 		onzoomstep: (d: 1 | -1) => void;
 	} = $props();
 
@@ -72,16 +70,6 @@
 		else ontoggle();
 	}
 
-	function handleStageDblClick(e: MouseEvent) {
-		const el = stageEl;
-		if (!el) return;
-		const rect = el.getBoundingClientRect();
-		const action = zoneAction(e.clientX - rect.left, rect.width, dir);
-		if (action === "toggle") {
-			onzoom(zoom === 100 ? 200 : 100);
-		}
-	}
-
 	function handleWheel(e: WheelEvent) {
 		if (e.ctrlKey) {
 			e.preventDefault();
@@ -107,7 +95,6 @@
 	bind:clientWidth={width}
 	bind:clientHeight={height}
 	onclick={handleStageClick}
-	ondblclick={handleStageDblClick}
 	onwheel={handleWheel}
 >
 	{#key page}
@@ -141,6 +128,8 @@
 		color: var(--text);
 		scrollbar-width: thin;
 		scrollbar-color: var(--line-strong) transparent;
+		user-select: none;
+		-webkit-user-select: none;
 	}
 
 	.row {

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Collection, Mapping
+from pathlib import Path
 from typing import Literal, NamedTuple
 from urllib.parse import urlparse
 
@@ -151,24 +152,48 @@ class ConnectionStore:
         path = self._settings.db_path.parent / "secret.key"
         try:
             if path.is_file():
-                key = path.read_text(encoding="utf-8").strip()
+                key = self._read_key_file(path)
             else:
-                key = Fernet.generate_key().decode()
-                path.parent.mkdir(parents=True, exist_ok=True)
-                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    f.write(key)
-                try:
-                    os.chmod(path, 0o600)
-                except OSError:
-                    pass
+                key = self._create_key_file(path)
         except FileExistsError:
-            key = path.read_text(encoding="utf-8").strip()
-        except OSError:
+            key = self._read_key_file(path)
+        except (OSError, ValueError):
+            # ValueError covers a key file that is not valid UTF-8.
             logger.warning("could not read or create the secret key file")
             return ""
         if key:
+            try:
+                Fernet(key)
+            except (ValueError, TypeError):
+                # Kept on disk (stored secrets may need it), never logged, never used.
+                logger.warning("secret.key does not hold a valid key; secrets cannot be stored")
+                key = ""
+        if key:
             self._auto_key = key
+        return key
+
+    @staticmethod
+    def _create_key_file(path: Path) -> str:
+        key = Fernet.generate_key().decode()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(key)
+        return key
+
+    @classmethod
+    def _read_key_file(cls, path: Path) -> str:
+        if path.stat().st_mode & 0o077 and os.name == "posix":
+            try:
+                os.chmod(path, 0o600)
+            except OSError:
+                pass
+        key = path.read_text(encoding="utf-8").strip()
+        if not key:
+            # A crash between create and write left an empty file: nothing was encrypted
+            # with it, so it is safe to fill.
+            key = Fernet.generate_key().decode()
+            path.write_text(key, encoding="utf-8")
         return key
 
     def can_store(self) -> bool:

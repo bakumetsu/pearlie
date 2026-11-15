@@ -27,6 +27,9 @@ from app.api import (
     media_komga_real,
     media_stash,
     media_stash_real,
+    media_web_pages,
+    media_web_pages_fixture,
+    media_web_real,
     options,
     player_settings,
     rules,
@@ -46,6 +49,7 @@ from app.api.errors import ApiError, stub_router
 from app.api.errors import install as install_errors
 from app.api.guard import mutation_guard
 from app.api.health import router as health_router
+from app.api.security_headers import SecurityHeaders
 from app.config import ConfigError, Settings, load_settings
 from app.connections_store import ConnectionStore
 from app.db import connect, init_db
@@ -60,6 +64,7 @@ from app.sources.throttle import DEFAULT_PACE, Throttle
 from app.targets.komga import KomgaTarget
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
+from app.thumbcache import ThumbCache
 from app.update import runner
 from app.update.changelog import Changelog, FakeChangelog
 from app.update.check import FakeChecker, UpdateChecker
@@ -70,6 +75,7 @@ FIXTURE_ROUTERS = {
     "library_komga": library_komga.router,
     "library_stash": library_stash.router,
     "media_stash": media_stash.router,
+    "media_web_pages": media_web_pages_fixture.router,
     "media_komga": media_komga.router,
     "jobs": jobs.router,
     "rules": rules.router,
@@ -81,6 +87,8 @@ REAL_ROUTERS: dict[str, APIRouter] = {
     "media_stash": media_stash_real.router,
     "library_stash": library_stash_real.router,
     "media_komga": media_komga_real.router,
+    "media_web_pages": media_web_pages.router,
+    "media_web": media_web_real.router,
     "jobs": jobs_real.router,
     "rules": rules_real.router,
 }
@@ -195,6 +203,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         worker: JobWorker | None = getattr(app_.state, "worker", None)
         if worker is not None and worker_enabled:
             worker.start()
+        cache: ThumbCache | None = getattr(app_.state, "thumb_cache", None)
+        if cache is not None:
+            cache.start()
         daily: asyncio.Task[None] | None = None
         if app_.state.settings.mode == "real":
             daily = asyncio.create_task(_daily_update_check(app_))
@@ -214,6 +225,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(lifespan=lifespan, dependencies=[Depends(mutation_guard)])
     install_errors(app)
+    app.add_middleware(SecurityHeaders)
     app.state.settings = settings
     app.state.update_root = runner.LAYOUT_ROOT
     app.state.update_run = subprocess.run
@@ -261,6 +273,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     }
     app.state.sources = sources
     options.apply_pace(app)
+    app.state.thumb_cache = (
+        ThumbCache(
+            settings.thumb_cache_root,
+            forbidden=[settings.stash_temp_dir, settings.komga_temp_dir],
+        )
+        if settings.mode == "real"
+        else None
+    )
+    if app.state.thumb_cache is not None:
+        stored_mb = options.stored_thumb_cache_mb(settings.db_path)
+        if stored_mb is not None:
+            app.state.thumb_cache.set_max_mb(stored_mb)
 
     if settings.mode == "fixture":
         real = {n.strip() for n in settings.real.split(",") if n.strip()}
@@ -297,6 +321,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.sources,
             {"stash": stash_target, "komga": komga_target},
             interval_s=settings.download_interval_s,
+            scan_wait_s=lambda: options.komga_scan_wait_s(app),
             startup_hooks=[stash_target.cleanup_temp, komga_target.cleanup_temp],
         )
 
@@ -307,7 +332,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "media_stash": ("stash",),
         "jobs": ("stash", "komga"),
     }
-    for name in real:
+    for name in (n for n in REAL_ROUTERS if n in real):  # order: /book before {kind}
         deps = [Depends(_require_configured(name, needs[name]))] if name in needs else []
         app.include_router(REAL_ROUTERS[name], dependencies=deps)
     if settings.mode == "real":
@@ -363,7 +388,12 @@ def run() -> None:
         settings = load_settings()
     except ConfigError as err:
         raise SystemExit(str(err)) from None
-    uvicorn.run(create_app(settings), host=settings.host, port=settings.port)
+    uvicorn.run(
+        create_app(settings),
+        host=settings.host,
+        port=settings.port,
+        log_config=logs.uvicorn_log_config(),
+    )
 
 
 if __name__ == "__main__":

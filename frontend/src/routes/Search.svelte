@@ -1,13 +1,14 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { getApi } from "../lib/api/client";
-  import { getRouter } from "../lib/ctx";
+  import { getRouter, findJobs } from "../lib/ctx";
   import { itemHref, toPlural } from "../lib/item/kinds";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { createSearch } from "../lib/stores/search.svelte";
   import { options } from "../lib/stores/options.svelte";
+  import { placement } from "../lib/stores/placement.svelte";
   import { visibleInSafeMode } from "../lib/stores/safeFilter";
-  import { parseSearchParams, buildSearchParams, serialiseQuery, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
+  import { parseSearchParams, buildSearchParams, serialiseQuery, commitText, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SiteId } from "../lib/query";
   import { hrefOf, linkClick } from "../lib/router";
   import type { Match } from "../lib/router";
@@ -18,19 +19,25 @@
   import FilterPanel from "../lib/components/FilterPanel.svelte";
   import SectionRow from "../lib/components/SectionRow.svelte";
   import Tile from "../lib/components/Tile.svelte";
+  import { saveWebItem } from "../lib/web/saveFlow";
   import Lightbox from "../lib/components/Lightbox.svelte";
 
   let { match }: { match: Match } = $props();
 
   const api = getApi();
   const router = getRouter();
-  const search = createSearch(api);
+  const search = createSearch(api, { remember: true });
+  const jobsStore = findJobs();
+  $effect(() => {
+    if (jobsStore) search.settle(jobsStore.items);
+  });
 
   const hidden = $derived(options.values?.hidden_sites ?? []);
   // The address keeps the saved sites; a hidden one is only left out of what is shown and searched.
   const saved = $derived(parseSearchParams("?" + match.query.toString()));
   // The saved site order sets the order of the site rows; the address keeps the fixed order.
   const siteOrder = $derived(orderedSites(options.values?.site_order));
+  const names = $derived(options.values?.site_names ?? true);
   const query = $derived({
     ...saved,
     sites: siteOrder.filter((id) => effectiveSites(saved.sites, hidden).includes(id)),
@@ -38,7 +45,8 @@
 
   // Chip edits stay in a draft until the user runs the search.
   let draftChips = $derived(query.chips);
-  const dirty = $derived(serialiseQuery(draftChips) !== serialiseQuery(query.chips));
+  let pending = $state("");
+  const dirty = $derived(pending.trim() !== "" || serialiseQuery(draftChips) !== serialiseQuery(query.chips));
 
   let first = true;
   $effect(() => {
@@ -88,11 +96,25 @@
   }
 
   function runSearch(): void {
-    if (dirty) navigateState({ ...saved, chips: draftChips });
+    if (!dirty) return;
+    const next = pending.trim() ? commitText(draftChips, pending) : draftChips;
+    pending = "";
+    navigateState({ ...saved, chips: next });
   }
 
   function handlePillChange(pill: typeof query.pill): void {
     navigateState({ ...saved, pill });
+  }
+
+  // Build from the saved state so hidden sites stay, and keep the unsaved draft chips and pending text.
+  function removeFilterChip(change: Partial<typeof query>): void {
+    const draft = draftChips;
+    const keep = change.sites;
+    const next = keep ? { ...saved, sites: saved.sites.filter((id) => hidden.includes(id) || keep.includes(id)) } : { ...saved, ...change };
+    navigateState(next);
+    void tick().then(() => {
+      draftChips = draft;
+    });
   }
 
   function clearFilters(): void {
@@ -138,21 +160,11 @@
     lightbox ? tileSavedHref(lightbox) : undefined
   );
 
-  async function doSave(item: WebItem): Promise<void> {
-    const r = await search.save(item);
-    switch (r.result) {
-      case "queued":
-        toasts.push({ kind: "info", message: "Added to queue", actionLabel: "View", href: "/queue" });
-        break;
-      case "in_library":
-        break;
-      case "blocked":
-        toasts.push({ kind: "error", message: "Blocked by a rule" });
-        break;
-      case "error":
-        toasts.push({ kind: "error", message: "Could not save. Try again." });
-        break;
-    }
+  function doSave(item: WebItem): Promise<void> {
+    return saveWebItem(
+      { ask: (i) => placement.ask(i), save: (i, p) => search.save(i, p), toast: (t) => toasts.push(t) },
+      item,
+    );
   }
 
   const noResults = $derived(
@@ -177,31 +189,33 @@
   <header class="header">
     <h1 class="sr-only" tabindex="-1" bind:this={h1}>Discover</h1>
     <div class="hmarks">
-      <SiteMarks sites={query.sites} onsites={handleSitesChange} {hidden} order={siteOrder} onreorder={(o) => options.set({ site_order: o })} />
+      <SiteMarks sites={query.sites} onsites={handleSitesChange} {hidden} order={siteOrder} onreorder={(o) => options.set({ site_order: o })} {names} />
     </div>
     <div class="hfield">
       <div class="search-row">
-        <ChipField chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch}>
+        <ChipField bind:pending chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch}>
           {#snippet trailing()}
-            <button
-              class="fib"
-              bind:this={fibEl}
-              class:on={chips.length > 0}
-              type="button"
-              aria-label={chips.length ? `Filters (${chips.length} set)` : "Filters"}
-              aria-expanded={filterOpen}
-              onclick={() => (filterOpen = true)}
-            >
-              <Icon name="sliders" size={20} />
-              {#if chips.length}<b>{chips.length}</b>{/if}
-            </button>
+            <span class="tail">
+              {#if dirty}
+                <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
+                  <Icon name="search" size={20} />
+                </button>
+              {/if}
+              <button
+                class="fib"
+                bind:this={fibEl}
+                class:on={chips.length > 0}
+                type="button"
+                aria-label={chips.length ? `Filters (${chips.length} set)` : "Filters"}
+                aria-expanded={filterOpen}
+                onclick={() => (filterOpen = true)}
+              >
+                <Icon name="sliders" size={20} />
+                {#if chips.length}<b>{chips.length}</b>{/if}
+              </button>
+            </span>
           {/snippet}
         </ChipField>
-        {#if dirty}
-          <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
-            <Icon name="search" size={20} />
-          </button>
-        {/if}
       </div>
     </div>
     {#if chips.length}
@@ -209,7 +223,7 @@
         {#each chips as c (c.key)}
           <span class="fchip">
             {c.label}
-            <button type="button" aria-label="Remove {c.label}" onclick={() => navigateState({ ...query, ...c.remove })}>
+            <button type="button" aria-label="Remove {c.label}" onclick={() => removeFilterChip(c.remove)}>
               <Icon name="x" size={14} />
             </button>
           </span>
@@ -248,7 +262,7 @@
           onretry={() => search.retrySection(id)}
           onnavigate={(e) => linkClick(e, router)}
         >
-          {#each visibleInSafeMode(entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (lightbox = item)} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
+          {#each visibleInSafeMode(entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (item.source === "nhentai" ? router.navigate("/web/nhentai/" + encodeURIComponent(item.post_id)) : (lightbox = item))} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
         </SectionRow>
       {/if}
     {/each}
@@ -326,15 +340,22 @@
     min-width: 0;
   }
 
+  .tail {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--s-1);
+    margin-left: auto;
+    margin-block: -8px;
+  }
+
   .fib {
     position: relative;
     display: grid;
     place-items: center;
     flex: none;
-    margin-left: auto;
     width: 44px;
     height: 44px;
-    margin-block: -8px;
     padding: 0;
     background: none;
     border: none;
@@ -445,7 +466,7 @@
     display: grid;
     place-items: center;
     width: 44px;
-    min-height: 44px;
+    height: 44px;
     padding: 0;
     background: var(--accent);
     color: var(--surface);
@@ -477,6 +498,7 @@
   }
 
   .banner-btn {
+    min-height: 44px;
     padding: var(--s-1) var(--s-3);
     background: var(--danger-fg);
     color: var(--surface);

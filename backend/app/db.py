@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 # Bump on every new column or table (test_db.py snapshot guard fails otherwise).
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 6
 
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS jobs (
@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     post_json TEXT,
     notices TEXT NOT NULL DEFAULT '[]',
     library_ref_id TEXT,
+    dest_path TEXT,
     attempts INTEGER NOT NULL DEFAULT 0,
     restarts INTEGER NOT NULL DEFAULT 0,
     started_at TEXT,
@@ -26,7 +27,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_active
-    ON jobs (source, post_id) WHERE status IN ('queued', 'running');
+    ON jobs (source, post_id)
+    WHERE status IN ('queued', 'running', 'scan_wait', 'verifying');
 CREATE TABLE IF NOT EXISTS saved_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source TEXT NOT NULL,
@@ -74,12 +76,28 @@ def connect(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _rebuild_active_index(conn: sqlite3.Connection) -> None:
+    """Old databases hold idx_jobs_active over queued/running only; widen it once."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_jobs_active'"
+    ).fetchone()
+    if row is not None and "scan_wait" in (row[0] or ""):
+        return
+    conn.execute("DROP INDEX IF EXISTS idx_jobs_active")
+    conn.execute(
+        "CREATE UNIQUE INDEX idx_jobs_active ON jobs (source, post_id) "
+        "WHERE status IN ('queued', 'running', 'scan_wait', 'verifying')"
+    )
+
+
 def init_db(path: Path) -> None:
     conn = connect(path)
     conn.executescript(SCHEMA)
     cols = {row[1] for row in conn.execute("PRAGMA table_info(saved_items)")}
     if "image_id" not in cols:
         conn.execute("ALTER TABLE saved_items ADD COLUMN image_id TEXT")
+    if "kind" not in cols:
+        conn.execute("ALTER TABLE saved_items ADD COLUMN kind TEXT NOT NULL DEFAULT 'image'")
     jobs_cols = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
     jobs_migrations: dict[str, str] = {
         "error_code": "error_code TEXT",
@@ -89,14 +107,23 @@ def init_db(path: Path) -> None:
         "post_json": "post_json TEXT",
         "notices": "notices TEXT NOT NULL DEFAULT '[]'",
         "library_ref_id": "library_ref_id TEXT",
+        "dest_path": "dest_path TEXT",
         "attempts": "attempts INTEGER NOT NULL DEFAULT 0",
         "restarts": "restarts INTEGER NOT NULL DEFAULT 0",
         "started_at": "started_at TEXT",
         "finished_at": "finished_at TEXT",
+        "placement": "placement TEXT",
+        "pages_done": "pages_done INTEGER",
+        "pages_total": "pages_total INTEGER",
+        "eta_s": "eta_s REAL",
+        "scan_library_id": "scan_library_id TEXT",
+        "scan_name": "scan_name TEXT",
+        "scan_due_at": "scan_due_at TEXT",
     }
     for col_name, col_def in jobs_migrations.items():
         if col_name not in jobs_cols:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col_def}")
+    _rebuild_active_index(conn)
     rules_cols = {row[1] for row in conn.execute("PRAGMA table_info(rules)")}
     if "target" not in rules_cols:
         conn.execute("ALTER TABLE rules ADD COLUMN target TEXT")

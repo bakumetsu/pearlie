@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, Response
 
@@ -10,19 +11,31 @@ from app.api.errors import ApiError
 from app.filters.rules import evaluate, load_rules
 from app.jobs.store import JobStore
 from app.jobs.worker import JobWorker
-from app.models import Job, JobList, SaveAccepted, SaveBody
-from app.sources.base import Source, SourceError
+from app.models import Job, JobList, PlacementSuggestion, SaveAccepted, SaveBody, WebSource
+from app.sources.base import Post, Source, SourceError
+from app.targets.stash import SaveError
 
 router = APIRouter(prefix="/api")
 logger = logging.getLogger("pearlie")
 
 _VALID_STATES: frozenset[str] = frozenset(
-    ("queued", "running", "done", "failed", "needs_click", "skipped")
+    ("queued", "running", "scan_wait", "verifying", "done", "failed", "needs_click", "skipped")
 )
 
 
 def _store(request: Request) -> JobStore:
     return JobStore(request.app.state.settings.db_path)
+
+
+def _get_post(request: Request, src: Source, post_id: str) -> Post:
+    """get_post, reusing the gallery the book page cached (no second site call)."""
+    if src.id == "nhentai":
+        from app.api.media_web_pages import cached_post
+
+        post = cached_post(request, post_id.strip())
+        if post is not None:
+            return post
+    return src.get_post(post_id)
 
 
 def _worker(request: Request) -> JobWorker | None:
@@ -42,16 +55,23 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
     image_id = store.saved_image_id(body.source, body.post_id)
     if image_id and src.target == "stash":
         # The index can outlive the image: one Stash lookup, drop the row if it is gone.
-        if request.app.state.stash_target.drop_if_gone(image_id):
+        kind = store.saved_kind(body.source, body.post_id)
+        if request.app.state.stash_target.drop_if_gone(image_id, kind):
+            image_id = store.saved_image_id(body.source, body.post_id)
+    elif image_id == "" and src.target == "komga":
+        # Same for Komga: one search, drop the row if the book was deleted there.
+        komga_target = getattr(request.app.state, "komga_target", None)
+        if komga_target is not None and komga_target.drop_if_gone(body.source, body.post_id):
             image_id = store.saved_image_id(body.source, body.post_id)
     if image_id is not None:
-        ref: dict[str, str] | None = None if image_id == "" else {"kind": "image", "id": image_id}
+        kind = store.saved_kind(body.source, body.post_id) if src.target == "stash" else "image"
+        ref: dict[str, str] | None = None if image_id == "" else {"kind": kind, "id": image_id}
         raise ApiError(409, "already_saved", "Already saved", library_ref=ref)
     existing = store.active_job_id(body.source, body.post_id)
     if existing is not None:
         return SaveAccepted(job_id=existing)
     try:
-        post = src.get_post(body.post_id)
+        post = _get_post(request, src, body.post_id)
     except SourceError as e:
         if e.status == 404 or e.code == "not_found":
             raise ApiError(404, "not_found", "Post not found") from None
@@ -75,11 +95,44 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
         src.target,
         title=post.title or f"{post.source} {post.post_id}",
         thumb_url=post.preview_url or "",
+        placement=body.placement.kind if body.placement else None,
     )
     worker = _worker(request)
     if worker is not None:
         worker.wake()
     return SaveAccepted(job_id=job_id)
+
+
+@router.get("/save/placement")
+def save_placement(
+    request: Request,
+    source: Annotated[WebSource, Query()],
+    post_id: Annotated[str, Query()],
+) -> PlacementSuggestion:
+    """Suggest series or oneshot for a Komga save. Pure: nothing is written."""
+    src = request.app.state.sources.get(source)
+    target = getattr(request.app.state, "komga_target", None)
+    if src is None or src.target != "komga" or target is None:
+        raise ApiError(422, "no_target", f"{source} does not save to Komga")
+    try:
+        post = _get_post(request, src, post_id)
+    except SourceError as e:
+        if e.status == 404 or e.code == "not_found":
+            raise ApiError(404, "not_found", "Post not found") from None
+        raise ApiError(502, e.code, e.message) from None
+    try:
+        plan = target.suggest(post)
+    except SaveError as e:
+        raise ApiError(e.status, e.code, e.message) from None
+    joins = plan.via in ("folder", "absorb", "oneshot_pair")
+    return PlacementSuggestion(
+        kind="series" if plan.kind == "series" else "oneshot",
+        series=plan.series,
+        number=plan.number or None,
+        joins_existing=joins,
+        moves_first=bool(plan.move_from),
+        reason=plan.via,
+    )
 
 
 @router.get("/jobs")

@@ -164,3 +164,54 @@ def test_resolve_auto_host(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(subprocess, "run", fake_run_error)
     assert resolve_auto_host() is None
+
+
+def test_port_bounds() -> None:
+    for bad in (0, 65536):
+        with pytest.raises(ConfigError):
+            load_settings(mode="fixture", port=bad, _env_file=None)
+    for good in (1, 65535):
+        s = load_settings(mode="fixture", port=good, _env_file=None)
+        assert s.port == good
+
+
+def test_download_interval_s_bounds() -> None:
+    for bad in (-1, float("nan"), float("inf")):
+        with pytest.raises(ConfigError):
+            load_settings(mode="fixture", download_interval_s=bad, _env_file=None)
+    s = load_settings(mode="fixture", download_interval_s=0, _env_file=None)
+    assert s.download_interval_s == 0
+
+
+def test_stash_scan_timeout_s_bounds() -> None:
+    for bad in (0, -5, float("nan"), float("inf")):
+        with pytest.raises(ConfigError):
+            load_settings(mode="fixture", stash_scan_timeout_s=bad, _env_file=None)
+    s = load_settings(mode="fixture", stash_scan_timeout_s=0.5, _env_file=None)
+    assert s.stash_scan_timeout_s == 0.5
+
+
+@pytest.mark.parametrize("name", ["stash_url", "stash_public_url", "komga_url"])
+def test_url_with_credentials_refused_and_not_echoed(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv("PEARLIE_MODE", "fixture")
+    monkeypatch.setenv(f"PEARLIE_{name.upper()}", "http://admin:hunter2-pw@host.local:9999")
+    with pytest.raises(ConfigError) as exc:
+        load_settings(_env_file=None)
+    assert name in str(exc.value)
+    assert "hunter2-pw" not in str(exc.value)
+    cause = exc.value.__cause__
+    assert cause is not None
+    assert "hunter2-pw" not in str(cause)
+    assert "hunter2-pw" not in repr(cause)
+
+
+def test_url_without_credentials_accepted() -> None:
+    s = Settings(
+        mode="fixture",
+        stash_url="http://stash.local:9999",
+        komga_url="https://komga.example/",
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+    )
+    assert s.stash_url == "http://stash.local:9999"
