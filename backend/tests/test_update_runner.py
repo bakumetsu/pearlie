@@ -105,6 +105,17 @@ def test_write_conf_appends_missing_channel(tmp_path: Path) -> None:
     assert not (tmp_path / "update.conf.tmp").exists()
 
 
+def test_write_conf_keeps_require_verified(tmp_path: Path) -> None:
+    (tmp_path / "update.conf").write_text(
+        "channel=main
+require_verified=on
+", encoding="utf-8"
+    )
+    write_conf(tmp_path, channel="dev")
+    lines = (tmp_path / "update.conf").read_text(encoding="utf-8").splitlines()
+    assert lines == ["channel=dev", "require_verified=on"]
+
+
 def test_write_conf_invalid_raises(tmp_path: Path) -> None:
     original = "host=localhost\nchannel=main\n"
     (tmp_path / "update.conf").write_text(original, encoding="utf-8")

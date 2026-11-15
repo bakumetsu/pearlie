@@ -819,6 +819,128 @@ case_installer_defaults() {
   expect "installer_defaults: host=auto appears once in installer" "$(grep -c '^host=auto' "$REPO/install/pearlie-install.sh" || true)" 1
 }
 
+case_update_integrity() {
+  # moved tag
+  new_case moved_tag
+  seed_install 1.0.0 "$SHA_A"
+  add_main_release 1.1.0 "$SHA_B"
+  printf '{"sha":"%s"}\n' "$SHA_B" > "$FIX/gh/commits/v1.0.0"
+  run_update --check
+  expect "moved_tag: RC" "$RC" 1
+  grep -q 'moved' "$ROOT/update.log" && ok "moved_tag: log says moved" || bad "moved_tag: log says moved" "$(cat "$ROOT/update.log" 2>/dev/null)"
+  expect "moved_tag: release_dirs" "$(release_dirs)" 0
+
+  new_case same_tag
+  seed_install 1.0.0 "$SHA_A"
+  add_main_release 1.1.0 "$SHA_B"
+  printf '{"sha":"%s"}\n' "$SHA_A" > "$FIX/gh/commits/v1.0.0"
+  run_update --check
+  expect "same_tag: RC" "$RC" 10
+
+  new_case tag_no_installed_commit
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  printf '{"sha":"%s"}\n' "$SHA_B" > "$FIX/gh/commits/v1.0.0"
+  run_update --check
+  expect "tag_no_installed_commit: RC" "$RC" 10
+  grep -q 'skipped' "$ROOT/update.log" && ok "tag_no_installed_commit: skip logged" || bad "tag_no_installed_commit: skip logged" "no log"
+
+  # corrupt gzip: stamp stays valid, the tail is cut off
+  new_case corrupt_gzip
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  local tgz="$FIX/dl/tar.gz/refs/tags/v1.1.0"
+  head -c -20 "$tgz" > "$tgz.cut" && cat "$tgz.cut" > "$tgz"
+  run_update
+  expect "corrupt_gzip: RC" "$RC" 1
+  grep -q 'download corrupt' "$ROOT/update.log" && ok "corrupt_gzip: log" || bad "corrupt_gzip: log" "$(cat "$ROOT/update.log" 2>/dev/null)"
+  expect "corrupt_gzip: release_dirs" "$(release_dirs)" 0
+
+  # require_verified
+  new_case verified_false
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  printf 'require_verified=on\n' >> "$ROOT/update.conf"
+  printf '{"sha":"%s","commit":{"verification":{"verified":false}}}\n' "$SHA_B" > "$FIX/gh/commits/v1.1.0"
+  run_update --check
+  expect "verified_false: RC" "$RC" 1
+  grep -q 'not signature-verified' "$ROOT/update.log" && ok "verified_false: log" || bad "verified_false: log" "no log"
+
+  new_case verified_true
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  printf 'require_verified=on\n' >> "$ROOT/update.conf"
+  printf '{"sha":"%s","commit":{"verification":{"verified":true}}}\n' "$SHA_B" > "$FIX/gh/commits/v1.1.0"
+  run_update --check
+  expect "verified_true: RC" "$RC" 10
+
+  new_case verified_off
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  printf 'require_verified=off\n' >> "$ROOT/update.conf"
+  printf '{"sha":"%s","commit":{"verification":{"verified":false}}}\n' "$SHA_B" > "$FIX/gh/commits/v1.1.0"
+  run_update --check
+  expect "verified_off: RC" "$RC" 10
+
+  new_case verified_bad_value
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  printf 'require_verified=maybe\n' >> "$ROOT/update.conf"
+  run_update --check
+  expect "verified_bad_value: RC" "$RC" 1
+}
+
+# the installer functions run against the fixture server; msg_error is a stub
+installer_fetch() {
+  (
+    msg_error() { printf 'ERR %s\n' "$*" >&2; }
+    # shellcheck disable=SC1090
+    source <(sed -n '/^# BEGIN fetch_update_script/,/^# END fetch_update_script/p' "$REPO/install/pearlie-install.sh")
+    fetch_update_script
+  ) > "$CASE/out" 2>&1
+  RC=$?
+}
+
+case_installer_fetch() {
+  new_case inst_ok
+  add_main_release 1.1.0 "$SHA_B"
+  cp "$FIX/dl/tar.gz/refs/tags/v1.1.0" "$FIX/dl/tar.gz/$SHA_B"
+  installer_fetch
+  expect "inst_ok: RC" "$RC" 0
+  cmp -s "$REPO/deploy/pearlie-update.sh" "$CASE/nobin" && ok "inst_ok: script installed" || bad "inst_ok: script installed" "differs"
+
+  new_case inst_wrong_stamp
+  add_main_release 1.1.0 "$SHA_B"
+  cp "$FIX/dl/tar.gz/refs/tags/v1.1.0" "$FIX/dl/tar.gz/$SHA_B"
+  printf 'old\n' > "$CASE/nobin"
+  printf '{"sha":"%s"}\n' "$SHA_A" > "$FIX/gh/commits/v1.1.0"
+  cp "$FIX/dl/tar.gz/$SHA_B" "$FIX/dl/tar.gz/$SHA_A"
+  installer_fetch
+  expect "inst_wrong_stamp: RC" "$RC" 1
+  expect "inst_wrong_stamp: old script kept" "$(cat "$CASE/nobin")" old
+
+  new_case inst_api_down
+  printf 'old\n' > "$CASE/nobin"
+  installer_fetch
+  expect "inst_api_down: RC" "$RC" 1
+  expect "inst_api_down: old script kept" "$(cat "$CASE/nobin")" old
+
+  new_case inst_bad_ref
+  PEARLIE_REF=main installer_fetch
+  expect "inst_bad_ref: RC" "$RC" 1
+
+  # update.conf survives a re-run; a missing one is created
+  local conf_block
+  new_case inst_conf_keep
+  conf_block="$(sed -n "/^# keep the user's settings/,/^fi\$/p" "$REPO/install/pearlie-install.sh" | sed "s#/opt/pearlie#$(mp "$ROOT")#g")"
+  printf 'channel=dev\nport=9000\n' > "$ROOT/update.conf"
+  bash -c "$conf_block"
+  expect "inst_conf_keep: unchanged" "$(cat "$ROOT/update.conf")" "$(printf 'channel=dev\nport=9000')"
+  rm -f "$ROOT/update.conf"
+  bash -c "$conf_block"
+  grep -q '^channel=main$' "$ROOT/update.conf" && ok "inst_conf_keep: created" || bad "inst_conf_keep: created" "missing"
+}
+
 # ---- rollback ----------------------------------------------------------------
 
 # current = releases/newer (1.1.0), previous = releases/seed (1.0.0), backup of the old database
@@ -929,7 +1051,7 @@ case_rollback_none() {
   expect "rollback_nobackup: no systemctl stop" "$(stub_calls 'systemctl stop')" 0
 }
 
-CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_integrity case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_unit_sync case_installer_defaults case_previous_and_schema case_rollback_code_only case_rollback_restore case_rollback_fail case_rollback_none)
+CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_integrity case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_unit_sync case_installer_defaults case_previous_and_schema case_rollback_code_only case_rollback_restore case_rollback_fail case_rollback_none case_update_integrity case_installer_fetch)
 
 for c in "${CASES[@]}"; do
   "$c"
