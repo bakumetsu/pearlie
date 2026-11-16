@@ -163,6 +163,8 @@ def _video_extra(dto: dict, fid: str, files: list[dict]) -> dict:
 
 def log_gif_rejects(dtos: list[dict]) -> None:
     """Debug line with the count of image DTOs the grid GIF gate rejected, by reason."""
+    if not log.isEnabledFor(logging.DEBUG):
+        return
     counts: dict[str, int] = {}
     for dto in dtos:
         if not isinstance(dto, dict):
@@ -171,12 +173,11 @@ def log_gif_rejects(dtos: list[dict]) -> None:
         reason = grid_gif_reject(_image_file_name(dto), size if isinstance(size, int) else None)
         if reason:
             counts[reason] = counts.get(reason, 0) + 1
-    if log.isEnabledFor(logging.DEBUG):
-        log.debug(
-            "stash grid gif gate: %d images, rejected %s",
-            len(dtos),
-            ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "none",
-        )
+    log.debug(
+        "stash grid gif gate: %d images, rejected %s",
+        len(dtos),
+        ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "none",
+    )
 
 
 def video_item(dto: dict) -> LibraryItem:
