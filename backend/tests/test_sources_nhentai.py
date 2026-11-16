@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from app.config import Settings
 from app.main import create_app
 from app.sources.base import SourceError
-from app.sources.nhentai import CDN_HOST, NHentai, build_query
+from app.sources.nhentai import CDN_HOST, NHentai, build_query, reject_terms
 from app.sources.throttle import Throttle
 
 CREDS = {"cookie": "sessionid=SECRET", "user_agent": "UA/1"}
@@ -345,3 +345,60 @@ def test_save_unavailable_until_komga_target(tmp_path: Path) -> None:
     r = c.post("/api/save", json={"source": "nhentai", "post_id": "1"})
     assert r.status_code == 422
     assert r.json()["code"] == "no_target"
+
+
+def _row_with_ids(i: int, ids: list[int]) -> dict:
+    r = row(i)
+    r["tag_ids"] = ids
+    return r
+
+
+def test_grid_row_tags_come_from_learned_gallery_tags(caplog: pytest.LogCaptureFixture) -> None:
+    g = gallery(
+        5, [{"id": 7, "type": "tag", "name": "bad"}, {"id": 8, "type": "artist", "name": "x"}]
+    )
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path.endswith("/galleries/5"):
+            return httpx.Response(200, json=g)
+        return httpx.Response(
+            200,
+            json={"result": [_row_with_ids(1, [7, 99]), _row_with_ids(2, [98])], "num_pages": 1},
+        )
+
+    src = make(handler)
+    with caplog.at_level("INFO"):
+        before = src.search(["x"]).posts
+        assert before[0].tags == {}
+        src.get_post("5")
+        after = src.search(["x"]).posts
+    assert after[0].tags == {"general": ["bad"]}
+    assert after[1].tags == {}  # unknown ids: row stays, no crash
+    assert sum("tag ids not seen" in r.message for r in caplog.records) == 1
+
+
+def test_reject_terms() -> None:
+    got = reject_terms(["bad", "artist:blocked artist", "wild*", "weird:x", "general:g"])
+    assert got == ["-tag:bad", "-artist:blocked artist", "-tag:g"]
+    assert len(reject_terms([f"t{i}" for i in range(30)])) == 10
+    assert build_query(["-tag:bad"]) == '-tag:"bad" pages:>0'
+
+
+def test_search_hides_grid_rows_by_learned_tag_and_sends_reject_terms(tmp_path: Path) -> None:
+    seen: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req.url.params.get("query", ""))
+        rows = [_row_with_ids(1, [7]), _row_with_ids(2, [8])]
+        return httpx.Response(200, json={"result": rows, "num_pages": 1, "per_page": 25})
+
+    c = _client(tmp_path, handler)
+    c.app.state.sources["nhentai"]._learn_tag(7, "general", "bad")
+    c.app.state.sources["nhentai"]._learn_tag(8, "general", "fine")
+    c.put(
+        "/api/rules",
+        json={"version": 1, "reject": ["bad"], "warn": [], "require": [], "mapping": []},
+    )
+    sec = c.get("/api/search?q=x&sources=nhentai").json()["sections"][0]
+    assert sec["hidden"] == 1 and len(sec["items"]) == 1
+    assert '-tag:"bad"' in seen[-1]

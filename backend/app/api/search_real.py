@@ -37,6 +37,7 @@ from app.models import (
 from app.paging import PAGE_SIZE_CAPS, clamp_page_size, pages_for
 from app.sources.base import Post, Source, SourceError
 from app.sources.filters import NOTICE_CODE
+from app.sources.nhentai import reject_terms
 from app.sources.query_terms import split_terms, title_terms
 from app.targets.stash_client import StashClient, StashError
 from app.targets.stash_library import image_item, map_items, stash_sort, video_item
@@ -175,6 +176,8 @@ def search(
         elif sid in source_map:
             src = source_map[sid]
             tags = [*others, *(t.token for t in titles)]
+            if sid == "nhentai":
+                tags += [t for t in reject_terms(rules.reject) if t not in tags]
             pg = page if not multi else 1
             try:
                 page_result = src.search(
