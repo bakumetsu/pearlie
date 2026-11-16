@@ -17,6 +17,10 @@
   const rows = $derived<Row[]>((() => {
     const r: Row[] = [];
     if (typeof detail.page_count === "number") r.push({ dt: "Pages", dd: String(detail.page_count) });
+    if (typeof detail.book_count === "number") {
+      const dd = typeof detail.read_count === "number" ? `${detail.book_count} (Read ${detail.read_count})` : String(detail.book_count);
+      r.push({ dt: "Books", dd });
+    }
     r.push({ dt: "Added", dd: new Date(detail.added_at).toLocaleDateString() });
     if (detail.source_url_text) r.push({ dt: "Source", dd: detail.source_url_text });
     return r;
