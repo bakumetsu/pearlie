@@ -38,7 +38,13 @@ export function createSelection() {
       clear();
       onChanged();
       if (moved === 0) {
-        toasts.push({ kind: "error", message: "Could not move to Trash. Try again." });
+        const unavailable = res.failed.some((f) => f.code === "trash_unavailable");
+        toasts.push({
+          kind: "error",
+          message: unavailable
+            ? "Could not move to Trash: Trash folder not available"
+            : "Could not move to Trash. Try again.",
+        });
         return;
       }
       const noun = moved === 1 ? "1 item" : `${moved} items`;

@@ -70,6 +70,7 @@ def test_missing_trash_dir_is_503(env):
     store, lib, _ = env
     spec = make_spec(lib)
     store.dir.rmdir()
+    store.dir.write_text("a file blocks the folder")
     with pytest.raises(TrashError) as e:
         store.delete(spec, noop)
     assert e.value.status == 503
