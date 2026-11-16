@@ -11,7 +11,13 @@ from app.api.library_komga_real import fetch_komga_page
 from app.api.library_stash_real import fetch_stash_page
 from app.api.media_owned import is_owned
 from app.api.media_web_real import media_kind, pick_url, proxy_path, remember, tile_url
-from app.api.search_filters import parse_order, parse_rating, unsupported_notice
+from app.api.search_filters import (
+    parse_order,
+    parse_rating,
+    skipped_section,
+    title_notice,
+    unsupported_notice,
+)
 from app.filters.rules import evaluate, load_rules
 from app.filters.safe_mode import is_hidden_in_safe_mode, resolve_safe
 from app.jobs.store import JobStore
@@ -31,6 +37,7 @@ from app.models import (
 from app.paging import PAGE_SIZE_CAPS, clamp_page_size, pages_for
 from app.sources.base import Post, Source, SourceError
 from app.sources.filters import NOTICE_CODE
+from app.sources.query_terms import split_terms, title_terms
 from app.targets.stash_client import StashClient, StashError
 from app.targets.stash_library import image_item, map_items, stash_sort, video_item
 
@@ -143,15 +150,31 @@ def search(
     source_map: dict[str, Source] = request.app.state.sources
     multi = len(ids) > 1
     sections: list[Section] = []
+    titles, others = title_terms(split_terms(q))
     for sid in ids:
         title = _TITLES[sid]
         cast_sid = typing.cast(SectionId, sid)
-        lib = _library_section(request, sid, q, page, page_size, multi) if sid in _LIBRARY else None
+        skip = title_notice(sid, titles)
+        if skip:
+            sections.append(skipped_section(cast_sid, title, skip))
+            continue
+        lib_q, lib_note = q, None
+        if sid == "komga_books" and titles:
+            # Komga search is full text: send only the title text, tag chips cannot narrow it.
+            lib_q = " ".join(t.value for t in titles)
+            lib_note = "Tag chips do not narrow Komga results" if others else None
+        lib = (
+            _library_section(request, sid, lib_q, page, page_size, multi)
+            if sid in _LIBRARY
+            else None
+        )
         if lib is not None:
+            if lib_note and lib.error is None:
+                lib.notice = Problem(code=NOTICE_CODE, message=lib_note)
             sections.append(lib)
         elif sid in source_map:
             src = source_map[sid]
-            tags = q.split()
+            tags = [*others, *(t.token for t in titles)]
             pg = page if not multi else 1
             try:
                 page_result = src.search(

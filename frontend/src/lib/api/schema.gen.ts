@@ -2180,6 +2180,16 @@ export interface components {
             per_page_max: number;
             /** Order Blocked When */
             order_blocked_when?: number | null;
+            /**
+             * Title Search
+             * @default false
+             */
+            title_search: boolean;
+            /**
+             * Title Exclude
+             * @default false
+             */
+            title_exclude: boolean;
         };
         /** StashHealth */
         StashHealth: {

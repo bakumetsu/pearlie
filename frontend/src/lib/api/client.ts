@@ -109,6 +109,8 @@ export type SourceFilters = {
   favorite?: boolean;
   // Order is off when the search has at least this many words (Danbooru tag cap); null = never.
   order_blocked_when?: number | null;
+  title_search?: boolean; // the source can search by title (title:"..." chip)
+  title_exclude?: boolean; // ... and can exclude one
 };
 export type SearchFilters = Record<string, SourceFilters>;
 

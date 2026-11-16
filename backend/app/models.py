@@ -212,6 +212,8 @@ class SourceFilters(BaseModel):
     per_page_options: list[int] = Field(default_factory=list)
     per_page_max: int
     order_blocked_when: int | None = None  # Order is off when this many search words are set
+    title_search: bool = False  # the source can search by title (title:"..." chip)
+    title_exclude: bool = False  # ... and can exclude one (-title:"...")
 
 
 class FiltersResponse(BaseModel):

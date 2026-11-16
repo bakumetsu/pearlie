@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import rows from "../../../backend/tests/fixtures/query_terms.json";
 import {
   parseChip,
   nhentaiIdOf,
@@ -12,6 +13,10 @@ import {
   parseSearchParams,
   buildSearchParams,
   webNeedsQuery,
+  chipKind,
+  chipLabel,
+  chipRemoveLabel,
+  hasOpenQuote,
   type Chip,
   type SearchState,
 } from "./query";
@@ -165,5 +170,74 @@ describe("nhentaiIdOf", () => {
     for (const t of ["", "0", "012", "cat", "id:", "id:abc", "-177013", "artist:1", "12 34", "1.5"]) {
       expect(nhentaiIdOf(t)).toBeNull();
     }
+  });
+});
+
+describe("splitInput (shared table with the backend)", () => {
+  for (const row of rows) {
+    it(`splits ${JSON.stringify(row.text)}`, () => {
+      expect(splitInput(row.text)).toEqual(row.tokens);
+    });
+  }
+});
+
+describe("title chips", () => {
+  it("parses a quoted token as a title chip", () => {
+    expect(parseChip('"big dragon"')).toEqual({
+      raw: 'title:"big dragon"',
+      exclude: false,
+      scope: "title",
+      value: "big dragon",
+    });
+  });
+
+  it("parses title:value, quoted or not, and keeps underscores", () => {
+    expect(parseChip("title:foo_bar")!.raw).toBe('title:"foo_bar"');
+    expect(parseChip('title:"a b"')!.value).toBe("a b");
+  });
+
+  it("parses an excluded title and drops inner quotes", () => {
+    const c = parseChip('-title:"a"b"')!;
+    expect(c.exclude).toBe(true);
+    expect(c.raw).toBe('-title:"ab"');
+  });
+
+  it("gives null for an empty title", () => {
+    expect(parseChip('title:""')).toBeNull();
+    expect(parseChip("title:")).toBeNull();
+    expect(parseChip('""')).toBeNull();
+  });
+
+  it("keeps an unterminated quote as the rest of the text", () => {
+    expect(commitText([], '"big dragon').map((c) => c.raw)).toEqual(['title:"big dragon"']);
+  });
+
+  it("merges duplicates by canonical raw", () => {
+    const chips = commitText([], 'title:x "x" cat');
+    expect(chips.map((c) => c.raw)).toEqual(['title:"x"', "cat"]);
+  });
+
+  it("round-trips through the URL query", () => {
+    const chips = commitText([], 'a "b c" -title:"d e" artist:ruka');
+    expect(parseQuery(serialiseQuery(chips))).toEqual(chips);
+  });
+
+  it("chipKind separates title, id and tag", () => {
+    expect(chipKind(parseChip('"x"')!)).toBe("title");
+    expect(chipKind(parseChip("id:5")!)).toBe("id");
+    expect(chipKind(parseChip("artist:ruka")!)).toBe("tag");
+  });
+
+  it("labels like a tag chip, without quotes", () => {
+    expect(chipLabel(parseChip('"big dragon"')!)).toBe("title:big dragon");
+    expect(chipLabel(parseChip('-title:"x y"')!)).toBe("-title:x y");
+    expect(chipLabel(parseChip("artist:ruka")!)).toBe("artist:ruka");
+    expect(chipRemoveLabel(parseChip('"big dragon"')!)).toBe("Remove title big dragon");
+  });
+
+  it("hasOpenQuote is true for an odd number of quotes", () => {
+    expect(hasOpenQuote('"big')).toBe(true);
+    expect(hasOpenQuote('"big"')).toBe(false);
+    expect(hasOpenQuote("")).toBe(false);
   });
 });
