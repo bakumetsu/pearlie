@@ -97,6 +97,10 @@ export class VirtualLayout {
     return this.keyIndex.get(key) ?? -1;
   }
 
+  get options(): LayoutOptions {
+    return this.opts;
+  }
+
   setOptions(opts: Partial<LayoutOptions>): void {
     this.opts = { ...this.opts, ...opts };
   }

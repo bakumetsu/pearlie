@@ -158,6 +158,29 @@ describe("test 5: only the window renders (5,000 items)", () => {
   }
 });
 
+describe("caption metrics are measured from a rendered tile", () => {
+  it("a taller measured caption moves the row tops", async () => {
+    const items = mockItems(200, 5).filter((i) => "kind" in i && i.kind === "video");
+    const first = render(ResultsGrid, { ...props, items, mode: "grid" });
+    await settle();
+    const rowTops = () => [...new Set(cells(container).map(yOf))].slice(0, 8);
+    let container = first.container;
+    const before = rowTops();
+    expect(before.length).toBeGreaterThan(2);
+    first.unmount();
+    // A real caption is 30px per line with a 12px margin: rows must grow by that.
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      if (this.classList.contains("title")) return { top: 0, height: 30 } as DOMRect;
+      return { top: this.classList.contains("rg") ? -scrollY : 0 } as DOMRect;
+    });
+    vi.spyOn(window, "getComputedStyle").mockImplementation(() => ({ marginTop: "12px" }) as CSSStyleDeclaration);
+    container = render(ResultsGrid, { ...props, items, mode: "grid" }).container;
+    await settle();
+    const after = rowTops();
+    expect(after[after.length - 1]).toBeGreaterThan(before[after.length - 1]);
+  });
+});
+
 describe("test 6: appending pages", () => {
   it("50 items 40 times: bounded DOM, flat layout cost, one reset", async () => {
     const all = mockItems(2050, 3);

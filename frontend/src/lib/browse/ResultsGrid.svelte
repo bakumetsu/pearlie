@@ -72,6 +72,9 @@
   let placed = $state.raw<Cell[]>([]);
   let layoutSig = "";
   let lastKey: string | undefined;
+  let firstKey: string | undefined;
+  // Caption metrics measured from a rendered tile; bumping `metricsVer` rebuilds the layout.
+  let metricsVer = $state(0);
   let winSig = "";
   let ver = 0;
 
@@ -82,10 +85,11 @@
   // Build or extend the layout. An append (the old last item is unchanged) costs O(new items).
   $effect(() => {
     const w = width;
-    const sig = `${mode}|${w}|${size}|${landscape}`;
+    const sig = `${mode}|${w}|${size}|${landscape}|${metricsVer}`;
     const list = items;
     const n = list.length;
     const tail = n > 0 ? keyOf(list[n - 1]) : undefined;
+    const head = n > 0 ? keyOf(list[0]) : undefined;
     if (loading || w <= 0) {
       untrack(() => {
         built = false;
@@ -98,14 +102,15 @@
     untrack(() => {
       const have = layout.count;
       const same = built && sig === layoutSig;
-      if (same && have > 0 && n > have && keyOf(list[have - 1]) === lastKey) {
+      if (same && have > 0 && n > have && head === firstKey && keyOf(list[have - 1]) === lastKey) {
         const fresh = list.slice(have);
         layout.append(fresh.map(itemAspect), { lines: fresh.map(linesOf), keys: fresh.map(keyOf) });
-      } else if (!(same && n === have && tail === lastKey)) {
+      } else if (!(same && n === have && tail === lastKey && head === firstKey)) {
         layout.reset(mode, w, size, list.map(itemAspect), { lines: list.map(linesOf), keys: list.map(keyOf) });
       }
       layoutSig = sig;
       lastKey = tail;
+      firstKey = head;
       built = true;
       ver++;
       total = layout.total;
@@ -170,6 +175,40 @@
     const y1 = j >= 0 ? layout.rect(j)?.y : undefined;
     if (y1 !== undefined && y1 !== y0) window.scrollBy?.(0, y1 - y0);
   }
+
+  // ---- caption metrics: measured once from one rendered caption, again when the zoom changes ----
+  let capNode: Element | null = null;
+  let capRo: ResizeObserver | null = null;
+
+  function measureCaption() {
+    const node = el?.querySelector(".vcell .title") ?? null;
+    if (node !== capNode) {
+      capRo?.unobserve(capNode as Element);
+      capNode = node;
+      if (node) capRo?.observe(node);
+    }
+    if (!node) return;
+    const lineH = node.getBoundingClientRect().height;
+    const pad = parseFloat(getComputedStyle(node).marginTop) || 0;
+    if (!(lineH > 0)) return;
+    const cur = layout.options;
+    if (Math.abs(cur.lineH - lineH) < 0.5 && (mode === "list" || Math.abs(cur.pad - pad) < 0.5)) return;
+    layout.setOptions(mode === "list" ? { lineH } : { lineH, pad });
+    untrack(() => metricsVer++);
+  }
+
+  $effect(() => {
+    void placed;
+    void size;
+    capRo ??= typeof ResizeObserver === "function" ? new ResizeObserver(() => measureCaption()) : null;
+    measureCaption();
+  });
+
+  $effect(() => () => {
+    capRo?.disconnect();
+    capRo = null;
+    capNode = null;
+  });
 
   // ---- measuring and scrolling: one rAF per burst of scroll, resize and fix-up events ----
   let raf = 0;
