@@ -53,7 +53,7 @@ def _site_state(app: FastAPI, name: str) -> State:
 
 def _trash_mount(app: FastAPI) -> Mount:
     """The trash folder is ok when it exists and is writable; Pearlie never creates it."""
-    folder = app.state.settings.trash_dir
+    folder = app.state.trash.dir
     ok = folder.is_dir() and os.access(folder, os.W_OK)
     return Mount(name="trash", state="ok" if ok else "down")
 

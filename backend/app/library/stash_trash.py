@@ -98,11 +98,11 @@ class StashTrash:
         if not any(real == r or real.startswith(r + os.sep) for r in roots):
             raise TrashError(422, "path_outside_library", "Item is outside the library")
 
-    def _probe(self, root: Path) -> str:
-        """Rename a probe file from *root* into the trash folder and back; always clean up."""
+    def _probe(self, root: Path, trash_dir: Path | None = None) -> str:
+        """Rename a probe file from *root* into the trash folder (or *trash_dir*) and back."""
         name = f".pearlie-probe-{uuid.uuid4().hex}"
         src = root / name
-        dest = self._store.dir / name
+        dest = (trash_dir or self._store.dir) / name
         try:
             if not root.is_dir() or not os.access(root, os.W_OK):
                 return "not_reachable"
@@ -121,6 +121,13 @@ class StashTrash:
                     p.unlink()
                 except OSError:
                     pass
+
+    def probe_candidate(self, trash_dir: Path) -> list[dict]:
+        """Like :meth:`probe_roots` for a folder not saved yet; never cached."""
+        return [
+            {"index": i, "stash_path": p, "state": self._probe(self._to_local(p), trash_dir)}
+            for i, p in enumerate(self._c.library_paths())
+        ]
 
     def probe_roots(self) -> list[dict]:
         """Per Stash library root: can a file move into the trash folder and back (cached 60 s)."""

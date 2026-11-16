@@ -195,6 +195,10 @@ export const SECTIONS: Section[] = [
         title: 'Retention',
         rows: [{ label: 'Retention days', hint: 'auto-purge after N days' }],
       },
+      {
+        title: 'Folder',
+        rows: [{ label: 'Trash folder', hint: 'where deleted items wait for undo' }],
+      },
     ],
   },
   {
