@@ -221,9 +221,9 @@ def test_start_uses_stored_path_over_env(tmp_path):
 
 
 def test_fixture_mode_has_no_folder_route(tmp_path):
-    app = create_app(Settings(  # pyright: ignore[reportCallIssue]
+    app = create_app(Settings(
         mode="fixture", db_path=tmp_path / "p.db", static_dir=tmp_path / "nostatic",
-        _env_file=None,
+        _env_file=None,  # pyright: ignore[reportCallIssue]
     ))
     with TestClient(app) as c:
         assert c.get("/api/trash/folder").status_code in (404, 405, 422)
