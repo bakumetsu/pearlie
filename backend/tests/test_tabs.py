@@ -139,3 +139,17 @@ def test_real_persists_across_clients(tmp_path):
     assert body["rev"] == 1
     assert body["active"] == "a"
     assert body["tabs"] == [tab]
+
+
+@pytest.mark.parametrize("order", ["popular-today", "popular-week", "popular-month", "popular"])
+def test_nhentai_popular_sort_survives_save(any_client, order):
+    tab = {**_valid_tab(), "sites": ["nhentai"], "order": order}
+    r = any_client.put("/api/tabs", json={"tabs": [tab], "active": "a", "rev": 0})
+    assert r.status_code == 200, r.text
+    assert any_client.get("/api/tabs").json()["tabs"][0]["order"] == order
+
+
+def test_unknown_order_rejected(any_client):
+    tab = {**_valid_tab(), "order": "bogus"}
+    r = any_client.put("/api/tabs", json={"tabs": [tab], "active": "a", "rev": 0})
+    assert r.status_code == 422
