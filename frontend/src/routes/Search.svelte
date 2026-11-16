@@ -216,7 +216,7 @@
       )
   );
 
-  // The store builds the rows in query order: site rows follow the pill order, library rows keep their place.
+  // The store builds the rows in query order: site rows come first in the pill order, library rows below.
   // A video tile click queues the row's loaded items; further pages load as in See all.
   function queueVideos(section: Section | null | undefined) {
     const q = serialiseQuery(query.chips);

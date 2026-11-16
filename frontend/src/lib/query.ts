@@ -145,13 +145,11 @@ export const LIBRARY_SECTIONS: SectionId[] = [
 ];
 
 /** Resolve the active section ids for a pill and site selection. */
-export function sectionsFor(pill: Pill, sites: SiteId[], chips: Chip[]): SectionId[] {
+export function sectionsFor(pill: Pill, sites: SiteId[]): SectionId[] {
   switch (pill) {
     case "all":
-      // Discover with no chips shows the newest from each site first, library rows below.
-      return chips.length === 0
-        ? [...sites, ...LIBRARY_SECTIONS]
-        : [...LIBRARY_SECTIONS, ...sites];
+      // The selected sites' rows come first, with or without chips; library rows below.
+      return [...sites, ...LIBRARY_SECTIONS];
     case "images":
       return ["stash_images"];
     case "videos":

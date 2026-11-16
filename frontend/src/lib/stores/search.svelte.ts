@@ -41,7 +41,7 @@ export function createSearch(api: Api, opts?: { debounceMs?: number; remember?: 
   }
 
   function run(state: SearchState, o?: { immediate?: boolean; force?: boolean }) {
-    const ids = sectionsFor(state.pill, state.sites, state.chips);
+    const ids = sectionsFor(state.pill, state.sites);
 
     // An identical query (chips + sources) is never re-sent.
     // The order of the rows is not part of the query: a reorder only moves them.
