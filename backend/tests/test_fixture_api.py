@@ -174,8 +174,8 @@ def test_trash_empty(client):
     assert client.delete("/api/trash").json() == {"removed": 0}
 
 
-def test_trash_not_implemented_when_real(tmp_path):
-    """In real mode trash answers 501 not_implemented, never fixture data."""
+def test_trash_is_real_and_empty_when_real(tmp_path):
+    """In real mode trash lists the real (empty) trash, never fixture data."""
     from fastapi.testclient import TestClient
 
     from app.config import Settings
@@ -190,12 +190,12 @@ def test_trash_not_implemented_when_real(tmp_path):
         )
     )
     c = TestClient(app)
-    for r in (c.get("/api/trash"), c.delete("/api/trash")):
-        assert r.status_code == 501
-        assert r.json() == {
-            "code": "not_implemented",
-            "message": "trash is not available in real mode yet",
-        }
+    r = c.get("/api/trash")
+    assert r.status_code == 200
+    assert r.json()["items"] == []
+    r = c.delete("/api/trash")
+    assert r.status_code == 200
+    assert r.json() == {"removed": 0}
 
 
 def _real_app(tmp_path, **kw):
