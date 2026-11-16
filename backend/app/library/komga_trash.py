@@ -257,14 +257,28 @@ class KomgaTrash:
         self._c.scan_library(library_id)
         dto = self._wait_found(plural, row["entity_id"], library_id, komga_path, new_path.name)
         new_id = str(dto["id"])
-        if meta.get("tags"):
-            self._c.set_tags(plural, new_id, list(meta["tags"]))
+        patch = self._metadata_patch(meta, dto)
+        if patch:
+            self._c.set_metadata(plural, new_id, patch)
         progress = meta.get("progress")
         if kind == "book" and progress and progress.get("page"):
             self._c.set_progress(new_id, int(progress["page"]), bool(progress.get("completed")))
         dto = self._c.get_book(new_id) if kind == "book" else self._c.get_series(new_id)
         self._relink_saved(row["entity_id"], new_id)
         return new_id, (book_item(dto) if kind == "book" else series_item(dto))
+
+    @staticmethod
+    def _metadata_patch(meta: dict, dto: dict) -> dict:
+        """Tags, title and summary saved at delete time; only fields the scan lost."""
+        scanned = dto.get("metadata") or {}
+        patch: dict = {}
+        if meta.get("tags"):
+            patch.update(tags=list(meta["tags"]), tagsLock=True)
+        for field in ("title", "summary"):
+            saved = meta.get(field)
+            if saved and saved != scanned.get(field):
+                patch.update({field: saved, f"{field}Lock": True})
+        return patch
 
     def _wait_found(
         self, plural: str, old_id: str, library_id: str, komga_path: str, name: str

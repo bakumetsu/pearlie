@@ -46,11 +46,10 @@ def _up(err: KomgaError) -> ApiError:
 
 def _visible(request: Request, dtos: list[dict]) -> list[dict]:
     """Drop items Pearlie trashed that Komga still lists until its scan runs (or forever, if
-    the scan or empty-trash did not happen): deleted, UNAVAILABLE or not yet scanned."""
+    the scan or empty-trash did not happen): deleted, UNAVAILABLE or not yet scanned. Items
+    Komga marks deleted are hidden for every owner (a purged row can leave a ghost)."""
     owned = request.app.state.trash.komga_owned_ids()
-    if not owned:
-        return dtos
-    return [d for d in dtos if str(d.get("id")) not in owned]
+    return [d for d in dtos if not d.get("deleted") and str(d.get("id")) not in owned]
 
 
 def _hide_trashed(request: Request, id: str) -> None:
@@ -224,6 +223,8 @@ def get_series(request: Request, id: str):
         books, truncated = komga.all_series_books(id)
     except KomgaError as e:
         raise _up(e) from None
+    if series.get("deleted"):
+        raise ApiError(404, "not_found", "Item not found")
     return series_detail(series, books, truncated)
 
 
@@ -236,6 +237,8 @@ def get_book(request: Request, id: str):
         book = komga.get_book(id)
     except KomgaError as e:
         raise _up(e) from None
+    if book.get("deleted"):
+        raise ApiError(404, "not_found", "Item not found")
     return book_detail(book)
 
 

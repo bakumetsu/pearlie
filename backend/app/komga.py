@@ -224,11 +224,12 @@ class Komga:
 
     def set_tags(self, kind: str, id: str, tags: list[str]) -> None:
         """Set the tags on a series or book via its metadata endpoint."""
+        self.set_metadata(kind, id, {"tags": tags, "tagsLock": True})
+
+    def set_metadata(self, kind: str, id: str, body: dict) -> None:
+        """PATCH the metadata of a series or book (callers add the lock flags)."""
         try:
-            resp = self._client.patch(
-                f"/api/v1/{kind}/{id}/metadata",
-                json={"tags": tags, "tagsLock": True},
-            )
+            resp = self._client.patch(f"/api/v1/{kind}/{id}/metadata", json=body)
         except httpx.HTTPError:
             raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
         self._check(resp)

@@ -77,7 +77,7 @@ class FakeKomga:
                         d,
                         id=f"N{self.n}",
                         deleted=False,
-                        metadata={**d["metadata"], "tags": []},
+                        metadata={**d["metadata"], "tags": [], "title": d["name"], "summary": None},
                         readProgress=None,
                     )
                     store[nd["id"]] = nd
@@ -361,8 +361,8 @@ def test_last_book_delete_owns_the_emptied_series(tmp_path):
     c = make(tmp_path, k)
     c.delete("/api/library/books/B1")
     assert wait_for(lambda: k.empties == 1)
-    c.delete("/api/library/books/B2")
     k.series["S1"]["deleted"] = True  # Komga drops the now empty series
+    c.delete("/api/library/books/B2")
     assert wait_for(lambda: k.empties == 2)
 
 
@@ -379,3 +379,40 @@ def test_dedupe_post_in_trash_is_409(tmp_path):
     tok = c.delete("/api/library/books/B1").json()["token"]
     row = st(c).trash.find_in_trash("nhentai", "42")
     assert row is not None and row["token"] == tok
+
+
+def test_restore_reapplies_title_and_summary(tmp_path):
+    _, _, f1, _, k = setup_lib(tmp_path, komga_new_ids=True)
+    k.books["B1"]["metadata"].update(title="Custom title", summary="My summary")
+    c = make(tmp_path, k)
+    tok = c.delete("/api/library/books/B1").json()["token"]
+    assert wait_for(lambda: k.empties == 1)
+    r = c.post(f"/api/trash/{tok}/restore")
+    assert r.status_code == 200, r.text
+    new_id = r.json()["item"]["id"]
+    assert k.tag_calls == [
+        (
+            f"/api/v1/books/{new_id}/metadata",
+            {
+                "tags": ["x", "y"],
+                "tagsLock": True,
+                "title": "Custom title",
+                "titleLock": True,
+                "summary": "My summary",
+                "summaryLock": True,
+            },
+        )
+    ]
+
+
+def test_ghost_after_purge_is_hidden(tmp_path):
+    _, _, _, _, k = setup_lib(tmp_path, fail_empty=403)
+    c = make(tmp_path, k)
+    tok = c.delete("/api/library/books/B1").json()["token"]
+    assert wait_for(lambda: k.scans == 1)
+    time.sleep(0.3)
+    assert c.delete(f"/api/trash/{tok}").status_code == 204  # row is gone, Komga still has it
+    assert k.books["B1"]["deleted"] is True
+    ids = [i["id"] for i in c.get("/api/library/komga/books").json()["items"]]
+    assert "B1" not in ids and "B2" in ids
+    assert c.get("/api/library/books/B1").status_code == 404
