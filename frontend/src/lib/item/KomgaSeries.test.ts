@@ -40,7 +40,7 @@ describe("KomgaSeries", () => {
   });
 
   it("shows Read and opens book 1 when nothing was read", async () => {
-    const { getByText, onopen } = setup({ read_count: 0 });
+    const { getByText, onopen } = setup({ read_count: 0, books: [book("b1"), book("b2")] });
     await fireEvent.click(getByText("Read"));
     expect(onopen.mock.calls[0][0].id).toBe("b1");
   });
