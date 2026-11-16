@@ -505,6 +505,31 @@ describe("GearMenu popover, sections, speed, loop, quality", () => {
     expect(player.loop).toBe(true);
   });
 
+  it("unmounting inside the 400 ms swallow window clears the timer and click guard", () => {
+    vi.useFakeTimers();
+    try {
+      gear()!.click();
+      flushSync();
+      document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      flushSync();
+      expect(vi.getTimerCount()).toBe(1);
+
+      cleanup();
+      expect(vi.getTimerCount()).toBe(0);
+
+      const clickSpy = vi.fn();
+      window.addEventListener("click", clickSpy);
+      const ev = new MouseEvent("click", { bubbles: true, cancelable: true });
+      document.body.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(false);
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      window.removeEventListener("click", clickSpy);
+      expect(() => vi.advanceTimersByTime(500)).not.toThrow();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("page resets to main when reopened", async () => {
     gear()!.click();
     flushSync();
