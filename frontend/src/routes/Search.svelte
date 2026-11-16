@@ -375,8 +375,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--s-2);
+    /* No right inset: the SFW toggle (top 8-52px) sits beside the site marks, above the field row. */
     padding: var(--s-3) var(--s-4);
-    padding-right: calc(var(--s-4) + var(--sfw-inset));
     border-bottom: 1px solid var(--line);
   }
 
