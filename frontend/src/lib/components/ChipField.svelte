@@ -76,8 +76,15 @@
     }}
     onpaste={(e) => {
       e.preventDefault();
-      const pasted = e.clipboardData?.getData("text/plain") ?? "";
-      if (pasted.trim()) onchange(commitText(chips, pasted));
+      // A paste stays plain text in the field; Enter parses it into chips.
+      const pasted = (e.clipboardData?.getData("text/plain") ?? "").replace(/\s*[\r\n]+\s*/g, " ");
+      if (!pasted) return;
+      const input = e.currentTarget;
+      const start = input.selectionStart ?? pending.length;
+      const end = input.selectionEnd ?? start;
+      pending = pending.slice(0, start) + pasted + pending.slice(end);
+      const caret = start + pasted.length;
+      queueMicrotask(() => input.setSelectionRange(caret, caret));
     }}
   />
   {@render trailing?.()}

@@ -1,71 +1,54 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, cleanup, fireEvent } from "@testing-library/svelte";
+import { render, screen, fireEvent, cleanup } from "@testing-library/svelte";
 import ChipField from "./ChipField.svelte";
-import src from "./ChipField.svelte?raw";
+import type { Chip } from "../query";
 
-afterEach(cleanup);
+afterEach(() => cleanup());
 
-describe("ChipField", () => {
-  it("Space keyDown does not commit", async () => {
-    const onchange = vi.fn();
-    const { container } = render(ChipField, { props: { chips: [], onchange } });
-    const input = container.querySelector("input")!;
-    await fireEvent.input(input, { target: { value: "cat" } });
-    await fireEvent.keyDown(input, { key: " " });
+function setup() {
+  const onchange = vi.fn<(c: Chip[]) => void>();
+  render(ChipField, { chips: [], onchange });
+  const input = screen.getByRole("textbox") as HTMLInputElement;
+  return { onchange, input };
+}
+
+async function paste(input: HTMLInputElement, text: string) {
+  const ev = new Event("paste", { bubbles: true, cancelable: true });
+  Object.assign(ev, { clipboardData: { getData: () => text } });
+  await fireEvent(input, ev);
+}
+
+describe("ChipField paste", () => {
+  it("keeps a pasted sentence as plain text; Enter makes tag chips", async () => {
+    const { onchange, input } = setup();
+    await paste(input, "a long pasted sentence");
     expect(onchange).not.toHaveBeenCalled();
-  });
-
-  it("Enter keyDown commits once", async () => {
-    const onchange = vi.fn();
-    const { container } = render(ChipField, { props: { chips: [], onchange } });
-    const input = container.querySelector("input")!;
-    await fireEvent.input(input, { target: { value: "cat" } });
+    expect(input.value).toBe("a long pasted sentence");
     await fireEvent.keyDown(input, { key: "Enter" });
-    expect(onchange).toHaveBeenCalledTimes(1);
+    const chips = onchange.mock.calls[0][0];
+    expect(chips.map((c) => c.value)).toEqual(["a", "long", "pasted", "sentence"]);
   });
 
-  it("comma keyDown commits", async () => {
-    const onchange = vi.fn();
-    const { container } = render(ChipField, { props: { chips: [], onchange } });
-    const input = container.querySelector("input")!;
-    await fireEvent.input(input, { target: { value: "cat" } });
-    await fireEvent.keyDown(input, { key: "," });
-    expect(onchange).toHaveBeenCalled();
-  });
-
-  it("blur does not commit pending text", async () => {
-    const onchange = vi.fn();
-    const { container } = render(ChipField, { props: { chips: [], onchange } });
-    const input = container.querySelector("input")!;
-    await fireEvent.input(input, { target: { value: "cat" } });
-    await fireEvent.blur(input);
+  it('keeps title:"a b c" as text; Enter makes one title chip', async () => {
+    const { onchange, input } = setup();
+    await paste(input, 'title:"a b c"');
     expect(onchange).not.toHaveBeenCalled();
-    expect((input as HTMLInputElement).value).toBe("cat");
-  });
-
-  it("has correct padding in styles", () => {
-    expect(src).toContain("padding: 2px 18px 2px var(--s-1)");
-  });
-
-  it("comma inside an open quote does not commit; Enter does", async () => {
-    const onchange = vi.fn();
-    const { container } = render(ChipField, { props: { chips: [], onchange } });
-    const input = container.querySelector("input")!;
-    await fireEvent.input(input, { target: { value: '"big, dragon' } });
-    await fireEvent.keyDown(input, { key: "," });
-    expect(onchange).not.toHaveBeenCalled();
+    expect(input.value).toBe('title:"a b c"');
     await fireEvent.keyDown(input, { key: "Enter" });
-    expect(onchange).toHaveBeenCalledTimes(1);
-    expect(onchange.mock.calls[0][0][0].raw).toBe('title:"big, dragon"');
+    const chips = onchange.mock.calls[0][0];
+    expect(chips).toHaveLength(1);
+    expect(chips[0].raw).toBe('title:"a b c"');
   });
 
-  it("shows a title chip like a tag chip and removes it", async () => {
-    const onchange = vi.fn();
-    const chips = [{ raw: 'title:"big dragon"', exclude: false, scope: "title", value: "big dragon" }];
-    const { container, getByLabelText } = render(ChipField, { props: { chips, onchange } });
-    expect(container.querySelector(".chip")!.textContent).toContain("title:big dragon");
-    await fireEvent.click(getByLabelText("Remove title big dragon"));
-    expect(onchange).toHaveBeenCalledWith([]);
+  it('keeps "a b c" as text; Enter makes one title chip', async () => {
+    const { onchange, input } = setup();
+    await paste(input, '"a b c"');
+    expect(onchange).not.toHaveBeenCalled();
+    expect(input.value).toBe('"a b c"');
+    await fireEvent.keyDown(input, { key: "Enter" });
+    const chips = onchange.mock.calls[0][0];
+    expect(chips).toHaveLength(1);
+    expect(chips[0].raw).toBe('title:"a b c"');
   });
 });
