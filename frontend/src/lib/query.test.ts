@@ -90,17 +90,16 @@ describe("serialiseQuery / parseQuery round trip", () => {
 
 describe("sectionsFor", () => {
   it("resolves each pill", () => {
-    const q = [parseChip("x")!];
-    expect(sectionsFor("all", ["danbooru"], q)).toEqual([
-      "stash_images", "stash_videos", "komga_books", "danbooru",
+    expect(sectionsFor("all", ["nhentai"])).toEqual([
+      "nhentai", "stash_images", "stash_videos", "komga_books",
     ]);
-    expect(sectionsFor("all", ["danbooru"], [])).toEqual([
-      "danbooru", "stash_images", "stash_videos", "komga_books",
+    expect(sectionsFor("all", ["gelbooru", "danbooru"])).toEqual([
+      "gelbooru", "danbooru", "stash_images", "stash_videos", "komga_books",
     ]);
-    expect(sectionsFor("images", [], q)).toEqual(["stash_images"]);
-    expect(sectionsFor("videos", [], q)).toEqual(["stash_videos"]);
-    expect(sectionsFor("books", [], q)).toEqual(["komga_books"]);
-    expect(sectionsFor("web", ["gelbooru", "rule34"], q)).toEqual(["gelbooru", "rule34"]);
+    expect(sectionsFor("images", [])).toEqual(["stash_images"]);
+    expect(sectionsFor("videos", [])).toEqual(["stash_videos"]);
+    expect(sectionsFor("books", [])).toEqual(["komga_books"]);
+    expect(sectionsFor("web", ["gelbooru", "rule34"])).toEqual(["gelbooru", "rule34"]);
   });
 });
 
