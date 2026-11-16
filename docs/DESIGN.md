@@ -163,6 +163,7 @@ Notes:
 | GET | `/api/trash` | list trashed items with token, expires_at, retention_days; expired entries are left out but not dropped by the GET (they are dropped on restore, on empty, or when retention purges them) |
 | DELETE | `/api/trash` | Empty: permanently delete everything in the trash, returns `{removed}` (the real deletion rule 4 allows; the UI asks to confirm first). Real mode purges every `trashed` row and its files |
 | DELETE | `/api/trash/{token}` | Delete for good: one item, 204 (404 if not `trashed`) |
+| GET | `/api/trash/status` | `{roots: [{index, stash_path, state}]}`, one per Stash library root; `state` is `ok`, `not_reachable` or `other_volume`. Probe: an empty `.pearlie-probe-*` file is created in the root, renamed into the trash folder and back, then removed on any outcome (never an item). Cached 60 s. Only the Stash-side path is returned, never the container path |
 | GET | `/api/trash/purge-preview` | `?days=` count of items a shorter retention would purge, no change |
 | GET | `/api/media/...` | proxy for thumbnails, images, video (Range), book pages |
 | GET | `/api/media/web/{source}/{post_id}/thumb` | web-site tile thumbnail, cached on disk and fetched through a per-site thumbnail lane (one at a time, 0.25 s, site-wide backoff on 429/503); a hit never touches the site. `source` is one of the four web sites, `post_id` matches `[A-Za-z0-9_-]{1,32}`, else 404 |
