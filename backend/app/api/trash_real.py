@@ -4,7 +4,6 @@ from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
 from app.library.stash_trash import StashTrash
-from app.targets.stash_client import StashError
 from app.library.trash import TrashError, TrashStore
 from app.models import (
     RestoreResult,
@@ -16,6 +15,7 @@ from app.models import (
     TrashRoot,
     TrashStatus,
 )
+from app.targets.stash_client import StashError
 
 router = APIRouter(prefix="/api")
 
@@ -45,7 +45,7 @@ def result_of(row: dict, retention_days: int) -> TrashResult:
 
 @router.get("/trash/status")
 def trash_status(request: Request) -> TrashStatus:
-    """Per Stash library root: can Pearlie rename a file into the trash folder (probe, 60 s cache)."""
+    """Per Stash library root: can a file be renamed into the trash folder (60 s cache)."""
     client = request.app.state.stash
     if client is None:
         raise ApiError(503, "not_configured", "Stash is not configured")

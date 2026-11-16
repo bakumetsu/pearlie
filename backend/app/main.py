@@ -56,9 +56,9 @@ from app.config import ConfigError, Settings, load_settings
 from app.connections_store import ConnectionStore
 from app.db import connect, init_db
 from app.jobs.worker import JobWorker
+from app.komga import Komga
 from app.library.stash_trash import StashTrash
 from app.library.trash import TrashStore
-from app.komga import Komga
 from app.logs import install_http_hooks
 from app.sources.base import Source
 from app.sources.danbooru import Danbooru

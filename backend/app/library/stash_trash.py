@@ -50,7 +50,9 @@ def _meta(dto: dict, kind: str, file: dict) -> dict:
         "stash_path": file.get("path"),
     }
     if kind == "image":
-        meta["galleries"] = [{"id": g["id"], "title": g.get("title")} for g in dto.get("galleries") or []]
+        meta["galleries"] = [
+            {"id": g["id"], "title": g.get("title")} for g in dto.get("galleries") or []
+        ]
     else:
         meta["details"] = dto.get("details")
         meta["markers"] = [

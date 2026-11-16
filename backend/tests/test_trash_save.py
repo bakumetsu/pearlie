@@ -1,6 +1,7 @@
 """A post whose file sits in the Pearlie trash is not saved again."""
 
 from pathlib import Path
+from typing import Any, cast
 
 from app.library.trash import TrashSpec
 from tests.test_jobs_real import make_client
@@ -44,6 +45,6 @@ def test_other_post_still_saves(tmp_path):
 def test_worker_dedupe_skips_trashed_post_by_post_id_and_md5(tmp_path):
     client, _, _ = make(tmp_path)
     trash_post(tmp_path, client, md5="AB" * 16)
-    target = client.app.state.stash_target
+    target = cast(Any, client.app).state.stash_target
     assert target._dedupe("danbooru", "1", None) == ("7", "in trash")
     assert target._dedupe("danbooru", "other", "ab" * 16) == ("7", "in trash")

@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -23,7 +24,9 @@ def env(tmp_path):
 def make_spec(lib: Path, name="a.jpg", entity_id="1", **over) -> TrashSpec:
     f = lib / name
     f.write_bytes(b"data")
-    kw = dict(target="stash", kind="image", entity_id=entity_id, title=name, orig_path=f)
+    kw: dict[str, Any] = dict(
+        target="stash", kind="image", entity_id=entity_id, title=name, orig_path=f
+    )
     kw.update(over)
     return TrashSpec(**kw)
 

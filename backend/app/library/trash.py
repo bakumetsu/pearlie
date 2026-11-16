@@ -97,7 +97,9 @@ class TrashStore:
     def retention_days(self) -> int:
         conn = connect(self._db)
         try:
-            row = conn.execute("SELECT value FROM settings WHERE key = ?", (RETENTION_KEY,)).fetchone()
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (RETENTION_KEY,)
+            ).fetchone()
         finally:
             conn.close()
         try:
@@ -283,7 +285,11 @@ class TrashStore:
         except OSError as e:
             self._run("UPDATE trash_items SET state = 'trashed' WHERE token = ?", (token,))
             code = "trash_unavailable"
-            msg = "Trash folder is on another volume" if e.errno == errno.EXDEV else "Could not restore"
+            msg = (
+                "Trash folder is on another volume"
+                if e.errno == errno.EXDEV
+                else "Could not restore"
+            )
             raise TrashError(503, code, msg) from None
         try:
             new_id, result = apply(row, target)
@@ -292,7 +298,9 @@ class TrashStore:
                            token, target, type(e).__name__)
             self._drop(token, self.dir / token)
             raise TrashError(
-                502, "restore_incomplete", f"{target.name} is back in the library but not registered"
+                502,
+                "restore_incomplete",
+                f"{target.name} is back in the library but not registered",
             ) from None
         self._saved_items_after_restore(row, new_id)
         self._drop(token, self.dir / token)

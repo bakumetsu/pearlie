@@ -1,6 +1,7 @@
 """Stash trash layer through the routes: real files, mocked Stash GraphQL."""
 
 import json
+from typing import Any, cast
 
 import httpx
 from fastapi.testclient import TestClient
@@ -168,7 +169,7 @@ def test_drop_if_gone_keeps_trashed_row(tmp_path):
     conn.close()
     c.delete("/api/library/images/1")
     # Stash no longer knows id 1 (destroyed); the saved row must stay while trashed.
-    assert c.app.state.stash_target.drop_if_gone("1") is False
+    assert cast(Any, c.app).state.stash_target.drop_if_gone("1") is False
     conn = connect(tmp_path / "p.db")
     n = conn.execute("SELECT COUNT(*) FROM saved_items WHERE image_id = '1'").fetchone()[0]
     conn.close()
