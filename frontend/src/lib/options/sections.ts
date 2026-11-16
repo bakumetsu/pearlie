@@ -218,7 +218,8 @@ export const SECTIONS: Section[] = [
     title: 'Update',
     group: 'System',
     later: false,
-    cards: [{ title: 'Update', rows: [{ label: 'Installed', hint: 'version and channel' }, { label: 'Latest', hint: 'newest release' }, { label: 'Channel', hint: 'main or dev' }, { label: 'Automatic check', hint: 'check for updates automatically' }] }],
+    cards: [{ title: 'Update', rows: [{ label: 'Installed', hint: 'version and channel' }, { label: 'Latest', hint: 'newest release' }, { label: 'Channel', hint: 'main or dev' }, { label: 'Automatic check', hint: 'check for updates automatically' }] },
+      { title: "What's new since your version", rows: [{ label: "What's new since your version", hint: 'changes you have not installed yet' }] }],
   },
   {
     id: 'changelog',
@@ -230,7 +231,6 @@ export const SECTIONS: Section[] = [
         title: 'Changelog',
         rows: [
           { label: 'Latest changes', hint: 'release notes, newest first' },
-          { label: "What's new since your version", hint: 'changes you have not installed yet' },
           { label: 'Main or Dev', hint: 'which channel to read' },
         ],
       },

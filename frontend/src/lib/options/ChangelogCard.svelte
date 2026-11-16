@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
 	import { getApi } from "../api/client";
-	import type { ChangeBlock } from "../api/client";
 	import { createUpdate } from "../stores/update.svelte";
 	import Icon from "../components/Icon.svelte";
+	import ChangeGroups from "./ChangeGroups.svelte";
 
 	// Options search renders this card too: fetch only when its section is open.
 	let { active = true }: { active?: boolean } = $props();
@@ -16,7 +16,6 @@
 
 	const cl = $derived(update.changelog);
 	const checkOff = $derived(update.status != null && !update.status.check_enabled);
-	const hasWhatsNew = $derived(cl?.whats_new != null);
 
 	function fmtDate(iso: string): string {
 		const d = new Date(`${iso}T00:00:00Z`);
@@ -62,22 +61,15 @@
 			</button>
 		</div>
 	{:else if cl}
-		{#if cl.whats_new}
-			<div class="cl-new">
-				<b>What's new since your version</b>
-				{#if cl.whats_new.range}<span class="muted">{cl.whats_new.range}</span>{/if}
-				{@render items(cl.whats_new)}
-			</div>
-		{/if}
 		{#each update.releases as b, i (b.title)}
-			<details class="cl-block" open={i === 0 && !hasWhatsNew}>
+			<details class="cl-block" open={i === 0}>
 				<summary>
 					<span class="ver">{b.version ?? b.title}</span>
 					{#if b.date}<span class="muted date">{fmtDate(b.date)}</span>{/if}
 					<span class="pill" class:dev={b.version == null}>{b.version == null ? "Dev" : "Main"}</span>
 					<small class="muted count">{b.total} {b.total === 1 ? "change" : "changes"}</small>
 				</summary>
-				{@render items(b)}
+				<ChangeGroups {b} />
 			</details>
 		{/each}
 		{#if update.hasMore}
@@ -91,25 +83,6 @@
 		{/if}
 	{/if}
 </section>
-
-{#snippet items(b: ChangeBlock)}
-	{#each b.groups as g (g.kind)}
-		<p class="cl-kind"><span class="dot {g.kind.toLowerCase()}"></span>{g.kind}</p>
-		<ul class="cl-list">
-			{#each g.items as it, i (i)}
-				<li>{it}</li>
-			{/each}
-		</ul>
-	{:else}
-		<p class="muted">No notable changes</p>
-	{/each}
-	{#if b.groups.length === 0 && b.more_url}
-		<a class="cl-more" href={b.more_url} target="_blank" rel="noopener noreferrer">See on GitHub</a>
-	{/if}
-	{#if b.more > 0 && b.more_url}
-		<a class="cl-more" href={b.more_url} target="_blank" rel="noopener noreferrer">+ {b.more} more on GitHub</a>
-	{/if}
-{/snippet}
 
 <style>
 	.cl {
@@ -129,12 +102,6 @@
 	}
 	.note {
 		margin: var(--s-2) 0;
-	}
-	.cl-new {
-		background: var(--accent-bg);
-		border-radius: var(--r-sm);
-		padding: var(--s-3);
-		margin: var(--s-3) 0;
 	}
 	.cl-block {
 		border-top: 1px solid var(--line);
@@ -156,40 +123,6 @@
 		.count {
 			display: none;
 		}
-	}
-	.cl-kind {
-		display: flex;
-		align-items: center;
-		gap: var(--s-1);
-		margin: var(--s-2) 0 var(--s-1);
-		color: var(--muted);
-		font-size: var(--t-12);
-	}
-	.dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: var(--muted);
-	}
-	.dot.added {
-		background: var(--ok-fg);
-	}
-	.dot.fixed {
-		background: var(--progress);
-	}
-	.dot.reworked {
-		background: var(--accent);
-	}
-	.cl-list {
-		margin: 0;
-		padding-left: var(--s-3);
-		overflow-wrap: anywhere;
-	}
-	.cl-more {
-		display: inline-flex;
-		align-items: center;
-		min-height: 44px;
-		color: var(--accent);
 	}
 	.pill {
 		background: var(--accent-bg);

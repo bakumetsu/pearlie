@@ -2,17 +2,20 @@
 	import { onDestroy, onMount } from "svelte";
 	import { getApi } from "../api/client";
 	import { createUpdate } from "../stores/update.svelte";
-	import { getRouter } from "../ctx";
-	import { linkClick } from "../router";
 	import Icon from "../components/Icon.svelte";
 	import Switch from "../components/Switch.svelte";
+	import ChangeGroups from "./ChangeGroups.svelte";
 
-	let router: ReturnType<typeof getRouter> | null = null;
-	try { router = getRouter(); } catch { /* no router context: the link does a normal page load */ }
 	const update = createUpdate(getApi());
 	onMount(() => {
 		void update.load(true).then(() => update.resume());
 	});
+
+	// What's new exists only while an update is waiting: fetch it then.
+	$effect(() => {
+		if (update.status?.available) void update.loadChangelog();
+	});
+	const whatsNew = $derived(update.status?.available ? (update.changelog?.whats_new ?? null) : null);
 
 	let confirming = $state(false);
 	let sheet: "restart" | "rollback" | null = $state(null);
@@ -200,16 +203,11 @@
 				{/if}
 			</span>
 		</li>
-		{#if update.status}
-			<li class="row">
-				<a class="cl-link" href="/options/changelog" onclick={(e) => { if (router) linkClick(e, router); }}>
-					<span class="row-label">{update.status.available ? "See what's new" : "See changelog"}</span>
-					<Icon name="history" size={18} />
-				</a>
-			</li>
-		{/if}
 	</ul>
 	{#if update.status}
+		{#if update.latestState === "up_to_date"}
+			<p class="muted">You have the latest version.</p>
+		{/if}
 		{#if canRestart && !rb}
 			<p class="muted">Roll back is off: no earlier version is kept.</p>
 		{/if}
@@ -218,6 +216,18 @@
 		{/if}
 	{/if}
 </section>
+
+{#if whatsNew}
+	<section class="card">
+		<h2>What's new since your version</h2>
+		<div class="wn">
+			<div class="cl-new">
+				<b>{whatsNew.range ?? `${update.status?.installed.version} → ${update.latest?.version}`}</b>
+				<ChangeGroups b={whatsNew} />
+			</div>
+		</div>
+	</section>
+{/if}
 
 <svelte:window onkeydown={(e) => { if ((confirming || sheet) && e.key === "Escape") closeSheets(); }} />
 {#if confirming}
@@ -294,14 +304,15 @@
 		margin-left: auto;
 	}
 
-	.cl-link {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		width: 100%;
-		min-height: 44px;
-		color: var(--accent);
-		text-decoration: none;
+	.wn {
+		margin: var(--s-2) 16px var(--s-3);
+		font-size: var(--t-13);
+	}
+
+	.cl-new {
+		background: var(--accent-bg);
+		border-radius: var(--r-sm);
+		padding: var(--s-3);
 	}
 
 	.pill {
