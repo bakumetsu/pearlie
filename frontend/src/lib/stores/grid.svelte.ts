@@ -20,7 +20,14 @@ export type GridSnapshot<T> = {
   pages: number | null;
   total: number | null;
   scrollY: number;
+  scrollKey?: string | null;
+  scrollOffset?: number;
+  scrollSig?: string;
 };
+
+// Where the page was: window scroll `y`, plus the first visible item (`key`, `offset` px above its top).
+// `sig` = `mode|zoom|width`; the same sig means `y` is still exact, else the key is used.
+export type ScrollPlace = { y: number; key: string | null; offset: number; sig: string };
 
 type Status = "idle" | "loading" | "done" | "error";
 
@@ -41,6 +48,9 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     error: null as Error | null,
     listKey: "" as string,
     scrollY: 0 as number,
+    scrollKey: null as string | null,
+    scrollOffset: 0 as number,
+    scrollSig: "" as string,
   });
 
   let requestToken = 0;
@@ -82,7 +92,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     state.more = "idle";
     state.error = null;
     state.listKey = "";
-    state.scrollY = 0;
+    clearScroll();
     crossed = false;
   }
 
@@ -140,7 +150,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     state.stats = null;
     state.hidden = 0;
     state.hasNext = false;
-    state.scrollY = 0;
+    clearScroll();
     state.error = null;
     await fetchPage(page);
   }
@@ -166,7 +176,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     state.status = "done";
     state.more = "idle";
     state.error = null;
-    state.scrollY = 0;
+    clearScroll();
     crossed = false;
   }
 
@@ -236,6 +246,20 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
 
   function setScrollY(y: number) {
     state.scrollY = y;
+  }
+
+  function setScroll(p: ScrollPlace) {
+    state.scrollY = p.y;
+    state.scrollKey = p.key;
+    state.scrollOffset = p.offset;
+    state.scrollSig = p.sig;
+  }
+
+  function clearScroll() {
+    state.scrollY = 0;
+    state.scrollKey = null;
+    state.scrollOffset = 0;
+    state.scrollSig = "";
   }
 
   function markCrossed() {
@@ -320,6 +344,9 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
       pages: state.pages,
       total: state.total,
       scrollY: state.scrollY,
+      scrollKey: state.scrollKey,
+      scrollOffset: state.scrollOffset,
+      scrollSig: state.scrollSig,
     };
   }
 
@@ -333,6 +360,9 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     state.hasNext = snap.pages != null && snap.page < snap.pages;
     state.total = snap.total;
     state.scrollY = snap.scrollY;
+    state.scrollKey = snap.scrollKey ?? null;
+    state.scrollOffset = snap.scrollOffset ?? 0;
+    state.scrollSig = snap.scrollSig ?? "";
     state.status = "done";
   }
 
@@ -357,6 +387,9 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     get error() { return state.error; },
     get listKey() { return state.listKey; },
     get scrollY() { return state.scrollY; },
+    get scrollKey() { return state.scrollKey; },
+    get scrollOffset() { return state.scrollOffset; },
+    get scrollSig() { return state.scrollSig; },
     get ids() { return shown().map(keyOf); },
     open,
     seed,
@@ -365,6 +398,7 @@ export function createGrid<T>(keyOf: (t: T) => string, visible?: (t: T) => boole
     setAccumulate,
     retry,
     setScrollY,
+    setScroll,
     markCrossed,
     takeCrossed,
     indexOf,

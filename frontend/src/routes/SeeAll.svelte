@@ -173,6 +173,8 @@
       document.documentElement.style.overflow = "";
       window.scrollTo(0, y);
       const id = lastOpenId;
+      // The tile may be out of the window: scroll it into range first, then it can be found and focused.
+      gridEl?.scrollToKey(openKey(id));
       tick().then(() => { const tile = findTile(document, openKey(id)); tile?.scrollIntoView?.({ block: "nearest" }); tile?.focus(); });
     };
   });
@@ -286,13 +288,39 @@
   // Leaving for a tile and coming back reuses the kept grid; remember the scroll place for it.
   $effect(() => {
     let y = 0;
-    const onScroll = () => { y = window.scrollY; };
+    let anchor: { key: string; offset: number; sig: string } | null = null;
+    let raf = 0;
+    const onScroll = () => {
+      y = window.scrollY;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        anchor = gridEl?.getAnchor() ?? null;
+      });
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
-      untrack(() => grid.setScrollY(y));
+      if (raf) cancelAnimationFrame(raf);
+      // The grid may be gone already; then the last anchor seen on scroll stands.
+      const a = gridEl?.getAnchor() ?? anchor;
+      untrack(() => grid.setScroll({ y, key: a?.key ?? null, offset: a?.offset ?? 0, sig: a?.sig ?? "" }));
     };
   });
+
+  // The results grid is ready once its layout is built for the real width; a scroll restore waits for that.
+  let gridEl = $state<ReturnType<typeof ResultsGrid>>();
+  let readyWaiters: Array<() => void> = [];
+  function whenGridReady(fn: () => void) {
+    if (gridEl?.isReady()) fn();
+    else readyWaiters.push(fn);
+  }
+  function onGridReady() {
+    const run = readyWaiters;
+    readyWaiters = [];
+    run.forEach((fn) => fn());
+  }
+  $effect(() => () => { readyWaiters = []; });
 
   // Scroll to top and focus pager after a page finishes loading
   let lastFocusedKey = "";
@@ -309,8 +337,14 @@
     untrack(() => {
       if (grid.scrollY > 0) {
         const y = grid.scrollY;
+        const key = grid.scrollKey;
+        const offset = grid.scrollOffset;
+        const sig = grid.scrollSig;
         grid.setScrollY(0);
-        tick().then(() => window.scrollTo(0, y));
+        whenGridReady(() => {
+          if (key && sig !== gridEl?.getSig()) gridEl?.scrollToKey(key, offset);
+          else window.scrollTo(0, y);
+        });
         return;
       }
       window.scrollTo(0, 0);
@@ -594,7 +628,7 @@
         </div>
       </div>
     {:else}
-      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => { const h = webItemHref(w.source, w.post_id); if (h) router.navigate(h); else openWeb(w); }} webHref={(w) => webTileHref(match.path, match.query, w)} landscape={source === "stash_videos"} />
+      <ResultsGrid bind:this={gridEl} onready={onGridReady} items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => { const h = webItemHref(w.source, w.post_id); if (h) router.navigate(h); else openWeb(w); }} webHref={(w) => webTileHref(match.path, match.query, w)} landscape={source === "stash_videos"} />
     {/if}
 
     {#if infinite && grid.status === "done"}
