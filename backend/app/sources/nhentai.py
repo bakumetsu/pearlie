@@ -1,6 +1,8 @@
 """nhentai source adapter (search and gallery metadata; saving to Komga is a later step)."""
 
+import logging
 import re
+import time
 from collections.abc import Callable
 
 import httpx
@@ -21,6 +23,9 @@ TYPES = ("artist", "group", "parody", "character", "language", "category")
 QUERY_TYPES = (*TYPES, "tag")
 IMG_HOST = "https://i.nhentai.net"
 THUMB_HOST = "https://t.nhentai.net"
+# Tag id -> (type, name) lives this long; rows carry ids only, galleries carry both.
+TAG_TTL = 24 * 3600.0
+_log = logging.getLogger(__name__)
 
 
 def _term(token: str) -> str:
@@ -56,6 +61,31 @@ def _list(value: object) -> list:
     return value if isinstance(value, list) else []
 
 
+REJECT_TERM_CAP = 10
+
+
+def reject_terms(reject: list[str], limit: int = REJECT_TERM_CAP) -> list[str]:
+    """Search tokens (`-tag:name`) that let the site drop plain reject entries server-side.
+
+    Wildcard entries and scopes nhentai does not know are skipped; the grid check still
+    hides what the site returns.
+    """
+    out: list[str] = []
+    for entry in reject:
+        scope, sep, name = entry.partition(":")
+        if not sep:
+            scope, name = "tag", entry
+        elif scope in ("general", ""):
+            scope = "tag"
+        name = name.strip()
+        if scope not in QUERY_TYPES or not name or any(c in name for c in '*?"'):
+            continue
+        out.append(f"-{scope}:{name}")
+        if len(out) >= limit:
+            break
+    return out
+
+
 def build_query(tags: list[str]) -> str:
     """Space-joined nhentai query from the search box tokens (empty when none)."""
     terms = [t for t in (_term(x) for x in tags if x.strip()) if t]
@@ -87,6 +117,27 @@ class NHentai:
         self.file_hosts = (API_HOST, "i.nhentai.net", "t.nhentai.net")
         self._page_size = page_size
         self._credentials = credentials
+        self._tag_names: dict[int, tuple[str, str, float]] = {}
+        self._warned_unknown = False
+
+    def _learn_tag(self, tag_id: object, kind: str, name: str) -> None:
+        """Remember one tag id's type and name (no site call; fed by full galleries)."""
+        if isinstance(tag_id, int) and not isinstance(tag_id, bool):
+            self._tag_names[tag_id] = (kind, name, time.monotonic())
+
+    def _row_tags(self, ids: list, grouped: dict[str, list[str]]) -> None:
+        """Add the known names of a row's tag ids to `grouped`; unknown ids stay out."""
+        now = time.monotonic()
+        unknown = False
+        for tid in ids:
+            hit = self._tag_names.get(tid) if isinstance(tid, int) else None
+            if hit is None or now - hit[2] > TAG_TTL:
+                unknown = True
+                continue
+            grouped.setdefault(hit[0], []).append(hit[1])
+        if unknown and not self._warned_unknown:
+            self._warned_unknown = True
+            _log.info("nhentai: grid rows carry tag ids not seen yet; rules see known tags only")
 
     def _auth(self) -> SiteAuth:
         return build_auth(self.id, self._credentials() if self._credentials else {})
@@ -215,7 +266,10 @@ class NHentai:
             if not isinstance(t, dict) or not t.get("name"):
                 continue
             kind = str(t.get("type"))
-            grouped.setdefault(kind if kind in TYPES else "general", []).append(str(t["name"]))
+            kind = kind if kind in TYPES else "general"
+            grouped.setdefault(kind, []).append(str(t["name"]))
+            self._learn_tag(t.get("id"), kind, str(t["name"]))
+        self._row_tags(_list(d.get("tag_ids")), grouped)
         path = str(cover.get("path") or "")
         cover_url = (
             f"{THUMB_HOST}/{path.lstrip('/')}"
