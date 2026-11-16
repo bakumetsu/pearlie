@@ -27,3 +27,21 @@ export function itemAspect(item: LibraryItem | WebItem): number {
   const height = (item as { height?: number | null }).height;
   return fallbackAspect(kind, width, height);
 }
+
+// Caption lines a tile shows under its picture, so the virtual layout sizes grid and list rows
+// from data. Mirrors Tile.svelte (title and meta line); keep the two in step. Each part is one line.
+export function captionLines(item: LibraryItem | WebItem, variant: "grid" | "list" = "list"): number {
+  if ("post_id" in item) {
+    if (variant === "grid") return 0;
+    return 1 + ((item as WebItem).title ? 1 : 0);
+  }
+  const l = item as LibraryItem;
+  if (variant === "grid") return l.kind === "image" ? 0 : 1;
+  const hasMeta =
+    (l.width != null && l.height != null) ||
+    (l.kind === "video" && l.duration_s != null) ||
+    (l.kind === "book" && l.page_count != null) ||
+    (l.kind === "series" && l.book_count != null) ||
+    l.rating != null;
+  return 1 + (hasMeta ? 1 : 0);
+}

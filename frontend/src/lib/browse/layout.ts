@@ -19,7 +19,7 @@ export function columnCount(containerWidth: number, colWidth: number, gap: numbe
   return Math.max(1, Math.floor((containerWidth + gap) / (colWidth + gap)));
 }
 
-function safeAspect(value: number): number {
+export function safeAspect(value: number): number {
   return value > 0 && isFinite(value) ? value : 1;
 }
 
