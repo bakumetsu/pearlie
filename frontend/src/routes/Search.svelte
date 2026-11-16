@@ -261,16 +261,12 @@
                 <Icon name="sliders" size={20} />
                 {#if chips.length}<b>{chips.length}</b>{/if}
               </button>
-              <span class="search-slot">
-                {#if dirty}
-                  <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
-                    <Icon name="search" size={20} />
-                  </button>
-                {/if}
-              </span>
             </span>
           {/snippet}
         </ChipField>
+        <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
+          <Icon name="search" size={20} />
+        </button>
       </div>
     </div>
     {#if chips.length}
@@ -516,22 +512,16 @@
     padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   }
 
-  /* Reserved slot: Filters keeps its place when the button appears. */
-  .search-slot {
-    flex: none;
-    width: 44px;
-    height: 44px;
-  }
-
   .search-btn {
     flex: 0 0 44px;
     display: grid;
     place-items: center;
     width: 44px;
-    height: 44px;
+    min-height: 44px;
+    align-self: flex-start;
     padding: 0;
     background: var(--accent);
-    color: var(--surface);
+    color: var(--on-accent);
     border: none;
     border-radius: var(--r-lg);
     cursor: pointer;
