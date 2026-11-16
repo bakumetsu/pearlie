@@ -231,7 +231,7 @@ def test_real_mode_every_page_route_answers(tmp_path, real):
     ):
         r = c.get(path)
         assert r.status_code != 404, f"{path} → {r.status_code}"
-    assert c.get("/api/trash").status_code == 501
+    assert c.get("/api/trash").status_code == 200
     r = c.get("/api/library/komga/books")
     assert r.status_code == 503
     assert r.json()["code"] == "not_configured"
@@ -265,7 +265,7 @@ def test_real_mode_nothing_configured_starts(tmp_path):
     assert r2.status_code == 503
     assert r2.json()["code"] == "not_configured"
     assert c.get("/api/rules").status_code == 200
-    assert c.get("/api/trash").status_code == 501
+    assert c.get("/api/trash").status_code == 200
 
 
 def test_progress(client):
