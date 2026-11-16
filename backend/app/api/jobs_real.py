@@ -57,6 +57,12 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
         raise ApiError(
             409, "in_trash", "Already saved, in the trash", in_trash=True, token=trashed["token"]
         )
+    komga_target = getattr(request.app.state, "komga_target", None)
+    if src.target == "komga" and komga_target is not None:
+        token = komga_target.trash_token(body.source, body.post_id)
+        if token is not None:
+            raise ApiError(409, "in_trash", "Already saved, in the trash", in_trash=True,
+                           token=token)
     image_id = store.saved_image_id(body.source, body.post_id)
     if image_id and src.target == "stash":
         # The index can outlive the image: one Stash lookup, drop the row if it is gone.

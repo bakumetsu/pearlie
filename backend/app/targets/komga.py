@@ -20,6 +20,7 @@ import httpx
 from app.config import Settings
 from app.db import connect
 from app.komga import Komga, KomgaError
+from app.library.trash import TrashStore
 from app.models import Problem
 from app.sources.base import Post, Source
 from app.sources.nhentai import CDN_HOST, NHentai
@@ -666,6 +667,24 @@ class KomgaTarget:
         links = (book.get("metadata") or {}).get("links") or []
         return any(f"/{post_id}/" in str(ln.get("url", "")).rstrip("/") + "/" for ln in links)
 
+    def trash_token(self, source: str, post_id: str) -> str | None:
+        """Token of a live trash row that holds this post (the book or its series)."""
+        store = TrashStore(self._settings.db_path, self._settings.trash_dir)
+        row = store.find_in_trash(source, post_id)
+        if row is None:
+            conn = connect(self._settings.db_path)
+            try:
+                r = conn.execute(
+                    "SELECT library_id FROM saved_items WHERE target = 'komga' "
+                    "AND source = ? AND post_id = ?",
+                    (source, post_id),
+                ).fetchone()
+            finally:
+                conn.close()
+            if r and r["library_id"]:
+                row = store.komga_covering(r["library_id"])
+        return row["token"] if row else None
+
     def drop_if_gone(self, source: str, post_id: str) -> bool:
         """Drop the index row of a post when Komga no longer has its book.
 
@@ -674,6 +693,8 @@ class KomgaTarget:
         counts as gone.
         """
         tag = f"source={source} post={post_id}"
+        if self.trash_token(source, post_id) is not None:
+            return False
         conn = connect(self._settings.db_path)
         try:
             fresh = conn.execute(

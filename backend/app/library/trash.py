@@ -166,6 +166,54 @@ class TrashStore:
         finally:
             conn.close()
 
+    def komga_owned_ids(self) -> set[str]:
+        """Komga ids Pearlie trashed (`moving` or `trashed`), with what Komga drops with them.
+
+        A `restoring` row is left out on purpose: its item must not be purged under it.
+        A trashed series also owns its book ids, and a book that emptied its series owns
+        that series id.
+        """
+        conn = connect(self._db)
+        try:
+            rows = conn.execute(
+                "SELECT entity_id, meta FROM trash_items WHERE target = 'komga' "
+                "AND state IN ('moving','trashed')"
+            ).fetchall()
+        finally:
+            conn.close()
+        ids: set[str] = set()
+        for r in rows:
+            ids.add(r["entity_id"])
+            try:
+                meta = json.loads(r["meta"] or "{}")
+            except ValueError:
+                continue
+            ids.update(str(i) for i in meta.get("book_ids") or [])
+            if meta.get("series_gone_id"):
+                ids.add(str(meta["series_gone_id"]))
+        return ids
+
+    def komga_covering(self, book_id: str) -> dict | None:
+        """A live Komga trash row that holds the book: the book itself or its series."""
+        conn = connect(self._db)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM trash_items WHERE target = 'komga' AND state IN "
+                "('moving','trashed','restoring')"
+            ).fetchall()
+        finally:
+            conn.close()
+        for r in rows:
+            if r["entity_id"] == book_id:
+                return dict(r)
+            try:
+                meta = json.loads(r["meta"] or "{}")
+            except ValueError:
+                continue
+            if book_id in [str(i) for i in meta.get("book_ids") or []]:
+                return dict(r)
+        return None
+
     def find_in_trash(
         self, source: str | None = None, post_id: str | None = None, md5: str | None = None
     ) -> dict | None:
@@ -354,6 +402,16 @@ class TrashStore:
                     "DELETE FROM saved_items WHERE source = ? AND post_id = ?",
                     (row["source"], row["post_id"]),
                 )
+            if row["target"] == "komga":
+                try:
+                    book_ids = json.loads(row["meta"] or "{}").get("book_ids") or []
+                except ValueError:
+                    book_ids = []
+                for book_id in [row["entity_id"], *book_ids]:
+                    conn.execute(
+                        "DELETE FROM saved_items WHERE target = 'komga' AND library_id = ?",
+                        (str(book_id),),
+                    )
             conn.commit()
         finally:
             conn.close()

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
 from app.api.patch_rules import check_patch
+from app.api.trash_real import komga_trash_of, result_of
 from app.komga import (
     Komga,
     KomgaError,
@@ -17,6 +18,7 @@ from app.komga import (
     series_item,
 )
 from app.komga_shuffle import ShuffleCache, fetch_all, page_slice, shuffled
+from app.library.trash import TrashError
 from app.models import (
     LibraryItem,
     Page,
@@ -24,6 +26,7 @@ from app.models import (
     Problem,
     ProgressBody,
     ProgressResult,
+    TrashResult,
 )
 from app.paging import clamp_page, clamp_page_size, pages_for
 
@@ -39,6 +42,20 @@ def _check_id(id: str) -> None:
 
 def _up(err: KomgaError) -> ApiError:
     return ApiError(err.status, err.code, err.message)
+
+
+def _visible(request: Request, dtos: list[dict]) -> list[dict]:
+    """Drop items Pearlie trashed that Komga still lists until its scan runs (or forever, if
+    the scan or empty-trash did not happen): deleted, UNAVAILABLE or not yet scanned."""
+    owned = request.app.state.trash.komga_owned_ids()
+    if not owned:
+        return dtos
+    return [d for d in dtos if str(d.get("id")) not in owned]
+
+
+def _hide_trashed(request: Request, id: str) -> None:
+    if id in request.app.state.trash.komga_owned_ids():
+        raise ApiError(404, "not_found", "Item not found")
 
 
 def _cache(request: Request) -> ShuffleCache:
@@ -87,7 +104,7 @@ def _random_page(
     else:
         notice = _ignored_notice("newest", favorite)
     return Page[LibraryItem](
-        items=[mapper(r) for r in chunk],
+        items=[mapper(r) for r in _visible(request, chunk)],
         page=page,
         page_size=page_size,
         pages=pages,
@@ -151,7 +168,7 @@ def list_komga_series(
     except KomgaError as e:
         raise _up(e) from None
     return Page[LibraryItem](
-        items=[series_item(r) for r in reply["content"]],
+        items=[series_item(r) for r in _visible(request, reply["content"])],
         page=served,
         page_size=page_size,
         pages=pages,
@@ -187,7 +204,7 @@ def list_komga_books(
     except KomgaError as e:
         raise _up(e) from None
     return Page[LibraryItem](
-        items=[book_item(r) for r in reply["content"]],
+        items=[book_item(r) for r in _visible(request, reply["content"])],
         page=served,
         page_size=page_size,
         pages=pages,
@@ -200,6 +217,7 @@ def list_komga_books(
 @router.get("/library/series/{id}")
 def get_series(request: Request, id: str):
     _check_id(id)
+    _hide_trashed(request, id)
     komga: Komga = request.app.state.komga
     try:
         series = komga.get_series(id)
@@ -212,6 +230,7 @@ def get_series(request: Request, id: str):
 @router.get("/library/books/{id}")
 def get_book(request: Request, id: str):
     _check_id(id)
+    _hide_trashed(request, id)
     komga: Komga = request.app.state.komga
     try:
         book = komga.get_book(id)
@@ -252,12 +271,24 @@ def _patch(request: Request, kind: str, id: str, body: PatchBody):
     return get_book(request, id)
 
 
-def _delete_handler(id: str) -> None:
-    raise ApiError(501, "not_supported", "Editing and deleting Komga items is not available yet")
+def _delete(request: Request, plural: str, id: str) -> TrashResult:
+    _check_id(id)
+    store = request.app.state.trash
+    try:
+        row = komga_trash_of(request).delete(plural, id)
+    except TrashError as e:
+        raise ApiError(e.status, e.code, e.message) from None
+    return result_of(row, store.retention_days())
 
 
-for _p in ("/library/series/{id}", "/library/books/{id}"):
-    router.delete(_p)(_delete_handler)
+@router.delete("/library/series/{id}")
+def delete_series(request: Request, id: str) -> TrashResult:
+    return _delete(request, "series", id)
+
+
+@router.delete("/library/books/{id}")
+def delete_book(request: Request, id: str) -> TrashResult:
+    return _delete(request, "books", id)
 
 
 @router.post("/library/komga/books/{id}/progress", response_model=ProgressResult)
