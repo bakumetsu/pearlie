@@ -10,7 +10,7 @@ import secrets
 from pathlib import PurePosixPath
 from urllib.parse import parse_qs, urlsplit
 
-from app.gif_grid import grid_gif_ok, grid_gif_reject
+from app.gif_grid import grid_gif_reject
 from app.models import LibraryItem, LibraryItemDetail, Problem, StreamOption, Tag
 
 _SEGMENT_RE = re.compile(r"^(stream\.(mp4|webm|m3u8|ts)|[0-9]+\.ts)$")
@@ -145,8 +145,7 @@ def image_item(dto: dict) -> LibraryItem:
     )
     kw["tags"] = _tag_names(dto)
     kw["file_name"] = _image_file_name(dto)
-    size = _first_file(dto.get("visual_files") or []).get("size")
-    if grid_gif_ok(kw["file_name"], size if isinstance(size, int) else None):
+    if grid_gif_reject(kw["file_name"], None, cap=None) is None:
         kw["gif_url"] = f"/api/media/stash/images/{fid}/full"
     return LibraryItem(**kw)
 
@@ -169,8 +168,7 @@ def log_gif_rejects(dtos: list[dict]) -> None:
     for dto in dtos:
         if not isinstance(dto, dict):
             continue
-        size = _first_file(dto.get("visual_files") or []).get("size")
-        reason = grid_gif_reject(_image_file_name(dto), size if isinstance(size, int) else None)
+        reason = grid_gif_reject(_image_file_name(dto), None, cap=None)
         if reason:
             counts[reason] = counts.get(reason, 0) + 1
     log.debug(

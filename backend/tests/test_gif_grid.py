@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.gif_grid import GIF_GRID_MAX_BYTES, grid_gif_ok
+from app.gif_grid import GIF_GRID_MAX_BYTES, grid_gif_ok, grid_gif_reject
 from app.sources.danbooru import Danbooru
 from app.targets import stash_library
 
@@ -41,12 +41,18 @@ def test_stash_small_gif_gets_gif_url():
     assert item.gif_url == "/api/media/stash/images/5/full"
 
 
-def test_stash_big_gif_stays_still():
-    assert stash_library.image_item(_stash("a.gif", GIF_GRID_MAX_BYTES + 1)).gif_url is None
+def test_stash_big_gif_plays():
+    item = stash_library.image_item(_stash("a.gif", 120 * 1024 * 1024))
+    assert item.gif_url == "/api/media/stash/images/5/full"
 
 
-def test_stash_gif_without_size_stays_still():
-    assert stash_library.image_item(_stash("a.gif", None)).gif_url is None
+def test_stash_gif_without_size_plays():
+    assert stash_library.image_item(_stash("a.gif", None)).gif_url is not None
+
+
+def test_web_big_gif_stays_still():
+    assert grid_gif_reject("a.gif", 120 * 1024 * 1024) == "too_big"
+    assert not grid_gif_ok("a.gif", 120 * 1024 * 1024)
 
 
 def test_stash_jpg_has_no_gif_url():
@@ -84,15 +90,10 @@ def test_stash_gif_stored_as_video_file_plays():
 def test_gif_gate_reject_counts_logged(caplog):
     import logging
 
-    dtos = [
-        _stash("a.gif", 500),
-        _stash("b.gif", GIF_GRID_MAX_BYTES + 1),
-        _stash("c.gif", GIF_GRID_MAX_BYTES + 5),
-        _stash("d.gif", None),
-        _stash("e.jpg", 1),
-    ]
+    dtos = [_stash("a.gif", 500), _stash("b.gif", None), _stash("e.jpg", 1), _stash("f.png", 1)]
     with caplog.at_level(logging.DEBUG, logger="app.targets.stash_library"):
         stash_library.log_gif_rejects(dtos)
     msg = caplog.messages[-1]
-    assert "5 images" in msg and "no_size=1" in msg and "not_gif=1" in msg and "too_big=2" in msg
+    assert "4 images" in msg and "not_gif=2" in msg
+    assert "no_size" not in msg and "too_big" not in msg
     assert ".gif" not in msg and ".jpg" not in msg
