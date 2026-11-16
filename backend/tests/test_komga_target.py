@@ -401,6 +401,35 @@ def test_unscanned_oneshot_stays_unpaired(env) -> None:
     assert old.exists()
 
 
+def test_author_lookup_is_cached_across_index_builds(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    old = _hand_moved(dest)
+    komga.authors = {old.name: ["bob"]}
+    post = titled("My Sister 2", "2")
+    assert target.suggest(post).via == "oneshot_pair"
+    first = komga.list_calls
+    target._index_cache.invalidate()
+    assert target.suggest(post).via == "oneshot_pair"
+    assert komga.list_calls == first
+
+
+def test_author_miss_is_retried_after_its_short_ttl(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    old = _hand_moved(dest)
+    now = [1000.0]
+    target._clock = lambda: now[0]
+    post = titled("My Sister 2", "2")
+    assert target.suggest(post).via == "new"  # not scanned yet
+    komga.authors = {old.name: ["bob"]}
+    target._index_cache.invalidate()
+    assert target.suggest(post).via == "new"  # miss still cached
+    now[0] += 301
+    target._index_cache.invalidate()
+    assert target.suggest(post).via == "oneshot_pair"
+
+
 def test_komga_failure_in_author_lookup_still_saves(env) -> None:
     target, komga, _s, dest, _h = env
     komga.oneshots = "_oneshots"
