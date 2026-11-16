@@ -345,6 +345,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             bad_root = bad.resolve()
             if trash_root == bad_root or bad_root in trash_root.parents:
                 raise ConfigError("PEARLIE_TRASH_DIR must not be inside a temp or cache folder")
+        try:
+            settings.trash_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.warning(
+                "cannot create trash folder %s (%s); trash stays unavailable",
+                settings.trash_dir,
+                type(e).__name__,
+            )
     app.state.komga = _build_komga(settings) if settings.mode != "fixture" else None
     app.state.stash = _build_stash(settings) if settings.mode != "fixture" else None
 

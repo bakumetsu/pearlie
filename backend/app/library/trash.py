@@ -109,6 +109,11 @@ class TrashStore:
 
     def check_dir(self) -> None:
         """503 ``trash_unavailable`` unless the trash folder exists and is writable."""
+        if not self.dir.is_dir():
+            try:
+                self.dir.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass
         if not self.dir.is_dir() or not os.access(self.dir, os.W_OK):
             raise TrashError(503, "trash_unavailable", "Trash folder is missing or not writable")
 

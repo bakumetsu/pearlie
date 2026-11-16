@@ -75,4 +75,17 @@ describe("library selection", () => {
     await sel.trashPicked(api, () => {});
     expect(toasts.current?.message).toContain("1 failed");
   });
+
+  it("all failed with trash_unavailable shows the folder error and no Undo", async () => {
+    const api = {
+      trashItems: vi.fn().mockResolvedValue({
+        group: "g", results: [], failed: [{ kind: "image", id: "7", code: "trash_unavailable" }],
+      }),
+    } as unknown as Api;
+    const sel = createSelection();
+    sel.toggle(item);
+    await sel.trashPicked(api, () => {});
+    expect(toasts.current?.kind).toBe("error");
+    expect(toasts.current?.message).toContain("Trash folder not available");
+  });
 });
