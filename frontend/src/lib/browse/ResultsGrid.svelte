@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack, tick } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import Tile from "../components/Tile.svelte";
   import type { LibraryItem, WebItem } from "../api/client";
   import { itemHref } from "../item/kinds";
@@ -53,6 +54,8 @@
 
   // Until the width is known (first paint, jsdom) the first FLOW_COUNT items render in normal flow.
   const FLOW_COUNT = 48;
+  // While a tile has focus the window also covers this many items on each side, so Tab walks real tiles.
+  const FOCUS_SPAN = 12;
 
   let el = $state<HTMLElement>();
   let width = $state(0);
@@ -79,6 +82,9 @@
   let metricsVer = $state(0);
   let winSig = "";
   let ver = 0;
+  // The tile that has focus is always rendered; a SFW reveal outlives its tile leaving the window.
+  let focusKey: string | undefined;
+  const revealedKeys = new SvelteSet<string>();
   let readyFired = false;
   let ready = false;
 
@@ -208,13 +214,22 @@
     const vh = window.innerHeight || 800;
     const buf = Math.max(1.5 * vh, 800);
     const list = layout.range(top - buf, top + vh + buf);
-    const sig = `${ver}:${list.length}:${list[0]?.index}:${list[list.length - 1]?.index}`;
+    const fi = focusKey !== undefined ? layout.indexOf(focusKey) : -1;
+    const sig = `${ver}:${list.length}:${list[0]?.index}:${list[list.length - 1]?.index}:${fi}`;
     if (sig === winSig) return;
     winSig = sig;
+    // Index order keeps the DOM in item order, so the pinned tile sits in its own place.
+    // Local to one call, not rendered, so a plain Set is right.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const wanted = new Set(list.map((p) => p.index));
+    if (fi >= 0) {
+      for (let i = Math.max(0, fi - FOCUS_SPAN); i <= Math.min(layout.count - 1, fi + FOCUS_SPAN); i++) wanted.add(i);
+    }
     const cells: Cell[] = [];
-    for (const p of list) {
-      const item = items[p.index];
-      if (item) cells.push({ index: p.index, key: layout.keyAt(p.index) ?? keyOf(item), item, ...p.rect });
+    for (const index of [...wanted].sort((a, b) => a - b)) {
+      const item = items[index];
+      const rect = layout.rect(index);
+      if (item && rect) cells.push({ index, key: layout.keyAt(index) ?? keyOf(item), item, ...rect });
     }
     placed = cells;
   }
@@ -336,6 +351,24 @@
     };
   });
 
+  function onFocusIn(e: FocusEvent) {
+    const cell = (e.target as Element | null)?.closest?.(".vcell");
+    const pos = Number(cell?.getAttribute("aria-posinset"));
+    const key = pos > 0 ? layout.keyAt(pos - 1) : undefined;
+    if (key === undefined || key === focusKey) return;
+    focusKey = key;
+    computeWindow();
+  }
+
+  function onFocusOut(e: FocusEvent) {
+    // Focus moving to another tile is followed by a focusin that sets the new key.
+    const to = e.relatedTarget as Element | null;
+    if (to?.closest?.(".vcell")) return;
+    if (focusKey === undefined) return;
+    focusKey = undefined;
+    computeWindow();
+  }
+
   const fixedH = $derived(mode === "wall" || mode === "masonry" || mode === "list");
 </script>
 
@@ -355,7 +388,7 @@
       </div>
     {/if}
   {:else if built}
-    <div class="vwin" role="list" style:height="{total}px">
+    <div class="vwin" role="list" style:height="{total}px" onfocusin={onFocusIn} onfocusout={onFocusOut}>
       {#each placed as p (p.key)}
         <div
           class="vcell {mode}"
@@ -415,6 +448,8 @@
       href={webItemHref((item as WebItem).source, (item as WebItem).post_id) ?? webHref?.(item as WebItem)}
       saveState={saveStates[(item as WebItem).source + ":" + (item as WebItem).post_id] ?? "idle"}
       onsave={() => onsave(item as WebItem)}
+      revealed={revealedKeys.has(keyOf(item))}
+      onreveal={() => revealedKeys.add(keyOf(item))}
       onopen={onopenweb ? () => onopenweb(item as WebItem) : undefined}
     />
   {:else}
@@ -427,6 +462,8 @@
       href={itemHref(item as LibraryItem)}
       onnavigate={onnavigate}
       onopenitem={onopenitem}
+      revealed={revealedKeys.has(keyOf(item))}
+      onreveal={() => revealedKeys.add(keyOf(item))}
     />
   {/if}
 {/snippet}

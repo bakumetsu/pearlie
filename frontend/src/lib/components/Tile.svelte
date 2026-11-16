@@ -8,7 +8,7 @@
   import { takeSlot } from "../gifSlots";
   import { options } from "../stores/options.svelte";
 
-  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, onaspect, landscape = false }: {
+  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, onaspect, landscape = false, revealed: revealedProp = false, onreveal }: {
     item: LibraryItem | WebItem;
     href?: string;
     onnavigate?: (e: MouseEvent) => void;
@@ -22,6 +22,9 @@
     // Reports the real picture shape when it differs from `aspect` by more than 3 %.
     onaspect?: (aspect: number) => void;
     landscape?: boolean;
+    // A grid that unmounts tiles keeps the reveal for them: it passes the state and hears the change.
+    revealed?: boolean;
+    onreveal?: () => void;
   } = $props();
 
   const isWeb = $derived("post_id" in item);
@@ -51,8 +54,12 @@
     if (!proxied && stage === 0 && w.preview_url && w.preview_url !== w.thumb_url) stage = 1;
     else stage = 2;
   }
-  let revealed = $state(false);
-  const blurred = $derived(!revealed && item.blur != null);
+  let revealedLocal = $state(false);
+  const blurred = $derived(!revealedLocal && !revealedProp && item.blur != null);
+  function reveal() {
+    revealedLocal = true;
+    onreveal?.();
+  }
 
   // Animated GIF in the grid: the backend sets gif_url only for a small GIF. The still stays
   // until the GIF has loaded; off screen, blurred, reduced motion or the setting off: still.
@@ -101,7 +108,7 @@
     if (blurred) {
       e.preventDefault();
       e.stopPropagation();
-      revealed = true;
+      reveal();
     }
   }
 
@@ -110,7 +117,7 @@
       e.preventDefault();
       e.stopPropagation();
       if (blurred) {
-        revealed = true;
+        reveal();
       }
     }
   }
@@ -118,7 +125,7 @@
   function handleOpenClick(e: MouseEvent) {
     if (blurred) {
       e.preventDefault();
-      revealed = true;
+      reveal();
       return;
     }
     // A plain click keeps the in-page open; middle or Ctrl+click follows the link into a new tab.
