@@ -41,7 +41,13 @@ from app.sources.filters import NOTICE_CODE
 from app.sources.nhentai import reject_terms
 from app.sources.query_terms import split_terms, title_terms
 from app.targets.stash_client import StashClient, StashError
-from app.targets.stash_library import image_item, map_items, stash_sort, video_item
+from app.targets.stash_library import (
+    image_item,
+    log_gif_rejects,
+    map_items,
+    stash_sort,
+    video_item,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -99,6 +105,7 @@ def _library_section(request: Request, sid: str, q: str, page: int, page_size: i
                     lambda p, n: stash.list_images(p, n, q, field, direction), pg, size
                 )
                 items, _bad = map_items(dtos, image_item)
+                log_gif_rejects(dtos)
             else:
                 dtos, total, _agg, served = fetch_stash_page(
                     lambda p, n: stash.list_scenes(p, n, q, field, direction), pg, size

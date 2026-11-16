@@ -13,6 +13,7 @@ from app.targets.stash_library import (
     image_detail,
     image_item,
     list_notice,
+    log_gif_rejects,
     map_items,
     stash_sort,
     valid_id,
@@ -69,6 +70,7 @@ def list_stash_images(
     except StashError as e:
         raise _up(e) from None
     items, bad = map_items(dtos, image_item)
+    log_gif_rejects(dtos)
     pages = pages_for(count, page_size)
     stats = PageStats(megapixels=agg["megapixels"], size_bytes=agg["size_bytes"])
     return Page[LibraryItem](

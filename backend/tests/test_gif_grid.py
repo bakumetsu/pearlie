@@ -66,3 +66,33 @@ def test_danbooru_file_size_read():
 def test_danbooru_file_size_missing_or_bad():
     assert _post().file_size is None
     assert _post(file_size="12").file_size is None
+
+
+def test_stash_image_query_reads_video_file_fields():
+    from app.targets.stash_client import IMAGE_FIELDS
+
+    assert "... on VideoFile { basename width height size }" in IMAGE_FIELDS
+    assert "... on ImageFile { basename width height size }" in IMAGE_FIELDS
+
+
+def test_stash_gif_stored_as_video_file_plays():
+    dto = _stash("clip.GIF", 500)
+    dto["visual_files"][0].update(width=10, height=20)  # VideoFile shape: same keys
+    assert stash_library.image_item(dto).gif_url == "/api/media/stash/images/5/full"
+
+
+def test_gif_gate_reject_counts_logged(caplog):
+    import logging
+
+    dtos = [
+        _stash("a.gif", 500),
+        _stash("b.gif", GIF_GRID_MAX_BYTES + 1),
+        _stash("c.gif", GIF_GRID_MAX_BYTES + 5),
+        _stash("d.gif", None),
+        _stash("e.jpg", 1),
+    ]
+    with caplog.at_level(logging.DEBUG, logger="app.targets.stash_library"):
+        stash_library.log_gif_rejects(dtos)
+    msg = caplog.messages[-1]
+    assert "5 images" in msg and "no_size=1" in msg and "not_gif=1" in msg and "too_big=2" in msg
+    assert ".gif" not in msg and ".jpg" not in msg

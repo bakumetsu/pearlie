@@ -10,7 +10,7 @@ import secrets
 from pathlib import PurePosixPath
 from urllib.parse import parse_qs, urlsplit
 
-from app.gif_grid import grid_gif_ok
+from app.gif_grid import grid_gif_ok, grid_gif_reject
 from app.models import LibraryItem, LibraryItemDetail, Problem, StreamOption, Tag
 
 _SEGMENT_RE = re.compile(r"^(stream\.(mp4|webm|m3u8|ts)|[0-9]+\.ts)$")
@@ -159,6 +159,24 @@ def _video_extra(dto: dict, fid: str, files: list[dict]) -> dict:
         "date": dto.get("date") or None,
         "size_bytes": _first_file(files).get("size"),
     }
+
+
+def log_gif_rejects(dtos: list[dict]) -> None:
+    """Debug line with the count of image DTOs the grid GIF gate rejected, by reason."""
+    counts: dict[str, int] = {}
+    for dto in dtos:
+        if not isinstance(dto, dict):
+            continue
+        size = _first_file(dto.get("visual_files") or []).get("size")
+        reason = grid_gif_reject(_image_file_name(dto), size if isinstance(size, int) else None)
+        if reason:
+            counts[reason] = counts.get(reason, 0) + 1
+    if log.isEnabledFor(logging.DEBUG):
+        log.debug(
+            "stash grid gif gate: %d images, rejected %s",
+            len(dtos),
+            ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "none",
+        )
 
 
 def video_item(dto: dict) -> LibraryItem:
