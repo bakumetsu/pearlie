@@ -375,9 +375,13 @@
     display: flex;
     flex-direction: column;
     gap: var(--s-2);
-    /* No right inset: the SFW toggle (top 8-52px) sits beside the site marks, above the field row. */
     padding: var(--s-3) var(--s-4);
     border-bottom: 1px solid var(--line);
+  }
+
+  /* Only the top row shares space with the fixed SFW toggle; the field row uses the full width. */
+  .hmarks {
+    padding-right: var(--sfw-inset);
   }
 
   .search-row {
