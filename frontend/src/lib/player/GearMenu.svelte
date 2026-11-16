@@ -2,7 +2,7 @@
   import Icon from "../components/Icon.svelte";
   import { player, RATES } from "./player.svelte";
   import { playerSettings } from "./playerSettings.svelte";
-  import { tick } from "svelte";
+  import { onDestroy, tick } from "svelte";
 
   let open = $state(false);
   let page = $state<"main" | "speed" | "quality">("main");
@@ -54,15 +54,25 @@
     });
   }
 
+  let cancelSwallow: (() => void) | null = null;
+
   function swallowNextClick(): void {
+    cancelSwallow?.();
     const g = (ev: Event) => {
       ev.stopPropagation();
       ev.preventDefault();
+      cancelSwallow?.();
+    };
+    const timer = setTimeout(() => cancelSwallow?.(), 400);
+    cancelSwallow = () => {
+      clearTimeout(timer);
       window.removeEventListener("click", g, true);
+      cancelSwallow = null;
     };
     window.addEventListener("click", g, true);
-    setTimeout(() => window.removeEventListener("click", g, true), 400);
   }
+
+  onDestroy(() => cancelSwallow?.());
 
   function onSwitchDown(e: PointerEvent): void {
     drag = { x: e.clientX, active: true, moved: false };
