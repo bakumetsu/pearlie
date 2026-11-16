@@ -363,6 +363,7 @@ describe("UpdateCard what's new", () => {
     hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus({ available: false }));
     render(UpdateCard);
     await screen.findByText("Up to date");
+    expect(screen.getByText("You have the latest version.")).toBeTruthy();
     expect(screen.queryByText("What's new since your version")).toBeNull();
     expect(screen.queryByRole("link", { name: "See changelog" })).toBeNull();
     expect(hoisted.api.getUpdateChangelog).not.toHaveBeenCalled();

@@ -205,6 +205,9 @@
 		</li>
 	</ul>
 	{#if update.status}
+		{#if update.latestState === "up_to_date"}
+			<p class="muted">You have the latest version.</p>
+		{/if}
 		{#if canRestart && !rb}
 			<p class="muted">Roll back is off: no earlier version is kept.</p>
 		{/if}

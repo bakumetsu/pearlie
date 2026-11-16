@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
 	import { getApi } from "../api/client";
-		import { createUpdate } from "../stores/update.svelte";
+	import { createUpdate } from "../stores/update.svelte";
 	import Icon from "../components/Icon.svelte";
 	import ChangeGroups from "./ChangeGroups.svelte";
 
@@ -83,7 +83,6 @@
 		{/if}
 	{/if}
 </section>
-
 
 <style>
 	.cl {
