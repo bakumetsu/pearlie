@@ -12,7 +12,7 @@
   import { readSites, writeSites } from "../lib/stores/siteMemory";
   import { parseSearchParams, buildSearchParams, serialiseQuery, commitText, nhentaiIdOf, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SiteId } from "../lib/query";
-  import { hrefOf, linkClick, inPageClick } from "../lib/router";
+  import { hrefOf, linkClick, inPageClick, webItemHref } from "../lib/router";
   import { seedVideoQueue } from "../lib/item/rowQueue";
   import type { Section } from "../lib/api/client";
   import type { Match } from "../lib/router";
@@ -317,7 +317,7 @@
           onretry={() => search.retrySection(id)}
           onnavigate={(e) => linkClick(e, router)}
         >
-          {#each (entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (item.source === "nhentai" ? router.navigate("/web/nhentai/" + encodeURIComponent(item.post_id)) : (lightbox = item))} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => { if (id === "stash_videos" && inPageClick(e)) queueVideos(entry.section); linkClick(e, router); }} />{/if}{/each}
+          {#each (entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} href={webItemHref(item.source, item.post_id)} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => { const h = webItemHref(item.source, item.post_id); if (h) router.navigate(h); else lightbox = item; }} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => { if (id === "stash_videos" && inPageClick(e)) queueVideos(entry.section); linkClick(e, router); }} />{/if}{/each}
         </SectionRow>
       {/if}
     {/each}

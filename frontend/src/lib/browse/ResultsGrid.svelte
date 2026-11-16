@@ -2,6 +2,7 @@
   import Tile from "../components/Tile.svelte";
   import type { LibraryItem, WebItem } from "../api/client";
   import { itemHref } from "../item/kinds";
+  import { webItemHref } from "../router";
   import { keyOf } from "../stores/shared.svelte";
   import type { Mode } from "./layout";
   import { zoomSize, columnCount, dealMasonry, wallRows } from "./layout";
@@ -109,6 +110,7 @@
       item={item as WebItem}
       variant={variant}
       aspect={aspect}
+      href={webItemHref((item as WebItem).source, (item as WebItem).post_id)}
       saveState={saveStates[(item as WebItem).source + ":" + (item as WebItem).post_id] ?? "idle"}
       onsave={() => onsave(item as WebItem)}
       onopen={onopenweb ? () => onopenweb(item as WebItem) : undefined}
