@@ -16,6 +16,7 @@ from app.models import (
     RulesTestBody,
     RulesTestResult,
 )
+from app.sources.query_terms import is_reserved
 
 router = APIRouter(prefix="/api/rules", dependencies=[Depends(slow_dependency)])
 
@@ -41,6 +42,8 @@ def _tag(body: RejectTagBody) -> str:
     tag = body.tag.strip()
     if not (1 <= len(tag) <= 64):
         raise ApiError(422, "invalid", "reject entry must be 1-64 characters", field="tag")
+    if is_reserved(tag):
+        raise ApiError(422, "invalid", "reject entry uses a reserved prefix", field="tag")
     return tag
 
 
@@ -69,4 +72,6 @@ def unreject_tag(body: RejectTagBody) -> RejectRemoved:
 @router.post("/test")
 def test_rules(body: RulesTestBody) -> RulesTestResult:
     """Evaluate rules against a tag list."""
+    if any(is_reserved(n) for n in body.tags):
+        raise ApiError(422, "invalid", "title: and id: are search chips, not tags", field="tags")
     return rules.test(body.tags)

@@ -12,6 +12,32 @@ export type SectionId =
 export type SiteId = "danbooru" | "gelbooru" | "rule34" | "nhentai";
 export type SearchState = { chips: Chip[]; pill: Pill; sites: SiteId[] };
 
+export type ChipKind = "tag" | "title" | "id";
+
+/** What a chip stands for: the scopes `title` and `id` are reserved and never tags. */
+export function chipKind(chip: Chip): ChipKind {
+  if (chip.scope === "title") return "title";
+  if (chip.scope === "id") return "id";
+  return "tag";
+}
+
+/** Text shown on a chip: a title chip drops its quotes, like `title:big dragon`. */
+export function chipLabel(chip: Chip): string {
+  if (chipKind(chip) !== "title") return chip.raw;
+  return `${chip.exclude ? "-" : ""}title:${chip.value}`;
+}
+
+/** Label for the remove button. */
+export function chipRemoveLabel(chip: Chip): string {
+  if (chipKind(chip) !== "title") return `Remove ${chip.raw}`;
+  return `Remove ${chip.exclude ? "excluded " : ""}title ${chip.value}`;
+}
+
+/** True while text has a quote that is not closed yet (a comma must not commit then). */
+export function hasOpenQuote(text: string): boolean {
+  return (text.match(/"/g) ?? []).length % 2 === 1;
+}
+
 /** Parse a single token into a Chip, or null if invalid. */
 export function parseChip(token: string): Chip | null {
   const t = token.trim();
@@ -21,6 +47,18 @@ export function parseChip(token: string): Chip | null {
   if (rest.startsWith("-")) {
     exclude = true;
     rest = rest.slice(1);
+  }
+  // A fully quoted token, or `title:` plus a value, is a title chip (never a tag).
+  if (rest.startsWith('"') || rest.startsWith("title:")) {
+    const text = rest.startsWith('"') ? rest : rest.slice("title:".length);
+    const title = text.replaceAll('"', "").trim();
+    if (title === "") return null;
+    return {
+      raw: `${exclude ? "-" : ""}title:"${title}"`,
+      exclude,
+      scope: "title",
+      value: title,
+    };
   }
   let scope: string | null = null;
   let value: string;
@@ -41,9 +79,24 @@ export function nhentaiIdOf(text: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Split text on whitespace and commas, dropping empty tokens. */
+/** Split text on whitespace and commas, but not inside quotes; quotes stay in the token. */
 export function splitInput(text: string): string[] {
-  return text.split(/[\s,]+/).filter((t) => t !== "");
+  const out: string[] = [];
+  let cur = "";
+  let quoted = false;
+  for (const ch of text) {
+    if (ch === '"') {
+      quoted = !quoted;
+      cur += ch;
+    } else if (!quoted && (ch === "," || /\s/.test(ch))) {
+      if (cur !== "") out.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur !== "") out.push(cur);
+  return out;
 }
 
 /** Append parsed chips from text, skipping duplicates by raw. */

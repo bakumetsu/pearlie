@@ -11,6 +11,7 @@ from app.sources.auth import SiteAuth, build_auth
 from app.sources.base import Post, SearchPage, SourceError
 from app.sources.danbooru import _retry_after
 from app.sources.filters import NHENTAI_SORTS
+from app.sources.query_terms import TITLE_MAX
 from app.sources.throttle import DEFAULT_PACE, Throttle
 
 API_HOST = "nhentai.net"
@@ -29,6 +30,9 @@ def _term(token: str) -> str:
     kind, sep, name = body.partition(":")
     if sep and kind in QUERY_TYPES:
         prefix = f"{kind}:"
+    elif sep and kind == "title":
+        # nhentai has no title: prefix; a quoted bare term searches the title.
+        prefix, name = "", name[:TITLE_MAX]
     else:
         prefix, name = "", body
     name = name.replace("_", " ").replace('"', " ").strip()
@@ -54,7 +58,10 @@ def _list(value: object) -> list:
 
 def build_query(tags: list[str]) -> str:
     """Space-joined nhentai query from the search box tokens (empty when none)."""
-    return " ".join(t for t in (_term(x) for x in tags if x.strip()) if t)
+    terms = [t for t in (_term(x) for x in tags if x.strip()) if t]
+    if terms and all(t.startswith("-") for t in terms):
+        terms.append("pages:>0")  # nhentai needs one positive term; this matches every gallery
+    return " ".join(terms)
 
 
 class NHentai:

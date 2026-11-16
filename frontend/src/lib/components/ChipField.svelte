@@ -2,7 +2,13 @@
 
   import type { Snippet } from "svelte";
   import type { Chip } from "../query";
-  import { commitText, removeLastChip } from "../query";
+  import {
+    chipLabel,
+    chipRemoveLabel,
+    commitText,
+    hasOpenQuote,
+    removeLastChip,
+  } from "../query";
   import Icon from "./Icon.svelte";
 
   let {
@@ -33,11 +39,11 @@
 
   {#each chips as chip (chip.raw)}
     <span class="chip" class:exclude={chip.exclude}>
-      {chip.raw}
+      {chipLabel(chip)}
       <button
         class="chip-remove"
         type="button"
-        aria-label="Remove {chip.raw}"
+        aria-label={chipRemoveLabel(chip)}
         onclick={() => {
           onchange(chips.filter((c) => c.raw !== chip.raw));
         }}
@@ -51,9 +57,11 @@
     bind:value={pending}
     class="chip-input"
     type="text"
-    placeholder={chips.length === 0 ? "Search tags, e.g. cat -dog artist:x" : ""}
+    placeholder={chips.length === 0 ? 'Search tags or "title", e.g. cat -dog artist:x' : ""}
     autocomplete="off"
     onkeydown={(e) => {
+      // A comma inside an open quote is part of the title, not a separator.
+      if (e.key === "," && hasOpenQuote(pending)) return;
       if ((e.key === "Enter" || e.key === ",") && pending.trim()) {
         e.preventDefault();
         if (e.key === "Enter" && intercept?.()) return;

@@ -1,6 +1,7 @@
 from app.filters.aliases import fold
 from app.fixtures import data
 from app.models import BaseList, RuleMapping, RulesBody, RulesPut, RulesTestResult, Tag
+from app.sources.query_terms import is_reserved
 
 
 class Stale(Exception):
@@ -48,6 +49,8 @@ class Rules:
             raise Stale("version mismatch")
         for field in ("reject", "warn", "require"):
             for rule in getattr(body, field):
+                if is_reserved(rule):
+                    raise RulesInvalid(field, f"rule uses a reserved prefix: {rule!r}")
                 if not rule or len(rule) > 64:
                     raise RulesInvalid(field, f"rule must be 1–64 chars: {rule!r}")
         for m in body.mapping:

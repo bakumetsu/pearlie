@@ -47,4 +47,25 @@ describe("ChipField", () => {
   it("has correct padding in styles", () => {
     expect(src).toContain("padding: 2px 18px 2px var(--s-1)");
   });
+
+  it("comma inside an open quote does not commit; Enter does", async () => {
+    const onchange = vi.fn();
+    const { container } = render(ChipField, { props: { chips: [], onchange } });
+    const input = container.querySelector("input")!;
+    await fireEvent.input(input, { target: { value: '"big, dragon' } });
+    await fireEvent.keyDown(input, { key: "," });
+    expect(onchange).not.toHaveBeenCalled();
+    await fireEvent.keyDown(input, { key: "Enter" });
+    expect(onchange).toHaveBeenCalledTimes(1);
+    expect(onchange.mock.calls[0][0][0].raw).toBe('title:"big, dragon"');
+  });
+
+  it("shows a title chip like a tag chip and removes it", async () => {
+    const onchange = vi.fn();
+    const chips = [{ raw: 'title:"big dragon"', exclude: false, scope: "title", value: "big dragon" }];
+    const { container, getByLabelText } = render(ChipField, { props: { chips, onchange } });
+    expect(container.querySelector(".chip")!.textContent).toContain("title:big dragon");
+    await fireEvent.click(getByLabelText("Remove title big dragon"));
+    expect(onchange).toHaveBeenCalledWith([]);
+  });
 });

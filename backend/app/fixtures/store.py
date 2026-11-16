@@ -28,6 +28,7 @@ from app.models import (
     WebItem,
 )
 from app.paging import clamp_page, pages_for
+from app.sources.query_terms import parse_title, split_terms
 
 _LIBRARY_KEYS = frozenset(
     {
@@ -166,11 +167,16 @@ class Store:
 
     @staticmethod
     def matches(tags: list[str], scoped: list[Tag], title: str, q: str) -> bool:
-        tokens = q.split()
+        tokens = split_terms(q)
         folded_title = _fold(title)
         folded_tags = [_fold(t) for t in tags]
         for tok in tokens:
-            if tok.startswith("-"):
+            wanted = parse_title(tok)
+            if wanted is not None:
+                # A title chip matches the item title only, never a tag.
+                if (_fold(wanted.value) in folded_title) == wanted.exclude:
+                    return False
+            elif tok.startswith("-"):
                 if _fold(tok[1:]) in folded_tags:
                     return False
             elif ":" in tok:

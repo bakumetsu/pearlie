@@ -18,6 +18,7 @@ from app.models import (
     RulesTestBody,
     RulesTestResult,
 )
+from app.sources.query_terms import is_reserved
 
 router = APIRouter(prefix="/api/rules")
 
@@ -55,6 +56,8 @@ def put_rules(body: RulesPut, request: Request) -> RulesBody:
         for e in entries:
             if not (1 <= len(e) <= 64):
                 raise ApiError(422, "invalid", f"{name} entry must be 1-64 characters", field=name)
+            if is_reserved(e):
+                raise ApiError(422, "invalid", f"{name} entry uses a reserved prefix", field=name)
     mapping = [(m.pattern.strip(), m.to) for m in body.mapping]
     for p, _ in mapping:
         if not (1 <= len(p) <= 64):
@@ -79,6 +82,8 @@ def _tag(body: RejectTagBody) -> str:
     tag = body.tag.strip()
     if not (1 <= len(tag) <= 64):
         raise ApiError(422, "invalid", "reject entry must be 1-64 characters", field="tag")
+    if is_reserved(tag):
+        raise ApiError(422, "invalid", "reject entry uses a reserved prefix", field="tag")
     return tag
 
 
@@ -122,6 +127,8 @@ def test_rules(body: RulesTestBody, request: Request) -> RulesTestResult:
     """Evaluate rules against a tag list."""
     db_path = request.app.state.settings.db_path
     tags: dict[str, list[str]] = {}
+    if any(is_reserved(n) for n in body.tags):
+        raise ApiError(422, "invalid", "title: and id: are search chips, not tags", field="tags")
     for name in body.tags:
         if ":" in name:
             scope, val = name.split(":", 1)
