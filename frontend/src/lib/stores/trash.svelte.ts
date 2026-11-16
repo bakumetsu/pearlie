@@ -9,12 +9,12 @@ export type TrashGroup = { group: string | null; items: TrashResult[] };
 /** Group rows by group_id, keeping list order; rows without a group stay single. */
 export function groupRows(rows: TrashResult[]): TrashGroup[] {
   const out: TrashGroup[] = [];
-  const at = new Map<string, TrashGroup>();
+  const at: Record<string, TrashGroup> = {};
   for (const r of rows) {
     const g = r.item.group_id ?? null;
     if (g === null) { out.push({ group: null, items: [r] }); continue; }
-    let slot = at.get(g);
-    if (!slot) { slot = { group: g, items: [] }; at.set(g, slot); out.push(slot); }
+    let slot = at[g];
+    if (!slot) { slot = { group: g, items: [] }; at[g] = slot; out.push(slot); }
     slot.items.push(r);
   }
   return out;
@@ -65,8 +65,8 @@ export function createTrash(api: Api, opts?: { onRestored?: () => void }) {
   async function restoreGroup(group: string): Promise<void> {
     try {
       const r = await api.restoreGroup(group);
-      const back = new Set(r.restored.map((x) => `${x.item.kind}:${x.item.id}`));
-      items = items.filter((t) => t.item.group_id !== group || !back.has(`${t.item.kind}:${t.item.id}`));
+      const back = (r.restored.map((x) => `${x.item.kind}:${x.item.id}`));
+      items = items.filter((t) => t.item.group_id !== group || !back.includes(`${t.item.kind}:${t.item.id}`));
       if (r.failed.length > 0) {
         await refresh();
         toasts.push({ kind: "error", message: `${r.failed.length} could not be restored` });
