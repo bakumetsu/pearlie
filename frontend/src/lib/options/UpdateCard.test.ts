@@ -320,28 +320,58 @@ describe("UpdateCard", () => {
   });
 });
 
-describe("UpdateCard changelog link", () => {
+describe("UpdateCard what's new", () => {
   afterEach(() => cleanup());
+  const whatsNew = {
+    title: "What's new",
+    range: "1.2.3 → 1.2.4",
+    version: null,
+    date: null,
+    groups: [{ kind: "Fixed", items: ["a fix"] }, { kind: "Added", items: ["a feature"] }],
+    total: 2,
+    more: 0,
+    more_url: null,
+  };
+  const changelog = (o: object = {}) => ({
+    channel: "main",
+    unavailable: false,
+    stale: false,
+    whats_new: whatsNew,
+    history: [],
+    has_more: false,
+    ...o,
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     hoisted.api = {
       getUpdateStatus: vi.fn().mockResolvedValue(makeStatus()),
       putUpdateSettings: vi.fn(),
-      getUpdateChangelog: vi.fn(),
+      getUpdateChangelog: vi.fn().mockResolvedValue(changelog()),
     };
   });
 
-  it("links to the Changelog section with a whats-new label when behind", async () => {
+  it("shows a separate card with the version change and groups when behind", async () => {
     render(UpdateCard);
-    const link = await screen.findByRole("link", { name: "See what's new" });
-    expect(link.getAttribute("href")).toBe("/options/changelog");
+    expect(await screen.findByText("What's new since your version")).toBeTruthy();
+    expect(screen.getByText("1.2.3 → 1.2.4")).toBeTruthy();
+    expect(screen.getByText("a fix")).toBeTruthy();
+    expect(screen.getByText("a feature")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "See what's new" })).toBeNull();
   });
 
-  it("reads See changelog when up to date, and never loads the changelog", async () => {
+  it("shows no box and never loads the changelog when up to date", async () => {
     hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus({ available: false }));
-    const { container } = render(UpdateCard);
-    expect(await screen.findByRole("link", { name: "See changelog" })).toBeTruthy();
-    expect(container.querySelector(".changelog, details")).toBeNull();
+    render(UpdateCard);
+    await screen.findByText("Up to date");
+    expect(screen.queryByText("What's new since your version")).toBeNull();
+    expect(screen.queryByRole("link", { name: "See changelog" })).toBeNull();
     expect(hoisted.api.getUpdateChangelog).not.toHaveBeenCalled();
+  });
+
+  it("shows no box when the changelog has no whats_new", async () => {
+    hoisted.api.getUpdateChangelog.mockResolvedValue(changelog({ whats_new: null }));
+    render(UpdateCard);
+    await vi.waitFor(() => expect(hoisted.api.getUpdateChangelog).toHaveBeenCalled());
+    expect(screen.queryByText("What's new since your version")).toBeNull();
   });
 });
