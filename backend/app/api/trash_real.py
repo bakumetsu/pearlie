@@ -2,7 +2,9 @@
 
 from fastapi import APIRouter, Query, Request
 
+from app.api import options
 from app.api.errors import ApiError
+from app.library.komga_trash import KomgaTrash
 from app.library.stash_trash import StashTrash
 from app.library.trash import TrashError, TrashStore
 from app.models import (
@@ -22,6 +24,22 @@ router = APIRouter(prefix="/api")
 
 def store_of(request: Request) -> TrashStore:
     return request.app.state.trash
+
+
+def komga_trash_of(request: Request) -> KomgaTrash:
+    return komga_trash_of_app(request.app)
+
+
+def komga_trash_of_app(app) -> KomgaTrash:  # noqa: ANN001
+    """One KomgaTrash per app: it holds the scan debounce timers."""
+    kt = getattr(app.state, "komga_trash", None)
+    if kt is None:
+        kt = KomgaTrash(
+            app.state.settings, app.state.trash, app.state.komga,
+            wait_s=lambda: options.komga_scan_wait_s(app),
+        )
+        app.state.komga_trash = kt
+    return kt
 
 
 def err(e: TrashError) -> ApiError:
@@ -91,6 +109,13 @@ def restore(request: Request, token: str) -> RestoreResult:
     row = store.get(token)
     if row is None:
         raise ApiError(404, "not_found", "Item not found")
+    if row["target"] == "komga":
+        if request.app.state.komga is None:
+            raise ApiError(503, "not_configured", "Komga is not configured")
+        try:
+            return RestoreResult(item=komga_trash_of(request).restore(token))
+        except TrashError as e:
+            raise err(e) from None
     if row["target"] != "stash":
         raise ApiError(501, "not_supported", "Restoring this item is not available yet")
     client = request.app.state.stash

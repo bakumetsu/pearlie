@@ -342,6 +342,9 @@ class _GoneKomgaTarget:
         self.gone = gone
         self.db_path = db_path
 
+    def trash_token(self, source: str, post_id: str) -> str | None:
+        return None
+
     def drop_if_gone(self, source: str, post_id: str) -> bool:
         if self.gone:
             conn = connect(self.db_path)
@@ -392,6 +395,9 @@ def test_save_placement_invalid_is_422(tmp_path: Path, bad: object) -> None:
 
 
 class _FakeKomgaTarget:
+    def trash_token(self, source: str, post_id: str) -> str | None:
+        return None
+
     def suggest(self, post: Post) -> Any:
         from app.targets.placement import Plan
 

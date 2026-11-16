@@ -70,6 +70,64 @@ class Komga:
             raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
         self._check(resp)
 
+    def empty_trash(self, library_id: str) -> None:
+        """Ask Komga to purge the soft-deleted records of one library (202, async)."""
+        try:
+            resp = self._client.post(f"/api/v1/libraries/{library_id}/empty-trash")
+        except httpx.HTTPError:
+            raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+        self._check(resp)
+
+    def list_deleted(self, kind: str, library_id: str) -> list[dict]:
+        """Every soft-deleted series or book (kind `series` or `books`) of one library."""
+        body = {
+            "condition": {
+                "allOf": [
+                    {"libraryId": {"operator": "is", "value": library_id}},
+                    {"deleted": {"operator": "isTrue"}},
+                ]
+            }
+        }
+        out: list[dict] = []
+        for page in range(SERIES_BOOKS_PAGES):
+            try:
+                resp = self._client.post(
+                    f"/api/v1/{kind}/list", params={"page": page, "size": 500}, json=body
+                )
+            except httpx.HTTPError:
+                raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+            self._check(resp)
+            data = resp.json()
+            out.extend(data.get("content", []))
+            if data.get("last", True):
+                return out
+        raise KomgaError("upstream_error", "Too many deleted items", 502)
+
+    def find_by_url(self, kind: str, library_id: str, url: str, text: str) -> dict | None:
+        """The live series or book (kind `series` or `books`) at *url*, found by name or listing."""
+        want = url.replace("\\", "/")
+        for q in (text, ""):
+            body: dict = {"condition": {"libraryId": {"operator": "is", "value": library_id}}}
+            if q:
+                body["fullTextSearch"] = q
+            for page in range(4 if not q else 1):
+                try:
+                    resp = self._client.post(
+                        f"/api/v1/{kind}/list",
+                        params={"page": page, "size": 500, "sort": "createdDate,desc"},
+                        json=body,
+                    )
+                except httpx.HTTPError:
+                    raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
+                self._check(resp)
+                data = resp.json()
+                for dto in data.get("content", []):
+                    if str(dto.get("url", "")).replace("\\", "/") == want:
+                        return dto
+                if data.get("last", True):
+                    break
+        return None
+
     def list_series(self, page: int, size: int, q: str, sort: str) -> dict:
         """Return one page of series matching *q* (full-text search).
 
@@ -166,11 +224,12 @@ class Komga:
 
     def set_tags(self, kind: str, id: str, tags: list[str]) -> None:
         """Set the tags on a series or book via its metadata endpoint."""
+        self.set_metadata(kind, id, {"tags": tags, "tagsLock": True})
+
+    def set_metadata(self, kind: str, id: str, body: dict) -> None:
+        """PATCH the metadata of a series or book (callers add the lock flags)."""
         try:
-            resp = self._client.patch(
-                f"/api/v1/{kind}/{id}/metadata",
-                json={"tags": tags, "tagsLock": True},
-            )
+            resp = self._client.patch(f"/api/v1/{kind}/{id}/metadata", json=body)
         except httpx.HTTPError:
             raise KomgaError("upstream_error", "Komga is not reachable", 502) from None
         self._check(resp)

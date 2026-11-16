@@ -332,21 +332,18 @@ def test_progress_out_of_range(tmp_path):
     assert len(recorded) == 0
 
 
-def test_delete_not_supported(tmp_path):
-    """DELETE on library endpoints returns 501 not_supported."""
-    called: list[str] = []
+def test_delete_goes_to_trash_not_komga_delete(tmp_path):
+    """DELETE on library endpoints is the trash move: never 501, never a Komga DELETE call."""
+    methods: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        called.append(request.url.path)
+        methods.append(request.method)
         return httpx.Response(500)
 
     client = make_client(tmp_path, handler)
-    r = client.delete("/api/library/books/b1")
-    assert r.status_code == 501
-    assert r.json()["code"] == "not_supported"
-    r = client.delete("/api/library/series/s1")
-    assert r.status_code == 501
-    assert r.json()["code"] == "not_supported"
+    for path in ("/api/library/books/b1", "/api/library/series/s1"):
+        assert client.delete(path).status_code != 501
+    assert "DELETE" not in methods
 
 
 def test_page_stream_large_body(tmp_path):
@@ -551,7 +548,4 @@ def test_real_mode_serves_real_komga_not_fixtures(tmp_path):
     assert items[0]["id"] == "b1"
     assert items[0]["title"] == "Book One"
     assert body["total"] == 1
-    assert not any(
-        t["title"].startswith("Book ") and t["title"][5:].isdigit()
-        for t in items
-    )
+    assert not any(t["title"].startswith("Book ") and t["title"][5:].isdigit() for t in items)
