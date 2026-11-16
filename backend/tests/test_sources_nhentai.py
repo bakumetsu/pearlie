@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import typing
 from pathlib import Path
 
 import httpx
@@ -393,8 +394,9 @@ def test_search_hides_grid_rows_by_learned_tag_and_sends_reject_terms(tmp_path: 
         return httpx.Response(200, json={"result": rows, "num_pages": 1, "per_page": 25})
 
     c = _client(tmp_path, handler)
-    c.app.state.sources["nhentai"]._learn_tag(7, "general", "bad")
-    c.app.state.sources["nhentai"]._learn_tag(8, "general", "fine")
+    adapter = typing.cast(typing.Any, c.app).state.sources["nhentai"]
+    adapter._learn_tag(7, "general", "bad")
+    adapter._learn_tag(8, "general", "fine")
     c.put(
         "/api/rules",
         json={"version": 1, "reject": ["bad"], "warn": [], "require": [], "mapping": []},
