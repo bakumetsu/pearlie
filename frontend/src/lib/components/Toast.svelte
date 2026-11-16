@@ -33,6 +33,9 @@
       <button class="toast-close" aria-label="Dismiss" onclick={() => toasts.dismiss()}>
         <Icon name="x" size={16} />
       </button>
+      {#if toast.kind === "undo"}
+        {#key toast.id}<i class="bar" style:--d="{toast.durationMs}ms"></i>{/key}
+      {/if}
     </div>
   {/if}
 </div>
@@ -56,6 +59,30 @@
     color: var(--text);
     font-size: var(--t-14);
     box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+  }
+
+  .toast {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .bar {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--accent);
+    animation: shrink var(--d) linear forwards;
+  }
+
+  .toast-region:hover .bar,
+  .toast-region:focus-within .bar {
+    animation-play-state: paused;
+  }
+
+  @keyframes shrink {
+    from { width: 100%; }
+    to { width: 0; }
   }
 
   .toast.error {

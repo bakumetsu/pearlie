@@ -12,6 +12,8 @@
   import Icon from "../lib/components/Icon.svelte";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { onMount } from "svelte";
+  import SelectBar from "../lib/components/SelectBar.svelte";
+  import { selection } from "../lib/library/selection.svelte";
   import { SvelteURLSearchParams } from "svelte/reactivity";
   import { viewSettings } from "../lib/stores/viewSettings.svelte";
   import { options } from "../lib/stores/options.svelte";
@@ -45,6 +47,8 @@
   const prefillQ = match.query.get("q") ? "" : getLastDiscoverQuery().trim();
   let prefilling = $state(prefillQ !== "");
 
+  $effect(() => () => selection.clear());
+
   onMount(() => {
     if (prefillQ) {
       const qs = new SvelteURLSearchParams(match.query);
@@ -55,6 +59,7 @@
       setTimeout(() => { prefilling = false; }, 1000);
     }
     h1?.focus();
+    selection.clear();
     viewSettings.load(api);
     // Capability list for the toolbar. No answer yet or a failed call: no Order/Rating controls, plain list.
     api.searchFilters().then((f) => { filterCaps = f; }).catch(() => {});
@@ -595,6 +600,7 @@
     {#if viewSettings.ready}
       <ViewBar modes={vs.modes as Mode[]} mode={vs.mode as Mode} perPage={vs.per_page} zoom={vs.zoom} options={vs.per_page_options} max={vs.per_page_max} onmode={onMode} onperpage={onPerPage} onzoom={onZoom} onzoompreview={onZoomPreview} />
     {/if}
+      {#if isLibrary}<SelectBar onchanged={() => void grid.goTo(grid.page)} />{/if}
     </div>
   </header>
 
