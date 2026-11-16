@@ -56,7 +56,8 @@ LIBRARY_PATHS = (
 
 IMAGE_FIELDS = (
     "id title rating100 created_at urls tags { name } "
-    "visual_files { ... on ImageFile { basename width height size } }"
+    "visual_files { ... on ImageFile { basename width height size } "
+    "... on VideoFile { basename width height size } }"
 )
 # date and studio { name } are to be confirmed in the Stash playground
 SCENE_FIELDS = (
