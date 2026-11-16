@@ -28,6 +28,7 @@ class FakeKomga:
         self.visible = True
         self.list_calls = 0
         self.dest: Path | None = None
+        self.authors: dict[str, list[str]] = {}  # book file name -> Komga writer names
 
     def list_libraries(self) -> list[dict]:
         lib = {"id": "L1", "name": "Doujin", "root": self.root}
@@ -44,7 +45,20 @@ class FakeKomga:
         self.list_calls += 1
         if not self.visible or self.dest is None:
             return {"content": []}
-        return {"content": [{"id": "B1", "url": f.as_posix()} for f in self.dest.rglob("*.cbz")]}
+        return {
+            "content": [
+                {
+                    "id": "B1",
+                    "url": f.as_posix(),
+                    "metadata": {
+                        "authors": [
+                            {"name": n, "role": "writer"} for n in self.authors.get(f.name, [])
+                        ]
+                    },
+                }
+                for f in self.dest.rglob("*.cbz")
+            ]
+        }
 
 
 def make_post(pages: int = 3, media_id: str = "123") -> Post:
@@ -344,6 +358,22 @@ def test_second_volume_moves_first_oneshot(env) -> None:
     assert first.name in names and len(names) == 2
     assert not list((dest / "_oneshots").iterdir())
     assert (dest / "[Foo] My Sister" / first.name).read_bytes() == data
+
+
+def test_second_book_pairs_with_oneshot_whose_name_has_no_artist(env) -> None:
+    """The oneshot file name has no [artist]; Komga knows the author (hand-moved book)."""
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    ones = dest / "_oneshots"
+    ones.mkdir(parents=True)
+    old = ones / "My Sister [1].cbz"
+    old.write_bytes(b"old")
+    komga.authors = {old.name: ["bob"]}
+    res = target.save(titled("My Sister 2", "2"), [])  # make_post tags the artist "bob"
+    assert res.notices == []
+    names = sorted(p.name for p in (dest / "[bob] My Sister").iterdir())
+    assert old.name in names and len(names) == 2
+    assert not list(ones.iterdir())
 
 
 def test_move_failure_never_fails_the_save(env, monkeypatch: pytest.MonkeyPatch) -> None:
