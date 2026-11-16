@@ -24,6 +24,13 @@ export type TrashBatchResult = S["TrashBatchResult"];
 export type GroupRestoreResult = S["GroupRestoreResult"];
 export type TrashRoot = { index: number; stash_path: string; state: "ok" | "not_reachable" | "other_volume" };
 export type TrashStatus = { roots: TrashRoot[] };
+export type TrashFolder = {
+  path: string;
+  source: "env" | "stored";
+  env_path: string;
+  state: "ok" | "missing" | "not_writable";
+  items: number;
+};
 export type ThumbCacheCleared = S["ThumbCacheCleared"];
 export type ScanResult = S["ScanResult"];
 export type TrashPurgePreview = S["TrashPurgePreview"];
@@ -139,6 +146,9 @@ export interface Api {
   restoreGroup(group: string, signal?: AbortSignal): Promise<GroupRestoreResult>;
   deleteForGood(token: string, signal?: AbortSignal): Promise<void>;
   trashStatus(signal?: AbortSignal): Promise<TrashStatus>;
+  trashFolder(signal?: AbortSignal): Promise<TrashFolder>;
+  setTrashFolder(path: string, signal?: AbortSignal): Promise<TrashFolder>;
+  createTrashFolder(path: string, signal?: AbortSignal): Promise<TrashFolder>;
   listTrash(signal?: AbortSignal): Promise<TrashList>;
   emptyTrash(signal?: AbortSignal): Promise<TrashEmptied>;
   purgePreview(days: number, signal?: AbortSignal): Promise<TrashPurgePreview>;
@@ -367,6 +377,23 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     },
     trashStatus(signal) {
       return request<TrashStatus>(baseUrl + "/api/trash/status", undefined, signal);
+    },
+    trashFolder(signal) {
+      return request<TrashFolder>(baseUrl + "/api/trash/folder", undefined, signal);
+    },
+    setTrashFolder(path, signal) {
+      return request<TrashFolder>(
+        baseUrl + "/api/trash/folder",
+        { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }) },
+        signal,
+      );
+    },
+    createTrashFolder(path, signal) {
+      return request<TrashFolder>(
+        baseUrl + "/api/trash/folder/create",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }) },
+        signal,
+      );
     },
     listTrash(signal) {
       return request<TrashList>(baseUrl + "/api/trash", undefined, signal);

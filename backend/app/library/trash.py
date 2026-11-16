@@ -25,6 +25,7 @@ from app.db import connect
 logger = logging.getLogger("pearlie")
 
 RETENTION_KEY = "options.global.trash_retention_days"
+DIR_KEY = "options.global.trash_dir"
 SIDECAR = ".pearlie.json"
 ACTIVE_STATES = ("moving", "trashed", "restoring")
 
@@ -89,8 +90,59 @@ def _suffixed(path: Path) -> Path:
 class TrashStore:
     def __init__(self, db_path: Path, trash_dir: Path) -> None:
         self._db = db_path
-        self.dir = trash_dir
+        self.default_dir = trash_dir
         self._lock = threading.Lock()
+
+    @property
+    def dir(self) -> Path:
+        """The stored folder (Options) or, when none is stored, the ``.env`` default."""
+        stored = self.stored_dir()
+        return Path(stored) if stored else self.default_dir
+
+    def stored_dir(self) -> str | None:
+        conn = connect(self._db)
+        try:
+            row = conn.execute("SELECT value FROM settings WHERE key = ?", (DIR_KEY,)).fetchone()
+        finally:
+            conn.close()
+        return str(row[0]) if row and str(row[0]).strip() else None
+
+    def item_count(self) -> int:
+        conn = connect(self._db)
+        try:
+            marks = ",".join("?" * len(ACTIVE_STATES))
+            row = conn.execute(
+                f"SELECT COUNT(*) FROM trash_items WHERE state IN ({marks})", ACTIVE_STATES
+            ).fetchone()
+            return int(row[0])
+        finally:
+            conn.close()
+
+    def set_dir(self, path: str | None, validate: Callable[[], None] | None = None) -> None:
+        """Store the folder (``None`` = back to the default) unless the trash has items.
+
+        The count, *validate* and the write run under the store lock, so a restore cannot
+        slip in between. A move that starts at the same time keeps its absolute row path.
+        """
+        with self._lock:
+            if self.item_count() > 0:
+                raise TrashError(409, "trash_not_empty", "Trash has items; restore or delete them")
+            if validate is not None:
+                validate()
+            conn = connect(self._db)
+            try:
+                if path:
+                    conn.execute(
+                        "INSERT INTO settings (key, value) VALUES (?, ?) "
+                        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                        (DIR_KEY, path),
+                    )
+                else:
+                    conn.execute("DELETE FROM settings WHERE key = ?", (DIR_KEY,))
+                conn.commit()
+            finally:
+                conn.close()
+            self.__dict__.pop("_probe_cache", None)
 
     # -- settings -------------------------------------------------------------
 
@@ -491,10 +543,11 @@ class TrashStore:
             )]
         finally:
             conn.close()
+        base = self.dir
         for row in rows:
             token = row["token"]
             trash_path, orig = Path(row["trash_path"]), Path(row["orig_path"])
-            folder = self.dir / token
+            folder = base / token
             try:
                 if row["state"] == "restoring":
                     if os.path.lexists(trash_path):

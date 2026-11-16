@@ -339,6 +339,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.settings = settings
     app.state.trash = TrashStore(settings.db_path, settings.trash_dir)
     if settings.mode == "real":
+        trash_dir = app.state.trash.dir
+        # Only the .env default is guarded; a path saved in Options skips the temp/cache check.
         trash_root = settings.trash_dir.resolve()
         guarded = [settings.stash_temp_dir, settings.komga_temp_dir, settings.thumb_cache_root]
         for bad in guarded:
@@ -346,11 +348,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if trash_root == bad_root or bad_root in trash_root.parents:
                 raise ConfigError("PEARLIE_TRASH_DIR must not be inside a temp or cache folder")
         try:
-            settings.trash_dir.mkdir(parents=True, exist_ok=True)
+            trash_dir.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             logger.warning(
                 "cannot create trash folder %s (%s); trash stays unavailable",
-                settings.trash_dir,
+                trash_dir,
                 type(e).__name__,
             )
     app.state.komga = _build_komga(settings) if settings.mode != "fixture" else None

@@ -1,12 +1,15 @@
 """Real-mode trash routes: list, restore, Empty, Delete for good, purge preview."""
 
+import os
 import re
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Query, Request
 
 from app.api import options
 from app.api.errors import ApiError
+from app.komga import KomgaError
 from app.library.komga_trash import KomgaTrash
 from app.library.stash_trash import StashTrash
 from app.library.trash import TrashError, TrashStore
@@ -17,6 +20,8 @@ from app.models import (
     TrashBatchFailure,
     TrashBatchResult,
     TrashEmptied,
+    TrashFolder,
+    TrashFolderBody,
     TrashItem,
     TrashList,
     TrashPurgePreview,
@@ -141,6 +146,101 @@ def trash_status(request: Request) -> TrashStatus:
     except StashError as e:
         raise ApiError(502, "upstream_error", e.message) from None
     return TrashStatus(roots=[TrashRoot(**r) for r in roots])
+
+
+def _folder_state(path: Path) -> str:
+    if not path.is_dir():
+        return "missing"
+    return "ok" if os.access(path, os.W_OK) else "not_writable"
+
+
+def _folder_of(store: TrashStore) -> TrashFolder:
+    stored = store.stored_dir()
+    path = store.dir
+    return TrashFolder(
+        path=str(path),
+        source="stored" if stored else "env",
+        env_path=str(store.default_dir),
+        state=_folder_state(path),  # type: ignore[arg-type]
+        items=store.item_count(),
+    )
+
+
+def _abs_path(raw: str) -> Path:
+    p = Path(raw.strip())
+    if not raw.strip() or not p.is_absolute():
+        raise ApiError(422, "invalid_path", "Enter an absolute folder path")
+    return p
+
+
+def _library_roots(request: Request) -> list[str]:
+    """Real paths of every Stash and Komga library root (Pearlie side)."""
+    app = request.app
+    roots: list[str] = []
+    try:
+        if app.state.stash is not None:
+            st = StashTrash(app.state.settings, store_of(request), app.state.stash)
+            roots += [os.path.realpath(st._to_local(p)) for p in app.state.stash.library_paths()]
+        if app.state.komga is not None:
+            roots += komga_trash_of(request)._roots()
+    except (StashError, KomgaError) as e:
+        raise ApiError(502, "upstream_error", e.message) from None
+    return roots
+
+
+def _check_candidate(request: Request, path: Path) -> None:
+    """Writable, outside every library root, same volume as each Stash library root."""
+    if not path.is_dir():
+        raise ApiError(422, "folder_missing", "Folder does not exist; create it first")
+    if not os.access(path, os.W_OK):
+        raise ApiError(422, "not_writable", "Folder is not writable")
+    real = os.path.realpath(path)
+    for root in _library_roots(request):
+        if real == root or real.startswith(root + os.sep):
+            raise ApiError(422, "inside_library", "Folder is inside a library")
+    client = request.app.state.stash
+    if client is not None:
+        try:
+            probes = StashTrash(request.app.state.settings, store_of(request), client)
+            roots = probes.probe_candidate(path)
+        except StashError as e:
+            raise ApiError(502, "upstream_error", e.message) from None
+        for r in roots:
+            if r["state"] == "other_volume":
+                raise ApiError(422, "other_volume", "Folder is not on the same mount as Stash")
+            if r["state"] == "not_reachable":
+                msg = "Stash library folder is not reachable"
+                raise ApiError(422, "stash_root_unreachable", msg)
+
+
+@router.get("/trash/folder")
+def trash_folder(request: Request) -> TrashFolder:
+    return _folder_of(store_of(request))
+
+
+@router.put("/trash/folder")
+def set_trash_folder(request: Request, body: TrashFolderBody) -> TrashFolder:
+    store = store_of(request)
+    raw = body.path.strip()
+    target = Path(raw) if not raw else _abs_path(raw)
+    # Reset uses the .env folder; it must pass the same checks.
+    check = target if raw else store.default_dir
+    try:
+        store.set_dir(raw or None, lambda: _check_candidate(request, check))
+    except TrashError as e:
+        raise err(e) from None
+    return _folder_of(store)
+
+
+@router.post("/trash/folder/create")
+def create_trash_folder(request: Request, body: TrashFolderBody) -> TrashFolder:
+    store = store_of(request)
+    path = _abs_path(body.path) if body.path.strip() else store.dir
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        raise ApiError(422, "cannot_create", "Cannot create the folder") from None
+    return _folder_of(store)
 
 
 @router.get("/trash/purge-preview")

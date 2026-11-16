@@ -45,7 +45,7 @@ phone / browser ──► Pearlie (FastAPI + static Svelte UI)
 NFS share (OMV): .../stash-library/stash-incoming   .../komga-library/komga-incoming   .../pearlie-trash
 ```
 
-Pearlie creates `PEARLIE_TRASH_DIR` at start and again before a trash move; if it cannot, trash answers 503 `trash_unavailable` and the Library shows "Trash folder not available".
+The trash folder is `PEARLIE_TRASH_DIR` unless Options > Trash > Folder stores another path (T-312; the stored path wins, an empty field resets to `.env`). A change is blocked while the trash has items (409 `trash_not_empty`); the new folder must exist (Create button), be writable, sit on the same mount as each Stash library root and lie outside every Stash and Komga library root (422 `folder_missing`, `not_writable`, `other_volume`, `inside_library`). Routes: `GET`/`PUT /api/trash/folder`, `POST /api/trash/folder/create`. Pearlie creates the trash folder at start and again before a trash move; if it cannot, trash answers 503 `trash_unavailable` and the Library shows "Trash folder not available".
 
 Pearlie triggers Stash and Komga scans itself after each save, because file watching over NFS is unreliable.
 

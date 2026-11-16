@@ -352,6 +352,18 @@ class TrashStatus(BaseModel):
     roots: list[TrashRoot]
 
 
+class TrashFolder(BaseModel):
+    path: str
+    source: Literal["env", "stored"]
+    env_path: str
+    state: Literal["ok", "missing", "not_writable"]
+    items: int
+
+
+class TrashFolderBody(BaseModel):
+    path: str = ""
+
+
 class ProgressBody(BaseModel):
     page: int
 

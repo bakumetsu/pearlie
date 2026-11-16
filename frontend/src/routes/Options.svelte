@@ -29,6 +29,7 @@
   import ChangelogCard from "../lib/options/ChangelogCard.svelte";
   import LogsCard from "../lib/options/LogsCard.svelte";
   import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
+  import TrashFolderCard from "../lib/options/TrashFolderCard.svelte";
   import SaveFoldersCard from "../lib/options/SaveFoldersCard.svelte";
   import ConnectionRows from "../lib/options/ConnectionRows.svelte";
   import ContentFilterCard from "../lib/options/ContentFilterCard.svelte";
@@ -226,6 +227,8 @@
     <SaveFoldersCard />
   {:else if sectionId === "trash" && card.title === "Retention"}
     <TrashRetentionCard />
+  {:else if sectionId === "trash" && card.title === "Folder"}
+    <TrashFolderCard />
   {:else if sectionId === "sources" && card.title === "Site access"}
     <ConnectionRows title="Site access" names={SITE_NAMES} />
   {:else if sectionId === "library" && card.title === "Stash"}
