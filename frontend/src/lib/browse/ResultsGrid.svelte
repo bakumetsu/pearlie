@@ -219,6 +219,8 @@
     if (sig === winSig) return;
     winSig = sig;
     // Index order keeps the DOM in item order, so the pinned tile sits in its own place.
+    // Local to one call, not rendered, so a plain Set is right.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const wanted = new Set(list.map((p) => p.index));
     if (fi >= 0) {
       for (let i = Math.max(0, fi - FOCUS_SPAN); i <= Math.min(layout.count - 1, fi + FOCUS_SPAN); i++) wanted.add(i);

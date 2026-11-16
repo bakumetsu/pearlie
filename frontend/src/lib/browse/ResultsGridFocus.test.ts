@@ -3,7 +3,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup } from "@testing-library/svelte";
 import { tick } from "svelte";
 import ResultsGrid from "./ResultsGrid.svelte";
-import type { Mode } from "./layout";
 import { mockItems } from "./testFixtures";
 import type { LibraryItem, WebItem } from "../api/client";
 
@@ -14,7 +13,6 @@ type Item = LibraryItem | WebItem;
 
 const WIDTH = 1000;
 const VH = 800;
-const MODES: Mode[] = ["wall", "masonry", "grid", "list"];
 
 let scrollY = 0;
 let rafQueue: Array<() => void> = [];
