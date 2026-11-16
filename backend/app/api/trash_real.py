@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
 from app.library.stash_trash import StashTrash
+from app.targets.stash_client import StashError
 from app.library.trash import TrashError, TrashStore
 from app.models import (
     RestoreResult,
@@ -12,6 +13,8 @@ from app.models import (
     TrashList,
     TrashPurgePreview,
     TrashResult,
+    TrashRoot,
+    TrashStatus,
 )
 
 router = APIRouter(prefix="/api")
@@ -38,6 +41,23 @@ def result_of(row: dict, retention_days: int) -> TrashResult:
             group_id=row["group_id"],
         ),
     )
+
+
+@router.get("/trash/status")
+def trash_status(request: Request) -> TrashStatus:
+    """Per Stash library root: can Pearlie rename a file into the trash folder (probe, 60 s cache)."""
+    client = request.app.state.stash
+    if client is None:
+        raise ApiError(503, "not_configured", "Stash is not configured")
+    store = store_of(request)
+    try:
+        store.check_dir()
+        roots = StashTrash(request.app.state.settings, store, client).probe_roots()
+    except TrashError as e:
+        raise err(e) from None
+    except StashError as e:
+        raise ApiError(502, "upstream_error", e.message) from None
+    return TrashStatus(roots=[TrashRoot(**r) for r in roots])
 
 
 @router.get("/trash/purge-preview")

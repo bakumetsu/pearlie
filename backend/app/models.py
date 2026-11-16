@@ -307,6 +307,16 @@ class TrashPurgePreview(BaseModel):
     count: int
 
 
+class TrashRoot(BaseModel):
+    index: int
+    stash_path: str
+    state: Literal["ok", "not_reachable", "other_volume"]
+
+
+class TrashStatus(BaseModel):
+    roots: list[TrashRoot]
+
+
 class RestoreResult(BaseModel):
     item: LibraryItem
 

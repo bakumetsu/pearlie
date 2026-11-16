@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import logging
 import os
 import time
+import uuid
 from pathlib import Path
 
 from app.config import Settings
@@ -93,6 +95,42 @@ class StashTrash:
                 raise TrashError(503, "trash_unavailable", "Trash folder is inside a library")
         if not any(real == r or real.startswith(r + os.sep) for r in roots):
             raise TrashError(422, "path_outside_library", "Item is outside the library")
+
+    def _probe(self, root: Path) -> str:
+        """Rename a probe file from *root* into the trash folder and back; always clean up."""
+        name = f".pearlie-probe-{uuid.uuid4().hex}"
+        src = root / name
+        dest = self._store.dir / name
+        try:
+            if not root.is_dir() or not os.access(root, os.W_OK):
+                return "not_reachable"
+            src.write_bytes(b"")
+            try:
+                os.rename(src, dest)
+                os.rename(dest, src)
+            except OSError as e:
+                return "other_volume" if e.errno == errno.EXDEV else "not_reachable"
+            return "ok"
+        except OSError:
+            return "not_reachable"
+        finally:
+            for p in (src, dest):
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+
+    def probe_roots(self) -> list[dict]:
+        """Per Stash library root: can a file move into the trash folder and back (cached 60 s)."""
+        cached = getattr(self._store, "_probe_cache", None)
+        if cached and time.monotonic() - cached[0] < 60:
+            return cached[1]
+        roots = []
+        for i, stash_path in enumerate(self._c.library_paths()):
+            state = self._probe(self._to_local(stash_path))
+            roots.append({"index": i, "stash_path": stash_path, "state": state})
+        self._store._probe_cache = (time.monotonic(), roots)  # type: ignore[attr-defined]
+        return roots
 
     def delete(self, plural: str, id: str, group_id: str | None = None) -> dict:
         kind = KIND_OF[plural]
