@@ -65,4 +65,17 @@ describe("KomgaSeries", () => {
     expect(subs).toEqual(["action", "seinen", "Studio"]);
     expect(container.querySelector(".ratio i")?.getAttribute("style")).toContain("33%");
   });
+
+  it("a half-read book alone gives Continue on that book", async () => {
+    const { getByText, onopen, container } = setup({ read_count: 0, books: [book("b1", 4), book("b2")] });
+    expect(container.querySelector("button.tile.cont")?.getAttribute("aria-label")).toBe("Book b1");
+    await fireEvent.click(getByText("Continue"));
+    expect(onopen.mock.calls[0][0].id).toBe("b1");
+  });
+
+  it("nothing read: Read button and no outline", () => {
+    const { getByText, container } = setup({ read_count: 0, books: [book("b1"), book("b2")] });
+    expect(getByText("Read")).toBeTruthy();
+    expect(container.querySelector("button.tile.cont")).toBeNull();
+  });
 });

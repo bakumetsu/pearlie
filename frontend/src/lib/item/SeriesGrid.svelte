@@ -2,14 +2,14 @@
   import { onMount } from "svelte";
   import type { LibraryItem } from "../api/client";
   import Icon from "../components/Icon.svelte";
-  import { isFinished, pickContinue } from "./seriesProgress";
+  import { isFinished } from "./seriesProgress";
 
-  let { books, onopen }: {
+  // continueId marks the Continue book (outline and scroll); null when the primary button says Read.
+  let { books, continueId = null, onopen }: {
     books: LibraryItem[];
+    continueId?: string | null;
     onopen: (book: LibraryItem) => void;
   } = $props();
-
-  const continueBook = $derived(pickContinue(books));
   let gridEl = $state<HTMLElement | null>(null);
 
   // Long series: bring the Continue book into view once after load.
@@ -24,7 +24,7 @@
   <div class="grid" bind:this={gridEl}>
     {#each books as book (book.id)}
       {@const done = isFinished(book)}
-      {@const cont = continueBook?.id === book.id}
+      {@const cont = continueId !== null && continueId === book.id}
       <button
         type="button"
         class="tile"

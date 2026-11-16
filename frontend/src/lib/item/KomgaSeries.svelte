@@ -34,8 +34,8 @@
 
   const books = $derived(detail.books ?? []);
   const next = $derived(pickContinue(books));
-  // Continue only when something was read and an unfinished book is left; otherwise Read opens book 1.
-  const resume = $derived((detail.read_count ?? 0) > 0 && next !== null);
+  // Continue only when something was read (a finished or a partly read book) and an unfinished book is left; otherwise Read opens book 1.
+  const resume = $derived(next !== null && books.some((b) => (b.read_page ?? 0) > 0));
   const target = $derived(resume ? next : (books[0] ?? null));
   const chips = $derived([...(detail.tags ?? []).slice(0, 2).map((t) => t.name), ...(detail.studio ? [detail.studio] : [])]);
 </script>
@@ -69,7 +69,7 @@
   {/snippet}
 
   {#if detail.notice}<p class="notice" role="status">{detail.notice.message}</p>{/if}
-  <SeriesGrid {books} {onopen} />
+  <SeriesGrid {books} continueId={resume && next ? next.id : null} {onopen} />
 </BookPage>
 
 <style>
