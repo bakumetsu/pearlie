@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { untrack, tick } from "svelte";
   import Tile from "../components/Tile.svelte";
   import type { LibraryItem, WebItem } from "../api/client";
   import { itemHref } from "../item/kinds";
@@ -34,6 +34,7 @@
     onopenweb,
     webHref,
     landscape = false,
+    onready,
   }: {
     items: Item[];
     mode: Mode;
@@ -47,6 +48,7 @@
     onopenweb?: (item: WebItem) => void;
     webHref?: (item: WebItem) => string | undefined;
     landscape?: boolean;
+    onready?: () => void;
   } = $props();
 
   // Until the width is known (first paint, jsdom) the first FLOW_COUNT items render in normal flow.
@@ -77,6 +79,8 @@
   let metricsVer = $state(0);
   let winSig = "";
   let ver = 0;
+  let readyFired = false;
+  let ready = false;
 
   function linesOf(item: Item): number {
     return mode === "grid" || mode === "list" ? captionLines(item, mode) : 0;
@@ -96,12 +100,15 @@
         placed = [];
         winSig = "";
         layoutSig = "";
+        // Unmeasured width: the flow fallback is the final layout, so there is nothing to wait for.
+        if (!loading) fireReady();
       });
       return;
     }
     untrack(() => {
       const have = layout.count;
       const same = built && sig === layoutSig;
+      const anchor = built && !same ? takeAnchor() : null;
       if (same && have > 0 && n > have && head === firstKey && keyOf(list[have - 1]) === lastKey) {
         const fresh = list.slice(have);
         layout.append(fresh.map(itemAspect), { lines: fresh.map(linesOf), keys: fresh.map(keyOf) });
@@ -116,8 +123,83 @@
       total = layout.total;
       count = layout.count;
       computeWindow();
+      if (anchor) tick().then(() => putAnchor(anchor));
+      fireReady();
     });
   });
+
+  function fireReady() {
+    if (readyFired) return;
+    readyFired = true;
+    tick().then(() => {
+      // The width was read after the flow case fired: the real build fires it instead.
+      if (width > 0 && !built) {
+        readyFired = false;
+        return;
+      }
+      ready = true;
+      onready?.();
+    });
+  }
+
+  // ---- scroll anchor: the first visible item and how far its top is above the screen top ----
+  interface Anchor {
+    key: string;
+    offset: number;
+  }
+
+  // The container top in page coordinates.
+  function pageTop(): number {
+    return (el?.getBoundingClientRect().top ?? 0) + (window.scrollY || 0);
+  }
+
+  function takeAnchor(): Anchor | null {
+    if (!built || !el || layout.count === 0) return null;
+    const top = -el.getBoundingClientRect().top;
+    const first = layout.range(top, top + (window.innerHeight || 800))[0];
+    const key = first ? layout.keyAt(first.index) : undefined;
+    return first && key !== undefined ? { key, offset: top - first.rect.y } : null;
+  }
+
+  // Put the anchor item back at the same screen place after a reset changed the positions.
+  function putAnchor(a: Anchor) {
+    const i = layout.indexOf(a.key);
+    const r = i >= 0 ? layout.rect(i) : undefined;
+    if (!r || !el) return;
+    window.scrollTo(0, Math.max(0, pageTop() + r.y + a.offset));
+    computeWindow();
+  }
+
+  export function getAnchor(): { key: string; offset: number; sig: string } | null {
+    const a = takeAnchor();
+    return a ? { ...a, sig: getSig() } : null;
+  }
+
+  export function getSig(): string {
+    return `${mode}|${zoom}|${width}`;
+  }
+
+  export function isReady(): boolean {
+    return ready;
+  }
+
+  // With `offset` the tile top lands `offset` px below the screen top. Without it the tile is
+  // left alone when it is on screen, else centered.
+  export function scrollToKey(key: string, offset?: number): boolean {
+    const i = built ? layout.indexOf(key) : -1;
+    const r = i >= 0 ? layout.rect(i) : undefined;
+    if (!r || !el) return false;
+    const vh = window.innerHeight || 800;
+    const top = -el.getBoundingClientRect().top;
+    if (offset === undefined) {
+      if (r.y >= top && r.y + r.h <= top + vh) return true;
+      window.scrollTo(0, Math.max(0, pageTop() + r.y + r.h / 2 - vh / 2));
+    } else {
+      window.scrollTo(0, Math.max(0, pageTop() + r.y + offset));
+    }
+    computeWindow();
+    return true;
+  }
 
   // The rendered range changes only when its first or last index (or the layout) changes.
   function computeWindow() {
@@ -212,10 +294,16 @@
 
   // ---- measuring and scrolling: one rAF per burst of scroll, resize and fix-up events ----
   let raf = 0;
+  let widthDirty = false;
   function schedule() {
     if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = 0;
+      if (widthDirty && el) {
+        widthDirty = false;
+        // Only a changed width resets; the phone address bar changes the height alone.
+        if (el.clientWidth !== width) width = el.clientWidth;
+      }
       flushFixups();
       computeWindow();
     });
@@ -224,9 +312,15 @@
   $effect(() => {
     const node = el;
     if (!node) return;
-    const read = () => (width = node.clientWidth);
-    read();
-    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(read) : null;
+    width = node.clientWidth;
+    // A resize burst resets the layout once per frame; the reset keeps the anchor item in place.
+    const ro =
+      typeof ResizeObserver === "function"
+        ? new ResizeObserver(() => {
+            widthDirty = true;
+            schedule();
+          })
+        : null;
     ro?.observe(node);
     return () => ro?.disconnect();
   });
