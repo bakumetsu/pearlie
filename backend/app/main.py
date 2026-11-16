@@ -41,6 +41,7 @@ from app.api import (
     site_icons,
     tabs,
     trash,
+    trash_real,
     update,
     view_settings,
 )
@@ -55,6 +56,8 @@ from app.config import ConfigError, Settings, load_settings
 from app.connections_store import ConnectionStore
 from app.db import connect, init_db
 from app.jobs.worker import JobWorker
+from app.library.stash_trash import StashTrash
+from app.library.trash import TrashStore
 from app.komga import Komga
 from app.logs import install_http_hooks
 from app.sources.base import Source
@@ -92,6 +95,7 @@ REAL_ROUTERS: dict[str, APIRouter] = {
     "media_web": media_web_real.router,
     "jobs": jobs_real.router,
     "rules": rules_real.router,
+    "trash": trash_real.router,
 }
 
 logger = logging.getLogger("pearlie")
@@ -141,6 +145,25 @@ async def _daily_update_check(app_: FastAPI) -> None:
         except Exception:
             logger.warning("daily update check failed")
         await asyncio.sleep(86400)
+
+
+async def _trash_purge_loop(app_: FastAPI) -> None:
+    """Repair rows a crash left half done, then purge expired trash once an hour."""
+    store: TrashStore = app_.state.trash
+    stash = app_.state.stash
+    destroyers = {}
+    if stash is not None:
+        destroyers["stash"] = StashTrash(app_.state.settings, store, stash).destroy_row
+    try:
+        await asyncio.to_thread(store.repair, destroyers)
+    except Exception:
+        logger.warning("trash repair failed")
+    while True:
+        try:
+            await asyncio.to_thread(store.purge_expired)
+        except Exception:
+            logger.warning("trash purge failed")
+        await asyncio.sleep(3600)
 
 
 def _build_stash(settings: Settings) -> StashClient | None:
@@ -210,9 +233,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         daily: asyncio.Task[None] | None = None
         if app_.state.settings.mode == "real":
             daily = asyncio.create_task(_daily_update_check(app_))
+        purge: asyncio.Task[None] | None = None
+        if app_.state.settings.mode == "real":
+            purge = asyncio.create_task(_trash_purge_loop(app_))
         try:
             yield
         finally:
+            if purge is not None:
+                purge.cancel()
             if daily is not None:
                 daily.cancel()
             if worker is not None and worker_enabled:
@@ -307,6 +335,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings.mode == "real":
         settings = _with_stored_connections(settings, app.state.connection_store)
         app.state.settings = settings
+    app.state.trash = TrashStore(settings.db_path, settings.trash_dir)
+    if settings.mode == "real":
+        trash_root = settings.trash_dir.resolve()
+        guarded = [settings.stash_temp_dir, settings.komga_temp_dir, settings.thumb_cache_root]
+        for bad in guarded:
+            bad_root = bad.resolve()
+            if trash_root == bad_root or bad_root in trash_root.parents:
+                raise ConfigError("PEARLIE_TRASH_DIR must not be inside a temp or cache folder")
     app.state.komga = _build_komga(settings) if settings.mode != "fixture" else None
     app.state.stash = _build_stash(settings) if settings.mode != "fixture" else None
 

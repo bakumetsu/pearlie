@@ -1,3 +1,4 @@
+import os
 import time
 
 from fastapi import APIRouter, FastAPI, Request
@@ -7,7 +8,7 @@ from app.connection_probe import probe_connection
 from app.connections_store import ConnectionStore
 from app.db import db_reachable
 from app.fixtures.scenarios import active
-from app.models import Health, KomgaHealth, Site, StashHealth, State
+from app.models import Health, KomgaHealth, Mount, Site, StashHealth, State
 from app.sources.auth import build_auth
 from app.update.version import current_version
 
@@ -50,6 +51,13 @@ def _site_state(app: FastAPI, name: str) -> State:
     return "ok"
 
 
+def _trash_mount(app: FastAPI) -> Mount:
+    """The trash folder is ok when it exists and is writable; Pearlie never creates it."""
+    folder = app.state.settings.trash_dir
+    ok = folder.is_dir() and os.access(folder, os.W_OK)
+    return Mount(name="trash", state="ok" if ok else "down")
+
+
 @router.get("/health")
 def health(request: Request) -> Health:
     app = request.app
@@ -76,6 +84,6 @@ def health(request: Request) -> Health:
         db=db,
         stash=StashHealth(state=stash_state, version=stash_version),
         komga=KomgaHealth(state=komga_state, version=komga_version),
-        mounts=[],
+        mounts=[] if fixture else [_trash_mount(app)],
         sites=[Site(id=site, state=_site_state(app, site)) for site in SITES],
     )
