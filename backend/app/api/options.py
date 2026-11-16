@@ -56,6 +56,7 @@ class Options(BaseModel):
     komga_scan_wait_s: StrictInt = Field(default=10, ge=0, le=120)
     infinite_scroll: StrictBool = False
     site_names: StrictBool = True
+    gif_grid: StrictBool = True
     tapped_first: StrictBool = False
     place_mode: Literal["auto", "suggest"] = "suggest"
     source_pace: dict[str, SitePace] = {}
@@ -87,6 +88,7 @@ class OptionsUpdate(BaseModel):
     confirm_purge: StrictBool | None = None
     infinite_scroll: StrictBool | None = None
     site_names: StrictBool | None = None
+    gif_grid: StrictBool | None = None
     tapped_first: StrictBool | None = None
     place_mode: Literal["auto", "suggest"] | None = None
     source_pace: dict[str, float] | None = None
@@ -331,6 +333,7 @@ def get_options(request: Request) -> Options:
 
     sn_raw = read("options.global.site_names")
     site_names: bool = sn_raw != "0"
+    gif_grid: bool = read("options.global.gif_grid") != "0"
     tapped_first: bool = read("options.global.tapped_first") == "1"
 
     place_mode: Literal["auto", "suggest"] = (
@@ -400,6 +403,7 @@ def get_options(request: Request) -> Options:
         komga_scan_wait_s=komga_scan_wait_s,
         infinite_scroll=infinite_scroll,
         site_names=site_names,
+        gif_grid=gif_grid,
         tapped_first=tapped_first,
         place_mode=place_mode,
         source_pace=source_pace,
@@ -440,6 +444,8 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
         write("options.global.infinite_scroll", "1" if body.infinite_scroll else "0")
     if body.site_names is not None:
         write("options.global.site_names", "1" if body.site_names else "0")
+    if body.gif_grid is not None:
+        write("options.global.gif_grid", "1" if body.gif_grid else "0")
     if body.tapped_first is not None:
         write("options.global.tapped_first", "1" if body.tapped_first else "0")
     if body.place_mode is not None:

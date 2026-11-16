@@ -1572,6 +1572,11 @@ export interface components {
             size_bytes?: number | null;
             /** File Name */
             file_name?: string | null;
+            /**
+             * Gif Url
+             * @description Image tiles only. Animated GIF to play in a grid tile; small GIFs only.
+             */
+            gif_url?: string | null;
             /** Page Count */
             page_count?: number | null;
             /** Read Page */
@@ -1622,6 +1627,11 @@ export interface components {
             size_bytes?: number | null;
             /** File Name */
             file_name?: string | null;
+            /**
+             * Gif Url
+             * @description Image tiles only. Animated GIF to play in a grid tile; small GIFs only.
+             */
+            gif_url?: string | null;
             /** Page Count */
             page_count?: number | null;
             /** Read Page */
@@ -1763,6 +1773,11 @@ export interface components {
              */
             site_names: boolean;
             /**
+             * Gif Grid
+             * @default true
+             */
+            gif_grid: boolean;
+            /**
              * Tapped First
              * @default false
              */
@@ -1828,6 +1843,8 @@ export interface components {
             infinite_scroll?: boolean | null;
             /** Site Names */
             site_names?: boolean | null;
+            /** Gif Grid */
+            gif_grid?: boolean | null;
             /** Tapped First */
             tapped_first?: boolean | null;
             /** Place Mode */
@@ -2477,6 +2494,11 @@ export interface components {
              */
             owned: boolean;
             blur?: components["schemas"]["Blur"] | null;
+            /**
+             * Gif Url
+             * @description Animated GIF to play in a grid tile; GIFs of known, small size only.
+             */
+            gif_url?: string | null;
         };
     };
     responses: never;

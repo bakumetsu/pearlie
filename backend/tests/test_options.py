@@ -64,6 +64,7 @@ def test_defaults(any_client: TestClient) -> None:
         "komga_scan_wait_s": 10,
         "infinite_scroll": False,
         "site_names": True,
+        "gif_grid": True,
         "tapped_first": False,
         "place_mode": "suggest",
         "source_pace": expected_pace,
@@ -508,3 +509,12 @@ def test_rejected_option_leaves_stored_value(any_client):
 def test_float_and_string_rejected(any_client, bad):
     resp = any_client.put("/api/options", json={"images_per_site": bad})
     assert resp.status_code == 422
+
+
+def test_gif_grid_default_on_then_saved_off(any_client: TestClient) -> None:
+    assert any_client.get("/api/options").json()["gif_grid"] is True
+    r = any_client.put("/api/options", json={"gif_grid": False})
+    assert r.status_code == 200
+    assert r.json()["gif_grid"] is False
+    assert any_client.get("/api/options").json()["gif_grid"] is False
+    assert any_client.put("/api/options", json={"gif_grid": "yes"}).status_code == 422
