@@ -289,13 +289,19 @@
   $effect(() => {
     let y = 0;
     let anchor: { key: string; offset: number; sig: string } | null = null;
+    let raf = 0;
     const onScroll = () => {
       y = window.scrollY;
-      anchor = gridEl?.getAnchor() ?? null;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        anchor = gridEl?.getAnchor() ?? null;
+      });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
       // The grid may be gone already; then the last anchor seen on scroll stands.
       const a = gridEl?.getAnchor() ?? anchor;
       untrack(() => grid.setScroll({ y, key: a?.key ?? null, offset: a?.offset ?? 0, sig: a?.sig ?? "" }));
