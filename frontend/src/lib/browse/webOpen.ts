@@ -2,6 +2,7 @@
 import type { Api, WebItem } from "../api/client";
 
 // Sites whose posts have no page of their own (nhentai has /web/nhentai/<id>).
+// Keep in step with the backend booru sources: a new booru source must be added here.
 const BOORU = ["danbooru", "gelbooru", "rule34"];
 
 export type WebRef = { source: string; postId: string };
