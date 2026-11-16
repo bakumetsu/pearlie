@@ -283,6 +283,8 @@ class TrashItem(BaseModel):
     kind: Kind
     id: str
     title: str
+    size_bytes: int | None = None
+    group_id: str | None = None
 
 
 class TrashResult(BaseModel):
@@ -303,6 +305,16 @@ class TrashEmptied(BaseModel):
 
 class TrashPurgePreview(BaseModel):
     count: int
+
+
+class TrashRoot(BaseModel):
+    index: int
+    stash_path: str
+    state: Literal["ok", "not_reachable", "other_volume"]
+
+
+class TrashStatus(BaseModel):
+    roots: list[TrashRoot]
 
 
 class RestoreResult(BaseModel):

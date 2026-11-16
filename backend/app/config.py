@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     log_dir: Path | None = None
     log_keep_days: int = 7
     thumb_cache_dir: Path | None = None
+    trash_dir: Path = Path("/mnt/media/pearlie-trash")
 
     @field_validator("log_dir", "thumb_cache_dir", mode="before")
     @classmethod

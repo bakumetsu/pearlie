@@ -18,12 +18,14 @@ URL = "http://stash.test"
 
 def make_client(tmp_path, handler):
     """Build a TestClient with a mock-backed Stash client."""
+    (tmp_path / "trash").mkdir(exist_ok=True)
     app = create_app(
         Settings(
             mode="real",
             real="library_stash",
             stash_url=URL,
             db_path=tmp_path / "p.db",
+            trash_dir=tmp_path / "trash",
             static_dir=tmp_path / "nostatic",
             _env_file=None,  # pyright: ignore[reportCallIssue]
         )
@@ -405,24 +407,35 @@ def test_detail_not_found_none(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 5 – DELETE not supported
+# 5 – DELETE goes to the trash
 # ---------------------------------------------------------------------------
 
 
-def test_delete_not_supported(tmp_path):
-    """DELETE on images and videos → 501 not_supported."""
+def test_delete_unknown_item_is_404(tmp_path):
+    """DELETE on an id Stash does not know → 404 not_found, nothing destroyed."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"data": {"findImage": None, "findScene": None}})
+
+    client = make_client(tmp_path, handler)
+    r = client.delete("/api/library/images/1")
+    assert r.status_code == 404
+    assert r.json()["code"] == "not_found"
+
+    r = client.delete("/api/library/videos/1")
+    assert r.status_code == 404
+    assert r.json()["code"] == "not_found"
+
+
+def test_delete_bad_id_is_404(tmp_path):
+    """A malformed id never reaches Stash."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError("should not reach upstream")
 
     client = make_client(tmp_path, handler)
-    r = client.delete("/api/library/images/1")
-    assert r.status_code == 501
-    assert r.json()["code"] == "not_supported"
-
-    r = client.delete("/api/library/videos/1")
-    assert r.status_code == 501
-    assert r.json()["code"] == "not_supported"
+    r = client.delete("/api/library/images/not-an-id")
+    assert r.status_code == 404
 
 
 # ---------------------------------------------------------------------------

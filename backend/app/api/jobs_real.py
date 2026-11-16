@@ -52,6 +52,11 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
     if getattr(request.app.state, src.target, None) is None:
         raise ApiError(422, "no_target", f"saving from {body.source} is not available")
     store = _store(request)
+    trashed = request.app.state.trash.find_in_trash(body.source, body.post_id)
+    if trashed is not None:
+        raise ApiError(
+            409, "in_trash", "Already saved, in the trash", in_trash=True, token=trashed["token"]
+        )
     image_id = store.saved_image_id(body.source, body.post_id)
     if image_id and src.target == "stash":
         # The index can outlive the image: one Stash lookup, drop the row if it is gone.

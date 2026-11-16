@@ -174,8 +174,8 @@ def test_trash_empty(client):
     assert client.delete("/api/trash").json() == {"removed": 0}
 
 
-def test_trash_not_implemented_when_real(tmp_path):
-    """In real mode trash answers 501 not_implemented, never fixture data."""
+def test_trash_is_real_and_empty_when_real(tmp_path):
+    """In real mode trash lists the real (empty) trash, never fixture data."""
     from fastapi.testclient import TestClient
 
     from app.config import Settings
@@ -190,12 +190,12 @@ def test_trash_not_implemented_when_real(tmp_path):
         )
     )
     c = TestClient(app)
-    for r in (c.get("/api/trash"), c.delete("/api/trash")):
-        assert r.status_code == 501
-        assert r.json() == {
-            "code": "not_implemented",
-            "message": "trash is not available in real mode yet",
-        }
+    r = c.get("/api/trash")
+    assert r.status_code == 200
+    assert r.json()["items"] == []
+    r = c.delete("/api/trash")
+    assert r.status_code == 200
+    assert r.json() == {"removed": 0}
 
 
 def _real_app(tmp_path, **kw):
@@ -231,7 +231,7 @@ def test_real_mode_every_page_route_answers(tmp_path, real):
     ):
         r = c.get(path)
         assert r.status_code != 404, f"{path} → {r.status_code}"
-    assert c.get("/api/trash").status_code == 501
+    assert c.get("/api/trash").status_code == 200
     r = c.get("/api/library/komga/books")
     assert r.status_code == 503
     assert r.json()["code"] == "not_configured"
@@ -265,7 +265,7 @@ def test_real_mode_nothing_configured_starts(tmp_path):
     assert r2.status_code == 503
     assert r2.json()["code"] == "not_configured"
     assert c.get("/api/rules").status_code == 200
-    assert c.get("/api/trash").status_code == 501
+    assert c.get("/api/trash").status_code == 200
 
 
 def test_progress(client):

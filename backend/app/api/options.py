@@ -454,6 +454,10 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
         write("options.global.trash_retention_days", str(body.trash_retention_days))
         if fixture:
             store.set_retention(body.trash_retention_days, purge=body.confirm_purge is True)
+        else:
+            request.app.state.trash.set_retention(
+                body.trash_retention_days, purge=body.confirm_purge is True
+            )
 
     if body.images_per_site is not None:
         write(IMAGES_PER_SITE_KEY, str(body.images_per_site))

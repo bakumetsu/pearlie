@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from app import logs
 from app.config import Settings
 from app.db import connect
+from app.library.trash import TrashStore
 from app.models import Problem
 from app.sources.base import Post, Source
 from app.sources.throttle import Throttle
@@ -580,6 +581,10 @@ class StashTarget:
         """
         if not image_id:
             return False
+        if TrashStore(self._settings.db_path, self._settings.trash_dir).active_for_entity(
+            "stash", image_id
+        ):
+            return False
         try:
             entity = (
                 self._client.get_scene(image_id)
@@ -612,6 +617,11 @@ class StashTarget:
         self, source: str, post_id: str, md5: str | None
     ) -> tuple[str, str] | None:
         md5 = md5.lower() if md5 else md5
+        trashed = TrashStore(self._settings.db_path, self._settings.trash_dir).find_in_trash(
+            source, post_id, md5
+        )
+        if trashed is not None:
+            return (trashed["entity_id"], "in trash")
         conn = connect(self._settings.db_path)
         try:
             hits: list[tuple[str, str, str]] = []

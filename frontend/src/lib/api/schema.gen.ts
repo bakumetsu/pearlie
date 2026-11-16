@@ -2339,6 +2339,10 @@ export interface components {
             id: string;
             /** Title */
             title: string;
+            /** Size Bytes */
+            size_bytes?: number | null;
+            /** Group Id */
+            group_id?: string | null;
         };
         /** TrashList */
         TrashList: {
