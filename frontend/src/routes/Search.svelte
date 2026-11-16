@@ -376,8 +376,12 @@
     flex-direction: column;
     gap: var(--s-2);
     padding: var(--s-3) var(--s-4);
-    padding-right: calc(var(--s-4) + var(--sfw-inset));
     border-bottom: 1px solid var(--line);
+  }
+
+  /* Only the top row shares space with the fixed SFW toggle; the field row uses the full width. */
+  .hmarks {
+    padding-right: var(--sfw-inset);
   }
 
   .search-row {
