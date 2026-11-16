@@ -352,7 +352,7 @@ describe("UpdateCard what's new", () => {
 
   it("shows a separate card with the version change and groups when behind", async () => {
     render(UpdateCard);
-    expect(await screen.findByText("What's new since your version")).toBeTruthy();
+    expect(await screen.findAllByText("What's new since your version")).toHaveLength(1);
     expect(screen.getByText("1.2.3 → 1.2.4")).toBeTruthy();
     expect(screen.getByText("a fix")).toBeTruthy();
     expect(screen.getByText("a feature")).toBeTruthy();
@@ -363,7 +363,7 @@ describe("UpdateCard what's new", () => {
     hoisted.api.getUpdateStatus.mockResolvedValue(makeStatus({ available: false }));
     render(UpdateCard);
     await screen.findByText("Up to date");
-    expect(screen.getByText("You have the latest version.")).toBeTruthy();
+    expect(screen.queryByText("You have the latest version.")).toBeNull();
     expect(screen.queryByText("What's new since your version")).toBeNull();
     expect(screen.queryByRole("link", { name: "See changelog" })).toBeNull();
     expect(hoisted.api.getUpdateChangelog).not.toHaveBeenCalled();
