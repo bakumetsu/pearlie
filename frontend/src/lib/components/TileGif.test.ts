@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, cleanup } from "@testing-library/svelte";
+import { render, cleanup, fireEvent } from "@testing-library/svelte";
 import { tick } from "svelte";
 import Tile from "./Tile.svelte";
 import type { LibraryItem, WebItem } from "../api/client";
@@ -142,6 +142,16 @@ describe("Tile grid GIF play", () => {
     images[0].onerror?.();
     await tick();
     expect(src(container)).toBe("/t.jpg");
+  });
+
+  it("GIF src failing after the swap goes back to the still, not the placeholder", async () => {
+    const { container } = render(Tile, { item: web() });
+    setVisible(true);
+    await tick();
+    await loadGif();
+    await fireEvent.error(container.querySelector("img")!);
+    expect(src(container)).toBe("/t.jpg");
+    expect(container.querySelector(".thumb-fail")).toBeNull();
   });
 
   it("at most 6 GIFs play at once; the oldest goes back to still", async () => {

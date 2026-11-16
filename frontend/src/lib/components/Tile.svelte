@@ -38,6 +38,11 @@
     return stage === 1 ? w.preview_url : w.thumb_url || w.preview_url;
   }
   function onWebError() {
+    // The GIF failed after the preload: back to the still, keep the stage.
+    if (gifReady) {
+      gifReady = false;
+      return;
+    }
     const w = item as WebItem;
     // A proxied thumb never falls back to preview_url (the full file): placeholder + Retry.
     const proxied = w.thumb_url.startsWith("/api/media/web/");

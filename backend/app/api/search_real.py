@@ -19,8 +19,8 @@ from app.api.search_filters import (
     unsupported_notice,
 )
 from app.filters.rules import evaluate, load_rules
-from app.gif_grid import grid_gif_ok
 from app.filters.safe_mode import is_hidden_in_safe_mode, resolve_safe
+from app.gif_grid import grid_gif_ok
 from app.jobs.store import JobStore
 from app.komga import Komga, KomgaError, book_item
 from app.models import (
