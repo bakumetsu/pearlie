@@ -15,7 +15,7 @@
   import { createZoom, zoomKey } from "../lib/item/zoomModel.svelte";
   import ItemPanel from "../lib/item/ItemPanel.svelte";
   import SeriesGrid from "../lib/item/SeriesGrid.svelte";
-  import BookStage from "../lib/item/BookStage.svelte";
+  import KomgaBook from "../lib/item/KomgaBook.svelte";
   import { rejectTag } from "../lib/item/reject";
   import { PHONE_MAX, initialOpen, savePanel } from "../lib/item/panelState";
   import Icon from "../lib/components/Icon.svelte";
@@ -73,6 +73,7 @@
       : -1,
   );
   const hasList = $derived(idx >= 0);
+  const bookReady = $derived(view.status === "ready" && view.detail?.kind === "book");
   const hasPanel = $derived(kind !== null && (view.status === "loading" || (view.status === "ready" && !!view.detail)));
   const backdrop = $derived(backdropStrength(options.values, "item", sfw?.on ?? false));
 
@@ -214,6 +215,29 @@
 
 <svelte:window onkeydown={onKey} onpointermove={onPointerMove} bind:innerWidth={vw} />
 
+{#if bookReady && view.detail}
+  <div class="bookpage">
+    <KomgaBook
+      detail={view.detail}
+      {api}
+      tags={view.tagStrings}
+      backdropStrength={backdrop}
+      {canPrev}
+      {canNext}
+      onback={back}
+      onprev={hasList ? goPrev : undefined}
+      onnext={hasList ? goNext : undefined}
+      onread={(p) => router.navigate("/read/" + encodeURIComponent(view.detail!.id) + (p ? "?p=" + p : ""))}
+      onerror={(message) => toasts.push({ kind: "error", message })}
+      onfavorite={() => void view.toggleFavorite()}
+      ondelete={() => void onDelete()}
+      onrate={(n) => view.setRating(n)}
+      onaddtag={(t) => view.addTagInput(t)}
+      onremovetag={(t) => view.removeTagByName(t)}
+      onrejecttag={(t) => void rejectTag(api, toasts, t)}
+    />
+  </div>
+{:else}
 <div class="item">
   <header class="bar">
     <button class="bar-btn" aria-label="Back" onclick={back}>
@@ -291,13 +315,6 @@
               onopen={(b) => router.navigate("/read/" + encodeURIComponent(b.id) + "?series=" + encodeURIComponent(view.detail!.id))}
             />
           </div>
-        {:else if view.detail.kind === "book"}
-          <BookStage
-            detail={view.detail}
-            {api}
-            onread={(p) => router.navigate("/read/" + encodeURIComponent(view.detail!.id) + (p ? "?p=" + p : ""))}
-            onerror={(message) => toasts.push({ kind: "error", message })}
-          />
         {/if}
       </div>
       <aside class="panel" inert={!panelOpen} aria-hidden={!panelOpen} bind:this={panelEl}>
@@ -317,8 +334,10 @@
     {/if}
   </div>
 </div>
+{/if}
 
 <style>
+  .bookpage { height: 100vh; overflow-y: auto; background: var(--bg); color: var(--text); }
   .item {
     display: grid;
     grid-template-rows: auto 1fr;
