@@ -283,6 +283,8 @@ class TrashItem(BaseModel):
     kind: Kind
     id: str
     title: str
+    size_bytes: int | None = None
+    group_id: str | None = None
 
 
 class TrashResult(BaseModel):
