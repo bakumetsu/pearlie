@@ -107,7 +107,7 @@ class StashTrash:
             if len(files) != 1:
                 raise TrashError(422, "multi_file", "Items with several files cannot be deleted")
             file = files[0]
-            if file.get("zip_file_id"):
+            if file.get("zip_file"):
                 raise TrashError(422, "in_archive", "Items inside an archive cannot be deleted")
             local = self._to_local(file["path"])
             self._check_under_library(local)

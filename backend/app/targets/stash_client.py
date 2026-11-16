@@ -85,7 +85,7 @@ GET_SCENE = (
     "query($id: ID!) { findScene(id: $id) { " + SCENE_FIELDS
     + " sceneStreams { url mime_type label } } }"
 )
-_FILE = "path size zip_file_id fingerprints { type value }"
+_FILE = "path size zip_file { id } fingerprints { type value }"
 TRASH_IMAGE = (
     "query($id: ID!) { findImage(id: $id) { id title rating100 organized date urls "
     "tags { name } performers { name } studio { name } galleries { id title } "
