@@ -20,6 +20,10 @@ export type PatchBody = S["PatchBody"];
 export type TrashResult = S["TrashResult"];
 export type TrashList = S["TrashList"];
 export type TrashEmptied = S["TrashEmptied"];
+export type TrashBatchResult = S["TrashBatchResult"];
+export type GroupRestoreResult = S["GroupRestoreResult"];
+export type TrashRoot = { index: number; stash_path: string; state: "ok" | "not_reachable" | "other_volume" };
+export type TrashStatus = { roots: TrashRoot[] };
 export type ThumbCacheCleared = S["ThumbCacheCleared"];
 export type ScanResult = S["ScanResult"];
 export type TrashPurgePreview = S["TrashPurgePreview"];
@@ -129,6 +133,10 @@ export interface Api {
   patchItem(kind: Kind, id: string, body: PatchBody, signal?: AbortSignal): Promise<LibraryItemDetail>;
   deleteItem(kind: Kind, id: string, signal?: AbortSignal): Promise<TrashResult>;
   restore(token: string, signal?: AbortSignal): Promise<RestoreResult>;
+  trashItems(items: S["TrashBatchItem"][], signal?: AbortSignal): Promise<TrashBatchResult>;
+  restoreGroup(group: string, signal?: AbortSignal): Promise<GroupRestoreResult>;
+  deleteForGood(token: string, signal?: AbortSignal): Promise<void>;
+  trashStatus(signal?: AbortSignal): Promise<TrashStatus>;
   listTrash(signal?: AbortSignal): Promise<TrashList>;
   emptyTrash(signal?: AbortSignal): Promise<TrashEmptied>;
   purgePreview(days: number, signal?: AbortSignal): Promise<TrashPurgePreview>;
@@ -333,6 +341,26 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         { method: "POST" },
         signal,
       );
+    },
+    trashItems(items, signal) {
+      return request<TrashBatchResult>(
+        baseUrl + "/api/library/trash",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }) },
+        signal,
+      );
+    },
+    restoreGroup(group, signal) {
+      return request<GroupRestoreResult>(
+        baseUrl + "/api/trash/group/" + encodeURIComponent(group) + "/restore",
+        { method: "POST" },
+        signal,
+      );
+    },
+    deleteForGood(token, signal) {
+      return request<void>(baseUrl + "/api/trash/" + encodeURIComponent(token), { method: "DELETE" }, signal);
+    },
+    trashStatus(signal) {
+      return request<TrashStatus>(baseUrl + "/api/trash/status", undefined, signal);
     },
     listTrash(signal) {
       return request<TrashList>(baseUrl + "/api/trash", undefined, signal);
