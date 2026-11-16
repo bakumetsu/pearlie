@@ -11,7 +11,7 @@ from app.sources.query_terms import (
     title_terms,
 )
 
-ROWS = json.loads((Path(__file__).parent / "data" / "query_terms.json").read_text("utf-8"))
+ROWS = json.loads((Path(__file__).parent / "fixtures" / "query_terms.json").read_text("utf-8"))
 
 
 @pytest.mark.parametrize("row", ROWS, ids=[r["text"] or "empty" for r in ROWS])

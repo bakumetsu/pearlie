@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import rows from "../../../backend/tests/data/query_terms.json";
+import rows from "../../../backend/tests/fixtures/query_terms.json";
 import {
   parseChip,
   nhentaiIdOf,
