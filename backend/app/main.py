@@ -340,7 +340,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.trash = TrashStore(settings.db_path, settings.trash_dir)
     if settings.mode == "real":
         trash_dir = app.state.trash.dir
-        trash_root = trash_dir.resolve()
+        # Only the .env default is guarded; a path saved in Options skips the temp/cache check.
+        trash_root = settings.trash_dir.resolve()
         guarded = [settings.stash_temp_dir, settings.komga_temp_dir, settings.thumb_cache_root]
         for bad in guarded:
             bad_root = bad.resolve()

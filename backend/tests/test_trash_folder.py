@@ -227,3 +227,18 @@ def test_fixture_mode_has_no_folder_route(tmp_path):
     ))
     with TestClient(app) as c:
         assert c.get("/api/trash/folder").status_code in (404, 405, 422)
+
+
+def test_stored_path_inside_temp_dir_still_starts(tmp_path):
+    lib, _ = lib_file(tmp_path)
+    c = make(tmp_path, FakeStash(lib, []))
+    temp = tmp_path / "stashtemp"
+    inner = temp / "trash"
+    inner.mkdir(parents=True)
+    assert put(c, str(inner)).status_code == 200
+    app2 = create_app(Settings(
+        mode="real", real="library_stash", stash_url="http://stash.test",
+        db_path=tmp_path / "p.db", static_dir=tmp_path / "nostatic",
+        trash_dir=tmp_path / "trash", stash_temp_dir=temp, _env_file=None,  # pyright: ignore[reportCallIssue]
+    ))
+    assert app2.state.trash.dir == inner

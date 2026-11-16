@@ -209,7 +209,8 @@ def _check_candidate(request: Request, path: Path) -> None:
             if r["state"] == "other_volume":
                 raise ApiError(422, "other_volume", "Folder is not on the same mount as Stash")
             if r["state"] == "not_reachable":
-                raise ApiError(422, "not_writable", "Stash library folder is not reachable")
+                msg = "Stash library folder is not reachable"
+                raise ApiError(422, "stash_root_unreachable", msg)
 
 
 @router.get("/trash/folder")
