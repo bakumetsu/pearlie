@@ -35,6 +35,7 @@
     onopenweb,
     webHref,
     landscape = false,
+    selectable = false,
     onready,
   }: {
     items: Item[];
@@ -48,6 +49,8 @@
     onopenitem?: (item: LibraryItem) => void;
     onopenweb?: (item: WebItem) => void;
     webHref?: (item: WebItem) => string | undefined;
+    // Library tiles get the select circle (only where a SelectBar exists).
+    selectable?: boolean;
     landscape?: boolean;
     onready?: () => void;
   } = $props();
@@ -459,6 +462,7 @@
       aspect={aspect}
       onaspect={key !== undefined && aspect !== undefined ? (a) => reportAspect(key, a) : undefined}
       landscape={landscape}
+      {selectable}
       href={itemHref(item as LibraryItem)}
       onnavigate={onnavigate}
       onopenitem={onopenitem}

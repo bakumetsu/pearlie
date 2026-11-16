@@ -609,7 +609,7 @@
     {#if viewSettings.ready}
       <ViewBar modes={vs.modes as Mode[]} mode={vs.mode as Mode} perPage={vs.per_page} zoom={vs.zoom} options={vs.per_page_options} max={vs.per_page_max} onmode={onMode} onperpage={onPerPage} onzoom={onZoom} onzoompreview={onZoomPreview} />
     {/if}
-      {#if isLibrary}<SelectBar onchanged={() => void grid.goTo(grid.page)} />{/if}
+    {#if isLibrary}<SelectBar onchanged={() => void grid.goTo(grid.page)} />{/if}
     </div>
   </header>
 
@@ -643,7 +643,7 @@
         </div>
       </div>
     {:else}
-      <ResultsGrid bind:this={gridEl} onready={onGridReady} items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => { const h = webItemHref(w.source, w.post_id); if (h) router.navigate(h); else openWeb(w); }} webHref={(w) => webTileHref(match.path, match.query, w)} landscape={source === "stash_videos"} />
+      <ResultsGrid bind:this={gridEl} onready={onGridReady} items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => { const h = webItemHref(w.source, w.post_id); if (h) router.navigate(h); else openWeb(w); }} webHref={(w) => webTileHref(match.path, match.query, w)} landscape={source === "stash_videos"} selectable={isLibrary} />
     {/if}
 
     {#if infinite && grid.status === "done"}

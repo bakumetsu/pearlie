@@ -18,7 +18,7 @@ describe("library selection", () => {
   });
 
   it("the pick button selects a tile and enters select mode", async () => {
-    render(Tile, { item, href: "/x" });
+    render(Tile, { item, href: "/x", selectable: true });
     const pick = screen.getByRole("button", { name: "Select Cat" });
     expect(pick.getAttribute("aria-pressed")).toBe("false");
     await fireEvent.click(pick);
@@ -27,9 +27,14 @@ describe("library selection", () => {
     expect(pick.getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("a Tile without selectable has no Select button", () => {
+    render(Tile, { item, href: "/x" });
+    expect(screen.queryByRole("button", { name: "Select Cat" })).toBeNull();
+  });
+
   it("in select mode a tile click toggles instead of navigating", async () => {
     const onnavigate = vi.fn();
-    const { container } = render(Tile, { item, href: "/x", onnavigate });
+    const { container } = render(Tile, { item, href: "/x", onnavigate, selectable: true });
     selection.toggle(item);
     await fireEvent.click(container.querySelector("a.tile")!);
     expect(onnavigate).not.toHaveBeenCalled();

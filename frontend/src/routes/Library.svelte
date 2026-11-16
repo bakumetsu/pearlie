@@ -192,7 +192,7 @@
           {/each}
         {:else}
           {#each rs.items as item (item.id)}
-            <Tile item={item} href={itemHref(item)} onnavigate={(e) => { if (row.kind === "videos" && inPageClick(e)) queueVideos(rs); onNav(e); }} landscape />
+            <Tile item={item} href={itemHref(item)} onnavigate={(e) => { if (row.kind === "videos" && inPageClick(e)) queueVideos(rs); onNav(e); }} landscape selectable />
           {/each}
         {/if}
       </SectionRow>

@@ -9,7 +9,7 @@
   import { options } from "../stores/options.svelte";
   import { selection } from "../library/selection.svelte";
 
-  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, onaspect, landscape = false, revealed: revealedProp = false, onreveal }: {
+  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, onaspect, landscape = false, selectable = false, revealed: revealedProp = false, onreveal }: {
     item: LibraryItem | WebItem;
     href?: string;
     onnavigate?: (e: MouseEvent) => void;
@@ -23,6 +23,8 @@
     // Reports the real picture shape when it differs from `aspect` by more than 3 %.
     onaspect?: (aspect: number) => void;
     landscape?: boolean;
+    // Shows the select circle and lets a click toggle in select mode; only where a SelectBar exists.
+    selectable?: boolean;
     // A grid that unmounts tiles keeps the reveal for them: it passes the state and hears the change.
     revealed?: boolean;
     onreveal?: () => void;
@@ -135,7 +137,7 @@
   function handleLibClick(e: MouseEvent) {
     const l = item as LibraryItem;
     // In select mode a tile click toggles the pick.
-    if (selection.active) {
+    if (selectable && selection.active) {
       e.preventDefault();
       selection.toggle(l);
       return;
@@ -235,7 +237,7 @@
   </div>
 {:else}
   {@const l = item as LibraryItem}
-  <a class="tile lib {variant}" class:picked={selection.has(l)} class:selecting={selection.active} class:cv={variant !== "list" && l.kind === "image"} style:aspect-ratio={variant !== "list" && l.kind === "image" ? aspectRatio : undefined} href={href} data-key={`${l.kind}:${l.id}`} onclick={handleLibClick}>
+  <a class="tile lib {variant}" class:picked={selectable && selection.has(l)} class:selecting={selectable && selection.active} class:cv={variant !== "list" && l.kind === "image"} style:aspect-ratio={variant !== "list" && l.kind === "image" ? aspectRatio : undefined} href={href} data-key={`${l.kind}:${l.id}`} onclick={handleLibClick}>
     {#if l.kind === "video"}
       <VideoCard item={l} {variant} {aspectRatio} {blurred} {landscape} meta={metaLine()} onmediaclick={handleMediaClick} onmediakeydown={handleMediaKeydown} />
     {:else}
@@ -263,6 +265,7 @@
       <div class="title">{l.title}</div>
     {/if}
     {/if}
+    {#if selectable}
     <button
       type="button"
       class="pick"
@@ -272,6 +275,7 @@
     >
       <span class="chk"><Icon name="check" size={14} /></span>
     </button>
+    {/if}
   </a>
 {/if}
 
