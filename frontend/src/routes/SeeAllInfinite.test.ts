@@ -199,7 +199,7 @@ describe("SeeAll infinite scroll", () => {
     expect(searched).toEqual([1, 2, 3]);
     const seeAll = location.pathname + location.search;
 
-    container.querySelector<HTMLButtonElement>("button.open")!.click();
+    container.querySelector<HTMLElement>("a.open")!.click();
     await vi.waitFor(() => expect(location.pathname).toMatch(/^\/web\/nhentai\//));
     history.back();
     await vi.waitFor(() => expect(location.pathname + location.search).toBe(seeAll));

@@ -89,3 +89,22 @@ describe("Tile grid cost", () => {
     expect(container.querySelector(".tile")!.classList.contains("cv")).toBe(true);
   });
 });
+
+describe("Tile web link", () => {
+  it("with href renders an anchor; plain click opens in page, Ctrl+click is left to the browser", async () => {
+    let opened = 0;
+    const { container } = render(Tile, { item: web({ source: "nhentai" }), href: "/web/nhentai/1", onopen: () => opened++ });
+    const a = container.querySelector<HTMLAnchorElement>("a.open")!;
+    expect(a.getAttribute("href")).toBe("/web/nhentai/1");
+    expect(await fireEvent.click(a)).toBe(false);
+    expect(opened).toBe(1);
+    expect(await fireEvent.click(a, { ctrlKey: true })).toBe(true);
+    expect(opened).toBe(1);
+  });
+
+  it("without href keeps the button", () => {
+    const { container } = render(Tile, { item: web() });
+    expect(container.querySelector("a.open")).toBeNull();
+    expect(container.querySelector("button.open")).not.toBeNull();
+  });
+});

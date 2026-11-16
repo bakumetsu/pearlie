@@ -62,12 +62,17 @@
     }
   }
 
-  function handleOpenClick() {
+  function handleOpenClick(e: MouseEvent) {
     if (blurred) {
+      e.preventDefault();
       revealed = true;
-    } else {
-      onopen?.();
+      return;
     }
+    // A plain click keeps the in-page open; middle or Ctrl+click follows the link into a new tab.
+    const plain = e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey;
+    if (href && !plain) return;
+    e.preventDefault();
+    onopen?.();
   }
 
   function handleLibClick(e: MouseEvent) {
@@ -137,7 +142,11 @@
       {:else}
         <img src={webSrc(w)} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" class:blur-img={blurred} onerror={onWebError} />
       {/if}
-      <button class="open" onclick={handleOpenClick} aria-label={`${w.source} #${w.post_id}`} title={`${w.source} #${w.post_id}`}></button>
+      {#if href}
+        <a class="open" {href} onclick={handleOpenClick} aria-label={`${w.source} #${w.post_id}`} title={`${w.source} #${w.post_id}`}></a>
+      {:else}
+        <button class="open" onclick={handleOpenClick} aria-label={`${w.source} #${w.post_id}`} title={`${w.source} #${w.post_id}`}></button>
+      {/if}
       {#if blurred}
         <div class="warn-overlay">Warn: {w.blur!.tag}</div>
       {/if}

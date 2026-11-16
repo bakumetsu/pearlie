@@ -97,6 +97,11 @@ export function createRouter(win: Window = window): Router {
   };
 }
 
+// Own page of a web item, or undefined when its source has none (booru posts open an overlay).
+export function webItemHref(source: string, postId: string): string | undefined {
+  return source === "nhentai" ? "/web/nhentai/" + encodeURIComponent(postId) : undefined;
+}
+
 // True when linkClick will handle the click in this tab (no modifier, other button, target or download).
 export function inPageClick(e: MouseEvent): boolean {
   const a = e.currentTarget as HTMLAnchorElement;
