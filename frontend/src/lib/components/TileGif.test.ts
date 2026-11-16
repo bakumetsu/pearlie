@@ -3,6 +3,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/svelte";
 import { tick } from "svelte";
 import Tile from "./Tile.svelte";
+import { resetPreloads, MAX_LOADING } from "../gifSlots";
 import type { LibraryItem, WebItem } from "../api/client";
 
 const opts = vi.hoisted(() => ({ options: { values: null as unknown } }));
@@ -61,6 +62,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  resetPreloads();
   vi.unstubAllGlobals();
   opts.options.values = null as never;
 });
@@ -83,14 +85,36 @@ describe("Tile grid GIF play", () => {
     expect(images[0].src).toBe("");
   });
 
-  it("leaving before the load ends cancels it: no late swap", async () => {
-    const { container } = render(Tile, { item: web() });
+  it("leaving mid-load: the load runs on, no late swap, back in view the GIF plays", async () => {
+    const { container } = render(Tile, { item: lib() });
     setVisible(true);
     await tick();
     setVisible(false);
     await tick();
-    expect(images[0].onload).toBeNull();
-    expect(src(container)).toBe("/t.jpg");
+    expect(images[0].src).toBe("/api/media/stash/images/5/full");
+    images[0].onload?.();
+    await tick();
+    expect(src(container)).toBe("/th.jpg");
+    setVisible(true);
+    await tick();
+    await loadGif();
+    expect(src(container)).toBe("/api/media/stash/images/5/full");
+  });
+
+  it("at most MAX_LOADING preloads at once; a queued one that leaves never starts", async () => {
+    const views = Array.from({ length: MAX_LOADING + 2 }, (_, i) =>
+      render(Tile, { item: lib({ id: String(i), gif_url: `/g/${i}` }) }).container);
+    for (const c of views) {
+      ioCb([{ target: targets.find((t) => c.contains(t))!, isIntersecting: true }]);
+      await tick();
+    }
+    expect(images.length).toBe(MAX_LOADING);
+    ioCb([{ target: targets.find((t) => views[MAX_LOADING].contains(t))!, isIntersecting: false }]);
+    await tick();
+    images[0].onload?.();
+    await tick();
+    expect(images.length).toBe(MAX_LOADING + 1);
+    expect(images[MAX_LOADING].src).toBe(`/g/${MAX_LOADING + 1}`);
   });
 
   it("library image tile plays the Stash GIF", async () => {
