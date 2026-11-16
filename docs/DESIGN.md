@@ -43,8 +43,9 @@ phone / browser ──► Pearlie (FastAPI + static Svelte UI)
                      ├── jobs/      SQLite queue + one worker, per-site throttle
                      └── proxy/     thumbnails, images, video (HTTP Range), book pages
 NFS share (OMV): .../stash-library/stash-incoming   .../komga-library/komga-incoming   .../pearlie-trash
-(Pearlie creates `PEARLIE_TRASH_DIR` at start and again before a trash move; if it cannot, trash answers 503 `trash_unavailable` and the Library shows "Trash folder not available".)
 ```
+
+Pearlie creates `PEARLIE_TRASH_DIR` at start and again before a trash move; if it cannot, trash answers 503 `trash_unavailable` and the Library shows "Trash folder not available".
 
 Pearlie triggers Stash and Komga scans itself after each save, because file watching over NFS is unreliable.
 
