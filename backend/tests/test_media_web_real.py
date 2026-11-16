@@ -131,6 +131,37 @@ def test_upstream_429_backs_off_throttle(tmp_path):
     assert lim.slots == 6 and lim.in_flight == 0
 
 
+def _cdn_calls(seen):
+    return [q for q in seen if q.url.host == "cdn.donmai.us"]
+
+
+def test_thumb_429_503_are_negative_cached_then_retried(tmp_path):
+    for status in (429, 503):
+        seen: list[httpx.Request] = []
+        app = _app(tmp_path, _handler(seen, status))
+        client = TestClient(app)
+        client.get("/api/search", params={"q": "x", "sources": "danbooru"})
+        first = client.get("/api/media/web/danbooru/7/thumb")
+        assert first.status_code == 503 and first.headers["retry-after"]
+        assert len(_cdn_calls(seen)) == 1
+        second = client.get("/api/media/web/danbooru/7/thumb")
+        assert second.status_code == 503 and second.json()["code"] == "rate_limited"
+        assert len(_cdn_calls(seen)) == 1
+        failures = app.state.web_thumb_failures
+        failures[("danbooru", "7")] = (0.0, failures[("danbooru", "7")][1])  # window over
+        client.get("/api/media/web/danbooru/7/thumb")
+        assert len(_cdn_calls(seen)) == 2
+
+
+def test_thumb_200_is_not_failure_cached(tmp_path):
+    seen: list[httpx.Request] = []
+    app = _app(tmp_path, _handler(seen))
+    client = TestClient(app)
+    client.get("/api/search", params={"q": "x", "sources": "danbooru"})
+    assert client.get("/api/media/web/danbooru/7/thumb").status_code == 200
+    assert not getattr(app.state, "web_thumb_failures", {})
+
+
 def test_nhentai_cover_thumb_and_cookie_not_sent(tmp_path):
     seen: list[httpx.Request] = []
 
