@@ -11,12 +11,13 @@ from pydantic import BaseModel
 from app.api.errors import ApiError
 from app.db import connect
 from app.models import ViewSource, WebSource
+from app.sources.filters import ALL_ORDERS
 
 router = APIRouter(prefix="/api")
 
 _SOURCES = {"web"} | set(get_args(ViewSource))
 _SITES = set(get_args(WebSource))
-_ORDERS = ("newest", "score")  # saved tabs keep the two shared orders
+_ORDERS = ALL_ORDERS  # saved tabs keep every web order, nhentai popular sorts included
 _RATINGS = ("g", "s", "q", "e")
 
 
@@ -91,7 +92,7 @@ def _validate(tabs: list[Tab], active: str | None) -> None:
             if site not in _SITES:
                 raise ApiError(422, "invalid", f"unknown site {site}", field="sites")
         if t.order not in _ORDERS:
-            raise ApiError(422, "invalid", "order must be 'newest' or 'score'", field="order")
+            raise ApiError(422, "invalid", "order must be a known web order", field="order")
         if len(t.rating) != len(set(t.rating)):
             raise ApiError(422, "invalid", "rating values must not be duplicated", field="rating")
         for r in t.rating:
