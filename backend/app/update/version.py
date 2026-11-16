@@ -2,6 +2,7 @@
 
 import json
 import re
+import subprocess
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,6 +40,41 @@ class Installed:
     commit: str | None
 
 
+def _git(root: Path, *args: str) -> str | None:
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.strip()
+
+
+def _git_dev_count(root: Path) -> tuple[int | None, str | None]:
+    """Commits since the highest release tag, and HEAD, from a git checkout."""
+    if not (root / ".git").exists():
+        return None, None
+    tags = _git(root, "tag", "--list", "v*")
+    commit = _git(root, "rev-parse", "HEAD")
+    if not tags or not commit:
+        return None, None
+    best: tuple[tuple[int, int, int], str] | None = None
+    for tag in tags.splitlines():
+        ver = parse_semver(tag[1:]) if tag.startswith("v") else None
+        if ver is not None and (best is None or ver > best[0]):
+            best = (ver, tag)
+    if best is None:
+        return None, None
+    count = _git(root, "rev-list", "--count", f"{best[1]}..HEAD")
+    if count is None or not count.isdigit():
+        return None, None
+    return int(count), commit
+
+
 def current_version(roots: tuple[Path, ...] | None = None) -> Installed:
     if roots is None:
         roots = (Path(__file__).parents[3], Path("/opt/pearlie/current/app"))
@@ -68,7 +104,10 @@ def current_version(roots: tuple[Path, ...] | None = None) -> Installed:
             base = v
     except (OSError, tomllib.TOMLDecodeError, KeyError, TypeError):
         pass
-    return Installed(f"{base}-dev", "dev", None)
+    n, commit = _git_dev_count(Path(__file__).parents[3])
+    if n is None:
+        return Installed(f"{base}-dev", "dev", None)
+    return Installed(f"{base}-dev.{n}", "dev", commit)
 
 
 def short_label(installed: Installed) -> str:

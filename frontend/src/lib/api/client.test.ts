@@ -37,8 +37,32 @@ describe("createApi", () => {
     await api.search({ q: "hello", sources: ["a", "b"], page: 2 }, signal);
 
     expect(fakeFetch).toHaveBeenCalledWith(
-      "/api/search?q=hello&sources=a%2Cb&page=2",
+      expect.stringMatching(/^\/api\/search\?q=hello&sources=a%2Cb&page=2&safe=[01]$/),
       expect.objectContaining({ signal }),
+    );
+  });
+
+  it("every search request carries the safe flag", async () => {
+    const fakeFetch = vi.fn().mockResolvedValue(ok({ sections: [] }));
+    const api = createApi("", fakeFetch);
+    await api.search({ q: "" });
+    expect(String(fakeFetch.mock.calls[0]![0])).toMatch(/[?&]safe=[01]/);
+  });
+
+  it("rejectTag posts and unrejectTag deletes with the tag in the body", async () => {
+    const fakeFetch = vi.fn().mockImplementation(async () => ok({ added: true, version: 2 }));
+    const api = createApi("", fakeFetch);
+    await api.rejectTag("x");
+    await api.unrejectTag("x");
+    expect(fakeFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/rules/reject",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ tag: "x" }) }),
+    );
+    expect(fakeFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/rules/reject",
+      expect.objectContaining({ method: "DELETE", body: JSON.stringify({ tag: "x" }) }),
     );
   });
 

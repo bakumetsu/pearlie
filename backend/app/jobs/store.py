@@ -91,13 +91,23 @@ def _chunks(items: list[str], size: int = 500):
         yield items[i : i + size]
 
 
-def _ref(target: str, image_id: str | None, kind: str = "image") -> SavedRef:
-    # A Komga row has no image id; the marker still shows, without a link.
+def _ref(
+    target: str, image_id: str | None, kind: str = "image", library_id: str | None = None
+) -> SavedRef:
+    # A Komga row has no image id: its book id (when known) is in `library_id`.
     if target == "komga":
-        return SavedRef(kind="book", id=image_id or "")
+        return SavedRef(kind="book", id=library_id or "")
     if kind == "video":
         return SavedRef(kind="video", id=image_id or "")
     return SavedRef(kind="image", id=image_id or "")
+
+
+# Every column _to_job reads; the list view skips post_json (a large blob it never uses).
+_JOB_COLS = (
+    "id, source, post_id, status, error, error_code, target, title, thumb_url, notices, "
+    "library_ref_id, dest_path, pages_done, pages_total, eta_s, scan_due_at, "
+    "created_at, finished_at"
+)
 
 
 class JobStore:
@@ -146,25 +156,47 @@ class JobStore:
             for chunk in _chunks(post_ids):
                 marks = ",".join("?" * len(chunk))
                 for row in conn.execute(
-                    "SELECT post_id, target, image_id, kind FROM saved_items "
+                    "SELECT post_id, target, image_id, kind, library_id FROM saved_items "
                     f"WHERE source = ? AND post_id IN ({marks})",
                     (source, *chunk),
                 ):
                     found[row["post_id"]] = _ref(
-                        row["target"], row["image_id"], row["kind"]
+                        row["target"], row["image_id"], row["kind"], row["library_id"]
                     )
             by_md5 = {m.lower(): pid for pid, m in (md5s or {}).items() if m and pid not in found}
             for chunk in _chunks(list(by_md5)):
                 marks = ",".join("?" * len(chunk))
                 for row in conn.execute(
-                    f"SELECT md5, target, image_id, kind FROM saved_items WHERE md5 IN ({marks})",
+                    "SELECT md5, target, image_id, kind, library_id FROM saved_items "
+                    f"WHERE md5 IN ({marks})",
                     tuple(chunk),
                 ):
                     found.setdefault(
                         by_md5[row["md5"].lower()],
-                        _ref(row["target"], row["image_id"], row["kind"])
+                        _ref(row["target"], row["image_id"], row["kind"], row["library_id"]),
                     )
             return found
+        finally:
+            conn.close()
+
+    def import_saved(self, source: str, rows: list[tuple[str, str, str]]) -> int:
+        """Index Stash images saved earlier: rows are (post id, MD5, image id).
+
+        Existing rows stay as they are, so a rerun adds nothing. Returns the new row count.
+        """
+        conn = connect(self._path)
+        try:
+            added = 0
+            for post_id, md5, image_id in rows:
+                cur = conn.execute(
+                    "INSERT OR IGNORE INTO saved_items "
+                    "(source, post_id, md5, target, image_id, kind, imported) "
+                    "VALUES (?, ?, ?, 'stash', ?, 'image', 1)",
+                    (source, post_id, md5.lower(), image_id),
+                )
+                added += cur.rowcount
+            conn.commit()
+            return added
         finally:
             conn.close()
 
@@ -228,18 +260,39 @@ class JobStore:
         finally:
             conn.close()
 
-    def list(self, states: set[str] | None = None) -> list[Job]:
+    def list(
+        self,
+        states: set[str] | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[Job]:
+        """Newest first; `limit` and `offset` page the result (default: all)."""
+        sql = f"SELECT {_JOB_COLS} FROM jobs"
+        args: list[object] = []
+        if states is not None:
+            sql += f" WHERE status IN ({','.join('?' for _ in states)})"
+            args.extend(states)
+        sql += " ORDER BY id DESC"
+        if limit is not None:
+            sql += " LIMIT ? OFFSET ?"
+            args.extend((limit, max(0, offset)))
         conn = connect(self._path)
         try:
-            if states is not None:
-                placeholders = ",".join("?" for _ in states)
-                rows = conn.execute(
-                    f"SELECT * FROM jobs WHERE status IN ({placeholders}) ORDER BY id DESC",
-                    tuple(states),
-                ).fetchall()
-            else:
-                rows = conn.execute("SELECT * FROM jobs ORDER BY id DESC").fetchall()
-            return [_to_job(r) for r in rows]
+            return [_to_job(r) for r in conn.execute(sql, tuple(args)).fetchall()]
+        finally:
+            conn.close()
+
+    def purge_finished(self, older_than_days: int) -> int:
+        """Delete done/skipped jobs finished more than `older_than_days` ago."""
+        conn = connect(self._path)
+        try:
+            cur = conn.execute(
+                "DELETE FROM jobs WHERE status IN ('done', 'skipped') "
+                "AND finished_at IS NOT NULL AND finished_at < datetime('now', ?)",
+                (f"-{int(older_than_days)} days",),
+            )
+            conn.commit()
+            return cur.rowcount
         finally:
             conn.close()
 

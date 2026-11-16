@@ -41,6 +41,12 @@ Notes: the installer never asks for an NFS IP and never edits fstab. On OMV, set
 
 Update with `update` in the container or from Options > System.
 
+**How updates are checked.** The updater asks `api.github.com` for the commit of the release tag and refuses a download whose archive carries another commit id. It also refuses an update when the tag of the installed release now points to another commit (a moved tag). A re-run of the installer keeps `/opt/pearlie/update.conf`. The installer gets the update script from the latest release tag, checks the commit the same way and stops if GitHub cannot be reached. Only the first step is trust-on-first-use: your own install command fetches `ct/pearlie.sh` (and the community-scripts loader fetches the installer) once from `raw.githubusercontent.com`. Pearlie itself calls only `api.github.com` and `codeload.github.com`.
+
+**Optional: require signed releases.** Add `require_verified=on` to `/opt/pearlie/update.conf`. The updater then refuses a commit that GitHub does not mark as verified. The default is off. GitHub reports the verdict, so this protects against someone who pushes without your key, not against GitHub itself.
+
+**How to sign releases (maintainer).** Set up commit signing (GPG, SSH or S/MIME) and add the public key to your GitHub account: `git config commit.gpgsign true`, and for SSH keys `git config gpg.format ssh` with `git config user.signingkey <key>`. The release commit that the `vX.Y.Z` tag points to must carry a "Verified" badge on GitHub; the updater reads this badge, not the tag signature.
+
 **Upgrade note for reverse-proxy users.** Pearlie only answers `/api` requests whose host is an IP address, `localhost`, a `*.ts.net` name or a name listed in `PEARLIE_ALLOWED_HOSTS` (DNS rebinding defence). If you reach Pearlie through a reverse proxy with its own host name, add that name to `PEARLIE_ALLOWED_HOSTS` in `/opt/pearlie/.env` (comma list, e.g. `PEARLIE_ALLOWED_HOSTS=pearlie.home`) and run `systemctl restart pearlie`. Without it the web UI shows a "host not allowed" page naming the host to add.
 
 ## Dev setup

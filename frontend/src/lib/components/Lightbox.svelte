@@ -102,6 +102,11 @@
   <div class="panel">
     <header>
       <h2 class="title">{title}</h2>
+      {#if item.owned}
+        <span class="owned" role="img" aria-label="Saved in your library" title="Saved in your library">
+          <Icon name="library" size={18} />
+        </span>
+      {/if}
       <button class="icon-btn" aria-label="Close" onclick={() => dialogEl.close()}>
         <Icon name="x" size={20} />
       </button>
@@ -275,6 +280,14 @@
     line-height: 1.3;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .owned {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    height: 1.3em;
+    color: var(--muted);
   }
 
   .icon-btn {

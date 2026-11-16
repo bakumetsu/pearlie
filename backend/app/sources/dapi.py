@@ -16,6 +16,7 @@ from app.sources.throttle import DEFAULT_PACE, Throttle
 
 # The API key travels in the query string, and httpx logs request URLs at INFO.
 logging.getLogger("httpx").setLevel(logging.WARNING)
+_log = logging.getLogger(__name__)
 
 RATING_MAP: dict[str, Rating] = {
     "safe": "general",
@@ -129,7 +130,26 @@ class DapiSource:
         data = self._get(
             {"tags": " ".join(server_tags), "pid": max(page, 1) - 1, "limit": size}
         )
-        posts = [p for p in map(self._to_post, data) if self._rating_ok(p, ratings)]
+        posts: list[Post] = []
+        skipped = 0
+        first_id = ""
+        first_exc: Exception | None = None
+        for d in data:
+            try:
+                post = self._to_post(d)
+            except (ValueError, TypeError, KeyError, AttributeError) as exc:
+                skipped += 1
+                if first_exc is None:
+                    first_id = str(d.get("id")) if isinstance(d, dict) else "unknown"
+                    first_exc = exc
+                continue
+            if self._rating_ok(post, ratings):
+                posts.append(post)
+        if skipped:
+            _log.warning(
+                "%s search skipped %d bad row(s), first id=%s %s",
+                self.id, skipped, first_id, type(first_exc).__name__,
+            )
         next_page = page + 1 if len(data) == size else None
         return SearchPage(posts=posts, page=page, next_page=next_page, notices=notices)
 

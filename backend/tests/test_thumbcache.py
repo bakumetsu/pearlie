@@ -73,6 +73,7 @@ def test_lru_evicts_oldest_down_to_90_percent(tmp_path: Path) -> None:
         os.utime(cache.path_for("danbooru", str(i)), (1000 + i, 1000 + i))
     cache.get("danbooru", "0")  # touch: 0 is now the newest
     cache.put("danbooru", "10", body)  # 11 files, over the cap
+    cache.wait_idle()
     left = {i for i in range(11) if cache.path_for("danbooru", str(i)).exists()}
     assert 0 in left and 10 in left and 1 not in left
     assert cache.stats()["used_bytes"] <= 0.9 * 10 * len(body)
@@ -290,3 +291,22 @@ def test_warn_disk_full_logs_once(tmp_path: Path, caplog: pytest.LogCaptureFixtu
         if r.levelname == "WARNING" and "thumbcache write failed" in r.getMessage()
     ]
     assert len(warns) == 1
+
+
+def test_put_over_cap_does_not_evict_on_the_calling_thread(tmp_path: Path) -> None:
+    cache = make(tmp_path)
+    body = JPEG + b"0" * 1000
+    set_cap_bytes(cache, 3 * len(body))
+    seen: list[str] = []
+    orig = cache._evict
+
+    def spy(fraction: float) -> None:
+        seen.append(threading.current_thread().name)
+        orig(fraction)
+
+    cache._evict = spy  # type: ignore[method-assign]
+    for i in range(6):
+        cache.put("danbooru", str(i), body)
+    cache.wait_idle()
+    assert seen and all(name == "thumbcache-evict" for name in seen)
+    assert cache.stats()["used_bytes"] <= 3 * len(body)

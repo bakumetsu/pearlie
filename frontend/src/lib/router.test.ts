@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { matchRoute, hrefOf, createRouter, linkClick, ROUTES } from "./router";
+import { matchRoute, hrefOf, createRouter, linkClick, webItemHref, ROUTES } from "./router";
 
 describe("matchRoute", () => {
   it("keeps a malformed % segment instead of throwing", () => {
@@ -215,5 +215,12 @@ describe("linkClick", () => {
     expect(ev.defaultPrevented).toBe(false);
     a.remove();
     router.destroy();
+  });
+});
+
+describe("webItemHref", () => {
+  it("nhentai has a page, booru does not", () => {
+    expect(webItemHref("nhentai", "12 3")).toBe("/web/nhentai/12%203");
+    expect(webItemHref("danbooru", "1")).toBeUndefined();
   });
 });

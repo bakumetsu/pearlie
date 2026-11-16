@@ -4,6 +4,7 @@
   import { getRouter } from "../lib/ctx";
 
   import { createRules, setLeaveGuard } from "../lib/stores/rules.svelte";
+  import { toasts } from "../lib/stores/toasts.svelte";
   import Icon from "../lib/components/Icon.svelte";
   import type { ListKey } from "../lib/rules/draft";
 
@@ -68,8 +69,17 @@
     file
       .text()
       .then((text) => {
+        const prev = rules.snapshot();
         const result = rules.importText(text);
         importError = result.ok ? null : result.error;
+        if (result.ok && prev) {
+          toasts.push({
+            kind: "undo",
+            message: "Rules imported",
+            actionLabel: "Undo",
+            onAction: () => rules.restore(prev),
+          });
+        }
       })
       .catch(() => {
         importError = "Could not read the file.";
@@ -146,6 +156,19 @@
       stayBtn?.focus();
     }
   });
+
+  function doDiscard() {
+    const prev = rules.snapshot();
+    rules.discard();
+    if (prev) {
+      toasts.push({
+        kind: "undo",
+        message: "Changes discarded",
+        actionLabel: "Undo",
+        onAction: () => rules.restore(prev),
+      });
+    }
+  }
 
   function confirmLeave() {
     const to = leaveTo;
@@ -300,7 +323,7 @@
     {:else if rules.dirty}
       <div class="savebar" role="region" aria-label="Unsaved changes">
         <span>Unsaved changes: {rules.summary}</span>
-        <button class="btn" onclick={() => rules.discard()}>Discard</button>
+        <button class="btn" onclick={doDiscard}>Discard</button>
         {#if rules.conflict}
           <span>Rules changed elsewhere.</span>
           <button class="btn" onclick={() => rules.reload()}>Reload</button>

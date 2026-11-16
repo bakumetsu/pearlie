@@ -64,6 +64,8 @@ def test_defaults(any_client: TestClient) -> None:
         "komga_scan_wait_s": 10,
         "infinite_scroll": False,
         "site_names": True,
+        "gif_grid": True,
+        "tapped_first": False,
         "place_mode": "suggest",
         "source_pace": expected_pace,
         "hidden_sites": [],
@@ -101,6 +103,16 @@ def test_site_names_on_then_saved_off(any_client: TestClient) -> None:
     assert touch.json()["site_names"] is False
     r = any_client.put("/api/options", json={"site_names": True})
     assert r.json()["site_names"] is True
+
+
+def test_tapped_first_off_then_saved_on(any_client: TestClient) -> None:
+    assert any_client.get("/api/options").json()["tapped_first"] is False
+    r = any_client.put("/api/options", json={"tapped_first": True})
+    assert r.status_code == 200
+    assert r.json()["tapped_first"] is True
+    touch = any_client.get("/api/options", headers={"X-Pearlie-Device": "touch"})
+    assert touch.json()["tapped_first"] is True
+    assert any_client.put("/api/options", json={"tapped_first": "yes"}).status_code == 422
 
 
 def test_site_names_rejects_non_bool(any_client: TestClient) -> None:
@@ -422,3 +434,87 @@ def test_komga_scan_wait_range_and_getter(tmp_path: Path) -> None:
     assert client.put("/api/options", json={"komga_scan_wait_s": 121}).status_code == 422
     assert client.put("/api/options", json={"komga_scan_wait_s": -1}).status_code == 422
     assert client.put("/api/options", json={"komga_scan_wait_s": "5"}).status_code == 422
+
+
+# ── out-of-range → 422 ──────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("field", "bad"),
+    [
+        ("images_per_site", 0),
+        ("images_per_site", 17),
+        ("komga_scan_wait_s", -1),
+        ("komga_scan_wait_s", 121),
+        ("trash_retention_days", 0),
+        ("trash_retention_days", 366),
+        ("backdrop_strength", -1),
+        ("backdrop_strength", 101),
+        ("thumb_cache_max_mb", 49),
+        ("thumb_cache_max_mb", 20481),
+    ],
+)
+def test_option_out_of_range_rejected(any_client, field, bad):
+    resp = any_client.put("/api/options", json={field: bad})
+    assert resp.status_code == 422
+
+
+# ── boundary values → 200, round-trips via GET ─────────────────────
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("images_per_site", 1),
+        ("images_per_site", 16),
+        ("komga_scan_wait_s", 0),
+        ("komga_scan_wait_s", 120),
+        ("trash_retention_days", 1),
+        ("trash_retention_days", 365),
+        ("backdrop_strength", 0),
+        ("backdrop_strength", 100),
+    ],
+)
+def test_option_edges_accepted(any_client, field, value):
+    resp = any_client.put("/api/options", json={field: value})
+    assert resp.status_code == 200
+    got = any_client.get("/api/options")
+    assert got.status_code == 200
+    assert got.json()[field] == value
+
+
+@pytest.mark.parametrize("value", [50, 20480])
+def test_thumb_cache_edges_accepted(any_client: TestClient, value: int) -> None:
+    resp = any_client.put("/api/options", json={"thumb_cache_max_mb": value})
+    assert resp.status_code == 200
+    got = any_client.get("/api/options")
+    assert got.json()["thumb_cache"]["max_mb"] == value
+
+
+# ── a rejected PUT must not clobber the stored value ───────────────
+
+
+def test_rejected_option_leaves_stored_value(any_client):
+    assert any_client.put("/api/options", json={"images_per_site": 8}).status_code == 200
+    assert any_client.put("/api/options", json={"images_per_site": 99}).status_code == 422
+    resp = any_client.get("/api/options")
+    assert resp.status_code == 200
+    assert resp.json()["images_per_site"] == 8
+
+
+# ── strict-int: floats and strings are rejected ────────────────────
+
+
+@pytest.mark.parametrize("bad", [5.5, "5"])
+def test_float_and_string_rejected(any_client, bad):
+    resp = any_client.put("/api/options", json={"images_per_site": bad})
+    assert resp.status_code == 422
+
+
+def test_gif_grid_default_on_then_saved_off(any_client: TestClient) -> None:
+    assert any_client.get("/api/options").json()["gif_grid"] is True
+    r = any_client.put("/api/options", json={"gif_grid": False})
+    assert r.status_code == 200
+    assert r.json()["gif_grid"] is False
+    assert any_client.get("/api/options").json()["gif_grid"] is False
+    assert any_client.put("/api/options", json={"gif_grid": "yes"}).status_code == 422

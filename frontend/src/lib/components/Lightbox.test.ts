@@ -164,4 +164,24 @@ describe("Lightbox", () => {
     vi.advanceTimersByTime(REVEAL_DELAY_MS + 10);
     expect(img.hasAttribute("data-sfw-shown")).toBe(false);
   });
+  it("shows the library icon only for an owned item", () => {
+    const base = {
+      source: "x",
+      post_id: "1",
+      preview_url: "http://mock/p.jpg",
+      thumb_url: "http://mock/t.jpg",
+      width: 10,
+      height: 10,
+      tags: [],
+    };
+    const owned = render(Lightbox, {
+      props: { item: { ...base, owned: true } as never, onsave: () => {}, onclose: () => {} },
+    });
+    expect(document.querySelector('[aria-label="Saved in your library"]')).not.toBeNull();
+    owned.unmount();
+    render(Lightbox, {
+      props: { item: { ...base, owned: false } as never, onsave: () => {}, onclose: () => {} },
+    });
+    expect(document.querySelector('[aria-label="Saved in your library"]')).toBeNull();
+  });
 });

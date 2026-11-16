@@ -21,6 +21,7 @@ from app.api import (
     jobs_real,
     library_komga,
     library_komga_real,
+    library_scan,
     library_stash,
     library_stash_real,
     media_komga,
@@ -223,7 +224,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if update_http is not None:
                 update_http.close()
 
-    app = FastAPI(lifespan=lifespan, dependencies=[Depends(mutation_guard)])
+    # Swagger UI loads from a CDN that APP_CSP blocks and rule 2 forbids: no docs in real mode.
+    docs_on = settings.mode == "fixture"
+    app = FastAPI(
+        lifespan=lifespan,
+        dependencies=[Depends(mutation_guard)],
+        docs_url="/docs" if docs_on else None,
+        redoc_url="/redoc" if docs_on else None,
+        openapi_url="/openapi.json" if docs_on else None,
+    )
     install_errors(app)
     app.add_middleware(SecurityHeaders)
     app.state.settings = settings
@@ -357,6 +366,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(search_filters.router)
     app.include_router(destinations.router)
+    app.include_router(library_scan.router)
     app.include_router(view_settings.router)
     app.include_router(tabs.router)
     app.include_router(logs_api.router)

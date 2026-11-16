@@ -272,3 +272,136 @@ def test_saved_refs_video_kind(tmp_path: Path) -> None:
     assert store.saved_kind("danbooru", "31") == "image"
     md5_got = store.saved_refs("danbooru", ["99"], {"99": "a" * 32})
     assert md5_got["99"].kind == "video"
+
+
+def test_list_pages_with_limit_and_offset(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    for i in range(5):
+        store.enqueue(post(str(i)), "stash", "t", "u")
+    assert [j.id for j in store.list(limit=2)] == ["5", "4"]
+    assert [j.id for j in store.list(limit=2, offset=2)] == ["3", "2"]
+    assert len(store.list()) == 5
+
+
+def test_jobs_status_index_exists(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    conn = connect(tmp_path / "p.db")
+    try:
+        names = {r[1] for r in conn.execute("PRAGMA index_list(jobs)")}
+    finally:
+        conn.close()
+    assert "idx_jobs_status_id" in names
+    del store
+
+
+def test_purge_finished_drops_only_old_terminal_jobs(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    for i in range(4):
+        store.enqueue(post(str(i)), "stash", "t", "u")
+    conn = connect(tmp_path / "p.db")
+    try:
+        conn.execute(
+            "UPDATE jobs SET status='done', finished_at=datetime('now','-40 days') WHERE id=1"
+        )
+        conn.execute("UPDATE jobs SET status='done', finished_at=datetime('now') WHERE id=2")
+        conn.execute(
+            "UPDATE jobs SET status='failed', finished_at=datetime('now','-40 days') WHERE id=3"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    assert store.purge_finished(30) == 1
+    assert sorted(j.id for j in store.list()) == ["2", "3", "4"]
+
+
+def test_list_does_not_read_post_json(tmp_path: Path, monkeypatch) -> None:
+    import app.jobs.store as store_mod
+
+    store = make(tmp_path)
+    store.enqueue(post(), "stash", "t", "u")
+    seen: list[str] = []
+
+    def traced(path: Path):
+        conn = connect(path)
+        conn.set_trace_callback(seen.append)
+        return conn
+
+    monkeypatch.setattr(store_mod, "connect", traced)
+    jobs = store.list()
+    assert len(jobs) == 1
+    assert not any("post_json" in s for s in seen)
+    assert not any(s.startswith("SELECT *") for s in seen)
+
+
+def test_saved_refs_null_image_id(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    conn = connect(tmp_path / "p.db")
+    rows = [
+        ("danbooru", "1", "a" * 32, "stash", None, "image"),
+        ("danbooru", "2", "b" * 32, "komga", None, "book"),
+        ("danbooru", "3", "c" * 32, "stash", None, "video"),
+    ]
+    conn.executemany(
+        "INSERT INTO saved_items (source, post_id, md5, target, image_id, kind) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        rows,
+    )
+    conn.commit()
+    conn.close()
+
+    refs = store.saved_refs("danbooru", ["1", "2", "3"])
+    assert refs["1"].id == ""
+    assert refs["1"].kind == "image"
+    assert refs["2"].id == ""
+    assert refs["2"].kind == "book"
+    assert refs["3"].id == ""
+    assert refs["3"].kind == "video"
+
+    md5s = {"8": "A" * 32, "9": "b" * 32}
+    refs2 = store.saved_refs("danbooru", ["8", "9"], md5s)
+    assert refs2["8"].id == ""
+    assert refs2["8"].kind == "image"
+    assert refs2["9"].id == ""
+    assert refs2["9"].kind == "book"
+
+    assert store.saved_image_id("danbooru", "1") == ""
+
+
+def test_retry_conflict_rolls_back_failed_job(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    jid = store.enqueue(post("1"), "stash", "t", "u")
+    store.mark_running(jid)
+    store.finish(jid, "failed", error="x")
+
+    # Enqueue the same post again -> new active job exists.
+    store.enqueue(post("1"), "stash", "t", "u")
+
+    conn = connect(tmp_path / "p.db")
+    row_before = conn.execute(
+        "SELECT attempts, status, error, notices FROM jobs WHERE id = ?", (jid,)
+    ).fetchone()
+    before = (
+        row_before["attempts"],
+        row_before["status"],
+        row_before["error"],
+        row_before["notices"],
+    )
+
+    assert store.retry(jid) == "conflict"
+
+    row_after = conn.execute(
+        "SELECT attempts, status, error, notices FROM jobs WHERE id = ?", (jid,)
+    ).fetchone()
+    after = (
+        row_after["attempts"],
+        row_after["status"],
+        row_after["error"],
+        row_after["notices"],
+    )
+    assert after == before
+    assert row_after["status"] == "failed"
+    assert row_after["error"] == "x"
+    conn.close()
+
+    assert store.get(jid) is not None
+    assert store.enqueue(post("2"), "stash", "t", "u") == "3"

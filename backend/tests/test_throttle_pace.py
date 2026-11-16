@@ -40,13 +40,21 @@ def make_throttle(min_interval: float = 1.0) -> tuple[Throttle, FakeClock, FakeS
 # -- back-off (429/503) -----------------------------------------------------
 
 def test_429_doubles():
-    t, _, _ = make_throttle(1.0)
+    t, clock, _ = make_throttle(1.0)
     assert not t.backing_off
     t.report(429)
     assert t._current == 2.0
     assert t.backing_off
+    clock.advance(2.0)  # the pause is over: a new 429 doubles again
     t.report(429)
     assert t._current == 4.0
+
+
+def test_concurrent_429s_back_off_once_per_pause():
+    t, _, _ = make_throttle(1.0)
+    for _ in range(8):  # one burst: all in flight before the first answer came back
+        t.report(429)
+    assert t._current == 2.0
 
 
 def test_caps_at_max_wait():

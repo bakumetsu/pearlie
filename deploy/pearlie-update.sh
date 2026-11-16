@@ -35,6 +35,7 @@ LOCK_HELD=0
 INST_VERSION=""
 INST_COMMIT=""
 INST_CHANNEL=""
+REQUIRE_VERIFIED="off"
 STATUS_ON=0
 
 # --- helpers ---
@@ -189,6 +190,14 @@ read_conf() {
           exit 1
         fi
         ;;
+      require_verified)
+        if [[ "$value" == "on" || "$value" == "off" ]]; then
+          REQUIRE_VERIFIED="$value"
+        else
+          echo "update.conf: bad line: $line" >&2
+          exit 1
+        fi
+        ;;
       port)
         if [[ "$value" =~ ^[0-9]+$ ]] && (( 10#$value >= 1 && 10#$value <= 65535 )); then
           PORT="$value"
@@ -261,6 +270,42 @@ except Exception:
 ' "$2"
 }
 
+# prints "true" when GitHub marks the commit JSON as signature-verified
+commit_verified() {
+  printf '%s' "$1" | "$JSON_PY" -c '
+import sys, json
+try:
+  data = json.load(sys.stdin)
+  if data["commit"]["verification"]["verified"] is True:
+    print("true")
+except Exception:
+  pass
+'
+}
+
+# a release tag must never move: refuse when the installed tag now points to another commit
+check_moved_tag() {
+  [[ "$CHANNEL" == "main" && "$INST_CHANNEL" == "main" ]] || return 0
+  if ! printf '%s' "$INST_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' \
+    || ! printf '%s' "$INST_COMMIT" | grep -qE '^[0-9a-f]{40}$'; then
+    log "moved-tag check skipped: installed commit unknown"
+    return 0
+  fi
+  local body now
+  if ! body=$(http_get "$API/commits/v$INST_VERSION" 2>/dev/null); then
+    log "moved-tag check skipped: cannot read tag v$INST_VERSION"
+    return 0
+  fi
+  now=$(json_field "$body" "sha")
+  if ! printf '%s' "$now" | grep -qE '^[0-9a-f]{40}$'; then
+    log "moved-tag check skipped: no commit for tag v$INST_VERSION"
+    return 0
+  fi
+  if [[ "$now" != "$INST_COMMIT" ]]; then
+    die "tag v$INST_VERSION moved: installed ${INST_COMMIT:0:7} now ${now:0:7}; update refused"
+  fi
+}
+
 highest_tag() {
   printf '%s' "$1" | "$JSON_PY" -c '
 import sys, json, re
@@ -286,6 +331,26 @@ except Exception:
 '
 }
 
+# prints ".N" (commits on dev since the last release tag), or nothing if GitHub cannot say
+dev_counter() {
+  local tags last cmp n
+  tags=$(http_get "$API/tags" 2>/dev/null) || return 0
+  last=$(highest_tag "$tags")
+  [[ -n "$last" && "$TARGET_COMMIT" =~ ^[0-9a-f]{40}$ ]] || return 0
+  cmp=$(http_get "$API/compare/$last...$TARGET_COMMIT" 2>/dev/null) || return 0
+  n=$(printf '%s' "$cmp" | "$JSON_PY" -c '
+import sys, json
+try:
+  v = json.load(sys.stdin).get("ahead_by")
+  if isinstance(v, int) and not isinstance(v, bool) and v >= 0:
+    print(v)
+except Exception:
+  pass
+')
+  [[ "$n" =~ ^[0-9]+$ ]] && printf '.%s' "$n"
+  return 0
+}
+
 resolve_target() {
   STEP="resolve"
   if [ "$CHANNEL" = "dev" ]; then
@@ -296,6 +361,9 @@ resolve_target() {
     sha=$(json_field "$body" "sha")
     if ! printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$'; then
       die "bad dev head"
+    fi
+    if [[ "$REQUIRE_VERIFIED" == "on" ]] && [[ "$(commit_verified "$body")" != "true" ]]; then
+      die "commit is not signature-verified"
     fi
     TARGET_COMMIT="$sha"
     TARGET_URL="$DL/tar.gz/$sha"
@@ -331,11 +399,14 @@ resolve_target() {
     TARGET_URL="$DL/tar.gz/refs/tags/$tag"
     commit_body=$(http_get "$API/commits/$tag" 2>/dev/null) || true
     sha=$(json_field "$commit_body" "sha")
-    if printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$'; then
-      TARGET_COMMIT="$sha"
-    else
-      TARGET_COMMIT=""
+    if ! printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$'; then
+      die "cannot resolve release commit"
     fi
+    TARGET_COMMIT="$sha"
+    if [[ "$REQUIRE_VERIFIED" == "on" ]] && [[ "$(commit_verified "$commit_body")" != "true" ]]; then
+      die "commit is not signature-verified"
+    fi
+    check_moved_tag
   fi
 }
 
@@ -395,6 +466,10 @@ download_and_extract() {
   file_size=$((file_size))
   if [ "$file_size" -gt 104857600 ]; then
     die "download too large"
+  fi
+
+  if ! gzip -t "$tarball" 2>/dev/null; then
+    die "download corrupt"
   fi
 
   # git archive stamps the commit sha into the pax global header (first block);
@@ -485,7 +560,7 @@ download_and_extract() {
   if [ "$CHANNEL" = "dev" ]; then
     local base
     base=$(grep -m1 '^version[[:space:]]*=' "$REL/app/backend/pyproject.toml" | sed 's/.*"\(.*\)".*/\1/')
-    TARGET_VERSION="${base}-dev"
+    TARGET_VERSION="${base}-dev$(dev_counter)"
   fi
 
   write_version_json

@@ -65,6 +65,7 @@ class ThumbCache:
         self._files = 0
         self._last_warn = 0.0
         self._gen = 0
+        self._evict_thread: threading.Thread | None = None
         self._available = self._prepare(forbidden)
 
     @property
@@ -209,7 +210,7 @@ class ThumbCache:
             self._warn_disk_full()
             return False
         if over:
-            self._evict(EVICT_TARGET)
+            self._schedule_evict(EVICT_TARGET)
         return True
 
     def _warn_disk_full(self) -> None:
@@ -220,7 +221,27 @@ class ThumbCache:
                 self._last_warn = now
         if should_warn:
             logger.warning("thumbcache write failed; serving without storing")
-        self._evict(FULL_DISK_TARGET)
+        self._schedule_evict(FULL_DISK_TARGET)
+
+    def _schedule_evict(self, fraction: float) -> None:
+        """Evict in a background thread: the request path never walks the folder.
+
+        At most one eviction thread runs; a call while one runs is dropped (it re-checks the size).
+        """
+        with self._lock:
+            if self._evict_thread is not None and self._evict_thread.is_alive():
+                return
+            thread = threading.Thread(
+                target=self._evict, args=(fraction,), name="thumbcache-evict", daemon=True
+            )
+            self._evict_thread = thread
+        thread.start()
+
+    def wait_idle(self, timeout: float = 10.0) -> None:
+        """Block until a running background eviction ends (tests and shutdown)."""
+        thread = self._evict_thread
+        if thread is not None:
+            thread.join(timeout)
 
     def _evict(self, fraction: float) -> None:
         """Delete oldest-mtime files until the total is at most fraction of the cap."""
@@ -265,7 +286,7 @@ class ThumbCache:
             with self._lock:
                 over = self._used > self._max_bytes
             if over:
-                self._evict(EVICT_TARGET)
+                self._schedule_evict(EVICT_TARGET)
 
     def stats(self) -> dict[str, int | float | bool]:
         with self._lock:

@@ -56,6 +56,8 @@ class Options(BaseModel):
     komga_scan_wait_s: StrictInt = Field(default=10, ge=0, le=120)
     infinite_scroll: StrictBool = False
     site_names: StrictBool = True
+    gif_grid: StrictBool = True
+    tapped_first: StrictBool = False
     place_mode: Literal["auto", "suggest"] = "suggest"
     source_pace: dict[str, SitePace] = {}
     hidden_sites: list[str] = []
@@ -86,6 +88,8 @@ class OptionsUpdate(BaseModel):
     confirm_purge: StrictBool | None = None
     infinite_scroll: StrictBool | None = None
     site_names: StrictBool | None = None
+    gif_grid: StrictBool | None = None
+    tapped_first: StrictBool | None = None
     place_mode: Literal["auto", "suggest"] | None = None
     source_pace: dict[str, float] | None = None
     hidden_sites: list[str] | None = None
@@ -149,6 +153,18 @@ def _read_db(request: Request, key: str) -> str | None:
     finally:
         conn.close()
     return row["value"] if row is not None else None
+
+
+def read_option(request: Request, key: str) -> str | None:
+    """Read one stored option value (memory in fixture mode, SQLite in real mode)."""
+    if request.app.state.settings.mode == "fixture":
+        return _read_mem(request, key)
+    return _read_db(request, key)
+
+
+def detect_profile(request: Request) -> Literal["desktop", "touch"]:
+    """Public name for the profile of the calling device."""
+    return _detect_profile(request)
 
 
 def _write_db(request: Request, key: str, value: str) -> None:
@@ -317,6 +333,8 @@ def get_options(request: Request) -> Options:
 
     sn_raw = read("options.global.site_names")
     site_names: bool = sn_raw != "0"
+    gif_grid: bool = read("options.global.gif_grid") != "0"
+    tapped_first: bool = read("options.global.tapped_first") == "1"
 
     place_mode: Literal["auto", "suggest"] = (
         "auto" if read("komga.place_mode") == "auto" else "suggest"
@@ -385,6 +403,8 @@ def get_options(request: Request) -> Options:
         komga_scan_wait_s=komga_scan_wait_s,
         infinite_scroll=infinite_scroll,
         site_names=site_names,
+        gif_grid=gif_grid,
+        tapped_first=tapped_first,
         place_mode=place_mode,
         source_pace=source_pace,
         hidden_sites=hidden_sites,
@@ -424,6 +444,10 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
         write("options.global.infinite_scroll", "1" if body.infinite_scroll else "0")
     if body.site_names is not None:
         write("options.global.site_names", "1" if body.site_names else "0")
+    if body.gif_grid is not None:
+        write("options.global.gif_grid", "1" if body.gif_grid else "0")
+    if body.tapped_first is not None:
+        write("options.global.tapped_first", "1" if body.tapped_first else "0")
     if body.place_mode is not None:
         write("komga.place_mode", body.place_mode)
     if body.trash_retention_days is not None:

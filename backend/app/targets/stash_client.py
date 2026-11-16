@@ -56,7 +56,8 @@ LIBRARY_PATHS = (
 
 IMAGE_FIELDS = (
     "id title rating100 created_at urls tags { name } "
-    "visual_files { ... on ImageFile { basename width height size } }"
+    "visual_files { ... on ImageFile { basename width height size } "
+    "... on VideoFile { basename width height size } }"
 )
 # date and studio { name } are to be confirmed in the Stash playground
 SCENE_FIELDS = (
@@ -66,6 +67,12 @@ SCENE_FIELDS = (
 LIST_IMAGES = (
     "query($f: FindFilterType) { findImages(filter: $f) "
     "{ count megapixels filesize images { " + IMAGE_FIELDS + " } } }"
+)
+LIST_FOLDER_IMAGES = (
+    "query($v: String!, $page: Int!, $n: Int!) { findImages("
+    "image_filter: {path: {value: $v, modifier: INCLUDES}},"
+    " filter: {page: $page, per_page: $n, sort: \"id\", direction: ASC})"
+    " { count images { id visual_files { ... on ImageFile { path basename } } } } }"
 )
 GET_IMAGE = (
     "query($id: ID!) { findImage(id: $id) { " + IMAGE_FIELDS + " } }"
@@ -197,6 +204,24 @@ class StashClient:
         data = self._gql(FIND_TAGS, {"v": name})
         return data["findTags"]["tags"]
 
+    def find_tags_many(self, names: list[str]) -> dict[str, list[dict]]:
+        """Look up several tag names in one aliased GraphQL request per 20 names."""
+        found: dict[str, list[dict]] = {}
+        for i in range(0, len(names), 20):
+            chunk = names[i : i + 20]
+            decl = ", ".join(f"$v{k}: String!" for k in range(len(chunk)))
+            body = " ".join(
+                f"t{k}: findTags(tag_filter: {{name: {{value: $v{k}, modifier: EQUALS}}}},"
+                " filter: {per_page: 25}) { tags { id name } }"
+                for k in range(len(chunk))
+            )
+            data = self._gql(
+                f"query({decl}) {{ {body} }}", {f"v{k}": n for k, n in enumerate(chunk)}
+            )
+            for k, n in enumerate(chunk):
+                found[n] = data[f"t{k}"]["tags"]
+        return found
+
     def tag_create(self, name: str) -> str:
         """Create a tag with *name*; return the new tag id."""
         data = self._gql(TAG_CREATE, {"n": name})
@@ -213,8 +238,9 @@ class StashClient:
         """Resolve tag *names* to Stash tag ids, creating any missing tags."""
         ids: list[str] = []
         seen: set[str] = set()
+        hits = self.find_tags_many(list(dict.fromkeys(names)))
         for name in names:
-            tags = self.find_tags(name)
+            tags = hits[name]
             tag_id = None
             for t in tags:
                 if t["name"].casefold() == name.casefold():
@@ -257,6 +283,12 @@ class StashClient:
         r = data["findImages"]
         agg = {"megapixels": r.get("megapixels"), "size_bytes": r.get("filesize")}
         return r["images"], r["count"], agg
+
+    def list_folder_images(self, folder: str, page: int, per_page: int) -> tuple[list[dict], int]:
+        """Return one page of images whose path contains *folder*, and the total count."""
+        data = self._gql(LIST_FOLDER_IMAGES, {"v": folder, "page": page, "n": per_page})
+        r = data["findImages"]
+        return r["images"], r["count"]
 
     def get_image(self, id: str) -> dict | None:
         """Return the image dict for *id*, or ``None``."""
@@ -313,10 +345,12 @@ class StashClient:
         path: str,
         params: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
+        timeout: float | None = None,
     ) -> httpx.Response:
         """Open a streamed media response from Stash. Caller must close it."""
+        limit = httpx.USE_CLIENT_DEFAULT if timeout is None else timeout
         request = self._client.build_request(
-            "GET", path, params=params, headers=headers
+            "GET", path, params=params, headers=headers, timeout=limit
         )
         origin = request.url
         hops = 0
@@ -342,7 +376,9 @@ class StashClient:
                 # Never send the ApiKey to another host.
                 raise StashError("upstream_error", "Stash redirect not followed")
             hops += 1
-            request = self._client.build_request("GET", target, headers=headers)
+            request = self._client.build_request(
+                "GET", target, headers=headers, timeout=limit
+            )
 
         status = response.status_code
         if status == 404:

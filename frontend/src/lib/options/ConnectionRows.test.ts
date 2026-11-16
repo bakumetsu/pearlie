@@ -297,6 +297,46 @@ describe("ConnectionRows", () => {
     expect(JSON.stringify(store.data)).not.toContain(secret);
   });
 
+  it("getConnections rejecting shows an error state with Retry and no missing chip", async () => {
+    const data = makeConnections();
+    const { api, getConnections } = makeApi(data);
+    getConnections.mockRejectedValue(new Error("network down"));
+    const store = createConnections() as ConnectionsStore;
+    render(ConnectionRows, { title: "Connections", names, store, api });
+
+    await screen.findByText("Could not load connections.");
+    expect(screen.getByRole("alert")).toBeDefined();
+    expect(store.error).toBe(true);
+    expect(screen.queryAllByText("missing")).toHaveLength(0);
+    expect(screen.getAllByText("unknown")).toHaveLength(3);
+    expect(screen.getByRole("button", { name: "Retry" })).toBeDefined();
+  });
+
+  it("clicking Retry re-loads and clears the error when the fetch resolves", async () => {
+    const data = makeConnections();
+    const { api, getConnections } = makeApi(data);
+    getConnections.mockRejectedValueOnce(new Error("network down"));
+    getConnections.mockResolvedValue(data);
+    const store = createConnections() as ConnectionsStore;
+    render(ConnectionRows, { title: "Connections", names, store, api });
+
+    await screen.findByText("Could not load connections.");
+    expect(screen.queryAllByText("missing")).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await vi.waitFor(() => expect(getConnections).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(screen.queryByText("Could not load connections.")).toBeNull());
+
+    const chips = screen.getAllByText(/^(set|missing)$/);
+    expect(chips.map((c) => c.textContent)).toEqual(["missing", "set", "set"]);
+  });
+
+  it("store.error is false after a successful load", async () => {
+    const { store } = await renderRows();
+    expect(store.error).toBe(false);
+  });
+
   it("Test button sits directly before the settings button", async () => {
     await renderRows();
 

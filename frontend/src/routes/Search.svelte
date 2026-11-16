@@ -7,10 +7,14 @@
   import { createSearch } from "../lib/stores/search.svelte";
   import { options } from "../lib/stores/options.svelte";
   import { placement } from "../lib/stores/placement.svelte";
-  import { visibleInSafeMode } from "../lib/stores/safeFilter";
-  import { parseSearchParams, buildSearchParams, serialiseQuery, commitText, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
+  import { sfw } from "../lib/stores/sfw.svelte";
+  import { tappedSite, firstTapped } from "../lib/stores/tappedSite.svelte";
+  import { readSites, writeSites } from "../lib/stores/siteMemory";
+  import { parseSearchParams, buildSearchParams, serialiseQuery, commitText, nhentaiIdOf, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SiteId } from "../lib/query";
-  import { hrefOf, linkClick } from "../lib/router";
+  import { hrefOf, linkClick, inPageClick, webItemHref } from "../lib/router";
+  import { seedVideoQueue } from "../lib/item/rowQueue";
+  import type { Section } from "../lib/api/client";
   import type { Match } from "../lib/router";
   import type { WebItem } from "../lib/api/client";
   import Icon from "../lib/components/Icon.svelte";
@@ -21,6 +25,7 @@
   import Tile from "../lib/components/Tile.svelte";
   import { saveWebItem } from "../lib/web/saveFlow";
   import Lightbox from "../lib/components/Lightbox.svelte";
+  import { parseWeb, withWeb, webTileHref, fetchWebPost } from "../lib/browse/webOpen";
 
   let { match }: { match: Match } = $props();
 
@@ -34,13 +39,22 @@
 
   const hidden = $derived(options.values?.hidden_sites ?? []);
   // The address keeps the saved sites; a hidden one is only left out of what is shown and searched.
-  const saved = $derived(parseSearchParams("?" + match.query.toString()));
+  // A sites param in the address wins; without one, the pills last chosen on this device apply.
+  const saved = $derived.by(() => {
+    const parsed = parseSearchParams("?" + match.query.toString());
+    if (match.query.has("sites")) return parsed;
+    return { ...parsed, sites: readSites() ?? parsed.sites };
+  });
   // The saved site order sets the order of the site rows; the address keeps the fixed order.
   const siteOrder = $derived(orderedSites(options.values?.site_order));
   const names = $derived(options.values?.site_names ?? true);
   const query = $derived({
     ...saved,
-    sites: siteOrder.filter((id) => effectiveSites(saved.sites, hidden).includes(id)),
+    sites: firstTapped(
+      siteOrder.filter((id) => effectiveSites(saved.sites, hidden).includes(id)),
+      tappedSite.id,
+      options.values?.tapped_first ?? false,
+    ),
   });
 
   // Chip edits stay in a draft until the user runs the search.
@@ -49,8 +63,13 @@
   const dirty = $derived(pending.trim() !== "" || serialiseQuery(draftChips) !== serialiseQuery(query.chips));
 
   let first = true;
+  let lastSafe: boolean | undefined;
   $effect(() => {
-    search.run(query, { immediate: first });
+    // The server drops the safe-mode posts, so a toggle sends the same query again.
+    const safe = sfw?.on ?? false;
+    const toggled = lastSafe !== undefined && safe !== lastSafe;
+    lastSafe = safe;
+    search.run(query, { immediate: first || toggled, force: toggled });
     first = false;
   });
 
@@ -88,6 +107,7 @@
   const chips = $derived(filterChips(query));
 
   function navigateState(next: SearchState): void {
+    writeSites(next.sites);
     router.navigate("/" + buildSearchParams(next), { replace: true });
   }
 
@@ -95,8 +115,29 @@
     draftChips = chips;
   }
 
+  // A lone book id (typed, or the only chip) opens the nhentai book page; with other chips it stays a chip.
+  function bookIdNow(): string | null {
+    if (draftChips.length === 0) return nhentaiIdOf(pending);
+    if (draftChips.length === 1 && !pending.trim()) return nhentaiIdOf(draftChips[0].raw);
+    return null;
+  }
+
+  function openBook(id: string): void {
+    pending = "";
+    router.navigate("/web/nhentai/" + id);
+  }
+
+  function interceptEnter(): boolean {
+    const id = bookIdNow();
+    if (!id) return false;
+    openBook(id);
+    return true;
+  }
+
   function runSearch(): void {
     if (!dirty) return;
+    const id = bookIdNow();
+    if (id) return openBook(id);
     const next = pending.trim() ? commitText(draftChips, pending) : draftChips;
     pending = "";
     navigateState({ ...saved, chips: next });
@@ -153,6 +194,44 @@
 
   let lightbox: WebItem | null = $state(null);
 
+  // The address names the open post (replace, no history entries); a new tab opens it from there.
+  function setWebParam(key: string | null) {
+    const qs = withWeb(match.query, key);
+    if (qs !== match.query.toString()) router.navigate(match.path + (qs ? `?${qs}` : ""), { replace: true });
+  }
+  function openWeb(item: WebItem) {
+    lightbox = item;
+    setWebParam(item.source + ":" + item.post_id);
+  }
+  function closeWeb() {
+    lightbox = null;
+    setWebParam(null);
+  }
+
+  const rawWeb = $derived(parseWeb(match.query));
+  let webTried: string | null = null;
+  $effect(() => {
+    const ref = rawWeb;
+    if (!ref) { webTried = null; return; }
+    if (search.loading) return;
+    if (lightbox && lightbox.source === ref.source && lightbox.post_id === ref.postId) return;
+    const hit = Object.values(search.sections)
+      .flatMap((e) => (e.section?.items ?? []))
+      .find((i): i is WebItem => "post_id" in i && i.source === ref.source && i.post_id === ref.postId);
+    if (hit) { lightbox = hit; return; }
+    const key = ref.source + ":" + ref.postId;
+    if (webTried === key) return;
+    webTried = key;
+    fetchWebPost(api, ref).then((w) => {
+      if (parseWeb(match.query)?.postId !== ref.postId) return;
+      if (w) lightbox = w;
+      else {
+        toasts.push({ kind: "error", message: "Post not available" });
+        setWebParam(null);
+      }
+    });
+  });
+
   const lightboxSaveState = $derived(
     lightbox ? (search.saveStateOf(lightbox)?.state ?? "idle") : "idle"
   );
@@ -176,11 +255,24 @@
       )
   );
 
-  // The nhentai row is pinned first; the other rows keep their order.
-  const orderedSections = $derived.by(() => {
-    const all = Object.entries(search.sections);
-    return [...all.filter(([id]) => id === "nhentai"), ...all.filter(([id]) => id !== "nhentai")];
-  });
+  // The store builds the rows in query order: site rows come first in the pill order, library rows below.
+  // A video tile click queues the row's loaded items; further pages load as in See all.
+  function queueVideos(section: Section | null | undefined) {
+    const q = serialiseQuery(query.chips);
+    const pageSize = section?.page_size ?? undefined;
+    seedVideoQueue(
+      "row:discover:videos:" + q,
+      section?.items ?? [],
+      async (page, signal) => {
+        const r = await api.search({ q, sources: ["stash_videos"], page, page_size: pageSize }, signal);
+        const s = r.sections?.find((x: { id: string }) => x.id === "stash_videos");
+        return { items: s?.items ?? [], total: s?.total ?? null, next_page: s?.next_page ?? null, pages: s?.pages ?? null, page_size: s?.page_size ?? null };
+      },
+      { total: section?.total ?? null, pageSize: pageSize ?? null, hasNext: section?.next_page != null },
+    );
+  }
+
+  const orderedSections = $derived(Object.entries(search.sections));
 
   const SKELETONS = Array.from({ length: 6 }, (_, i) => i);
 </script>
@@ -189,18 +281,13 @@
   <header class="header">
     <h1 class="sr-only" tabindex="-1" bind:this={h1}>Discover</h1>
     <div class="hmarks">
-      <SiteMarks sites={query.sites} onsites={handleSitesChange} {hidden} order={siteOrder} onreorder={(o) => options.set({ site_order: o })} {names} />
+      <SiteMarks sites={query.sites} onsites={handleSitesChange} {hidden} order={siteOrder} ontap={(id) => (tappedSite.id = id)} onreorder={(o) => options.set({ site_order: o })} {names} />
     </div>
     <div class="hfield">
       <div class="search-row">
-        <ChipField bind:pending chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch}>
+        <ChipField bind:pending chips={draftChips} onchange={handleChipsChange} onsubmit={runSearch} intercept={interceptEnter}>
           {#snippet trailing()}
             <span class="tail">
-              {#if dirty}
-                <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
-                  <Icon name="search" size={20} />
-                </button>
-              {/if}
               <button
                 class="fib"
                 bind:this={fibEl}
@@ -216,6 +303,9 @@
             </span>
           {/snippet}
         </ChipField>
+        <button class="search-btn" type="button" aria-label="Search" onclick={runSearch}>
+          <Icon name="search" size={20} />
+        </button>
       </div>
     </div>
     {#if chips.length}
@@ -262,7 +352,7 @@
           onretry={() => search.retrySection(id)}
           onnavigate={(e) => linkClick(e, router)}
         >
-          {#each visibleInSafeMode(entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => (item.source === "nhentai" ? router.navigate("/web/nhentai/" + encodeURIComponent(item.post_id)) : (lightbox = item))} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => linkClick(e, router)} />{/if}{/each}
+          {#each (entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} href={webItemHref(item.source, item.post_id) ?? webTileHref(match.path, match.query, item)} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => { const h = webItemHref(item.source, item.post_id); if (h) router.navigate(h); else openWeb(item); }} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => { if (id === "stash_videos" && inPageClick(e)) queueVideos(entry.section); linkClick(e, router); }} />{/if}{/each}
         </SectionRow>
       {/if}
     {/each}
@@ -293,7 +383,7 @@
     saveState={lightboxSaveState}
     savedHref={lightboxSavedHref}
     onsave={() => { if (lightbox) doSave(lightbox); }}
-    onclose={() => (lightbox = null)}
+    onclose={closeWeb}
   />
 {/if}
 
@@ -325,8 +415,12 @@
     flex-direction: column;
     gap: var(--s-2);
     padding: var(--s-3) var(--s-4);
-    padding-right: calc(var(--s-4) + var(--sfw-inset));
     border-bottom: 1px solid var(--line);
+  }
+
+  /* Only the top row shares space with the fixed SFW toggle; the field row uses the full width. */
+  .hmarks {
+    padding-right: var(--sfw-inset);
   }
 
   .search-row {
@@ -466,10 +560,11 @@
     display: grid;
     place-items: center;
     width: 44px;
-    height: 44px;
+    min-height: 44px;
+    align-self: flex-start;
     padding: 0;
     background: var(--accent);
-    color: var(--surface);
+    color: var(--on-accent);
     border: none;
     border-radius: var(--r-lg);
     cursor: pointer;

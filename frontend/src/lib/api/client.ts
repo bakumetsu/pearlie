@@ -1,6 +1,7 @@
 import { getContext, setContext } from "svelte";
 import type { components } from "./schema.gen";
 import { hostBlock } from "../stores/hostBlock.svelte";
+import { sfw } from "../stores/sfw.svelte";
 
 type S = components["schemas"];
 
@@ -20,6 +21,7 @@ export type TrashResult = S["TrashResult"];
 export type TrashList = S["TrashList"];
 export type TrashEmptied = S["TrashEmptied"];
 export type ThumbCacheCleared = S["ThumbCacheCleared"];
+export type ScanResult = S["ScanResult"];
 export type TrashPurgePreview = S["TrashPurgePreview"];
 export type RestoreResult = S["RestoreResult"];
 export type RulesBody = S["RulesBody"];
@@ -107,6 +109,8 @@ export type SourceFilters = {
   favorite?: boolean;
   // Order is off when the search has at least this many words (Danbooru tag cap); null = never.
   order_blocked_when?: number | null;
+  title_search?: boolean; // the source can search by title (title:"..." chip)
+  title_exclude?: boolean; // ... and can exclude one
 };
 export type SearchFilters = Record<string, SourceFilters>;
 
@@ -129,8 +133,11 @@ export interface Api {
   emptyTrash(signal?: AbortSignal): Promise<TrashEmptied>;
   purgePreview(days: number, signal?: AbortSignal): Promise<TrashPurgePreview>;
   clearThumbCache(signal?: AbortSignal): Promise<ThumbCacheCleared>;
+  scanRule34(signal?: AbortSignal): Promise<ScanResult>;
   getRules(signal?: AbortSignal): Promise<RulesBody>;
   putRules(body: RulesPut, signal?: AbortSignal): Promise<RulesBody>;
+  rejectTag(tag: string, signal?: AbortSignal): Promise<{ added: boolean; version: number }>;
+  unrejectTag(tag: string, signal?: AbortSignal): Promise<{ removed: boolean; version: number }>;
   jobs(p: { state?: string[] }, signal?: AbortSignal): Promise<JobList>;
   retryJob(id: string, signal?: AbortSignal): Promise<Job>;
   getViewSettings(signal?: AbortSignal): Promise<ViewSettings>;
@@ -242,6 +249,8 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
           page_size: p.page_size !== undefined ? String(p.page_size) : undefined,
           order: p.order,
           rating: p.rating?.length ? p.rating.join(",") : undefined,
+          // The server drops the safe-mode posts; unknown value fails closed.
+          safe: (sfw?.on ?? true) ? "1" : "0",
         }),
         undefined,
         signal,
@@ -337,6 +346,9 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     clearThumbCache(signal) {
       return request<ThumbCacheCleared>(baseUrl + "/api/thumb-cache/clear", { method: "POST" }, signal);
     },
+    scanRule34(signal) {
+      return request<ScanResult>(baseUrl + "/api/library/scan-rule34", { method: "POST" }, signal);
+    },
     getRules(signal) {
       return request<RulesBody>(baseUrl + "/api/rules", undefined, signal);
     },
@@ -348,6 +360,20 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         },
+        signal,
+      );
+    },
+    rejectTag(tag, signal) {
+      return request<{ added: boolean; version: number }>(
+        baseUrl + "/api/rules/reject",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag }) },
+        signal,
+      );
+    },
+    unrejectTag(tag, signal) {
+      return request<{ removed: boolean; version: number }>(
+        baseUrl + "/api/rules/reject",
+        { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag }) },
         signal,
       );
     },

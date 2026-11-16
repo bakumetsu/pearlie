@@ -4,8 +4,11 @@
   import type { LibraryItem, WebItem } from "../api/client";
   import { formatDuration } from "../format";
   import FavBadge from "./FavBadge.svelte";
+  import { inView } from "../inView";
+  import { preloadGif, takeSlot } from "../gifSlots";
+  import { options } from "../stores/options.svelte";
 
-  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, landscape = false }: {
+  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, onaspect, landscape = false, revealed: revealedProp = false, onreveal }: {
     item: LibraryItem | WebItem;
     href?: string;
     onnavigate?: (e: MouseEvent) => void;
@@ -16,7 +19,12 @@
     onopenitem?: (item: LibraryItem) => void;
     variant?: "grid" | "wall" | "masonry" | "list";
     aspect?: number;
+    // Reports the real picture shape when it differs from `aspect` by more than 3 %.
+    onaspect?: (aspect: number) => void;
     landscape?: boolean;
+    // A grid that unmounts tiles keeps the reveal for them: it passes the state and hears the change.
+    revealed?: boolean;
+    onreveal?: () => void;
   } = $props();
 
   const isWeb = $derived("post_id" in item);
@@ -32,23 +40,71 @@
     }
   });
   function webSrc(w: WebItem): string {
-    return stage === 1 ? w.preview_url : w.thumb_url;
+    return stage === 1 ? w.preview_url : w.thumb_url || w.preview_url;
   }
   function onWebError() {
+    // The GIF failed after the preload: back to the still, keep the stage.
+    if (gifReady) {
+      gifReady = false;
+      return;
+    }
     const w = item as WebItem;
     // A proxied thumb never falls back to preview_url (the full file): placeholder + Retry.
     const proxied = w.thumb_url.startsWith("/api/media/web/");
     if (!proxied && stage === 0 && w.preview_url && w.preview_url !== w.thumb_url) stage = 1;
     else stage = 2;
   }
-  let revealed = $state(false);
-  const blurred = $derived(!revealed && item.blur != null);
+  let revealedLocal = $state(false);
+  const blurred = $derived(!revealedLocal && !revealedProp && item.blur != null);
+  function reveal() {
+    revealedLocal = true;
+    onreveal?.();
+  }
+
+  // Animated GIF in the grid: the backend sets gif_url only for a small GIF. The still stays
+  // until the GIF has loaded; off screen, blurred, reduced motion or the setting off: still.
+  let visible = $state(false);
+  let reduced = $state(false);
+  let gifReady = $state(false);
+  const gifUrl = $derived(item.gif_url ?? null);
+  const wantGif = $derived(
+    visible && !!gifUrl && (options.values?.gif_grid ?? true) && !reduced && !blurred && stage !== 2,
+  );
+  $effect(() => {
+    if (typeof matchMedia !== "function") return;
+    const mq = matchMedia("(prefers-reduced-motion: reduce)");
+    reduced = mq.matches;
+    const on = () => (reduced = mq.matches);
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  });
+  $effect(() => {
+    if (!wantGif || !gifUrl) return;
+    let release: (() => void) | null = null;
+    const cancel = preloadGif(gifUrl, () => {
+      release = takeSlot(() => (gifReady = false));
+      gifReady = true;
+    });
+    return () => {
+      cancel();
+      release?.();
+      gifReady = false;
+    };
+  });
+  const track = (visibleNow: boolean) => (visible = visibleNow);
+
+  function onImgLoad(e: Event) {
+    const img = e.currentTarget as HTMLImageElement;
+    if (!onaspect || aspect == null || !(aspect > 0) || !img.naturalWidth || !img.naturalHeight) return;
+    const real = img.naturalWidth / img.naturalHeight;
+    if (Math.abs(real - aspect) / aspect > 0.03) onaspect(real);
+  }
 
   function handleMediaClick(e: MouseEvent) {
     if (blurred) {
       e.preventDefault();
       e.stopPropagation();
-      revealed = true;
+      reveal();
     }
   }
 
@@ -57,17 +113,22 @@
       e.preventDefault();
       e.stopPropagation();
       if (blurred) {
-        revealed = true;
+        reveal();
       }
     }
   }
 
-  function handleOpenClick() {
+  function handleOpenClick(e: MouseEvent) {
     if (blurred) {
-      revealed = true;
-    } else {
-      onopen?.();
+      e.preventDefault();
+      reveal();
+      return;
     }
+    // A plain click keeps the in-page open; middle or Ctrl+click follows the link into a new tab.
+    const plain = e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey;
+    if (href && !plain) return;
+    e.preventDefault();
+    onopen?.();
   }
 
   function handleLibClick(e: MouseEvent) {
@@ -122,17 +183,26 @@
 
 {#if isWeb}
   {@const w = item as WebItem}
-  <div class="tile web {variant}">
-    <div class="media" style:aspect-ratio={aspectRatio}>
-      {#if stage === 2}
+  <div class="tile web {variant}" class:cv={variant !== "list"} style:aspect-ratio={variant !== "list" ? aspectRatio : undefined}>
+    <div class="media" style:aspect-ratio={aspectRatio} use:inView={track}>
+      {#if !w.thumb_url && !w.preview_url}
+        <div class="thumb-fail">
+          <Icon name="image" size={24} />
+          <span class="no-preview">No preview</span>
+        </div>
+      {:else if stage === 2}
         <div class="thumb-fail">
           <Icon name="image" size={24} />
           <button class="retry" onclick={(e) => { e.stopPropagation(); stage = 0; }}>Retry</button>
         </div>
       {:else}
-        <img src={webSrc(w)} alt="" loading="lazy" referrerpolicy="no-referrer" class:blur-img={blurred} onerror={onWebError} />
+        <img src={gifReady && gifUrl ? gifUrl : webSrc(w)} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" class:blur-img={blurred} onerror={onWebError} onload={onImgLoad} />
       {/if}
-      <button class="open" onclick={handleOpenClick} aria-label={`${w.source} #${w.post_id}`} title={`${w.source} #${w.post_id}`}></button>
+      {#if href}
+        <a class="open" {href} onclick={handleOpenClick} aria-label={`${w.source} #${w.post_id}`} title={`${w.source} #${w.post_id}`}></a>
+      {:else}
+        <button class="open" onclick={handleOpenClick} aria-label={`${w.source} #${w.post_id}`} title={`${w.source} #${w.post_id}`}></button>
+      {/if}
       {#if blurred}
         <div class="warn-overlay">Warn: {w.blur!.tag}</div>
       {/if}
@@ -158,12 +228,12 @@
   </div>
 {:else}
   {@const l = item as LibraryItem}
-  <a class="tile lib {variant}" href={href} data-key={`${l.kind}:${l.id}`} onclick={handleLibClick}>
+  <a class="tile lib {variant}" class:cv={variant !== "list" && l.kind === "image"} style:aspect-ratio={variant !== "list" && l.kind === "image" ? aspectRatio : undefined} href={href} data-key={`${l.kind}:${l.id}`} onclick={handleLibClick}>
     {#if l.kind === "video"}
       <VideoCard item={l} {variant} {aspectRatio} {blurred} {landscape} meta={metaLine()} onmediaclick={handleMediaClick} onmediakeydown={handleMediaKeydown} />
     {:else}
-    <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick} role="button" tabindex="0" onkeydown={handleMediaKeydown}>
-      <img src={l.thumb_url} alt="" loading="lazy" class:blur-img={blurred} />
+    <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick} role="button" tabindex="0" onkeydown={handleMediaKeydown} use:inView={track}>
+      <img src={gifReady && gifUrl ? gifUrl : l.thumb_url} alt="" loading="lazy" decoding="async" class:blur-img={blurred} onload={onImgLoad} />
       {#if variant !== "list" && l.favorite}
         <FavBadge />
       {/if}
@@ -195,6 +265,11 @@
     cursor: pointer;
     text-decoration: none;
     color: inherit;
+  }
+  /* Off-screen tiles skip layout and paint; aspect-ratio keeps their height stable. */
+  .tile.cv {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 200px;
   }
   .tile.lib {
     display: block;

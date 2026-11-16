@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/svelte";
 import App from "../App.svelte";
+import { toasts } from "../lib/stores/toasts.svelte";
 
 HTMLDialogElement.prototype.showModal = function () {
   this.setAttribute("open", "");
@@ -39,6 +40,7 @@ describe("SeeAll web lightbox", () => {
     window.scrollTo = vi.fn();
     history.replaceState({}, "", "/see-all?source=danbooru&q=cat");
     saves = [];
+    while (toasts.current) toasts.dismiss();
     const json = (body: unknown, status = 200) =>
       Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
     globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
@@ -65,7 +67,7 @@ describe("SeeAll web lightbox", () => {
   async function openFirst() {
     const { container } = render(App);
     await vi.waitFor(() => expect(container.querySelectorAll(".tile.web").length).toBe(3));
-    await fireEvent.click(container.querySelectorAll("button.open")[0]);
+    await fireEvent.click(container.querySelectorAll(".open")[0]);
     await vi.waitFor(() => expect(document.querySelector("dialog .title")).not.toBeNull());
     return container;
   }
@@ -111,6 +113,59 @@ describe("SeeAll web lightbox", () => {
     await vi.waitFor(() => expect(document.querySelector("dialog")).toBeNull());
   });
 
+  it("booru tiles are links to the page with ?web=, and a plain click opens the lightbox and sets it", async () => {
+    const { container } = render(App);
+    await vi.waitFor(() => expect(container.querySelectorAll(".tile.web").length).toBe(3));
+    const a = container.querySelectorAll<HTMLAnchorElement>("a.open")[1];
+    expect(a.getAttribute("href")).toBe("/see-all?source=danbooru&q=cat&web=danbooru%3A2");
+    const len = history.length;
+    await fireEvent.click(a);
+    await vi.waitFor(() => expect(title()).toBe("post 2"));
+    expect(location.search).toContain("web=danbooru%3A2");
+    expect(history.length).toBe(len);
+    document.querySelector("dialog")!.close();
+    await vi.waitFor(() => expect(location.search).not.toContain("web="));
+  });
+
+  it("a new tab with ?web= for a post in the grid opens it", async () => {
+    history.replaceState({}, "", "/see-all?source=danbooru&q=cat&web=danbooru%3A3");
+    render(App);
+    await vi.waitFor(() => expect(title()).toBe("post 3"));
+  });
+
+  it("a new tab with ?web= for a post outside the grid fetches it by id", async () => {
+    history.replaceState({}, "", "/see-all?source=danbooru&q=cat&web=danbooru%3A99");
+    const calls: string[] = [];
+    const base = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, "http://localhost");
+      if (url.pathname === "/api/search" && url.searchParams.get("q") === "id:99") {
+        calls.push(url.search);
+        return Promise.resolve(new Response(JSON.stringify({ sections: [{ id: "danbooru", items: [web("99")], total: 1 }] }), { status: 200, headers: { "Content-Type": "application/json" } }));
+      }
+      return base(input, init);
+    });
+    render(App);
+    await vi.waitFor(() => expect(title()).toBe("post 99"));
+    expect(calls[0]).toContain("sources=danbooru");
+  });
+
+  it("a post that cannot be fetched shows a toast and no lightbox", async () => {
+    history.replaceState({}, "", "/see-all?source=danbooru&q=cat&web=danbooru%3A98");
+    const base = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, "http://localhost");
+      if (url.pathname === "/api/search" && url.searchParams.get("q") === "id:98") {
+        return Promise.resolve(new Response(JSON.stringify({ sections: [{ id: "danbooru", items: [], total: 0 }] }), { status: 200, headers: { "Content-Type": "application/json" } }));
+      }
+      return base(input, init);
+    });
+    render(App);
+    await vi.waitFor(() => expect(toasts.current?.message).toBe("Post not available"));
+    expect(document.querySelector("dialog .title")).toBeNull();
+    await vi.waitFor(() => expect(location.search).not.toContain("web="));
+  });
+
   it("nhentai tile navigates to /web/nhentai/:id instead of opening lightbox", async () => {
     history.replaceState(null, "", "/see-all?source=nhentai&q=cat");
     globalThis.fetch = vi.fn(async (url: string | URL | Request) => {
@@ -125,7 +180,7 @@ describe("SeeAll web lightbox", () => {
     });
     render(App);
     await vi.waitFor(() => expect(document.querySelectorAll(".tile.web")).toHaveLength(1));
-    document.querySelector<HTMLButtonElement>("button.open")!.click();
+    document.querySelector<HTMLElement>("a.open")!.click();
     await vi.waitFor(() => expect(location.pathname).toBe("/web/nhentai/1"));
     expect(document.querySelector("dialog .title")).toBeNull();
   });

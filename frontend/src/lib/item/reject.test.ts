@@ -1,23 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Mocked } from "vitest";
-import type { Api, RulesBody } from "../api/client";
+import type { Api } from "../api/client";
 import type { ToastsLike } from "./itemView.svelte";
 import { rejectTag } from "./reject";
 
-const fixture = {
-  version: 3,
-  base_list: {} as never,
-  reject: ["a"],
-  warn: [],
-  require: [],
-  mapping: [],
-} as RulesBody;
-
-function makeApi(): Mocked<Pick<Api, "getRules" | "putRules">> {
-  return {
-    getRules: vi.fn(),
-    putRules: vi.fn(),
-  } as unknown as Mocked<Pick<Api, "getRules" | "putRules">>;
+function makeApi(): Mocked<Pick<Api, "rejectTag" | "unrejectTag">> {
+  return { rejectTag: vi.fn(), unrejectTag: vi.fn() } as unknown as Mocked<Pick<Api, "rejectTag" | "unrejectTag">>;
 }
 
 function makeToasts(): Mocked<ToastsLike> {
@@ -25,49 +13,37 @@ function makeToasts(): Mocked<ToastsLike> {
 }
 
 describe("rejectTag", () => {
-  it("adds the tag and sends full put body, pushes undo toast", async () => {
-    const api = makeApi() as unknown as Api;
+  it("calls the backend and pushes an undo toast", async () => {
+    const api = makeApi();
     const toasts = makeToasts();
+    api.rejectTag.mockResolvedValue({ added: true, version: 2 });
 
-    (api.getRules as ReturnType<typeof vi.fn>).mockResolvedValue(fixture);
-    (api.putRules as ReturnType<typeof vi.fn>).mockResolvedValue(fixture);
+    await rejectTag(api as unknown as Api, toasts, "b");
 
-    await rejectTag(api, toasts, "b");
-
-    expect(api.putRules).toHaveBeenCalledWith({
-      version: 3,
-      reject: ["a", "b"],
-      warn: [],
-      require: [],
-      mapping: [],
-    });
+    expect(api.rejectTag).toHaveBeenCalledWith("b");
     expect(toasts.push).toHaveBeenCalledTimes(1);
     const toast = toasts.push.mock.calls[0]![0]!;
     expect(toast.kind).toBe("undo");
     expect(toast.message).toBe("Rejected tag: b");
     expect(toast.actionLabel).toBe("Undo");
-    expect(toast.onAction).toBeTypeOf("function");
   });
 
-  it("does nothing when tag is already rejected", async () => {
-    const api = makeApi() as unknown as Api;
+  it("shows nothing when the tag was already rejected", async () => {
+    const api = makeApi();
     const toasts = makeToasts();
+    api.rejectTag.mockResolvedValue({ added: false, version: 2 });
 
-    (api.getRules as ReturnType<typeof vi.fn>).mockResolvedValue(fixture);
+    await rejectTag(api as unknown as Api, toasts, "a");
 
-    await rejectTag(api, toasts, "a");
-
-    expect(api.putRules).not.toHaveBeenCalled();
     expect(toasts.push).not.toHaveBeenCalled();
   });
 
-  it("pushes error toast when getRules rejects", async () => {
-    const api = makeApi() as unknown as Api;
+  it("pushes an error toast when the call fails", async () => {
+    const api = makeApi();
     const toasts = makeToasts();
+    api.rejectTag.mockRejectedValue(new Error("network"));
 
-    (api.getRules as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("network"));
-
-    await rejectTag(api, toasts, "b");
+    await rejectTag(api as unknown as Api, toasts, "b");
 
     expect(toasts.push).toHaveBeenCalledWith({
       kind: "error",
@@ -75,32 +51,19 @@ describe("rejectTag", () => {
     });
   });
 
-  it("undo action calls putRules with reject back to [\"a\"]", async () => {
-    const api = makeApi() as unknown as Api;
+  it("undo removes only that tag; a failure shows the error toast", async () => {
+    const api = makeApi();
     const toasts = makeToasts();
+    api.rejectTag.mockResolvedValue({ added: true, version: 2 });
+    api.unrejectTag.mockResolvedValue({ removed: true, version: 3 });
 
-    (api.getRules as ReturnType<typeof vi.fn>).mockResolvedValue(fixture);
-    (api.putRules as ReturnType<typeof vi.fn>).mockResolvedValue(fixture);
-
-    await rejectTag(api, toasts, "b");
-
-    // Simulate that the tag was rejected; undo should remove it
-    (api.getRules as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ...fixture,
-      reject: ["a", "b"],
-    });
-
+    await rejectTag(api as unknown as Api, toasts, "b");
     const toast = toasts.push.mock.calls[0]![0]!;
     await toast.onAction!();
+    expect(api.unrejectTag).toHaveBeenCalledWith("b");
 
-    // putRules was called once for reject, once for undo
-    expect(api.putRules).toHaveBeenCalledTimes(2);
-    expect(api.putRules).toHaveBeenLastCalledWith({
-      version: 3,
-      reject: ["a"],
-      warn: [],
-      require: [],
-      mapping: [],
-    });
+    api.unrejectTag.mockRejectedValue(new Error("gone"));
+    await toast.onAction!();
+    expect(toasts.push).toHaveBeenLastCalledWith({ kind: "error", message: "Can't undo any more" });
   });
 });

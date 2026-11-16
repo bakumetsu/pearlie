@@ -46,4 +46,13 @@
 		/>
 	</div>
 	<p class="hint">Off: pills show the icon only.</p>
+	<div class="row">
+		<span class="row-label">Tapped site first</span>
+		<Switch
+			checked={store.values?.tapped_first ?? false}
+			label="Show the last tapped site first"
+			onclick={() => store.set({ tapped_first: !(store.values?.tapped_first ?? false) })}
+		/>
+	</div>
+	<p class="hint">On: the site you tapped last becomes the first row. The rest keep the pill order. Forgotten when you close the app.</p>
 </section>

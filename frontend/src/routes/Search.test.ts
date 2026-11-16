@@ -57,12 +57,12 @@ describe("Search chips do not auto-run", () => {
     await new Promise((r) => setTimeout(r, 450));
   }
 
-  it("adding and removing a chip sends nothing; Search button shows when changed", async () => {
+  it("adding and removing a chip sends nothing; Search button is always there, outside the field", async () => {
     render(App);
     await settle();
     const base = searchCalls;
     expect(base).toBe(1);
-    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Search" })).toBeTruthy();
 
     const input = screen.getByRole("textbox");
     await fireEvent.input(input, { target: { value: "dog" } });
@@ -70,13 +70,18 @@ describe("Search chips do not auto-run", () => {
     await settle();
     expect(searchCalls).toBe(base);
     expect(screen.getByRole("button", { name: "Search" })).toBeTruthy();
-    // The button sits inside the field, so the field keeps its width.
-    expect(screen.getByRole("button", { name: "Search" }).closest(".field")).not.toBeNull();
+    // Search sits outside the field, after it; Filters stays inside the field.
+    const search = screen.getByRole("button", { name: "Search" });
+    const filters = screen.getByRole("button", { name: /^Filters/ });
+    expect(search.closest(".field")).toBeNull();
+    expect(filters.closest(".field")).not.toBeNull();
+    expect(search.previousElementSibling?.classList.contains("field")).toBe(true);
+    expect(document.querySelector(".search-slot")).toBeNull();
 
     await fireEvent.click(screen.getByRole("button", { name: "Remove dog" }));
     await settle();
     expect(searchCalls).toBe(base);
-    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Search" })).toBeTruthy();
   });
 
   it("blur keeps the text uncommitted and shows Search", async () => {
@@ -121,7 +126,7 @@ describe("Search chips do not auto-run", () => {
     await fireEvent.keyDown(input, { key: "Enter" });
     await settle();
     expect(searchCalls).toBe(base + 1);
-    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Search" })).toBeTruthy();
   });
 
   it("removing a filter chip keeps hidden sites, draft chips and pending text", async () => {

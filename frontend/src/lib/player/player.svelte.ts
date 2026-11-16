@@ -35,6 +35,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
     rate: 1,
     loop: false,
     sourceIdx: -1,
+    pip: false,
   });
 
   let el: VideoLike | null = null;
@@ -42,6 +43,34 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
   let nav: PlayerNav | null = null;
   let playOnLoad = false;
   let navVersion = $state(0);
+  let navigating = false;
+  let navFrom: string | null = null;
+  let navTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function clearNav(): void {
+    navigating = false;
+    navFrom = null;
+    if (navTimer !== null) {
+      clearTimeout(navTimer);
+      navTimer = null;
+    }
+  }
+
+  function leaveStage(): void {
+    const next = modeOnLeave(state.ended);
+    if (next === "hidden") {
+      el?.pause();
+      state.item = null;
+      state.time = 0;
+      state.duration = 0;
+      state.playing = false;
+      state.ended = false;
+      state.pip = false;
+      state.mode = "hidden";
+    } else {
+      state.mode = "mini";
+    }
+  }
 
   function applyRate(): void {
     if (el !== null) {
@@ -67,6 +96,9 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
     get sourceIdx(): number { return state.sourceIdx; },
     get slot(): Rect | null { return state.slot; },
     get failed(): boolean { return state.failed; },
+    get pip(): boolean { return state.pip; },
+
+    setPip(on: boolean): void { state.pip = on; },
 
     attach(v: VideoLike | null): void {
       el = v;
@@ -78,7 +110,21 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
       }
     },
 
+    beginNav(): void {
+      if (state.mode !== "stage") return;
+      clearNav();
+      navigating = true;
+      navFrom = state.item?.id ?? null;
+      navTimer = setTimeout(() => {
+        navTimer = null;
+        if (!navigating) return;
+        navigating = false;
+        if (state.mode === "stage" && state.slot === null) leaveStage();
+      }, 3000);
+    },
+
     open(item: PlayerItem): void {
+      clearNav();
       if (state.item?.id === item.id) {
         state.mode = "stage";
         return;
@@ -126,24 +172,18 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
     setSlot(id: string, rect: Rect | null): void {
       if (state.item?.id !== id) return;
       state.slot = rect;
-      if (rect !== null) state.mode = "stage";
+      if (rect !== null) {
+        state.mode = "stage";
+        // a stray re-measure of the slot we are leaving must not cancel the nav
+        if (id !== navFrom) clearNav();
+      }
     },
 
     releaseSlot(id: string): void {
       if (state.item?.id !== id || state.mode !== "stage") return;
       state.slot = null;
-      const next = modeOnLeave(state.ended);
-      if (next === "hidden") {
-        el?.pause();
-        state.item = null;
-        state.time = 0;
-        state.duration = 0;
-        state.playing = false;
-        state.ended = false;
-        state.mode = "hidden";
-      } else {
-        state.mode = "mini";
-      }
+      if (navigating) return;
+      leaveStage();
     },
 
     play(): void {
@@ -276,6 +316,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
       state.playing = false;
       state.ended = false;
       state.slot = null;
+      state.pip = false;
       state.mode = "hidden";
       state.failed = false;
       state.loop = false;

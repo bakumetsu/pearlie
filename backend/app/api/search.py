@@ -1,9 +1,16 @@
 from typing import cast
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from app.api.errors import ApiError
-from app.api.search_filters import parse_order, parse_rating, unsupported_notice
+from app.api.search_filters import (
+    parse_order,
+    parse_rating,
+    skipped_section,
+    title_notice,
+    unsupported_notice,
+)
+from app.filters.safe_mode import is_hidden_in_safe_mode, resolve_safe
 from app.fixtures.scenarios import active, slow_dependency
 from app.fixtures.store import store
 from app.models import LibraryItem, Problem, SearchResponse, Section, SectionId, WebItem
@@ -14,6 +21,7 @@ from app.sources.filters import (
     dapi_filter_tags,
     supported_ratings,
 )
+from app.sources.query_terms import split_terms, title_terms
 
 router = APIRouter(prefix="/api", dependencies=[Depends(slow_dependency)])
 
@@ -37,7 +45,7 @@ _WEB = {"danbooru": "Danbooru", "gelbooru": "Gelbooru", "rule34": "Rule34", "nhe
 
 def _filtered(source: str, q: str, order: str | None, rating: list[str]) -> tuple[list, list[str]]:
     """Return web items matching the query and filters, plus the notices for the section."""
-    words = q.split()
+    words = title_terms(split_terms(q))[1]
     notes: list[str] = []
     if source == "danbooru":
         _server, _local, notes = danbooru_plan(words, order, rating, 2)
@@ -60,14 +68,17 @@ def _filtered(source: str, q: str, order: str | None, rating: list[str]) -> tupl
 
 @router.get("/search")
 def search(
+    request: Request,
     q: str = "",
     sources: str = "",
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=200),
     order: str = "",
     rating: str = "",
+    safe: bool | None = None,
 ) -> SearchResponse:
     """Search across library and web sources."""
+    safe_on, allow_blurred = resolve_safe(request, safe)
     order_v = parse_order(order)
     rating_v = parse_rating(rating)
     ids = (
@@ -80,8 +91,14 @@ def search(
     empty, errs = active("empty"), active("errors")
     single = len(ids) == 1
     sections: list[Section] = []
+    titles, _others = title_terms(split_terms(q))
 
     for sid in ids:
+        skip = title_notice(sid, titles)
+        if skip:
+            name = _LIB[sid][1] if sid in _LIB else _WEB[sid]
+            sections.append(skipped_section(cast(SectionId, sid), name, skip))
+            continue
         if sid in _LIB:
             kinds, title = _LIB[sid]
             hidden = 0 if empty else store.hidden_count(kinds)
@@ -149,6 +166,11 @@ def search(
                 )
             else:
                 flt, notes = _filtered(sid, q, order_v, rating_v)
+                kept = [
+                    it for it in flt if not is_hidden_in_safe_mode(it.blur, safe_on, allow_blurred)
+                ]
+                hidden += len(flt) - len(kept)
+                flt = kept
                 total = len(flt)
                 if single:
                     size = clamp_page_size(sid, page_size)

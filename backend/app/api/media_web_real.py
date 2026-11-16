@@ -18,11 +18,14 @@ import httpx
 from fastapi import APIRouter, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.background import BackgroundTask
 
 from app.api.errors import ApiError
 from app.api.image_slots import Busy, Gone, Slot, SlotBody, parse_prio, scheduler
+from app.api.media_owned import try_library
 from app.api.relay import CHUNK_SIZE, relay
 from app.db import connect
+from app.filters import rules as rules_mod
 from app.filters.rules import evaluate, load_rules
 from app.sources.base import Post, Source, SourceError
 from app.sources.throttle import Throttle
@@ -168,7 +171,12 @@ async def web_media(request: Request, source: str, post_id: str, kind: str) -> R
         raise ApiError(404, "not_found", "Media not found")
     if kind == "thumb":
         return await _thumb(request, src, post_id)
+    owned = await run_in_threadpool(try_library, request, src, post_id, kind)
+    if owned is not None:
+        return owned  # served from the library: no site call, no limiter slot
     prio = parse_prio(request.query_params.get("prio"), "focus")
+    # authorize (cold get_post waits on the site throttle) before taking a slot: a slot is for bytes
+    url = await run_in_threadpool(_resolve, request, src, post_id, kind)  # type: ignore[arg-type]
 
     async def gone() -> bool:
         return await request.is_disconnected()
@@ -185,16 +193,13 @@ async def web_media(request: Request, source: str, post_id: str, kind: str) -> R
     except Gone:
         return Response(status_code=499)
     try:
-        return await run_in_threadpool(_stream_media, request, src, post_id, kind, slot)
+        return await run_in_threadpool(_stream_media, request, src, url, slot)
     except BaseException:
         slot.finish(None)  # no-op when the stream code already gave the slot back
         raise
 
 
-def _stream_media(
-    request: Request, src: Source, post_id: str, kind: str, slot: Slot
-) -> Response:
-    url = _resolve(request, src, post_id, kind)  # type: ignore[arg-type]
+def _stream_media(request: Request, src: Source, url: str, slot: Slot) -> Response:
     client: httpx.Client = src._client  # type: ignore[attr-defined]
     try:
         upstream = client.send(
@@ -245,6 +250,8 @@ def _stream_media(
         status_code=status,
         media_type=media_type,
         headers=headers,
+        # cancelled before the first chunk, the relay generator never runs: close from here too
+        background=BackgroundTask(body.close),
     )
 
 
@@ -307,13 +314,26 @@ def _etag(source: str, post_id: str, size: int) -> str:
     return f'"{digest[:16]}-{size}"'
 
 
+_VERSION_TTL = 2.0
+_version_cache: dict[str, tuple[float, int, int]] = {}
+
+
 def _rules_version(db_path) -> int:
+    """rules.version, read at most once per TTL; a rules save in this process clears the cache."""
+    key = str(db_path)
+    hit = _version_cache.get(key)
+    epoch = rules_mod.save_epoch
+    now = time.monotonic()
+    if hit is not None and hit[0] > now and hit[2] == rules_mod.save_epoch:
+        return hit[1]
     conn = connect(db_path)
     try:
         row = conn.execute("SELECT value FROM settings WHERE key = 'rules.version'").fetchone()
     finally:
         conn.close()
-    return int(row["value"]) if row else 1
+    version = int(row["value"]) if row else 1
+    _version_cache[key] = (now + _VERSION_TTL, version, epoch)
+    return version
 
 
 def _authorize(request: Request, src: Source, post_id: str) -> Post:

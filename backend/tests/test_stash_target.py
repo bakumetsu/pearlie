@@ -138,6 +138,9 @@ def make_graphql_handler(
                 _tag_hit_idx[0] += 1
             else:
                 tags = [{"id": "t1", "name": "x"}]
+            if "v0" in variables:
+                data = {f"t{i}": {"tags": tags} for i in range(len(variables))}
+                return httpx.Response(200, json={"data": data})
             return httpx.Response(
                 200, json={"data": {"findTags": {"tags": tags}}}
             )
@@ -378,7 +381,7 @@ def test_happy_path(
     assert graphql_calls[0][1] == {"v": MD5}
     assert graphql_calls[2][1] == {"p": [stash_path]}
     assert graphql_calls[4][1] == {"v": stash_path}
-    assert graphql_calls[5][1] == {"v": "blue hair"}
+    assert graphql_calls[5][1] == {"v0": "blue hair"}
     assert graphql_calls[6][1] == {"n": "blue hair"}
     assert graphql_calls[7][1] == {
         "i": {
@@ -1382,3 +1385,17 @@ def test_dedupe_matches_uppercase_md5(
 ) -> None:
     dup = make_target()._dedupe("fake", "other", MD5.upper())
     assert dup is not None and dup[1] == "saved_items by md5"
+
+
+def test_save_looks_up_all_tags_in_one_request(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target: Callable[..., StashTarget],
+    graphql_calls: list[tuple[str, dict]],
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(tag_hits=([{"id": "t1", "name": "x"}],))
+    ids, created = target._tag_ids(["a", "b", "c", "d", "e"])
+    assert _graphql_ops(graphql_calls).count("findTags") == 1
+    assert len(ids) == 5

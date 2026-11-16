@@ -9,6 +9,7 @@
     hidden = [],
     order,
     onreorder,
+    ontap,
     names = true,
   }: {
     sites: SiteId[];
@@ -16,6 +17,7 @@
     hidden?: readonly string[];
     order?: readonly string[];
     onreorder?: (order: SiteId[]) => void;
+    ontap?: (id: SiteId) => void;
     names?: boolean;
   } = $props();
 
@@ -109,6 +111,7 @@
       swallowClick = false;
       return;
     }
+    ontap?.(id);
     onsites(toggleSiteIn(sites, id));
   }
 

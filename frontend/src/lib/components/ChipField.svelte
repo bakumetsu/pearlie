@@ -2,7 +2,13 @@
 
   import type { Snippet } from "svelte";
   import type { Chip } from "../query";
-  import { commitText, removeLastChip } from "../query";
+  import {
+    chipLabel,
+    chipRemoveLabel,
+    commitText,
+    hasOpenQuote,
+    removeLastChip,
+  } from "../query";
   import Icon from "./Icon.svelte";
 
   let {
@@ -10,6 +16,7 @@
     onchange,
     label,
     onsubmit,
+    intercept,
     trailing,
     pending = $bindable(""),
   }: {
@@ -17,6 +24,8 @@
     onchange: (chips: Chip[]) => void;
     label?: string;
     onsubmit?: () => void;
+    /** Called on Enter before the typed text becomes a chip; true means handled. */
+    intercept?: () => boolean;
     trailing?: Snippet;
     pending?: string;
   } = $props();
@@ -30,11 +39,11 @@
 
   {#each chips as chip (chip.raw)}
     <span class="chip" class:exclude={chip.exclude}>
-      {chip.raw}
+      {chipLabel(chip)}
       <button
         class="chip-remove"
         type="button"
-        aria-label="Remove {chip.raw}"
+        aria-label={chipRemoveLabel(chip)}
         onclick={() => {
           onchange(chips.filter((c) => c.raw !== chip.raw));
         }}
@@ -48,11 +57,14 @@
     bind:value={pending}
     class="chip-input"
     type="text"
-    placeholder={chips.length === 0 ? "Search tags, e.g. cat -dog artist:x" : ""}
+    placeholder={chips.length === 0 ? 'Search tags or "title", e.g. cat -dog artist:x' : ""}
     autocomplete="off"
     onkeydown={(e) => {
+      // A comma inside an open quote is part of the title, not a separator.
+      if (e.key === "," && hasOpenQuote(pending)) return;
       if ((e.key === "Enter" || e.key === ",") && pending.trim()) {
         e.preventDefault();
+        if (e.key === "Enter" && intercept?.()) return;
         onchange(commitText(chips, pending));
         pending = "";
       } else if (e.key === "Enter" && !pending.trim()) {
@@ -64,8 +76,15 @@
     }}
     onpaste={(e) => {
       e.preventDefault();
-      const pasted = e.clipboardData?.getData("text/plain") ?? "";
-      if (pasted.trim()) onchange(commitText(chips, pasted));
+      // A paste stays plain text in the field; Enter parses it into chips.
+      const pasted = (e.clipboardData?.getData("text/plain") ?? "").replace(/\s*[\r\n]+\s*/g, " ");
+      if (!pasted) return;
+      const input = e.currentTarget;
+      const start = input.selectionStart ?? pending.length;
+      const end = input.selectionEnd ?? start;
+      pending = pending.slice(0, start) + pasted + pending.slice(end);
+      const caret = start + pasted.length;
+      queueMicrotask(() => input.setSelectionRange(caret, caret));
     }}
   />
   {@render trailing?.()}

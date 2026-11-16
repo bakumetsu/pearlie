@@ -1,17 +1,41 @@
 export function createProgress(
 	save: (bookId: string, page: number, opts?: { keepalive?: boolean }) => Promise<unknown>,
 	delayMs = 800,
+	onFailing?: () => void,
 ) {
 	let pending: { bookId: string; page: number } | null = null;
 	let timer: ReturnType<typeof setTimeout> | null = null;
+	let failCount = 0;
+	let failingFired = false;
+
+	function countFailure(): void {
+		failCount++;
+		if (failCount >= 3 && !failingFired) {
+			failingFired = true;
+			onFailing?.();
+		}
+	}
 
 	function doSave(bookId: string, page: number, keepalive?: boolean): void {
 		const opts = keepalive ? { keepalive: true } : undefined;
+		let result: Promise<unknown>;
 		try {
-			save(bookId, page, opts).catch(() => {});
+			result = save(bookId, page, opts);
 		} catch {
-			// sync throw swallowed
+			// sync throw: count it, swallow
+			countFailure();
+			return;
 		}
+		result
+			.then(
+				() => {
+					failCount = 0;
+				},
+				() => {
+					countFailure();
+				},
+			)
+			.catch(() => {});
 	}
 
 	function clearTimer(): void {

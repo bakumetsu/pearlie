@@ -9,9 +9,18 @@ from fastapi import APIRouter, Query, Request
 from app.api.errors import ApiError
 from app.api.library_komga_real import fetch_komga_page
 from app.api.library_stash_real import fetch_stash_page
+from app.api.media_owned import is_owned
 from app.api.media_web_real import media_kind, pick_url, proxy_path, remember, tile_url
-from app.api.search_filters import parse_order, parse_rating, unsupported_notice
+from app.api.search_filters import (
+    parse_order,
+    parse_rating,
+    skipped_section,
+    title_notice,
+    unsupported_notice,
+)
 from app.filters.rules import evaluate, load_rules
+from app.filters.safe_mode import is_hidden_in_safe_mode, resolve_safe
+from app.gif_grid import grid_gif_ok
 from app.jobs.store import JobStore
 from app.komga import Komga, KomgaError, book_item
 from app.models import (
@@ -29,8 +38,16 @@ from app.models import (
 from app.paging import PAGE_SIZE_CAPS, clamp_page_size, pages_for
 from app.sources.base import Post, Source, SourceError
 from app.sources.filters import NOTICE_CODE
+from app.sources.nhentai import reject_terms
+from app.sources.query_terms import split_terms, title_terms
 from app.targets.stash_client import StashClient, StashError
-from app.targets.stash_library import image_item, map_items, stash_sort, video_item
+from app.targets.stash_library import (
+    image_item,
+    log_gif_rejects,
+    map_items,
+    stash_sort,
+    video_item,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -88,6 +105,7 @@ def _library_section(request: Request, sid: str, q: str, page: int, page_size: i
                     lambda p, n: stash.list_images(p, n, q, field, direction), pg, size
                 )
                 items, _bad = map_items(dtos, image_item)
+                log_gif_rejects(dtos)
             else:
                 dtos, total, _agg, served = fetch_stash_page(
                     lambda p, n: stash.list_scenes(p, n, q, field, direction), pg, size
@@ -126,8 +144,10 @@ def search(
     page_size: int = Query(60, ge=1, le=200),
     order: str = "",
     rating: str = "",
+    safe: bool | None = None,
 ) -> SearchResponse:
     """Search across configured sources and library sections."""
+    safe_on, allow_blurred = resolve_safe(request, safe)
     order_v = parse_order(order)
     rating_v = parse_rating(rating)
     raw = sources.split(",") if sources else _DEFAULT
@@ -139,15 +159,33 @@ def search(
     source_map: dict[str, Source] = request.app.state.sources
     multi = len(ids) > 1
     sections: list[Section] = []
+    titles, others = title_terms(split_terms(q))
     for sid in ids:
         title = _TITLES[sid]
         cast_sid = typing.cast(SectionId, sid)
-        lib = _library_section(request, sid, q, page, page_size, multi) if sid in _LIBRARY else None
+        skip = title_notice(sid, titles)
+        if skip:
+            sections.append(skipped_section(cast_sid, title, skip))
+            continue
+        lib_q, lib_note = q, None
+        if sid == "komga_books" and titles:
+            # Komga search is full text: send only the title text, tag chips cannot narrow it.
+            lib_q = " ".join(t.value for t in titles)
+            lib_note = "Tag chips do not narrow Komga results" if others else None
+        lib = (
+            _library_section(request, sid, lib_q, page, page_size, multi)
+            if sid in _LIBRARY
+            else None
+        )
         if lib is not None:
+            if lib_note and lib.error is None:
+                lib.notice = Problem(code=NOTICE_CODE, message=lib_note)
             sections.append(lib)
         elif sid in source_map:
             src = source_map[sid]
-            tags = q.split()
+            tags = [*others, *(t.token for t in titles)]
+            if sid == "nhentai":
+                tags += [t for t in reject_terms(rules.reject) if t not in tags]
             pg = page if not multi else 1
             try:
                 page_result = src.search(
@@ -174,6 +212,10 @@ def search(
                     if verdict is not None and verdict.decision != "warn":
                         hidden += 1
                         continue
+                    blur = Blur(tag=verdict.tag) if verdict else None
+                    if is_hidden_in_safe_mode(blur, safe_on, allow_blurred):
+                        hidden += 1
+                        continue
                     visible.append(post)
                     items.append(
                         WebItem(
@@ -190,6 +232,11 @@ def search(
                                 else ""
                             ),
                             media_kind=media_kind(post),
+                            gif_url=(
+                                proxy_path(post.source, post.post_id, "preview")
+                                if grid_gif_ok(pick_url(post, "preview"), post.file_size)
+                                else None
+                            ),
                             title=post.title,
                             tags=[
                                 Tag(name=n, scope=kind)
@@ -201,7 +248,7 @@ def search(
                             page_count=post.page_count,
                             target=typing.cast(Target, getattr(src, "target", "stash")),
                             saveable=getattr(src, "target", "stash") in _SAVE_TARGETS,
-                            blur=Blur(tag=verdict.tag) if verdict else None,
+                            blur=blur,
                         )
                     )
                 saved = JobStore(request.app.state.settings.db_path).saved_refs(
@@ -212,6 +259,7 @@ def search(
                 for it in items:
                     if isinstance(it, WebItem):
                         it.saved = saved.get(it.post_id)
+                        it.owned = is_owned(it.saved)
                 remember(request.app, visible, rules.version)
                 if multi:
                     items = items[:18]

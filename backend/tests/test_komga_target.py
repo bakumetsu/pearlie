@@ -28,6 +28,7 @@ class FakeKomga:
         self.visible = True
         self.list_calls = 0
         self.dest: Path | None = None
+        self.authors: dict[str, list[str]] = {}  # book file name -> Komga writer names
 
     def list_libraries(self) -> list[dict]:
         lib = {"id": "L1", "name": "Doujin", "root": self.root}
@@ -44,7 +45,20 @@ class FakeKomga:
         self.list_calls += 1
         if not self.visible or self.dest is None:
             return {"content": []}
-        return {"content": [{"id": "B1", "url": f.as_posix()} for f in self.dest.rglob("*.cbz")]}
+        return {
+            "content": [
+                {
+                    "id": "B1",
+                    "url": f.as_posix(),
+                    "metadata": {
+                        "authors": [
+                            {"name": n, "role": "writer"} for n in self.authors.get(f.name, [])
+                        ]
+                    },
+                }
+                for f in self.dest.rglob("*.cbz")
+            ]
+        }
 
 
 def make_post(pages: int = 3, media_id: str = "123") -> Post:
@@ -344,6 +358,89 @@ def test_second_volume_moves_first_oneshot(env) -> None:
     assert first.name in names and len(names) == 2
     assert not list((dest / "_oneshots").iterdir())
     assert (dest / "[Foo] My Sister" / first.name).read_bytes() == data
+
+
+def test_second_book_pairs_with_oneshot_whose_name_has_no_artist(env) -> None:
+    """The oneshot file name has no [artist]; Komga knows the author (hand-moved book)."""
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    ones = dest / "_oneshots"
+    ones.mkdir(parents=True)
+    old = ones / "My Sister [1].cbz"
+    old.write_bytes(b"old")
+    komga.authors = {old.name: ["bob"]}
+    res = target.save(titled("My Sister 2", "2"), [])  # make_post tags the artist "bob"
+    assert res.notices == []
+    names = sorted(p.name for p in (dest / "[bob] My Sister").iterdir())
+    assert old.name in names and len(names) == 2
+    assert not list(ones.iterdir())
+
+
+def _hand_moved(dest: Path) -> Path:
+    ones = dest / "_oneshots"
+    ones.mkdir(parents=True)
+    old = ones / "My Sister [1].cbz"
+    old.write_bytes(b"old")
+    return old
+
+
+def test_pairing_matches_author_case_and_space_insensitive_any_writer(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    old = _hand_moved(dest)
+    komga.authors = {old.name: ["someone", "  BOB "]}
+    target.save(titled("My Sister 2", "2"), [])
+    assert (dest / "[bob] My Sister" / old.name).exists()
+
+
+def test_unscanned_oneshot_stays_unpaired(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    old = _hand_moved(dest)  # Komga has no metadata for it yet
+    target.save(titled("My Sister 2", "2"), [])
+    assert old.exists()
+
+
+def test_author_lookup_is_cached_across_index_builds(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    old = _hand_moved(dest)
+    komga.authors = {old.name: ["bob"]}
+    post = titled("My Sister 2", "2")
+    assert target.suggest(post).via == "oneshot_pair"
+    first = komga.list_calls
+    target._index_cache.invalidate()
+    assert target.suggest(post).via == "oneshot_pair"
+    assert komga.list_calls == first
+
+
+def test_author_miss_is_retried_after_its_short_ttl(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    old = _hand_moved(dest)
+    now = [1000.0]
+    target._clock = lambda: now[0]
+    post = titled("My Sister 2", "2")
+    assert target.suggest(post).via == "new"  # not scanned yet
+    komga.authors = {old.name: ["bob"]}
+    target._index_cache.invalidate()
+    assert target.suggest(post).via == "new"  # miss still cached
+    now[0] += 301
+    target._index_cache.invalidate()
+    assert target.suggest(post).via == "oneshot_pair"
+
+
+def test_komga_failure_in_author_lookup_still_saves(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    old = _hand_moved(dest)
+
+    def boom(*_a, **_k):
+        raise KomgaError("upstream_error", "down", 502)
+
+    komga.list_books = boom  # type: ignore[method-assign]
+    res = target.save(titled("My Sister 2", "2"), [])
+    assert res.status == "saved" and old.exists()
 
 
 def test_move_failure_never_fails_the_save(env, monkeypatch: pytest.MonkeyPatch) -> None:

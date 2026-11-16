@@ -73,13 +73,14 @@ describe("ChangelogCard", () => {
     expect(details.map((d) => d.open)).toEqual([true, false]);
   });
 
-  it("closes every release card when the pinned What's new card shows", async () => {
+  it("does not show a What's new box, and opens the newest release", async () => {
     hoisted.api.getUpdateChangelog.mockResolvedValue(
       page({ whats_new: block("What's new", { version: null, range: "1.2.3 → 1.2.4" }) }),
     );
     const { container } = render(ChangelogCard);
-    expect(await screen.findByText("What's new since your version")).toBeTruthy();
-    expect([...container.querySelectorAll("details")].every((d) => !d.open)).toBe(true);
+    await screen.findByText("v1.2.4 item");
+    expect(screen.queryByText("What's new since your version")).toBeNull();
+    expect([...container.querySelectorAll("details")].map((d) => d.open)).toEqual([true, false]);
   });
 
   it("toggle switches the viewed channel without changing the update channel", async () => {

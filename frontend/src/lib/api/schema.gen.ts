@@ -627,6 +627,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rules/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Tag
+         * @description Add one tag to the reject list.
+         */
+        post: operations["reject_tag_api_rules_reject_post"];
+        /**
+         * Unreject Tag
+         * @description Remove one tag from the reject list (the Undo action).
+         */
+        delete: operations["unreject_tag_api_rules_reject_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/rules/test": {
         parameters: {
             query?: never;
@@ -816,6 +840,23 @@ export interface paths {
         post?: never;
         /** Delete Destination */
         delete: operations["delete_destination_api_destinations__site__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/library/scan-rule34": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Scan Rule34 */
+        post: operations["scan_rule34_api_library_scan_rule34_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1531,6 +1572,11 @@ export interface components {
             size_bytes?: number | null;
             /** File Name */
             file_name?: string | null;
+            /**
+             * Gif Url
+             * @description Image tiles only. Animated GIF to play in a grid tile; small GIFs only.
+             */
+            gif_url?: string | null;
             /** Page Count */
             page_count?: number | null;
             /** Read Page */
@@ -1581,6 +1627,11 @@ export interface components {
             size_bytes?: number | null;
             /** File Name */
             file_name?: string | null;
+            /**
+             * Gif Url
+             * @description Image tiles only. Animated GIF to play in a grid tile; small GIFs only.
+             */
+            gif_url?: string | null;
             /** Page Count */
             page_count?: number | null;
             /** Read Page */
@@ -1722,6 +1773,16 @@ export interface components {
              */
             site_names: boolean;
             /**
+             * Gif Grid
+             * @default true
+             */
+            gif_grid: boolean;
+            /**
+             * Tapped First
+             * @default false
+             */
+            tapped_first: boolean;
+            /**
              * Place Mode
              * @default suggest
              * @enum {string}
@@ -1782,6 +1843,10 @@ export interface components {
             infinite_scroll?: boolean | null;
             /** Site Names */
             site_names?: boolean | null;
+            /** Gif Grid */
+            gif_grid?: boolean | null;
+            /** Tapped First */
+            tapped_first?: boolean | null;
             /** Place Mode */
             place_mode?: ("auto" | "suggest") | null;
             /** Source Pace */
@@ -1879,6 +1944,25 @@ export interface components {
             page: number;
             /** Completed */
             completed: boolean;
+        };
+        /** RejectAdded */
+        RejectAdded: {
+            /** Added */
+            added: boolean;
+            /** Version */
+            version: number;
+        };
+        /** RejectRemoved */
+        RejectRemoved: {
+            /** Removed */
+            removed: boolean;
+            /** Version */
+            version: number;
+        };
+        /** RejectTagBody */
+        RejectTagBody: {
+            /** Tag */
+            tag: string;
         };
         /** RestartIn */
         RestartIn: {
@@ -2009,6 +2093,15 @@ export interface components {
             /** Id */
             id: string;
         };
+        /** ScanResult */
+        ScanResult: {
+            /** Found */
+            found: number;
+            /** Imported */
+            imported: number;
+            /** Skipped */
+            skipped: number;
+        };
         /** ScenarioBody */
         ScenarioBody: {
             /** Name */
@@ -2104,6 +2197,16 @@ export interface components {
             per_page_max: number;
             /** Order Blocked When */
             order_blocked_when?: number | null;
+            /**
+             * Title Search
+             * @default false
+             */
+            title_search: boolean;
+            /**
+             * Title Exclude
+             * @default false
+             */
+            title_exclude: boolean;
         };
         /** StashHealth */
         StashHealth: {
@@ -2385,7 +2488,17 @@ export interface components {
              */
             saveable: boolean;
             saved?: components["schemas"]["SavedRef"] | null;
+            /**
+             * Owned
+             * @default false
+             */
+            owned: boolean;
             blur?: components["schemas"]["Blur"] | null;
+            /**
+             * Gif Url
+             * @description Animated GIF to play in a grid tile; GIFs of known, small size only.
+             */
+            gif_url?: string | null;
         };
     };
     responses: never;
@@ -2405,6 +2518,7 @@ export interface operations {
                 page_size?: number;
                 order?: string;
                 rating?: string;
+                safe?: boolean | null;
             };
             header?: never;
             path?: never;
@@ -3621,6 +3735,72 @@ export interface operations {
             };
         };
     };
+    reject_tag_api_rules_reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectTagBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RejectAdded"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unreject_tag_api_rules_reject_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectTagBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RejectRemoved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     test_rules_api_rules_test_post: {
         parameters: {
             query?: never;
@@ -3970,6 +4150,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scan_rule34_api_library_scan_rule34_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanResult"];
                 };
             };
         };

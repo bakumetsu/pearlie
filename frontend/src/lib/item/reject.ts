@@ -3,18 +3,9 @@ import type { ToastsLike } from "./itemView.svelte";
 
 export async function rejectTag(api: Api, toasts: ToastsLike, tag: string): Promise<void> {
   try {
-    const rules = await api.getRules();
-    const reject = rules.reject ?? [];
+    const { added } = await api.rejectTag(tag);
 
-    if (reject.includes(tag)) return;
-
-    await api.putRules({
-      version: rules.version,
-      reject: [...reject, tag],
-      warn: rules.warn,
-      require: rules.require,
-      mapping: rules.mapping,
-    });
+    if (!added) return;
 
     toasts.push({
       kind: "undo",
@@ -22,14 +13,7 @@ export async function rejectTag(api: Api, toasts: ToastsLike, tag: string): Prom
       actionLabel: "Undo",
       onAction: async () => {
         try {
-          const r = await api.getRules();
-          await api.putRules({
-            version: r.version,
-            reject: (r.reject ?? []).filter((t) => t !== tag),
-            warn: r.warn,
-            require: r.require,
-            mapping: r.mapping,
-          });
+          await api.unrejectTag(tag);
         } catch {
           toasts.push({ kind: "error", message: "Can't undo any more" });
         }

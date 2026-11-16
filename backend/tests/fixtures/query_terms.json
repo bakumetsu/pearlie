@@ -1,0 +1,12 @@
+[
+  {"text": "", "tokens": []},
+  {"text": "   ", "tokens": []},
+  {"text": "cat -dog artist:x", "tokens": ["cat", "-dog", "artist:x"]},
+  {"text": "cat,dog  bird", "tokens": ["cat", "dog", "bird"]},
+  {"text": "\"big dragon\"", "tokens": ["\"big dragon\""]},
+  {"text": "a \"b c\" -title:\"d e\"", "tokens": ["a", "\"b c\"", "-title:\"d e\""]},
+  {"text": "title:\"big dragon\" x", "tokens": ["title:\"big dragon\"", "x"]},
+  {"text": "\"a, b\" c", "tokens": ["\"a, b\"", "c"]},
+  {"text": "\"big dragon", "tokens": ["\"big dragon"]},
+  {"text": "title:foo_bar", "tokens": ["title:foo_bar"]}
+]

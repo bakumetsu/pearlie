@@ -3,7 +3,7 @@
   import { player } from "./player.svelte";
   import { RAIL_W, rectFor, toTransform } from "./geometry";
   import { rail } from "../stores/rail.svelte";
-  import { setMediaSession, enterPip } from "./pip";
+  import { setMediaSession, enterPip, watchPip, type PipVideo } from "./pip";
   import PlayerBar from "./PlayerBar.svelte";
 
   let video: HTMLVideoElement | null = null;
@@ -72,11 +72,12 @@
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const rect = $derived(rectFor(player.mode, player.slot, vp, rail?.collapsed ? 0 : RAIL_W));
+  const rect = $derived(rectFor(player.mode, player.slot, vp, rail ? rail.px : RAIL_W));
 
   // Mini dock is z-index 21 with an opaque background, so the mini video must sit above it.
+  // In PiP the page box would only show the browser's "playing in picture-in-picture" text, so hide it.
   const videoStyle = $derived(
-    rect === null
+    rect === null || (player.pip && !fs)
       ? "position:fixed;top:0;left:0;z-index:20;background:#000;object-fit:contain;display:none;"
       : `position:fixed;top:0;left:0;z-index:${player.mode === "mini" ? 22 : 20};background:#000;object-fit:contain;width:${rect.w}px;height:${rect.h}px;transform:${toTransform(rect)};`,
   );
@@ -87,13 +88,26 @@
   });
 
   $effect(() => {
+    if (video === null) return;
+    const stop = watchPip(video as PipVideo, (on) => player.setPip(on));
+    return () => {
+      stop();
+      player.setPip(false);
+    };
+  });
+
+  $effect(() => {
     const item = player.item;
+    const canPrev = player.canPrev;
+    const canNext = player.canNext;
     setMediaSession(
       navigator,
       item ? { title: item.title, poster: item.posterUrl } : null,
       {
         play: () => player.play(),
         pause: () => player.pause(),
+        prev: canPrev ? () => player.prev() : null,
+        next: canNext ? () => player.next() : null,
         enterPip: () => {
           if (video) void enterPip(document, video as Parameters<typeof enterPip>[1]);
         },

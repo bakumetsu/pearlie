@@ -78,6 +78,10 @@ class LibraryItem(BaseModel):
     date: str | None = None
     size_bytes: int | None = None
     file_name: str | None = None
+    gif_url: str | None = Field(
+        default=None,
+        description="Image tiles only. Animated GIF to play in a grid tile; small GIFs only.",
+    )
     page_count: int | None = None
     read_page: int | None = None
     book_count: int | None = None
@@ -138,7 +142,12 @@ class WebItem(BaseModel):
     target: Target
     saveable: bool = True  # false while the source's target has no save path (no Save button)
     saved: SavedRef | None = None
+    owned: bool = False  # saved to Stash: the viewer shows the library icon
     blur: Blur | None = None
+    gif_url: str | None = Field(
+        default=None,
+        description="Animated GIF to play in a grid tile; GIFs of known, small size only.",
+    )
 
 
 class WebBook(BaseModel):
@@ -211,6 +220,8 @@ class SourceFilters(BaseModel):
     per_page_options: list[int] = Field(default_factory=list)
     per_page_max: int
     order_blocked_when: int | None = None  # Order is off when this many search words are set
+    title_search: bool = False  # the source can search by title (title:"..." chip)
+    title_exclude: bool = False  # ... and can exclude one (-title:"...")
 
 
 class FiltersResponse(BaseModel):
@@ -362,6 +373,20 @@ class RulesPut(BaseModel):
     warn: list[str] = Field(default_factory=list)
     require: list[str] = Field(default_factory=list)
     mapping: list[RuleMapping] = Field(default_factory=list)
+
+
+class RejectTagBody(BaseModel):
+    tag: str
+
+
+class RejectAdded(BaseModel):
+    added: bool
+    version: int
+
+
+class RejectRemoved(BaseModel):
+    removed: bool
+    version: int
 
 
 class RulesTestBody(BaseModel):

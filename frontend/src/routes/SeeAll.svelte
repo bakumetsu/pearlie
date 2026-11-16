@@ -3,11 +3,12 @@
   import { getApi } from "../lib/api/client";
   import { getRouter, findJobs } from "../lib/ctx";
   import { settleQueued } from "../lib/web/saveFlow";
-  import { linkClick } from "../lib/router";
+  import { linkClick, webItemHref } from "../lib/router";
   import type { Match } from "../lib/router";
   import type { Kind, WebItem, LibraryItem } from "../lib/api/client";
   import { ApiError as ApiErrorClass } from "../lib/api/client";
   import { gridFor } from "../lib/stores/shared.svelte";
+  import { sfw } from "../lib/stores/sfw.svelte";
   import Icon from "../lib/components/Icon.svelte";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { onMount } from "svelte";
@@ -29,6 +30,7 @@
   import { parseOrder, parseRating } from "../lib/browse/filters";
   import type { SourceFilters } from "../lib/api/client";
   import { parseOpen, openKey, withOpen, findTile } from "../lib/browse/overlayState";
+  import { parseWeb, webKey as webRefKey, withWeb, webTileHref, fetchWebPost } from "../lib/browse/webOpen";
 
   let { match }: { match: Match } = $props();
 
@@ -171,6 +173,8 @@
       document.documentElement.style.overflow = "";
       window.scrollTo(0, y);
       const id = lastOpenId;
+      // The tile may be out of the window: scroll it into range first, then it can be found and focused.
+      gridEl?.scrollToKey(openKey(id));
       tick().then(() => { const tile = findTile(document, openKey(id)); tile?.scrollIntoView?.({ block: "nearest" }); tile?.focus(); });
     };
   });
@@ -189,7 +193,7 @@
   const canReset = $derived(q.trim() !== "" || sort !== "" || rawOrder !== "" || rating.length > 0 || favorite);
 
   const listKey = $derived(
-    [source, q, sort, favorite ? "1" : "0", order, ratingKey, seed ?? "", String(vs.per_page), infinite ? "inf" : "pg"].join("|"),
+    [source, q, sort, favorite ? "1" : "0", order, ratingKey, seed ?? "", String(vs.per_page), infinite ? "inf" : "pg", sfw?.on ? "safe" : "open"].join("|"),
   );
 
   $effect(() => {
@@ -281,6 +285,43 @@
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
   });
 
+  // Leaving for a tile and coming back reuses the kept grid; remember the scroll place for it.
+  $effect(() => {
+    let y = 0;
+    let anchor: { key: string; offset: number; sig: string } | null = null;
+    let raf = 0;
+    const onScroll = () => {
+      y = window.scrollY;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        anchor = gridEl?.getAnchor() ?? null;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+      // The grid may be gone already; then the last anchor seen on scroll stands.
+      const a = gridEl?.getAnchor() ?? anchor;
+      untrack(() => grid.setScroll({ y, key: a?.key ?? null, offset: a?.offset ?? 0, sig: a?.sig ?? "" }));
+    };
+  });
+
+  // The results grid is ready once its layout is built for the real width; a scroll restore waits for that.
+  let gridEl = $state<ReturnType<typeof ResultsGrid>>();
+  let readyWaiters: Array<() => void> = [];
+  function whenGridReady(fn: () => void) {
+    if (gridEl?.isReady()) fn();
+    else readyWaiters.push(fn);
+  }
+  function onGridReady() {
+    const run = readyWaiters;
+    readyWaiters = [];
+    run.forEach((fn) => fn());
+  }
+  $effect(() => () => { readyWaiters = []; });
+
   // Scroll to top and focus pager after a page finishes loading
   let lastFocusedKey = "";
   $effect(() => {
@@ -294,7 +335,18 @@
     if (lastFocusedKey === key) return;
     lastFocusedKey = key;
     untrack(() => {
-      if (grid.scrollY > 0) return;
+      if (grid.scrollY > 0) {
+        const y = grid.scrollY;
+        const key = grid.scrollKey;
+        const offset = grid.scrollOffset;
+        const sig = grid.scrollSig;
+        grid.setScrollY(0);
+        whenGridReady(() => {
+          if (key && sig !== gridEl?.getSig()) gridEl?.scrollToKey(key, offset);
+          else window.scrollTo(0, y);
+        });
+        return;
+      }
       window.scrollTo(0, 0);
       (async () => {
         await tick();
@@ -339,13 +391,53 @@
   let lightboxKey = $state<string | null>(null);
   const webKey = (w: WebItem) => w.source + ":" + w.post_id;
   const webItems = $derived(grid.items.filter((i): i is WebItem => "post_id" in i));
+  // A post from the address that is not in the loaded grid: fetched by id, shown without prev/next.
+  let extraWeb = $state<WebItem | null>(null);
   const lightboxIdx = $derived(lightboxKey ? webItems.findIndex((w) => webKey(w) === lightboxKey) : -1);
-  const lightboxItem = $derived(lightboxIdx >= 0 ? webItems[lightboxIdx] : null);
+  const lightboxItem = $derived(
+    lightboxIdx >= 0 ? webItems[lightboxIdx] : extraWeb && lightboxKey === webKey(extraWeb) ? extraWeb : null,
+  );
 
+  // The address names the open post (replace, no history entries); a new tab opens it from there.
+  function setWebParam(key: string | null) {
+    const qs = withWeb(match.query, key);
+    if (qs !== match.query.toString()) router.navigate(match.path + (qs ? `?${qs}` : ""), { replace: true });
+  }
+  function openWeb(w: WebItem) {
+    lightboxKey = webKey(w);
+    setWebParam(lightboxKey);
+  }
+  function closeWeb() {
+    lightboxKey = null;
+    extraWeb = null;
+    setWebParam(null);
+  }
   function stepLightbox(d: 1 | -1) {
     const next = webItems[lightboxIdx + d];
-    if (next) lightboxKey = webKey(next);
+    if (next) openWeb(next);
   }
+
+  const rawWeb = $derived(parseWeb(match.query));
+  let webTried: string | null = null;
+  $effect(() => {
+    const ref = rawWeb;
+    if (!ref) { webTried = null; return; }
+    if (grid.status !== "done") return;
+    const key = webRefKey(ref.source, ref.postId);
+    if (untrack(() => lightboxKey) === key) return;
+    const hit = webItems.find((w) => webKey(w) === key);
+    if (hit) { lightboxKey = key; return; }
+    if (webTried === key) return;
+    webTried = key;
+    fetchWebPost(api, ref).then((w) => {
+      if (parseWeb(match.query)?.postId !== ref.postId) return;
+      if (w) { extraWeb = w; lightboxKey = key; }
+      else {
+        toasts.push({ kind: "error", message: "Post not available" });
+        setWebParam(null);
+      }
+    });
+  });
 
   // --- URL query updates ---
   function setPage(p: number) {
@@ -536,7 +628,7 @@
         </div>
       </div>
     {:else}
-      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => (w.source === "nhentai" ? router.navigate("/web/nhentai/" + encodeURIComponent(w.post_id)) : (lightboxKey = webKey(w)))} landscape={source === "stash_videos"} />
+      <ResultsGrid bind:this={gridEl} onready={onGridReady} items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => { const h = webItemHref(w.source, w.post_id); if (h) router.navigate(h); else openWeb(w); }} webHref={(w) => webTileHref(match.path, match.query, w)} landscape={source === "stash_videos"} />
     {/if}
 
     {#if infinite && grid.status === "done"}
@@ -566,22 +658,23 @@
     saveState={saveStates[webKey(lightboxItem)] ?? (lightboxItem.saved ? "in_library" : "idle")}
     onsave={() => { if (lightboxItem) handleSave(lightboxItem); }}
     onprev={lightboxIdx > 0 ? () => stepLightbox(-1) : undefined}
-    onnext={lightboxIdx < webItems.length - 1 ? () => stepLightbox(1) : undefined}
-    onclose={() => (lightboxKey = null)}
+    onnext={lightboxIdx >= 0 && lightboxIdx < webItems.length - 1 ? () => stepLightbox(1) : undefined}
+    onclose={closeWeb}
   />
 {/if}
 
 <style>
   .content { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--s-4); }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-  .sticky-header { position: sticky; top: 0; background: var(--surface); z-index: 10; padding: var(--s-4) 0; }
+  /* --bar-scale shrinks the bar's spacing only (80 / 85 / 95 %); every control keeps its 44 px hit area. */
+  .sticky-header { --bar-scale: 0.85; position: sticky; top: 0; background: var(--surface); z-index: 10; padding: calc(var(--s-4) * var(--bar-scale)) 0; }
   .header-row { display: flex; align-items: center; gap: var(--s-4); padding-right: var(--sfw-inset); }
   .back-btn { min-width: 44px; min-height: 44px; display: grid; place-items: center; border: none; background: none; cursor: pointer; color: var(--text); }
   .header-title { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text); }
   .sticky-header { transition: transform 0.2s ease; }
   .sticky-header.hidden { transform: translateY(-100%); }
   @media (prefers-reduced-motion: reduce) { .sticky-header { transition: none; } }
-  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: var(--s-4); }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: calc(var(--s-4) * var(--bar-scale)); }
   @media (min-width: 640px) { .controls { flex-wrap: nowrap; } }
   .shown { font-size: 0.875rem; color: var(--muted); }
   .muted { color: var(--muted); }

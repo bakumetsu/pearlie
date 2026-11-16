@@ -1,5 +1,6 @@
 """Danbooru source adapter."""
 
+import logging
 from collections.abc import Callable
 from urllib.parse import urlparse
 
@@ -16,6 +17,7 @@ RATING_MAP: dict[str, Rating] = {
     "g": "general", "s": "sensitive", "q": "questionable", "e": "explicit"
 }
 TAG_TYPES = ("general", "artist", "copyright", "character", "meta")
+_log = logging.getLogger(__name__)
 
 
 def _retry_after(resp: httpx.Response) -> float | None:
@@ -131,12 +133,30 @@ class Danbooru:
         raw_count = len(data)
         dropped = [t for t in local_tags if ":" in t and rating_filter(t) is None]
         posts: list[Post] = []
+        skipped = 0
+        first_id = ""
+        first_exc = None
         for d in data:
             if not isinstance(d, dict) or "id" not in d:
                 continue
-            post = self._to_post(d)
+            try:
+                post = self._to_post(d)
+            except (ValueError, TypeError, KeyError, AttributeError) as exc:
+                skipped += 1
+                if first_exc is None:
+                    first_id = str(d.get("id"))
+                    first_exc = exc
+                continue
             if self._matches(post, local_tags):
                 posts.append(post)
+        if skipped:
+            _log.warning(
+                "%s search skipped %d bad row(s), first id=%s %s",
+                self.id,
+                skipped,
+                first_id,
+                type(first_exc).__name__,
+            )
         next_page = page + 1 if raw_count == size else None
         return SearchPage(
             posts=posts, page=page, next_page=next_page, dropped=dropped, notices=notices
@@ -189,6 +209,7 @@ class Danbooru:
             post_id=str(d["id"]),
             md5=d.get("md5"),
             file_url=d.get("file_url") or d.get("large_file_url"),
+            file_size=d.get("file_size") if isinstance(d.get("file_size"), int) else None,
             preview_url=d.get("preview_file_url"),
             sample_url=d.get("large_file_url"),
             width=d.get("image_width") or 0,

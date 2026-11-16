@@ -22,8 +22,72 @@ NODE_VERSION="22" setup_nodejs
 msg_info "Setting up Pearlie"
 mkdir -p /opt/pearlie/data /opt/pearlie/releases /opt/pearlie/backups
 
-curl -fsSL "${PEARLIE_RAW_URL:-https://raw.githubusercontent.com/bakumetsu/pearlie/main}/deploy/pearlie-update.sh" -o /usr/local/bin/pearlie-update
-chmod 755 /usr/local/bin/pearlie-update
+# BEGIN fetch_update_script (tested by deploy/tests/run.sh)
+# Fetch pearlie-update from a release tag, not from the mutable main branch. Fails closed.
+PEARLIE_API="${PEARLIE_UPDATE_API_BASE:-https://api.github.com/repos/bakumetsu/pearlie}"
+PEARLIE_DL="${PEARLIE_UPDATE_DOWNLOAD_BASE:-https://codeload.github.com/bakumetsu/pearlie}"
+PEARLIE_BIN_DEST="${PEARLIE_BIN:-/usr/local/bin/pearlie-update}"
+
+pearlie_json_field() {
+  printf '%s' "$1" | "${PEARLIE_JSON_PY:-python3}" -c '
+import sys, json
+try:
+  v = json.load(sys.stdin).get(sys.argv[1], "")
+  if isinstance(v, str):
+    print(v)
+except Exception:
+  pass
+' "$2"
+}
+
+fetch_update_script() {
+  local ref="${PEARLIE_REF:-}" body sha tmp stamp
+  if [[ -z $ref ]]; then
+    if ! body=$(curl -fsSL --max-time 30 -H 'Accept: application/vnd.github+json' "$PEARLIE_API/releases/latest"); then
+      msg_error "Cannot reach GitHub to find the latest release; nothing installed."
+      return 1
+    fi
+    ref=$(pearlie_json_field "$body" tag_name)
+  fi
+  if [[ $ref != dev && ! $ref =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    msg_error "Bad release ref '$ref'; nothing installed."
+    return 1
+  fi
+  if ! body=$(curl -fsSL --max-time 30 -H 'Accept: application/vnd.github+json' "$PEARLIE_API/commits/$ref"); then
+    msg_error "Cannot resolve $ref to a commit; nothing installed."
+    return 1
+  fi
+  sha=$(pearlie_json_field "$body" sha)
+  if [[ ! $sha =~ ^[0-9a-f]{40}$ ]]; then
+    msg_error "Bad commit for $ref; nothing installed."
+    return 1
+  fi
+  tmp=$(mktemp -d)
+  if ! curl -fsSL --max-filesize 104857600 --max-time 600 -o "$tmp/src.tar.gz" "$PEARLIE_DL/tar.gz/$sha" || ! gzip -t "$tmp/src.tar.gz"; then
+    rm -rf "$tmp"
+    msg_error "Download failed or corrupt; nothing installed."
+    return 1
+  fi
+  # same stamp check as deploy/pearlie-update.sh (download_and_extract)
+  stamp=$(gzip -dc "$tmp/src.tar.gz" 2>/dev/null | head -c 4096 | grep -a -o 'comment=[0-9a-f]\{40\}' | head -n1) || true
+  stamp="${stamp#comment=}"
+  if [[ $stamp != "$sha" ]]; then
+    rm -rf "$tmp"
+    msg_error "Download does not match commit $sha; nothing installed."
+    return 1
+  fi
+  if ! tar -xzf "$tmp/src.tar.gz" -O --wildcards '*/deploy/pearlie-update.sh' > "$tmp/pearlie-update" || [[ ! -s $tmp/pearlie-update ]]; then
+    rm -rf "$tmp"
+    msg_error "Update script missing in the release; nothing installed."
+    return 1
+  fi
+  install -m 755 "$tmp/pearlie-update" "$PEARLIE_BIN_DEST"
+  rm -rf "$tmp"
+  PEARLIE_RESOLVED_REF="$ref"
+}
+# END fetch_update_script
+
+fetch_update_script || exit 1
 
 host_ip=$(hostname -I | awk '{for (j = 1; j <= NF; j++) if ($j ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) { print $j; exit }}')
 if [[ -z $host_ip ]]; then
@@ -49,12 +113,15 @@ if [[ ! -f /opt/pearlie/.env ]]; then
   chmod 600 /opt/pearlie/.env
 fi
 
-cat <<CONF > /opt/pearlie/update.conf
-channel=main
+# keep the user's settings on a re-run, like .env
+if [[ ! -f /opt/pearlie/update.conf ]]; then
+  cat <<CONF > /opt/pearlie/update.conf
+channel=$([[ ${PEARLIE_RESOLVED_REF:-} == dev ]] && echo dev || echo main)
 check=on
 host=auto
 port=8000
 CONF
+fi
 
 cat <<'UNIT' > /etc/systemd/system/pearlie.service
 [Unit]

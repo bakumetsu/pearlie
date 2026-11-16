@@ -80,6 +80,77 @@ describe("createPlayer", () => {
     expect(p.slot).toBeNull();
   });
 
+  it("beginNav keeps stage across releaseSlot until the next video opens", () => {
+    const p = createPlayer();
+    p.open(item1);
+    p.setSlot(item1.id, rect);
+    p.onPlaying();
+    p.beginNav();
+    p.releaseSlot(item1.id);
+    expect(p.mode).toBe("stage");
+    p.open(item2);
+    p.setSlot(item2.id, rect);
+    expect(p.mode).toBe("stage");
+    p.releaseSlot(item2.id);
+    expect(p.mode).toBe("mini");
+  });
+
+  it("autoplay in stage: stray re-measure of the old slot keeps the nav, next video autoplays", () => {
+    const p = createPlayer(() => true);
+    p.open(item1);
+    p.setSlot(item1.id, rect);
+    p.onPlaying();
+    p.setNav({ next: () => p.beginNav(), prev: () => {}, canNext: () => true, canPrev: () => false });
+    p.onEnded();
+    p.setSlot(item1.id, rect);
+    p.releaseSlot(item1.id);
+    expect(p.mode).toBe("stage");
+    expect(p.item?.id).toBe("1");
+    p.open(item2);
+    expect(p.item?.id).toBe("2");
+    expect(p.consumePlayOnLoad()).toBe(true);
+    p.setSlot(item2.id, rect);
+    expect(p.mode).toBe("stage");
+    // nav finished: open() cleared it, so a later leave goes to the mini dock
+    p.beginNav();
+    p.open(item2);
+    p.setSlot(item2.id, rect);
+    p.releaseSlot(item2.id);
+    expect(p.mode).toBe("mini");
+  });
+
+  it("beginNav falls back to mini when no slot mounts", () => {
+    vi.useFakeTimers();
+    try {
+      const p = createPlayer();
+      p.open(item1);
+      p.setSlot(item1.id, rect);
+      p.beginNav();
+      p.releaseSlot(item1.id);
+      vi.advanceTimersByTime(3500);
+      expect(p.mode).toBe("mini");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("beginNav fallback hides the player when the video ended", () => {
+    vi.useFakeTimers();
+    try {
+      const p = createPlayer();
+      p.open(item1);
+      p.setSlot(item1.id, rect);
+      p.onEnded();
+      p.beginNav();
+      p.releaseSlot(item1.id);
+      vi.advanceTimersByTime(3500);
+      expect(p.mode).toBe("hidden");
+      expect(p.item).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("releaseSlot while paused -> mini, item kept", () => {
     const p = createPlayer();
     p.open(item1);

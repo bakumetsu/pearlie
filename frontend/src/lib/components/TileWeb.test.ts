@@ -51,12 +51,60 @@ describe("Tile web shapes and fallback", () => {
     await fireEvent.click(container.querySelector<HTMLElement>(".retry")!);
     expect(img().getAttribute("src")).toBe(proxied);
   });
+
+  it("no thumb and no preview shows 'No preview' with no img and no Retry", () => {
+    const { container, getByText } = render(Tile, { item: web({ thumb_url: "", preview_url: "" }) });
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector(".retry")).toBeNull();
+    expect(getByText("No preview")).toBeTruthy();
+  });
 });
 
 describe("Search rows", () => {
-  it("pins the nhentai row first and gives the video row landscape tiles", () => {
-    expect(searchSrc).toContain('id === "nhentai"');
+  it("does not pin a site row first, and gives the video row landscape tiles", () => {
+    expect(searchSrc).not.toContain('id === "nhentai"');
     expect(searchSrc).toContain('landscape={id === "stash_videos"}');
     expect(searchSrc).toContain('wide={id === "stash_videos"}');
+  });
+});
+
+describe("Tile grid cost", () => {
+  it("web grid tile is content-visibility sized by its aspect and decodes async", () => {
+    const { container } = render(Tile, { item: web(), variant: "grid" });
+    const root = container.querySelector<HTMLElement>(".tile")!;
+    expect(root.classList.contains("cv")).toBe(true);
+    expect(root.style.aspectRatio).toBe("800 / 400");
+    expect(container.querySelector("img")!.getAttribute("decoding")).toBe("async");
+  });
+
+  it("list tile is not content-visibility", () => {
+    const { container } = render(Tile, { item: web(), variant: "list" });
+    expect(container.querySelector(".tile")!.classList.contains("cv")).toBe(false);
+  });
+
+  it("library image tile decodes async", () => {
+    const item = { kind: "image", id: "1", title: "T", thumb_url: "/t.jpg", added_at: "2025-01-01T00:00:00Z", favorite: false };
+    const { container } = render(Tile, { item: item as never, href: "/x" });
+    expect(container.querySelector("img")!.getAttribute("decoding")).toBe("async");
+    expect(container.querySelector(".tile")!.classList.contains("cv")).toBe(true);
+  });
+});
+
+describe("Tile web link", () => {
+  it("with href renders an anchor; plain click opens in page, Ctrl+click is left to the browser", async () => {
+    let opened = 0;
+    const { container } = render(Tile, { item: web({ source: "nhentai" }), href: "/web/nhentai/1", onopen: () => opened++ });
+    const a = container.querySelector<HTMLAnchorElement>("a.open")!;
+    expect(a.getAttribute("href")).toBe("/web/nhentai/1");
+    expect(await fireEvent.click(a)).toBe(false);
+    expect(opened).toBe(1);
+    expect(await fireEvent.click(a, { ctrlKey: true })).toBe(true);
+    expect(opened).toBe(1);
+  });
+
+  it("without href keeps the button", () => {
+    const { container } = render(Tile, { item: web() });
+    expect(container.querySelector("a.open")).toBeNull();
+    expect(container.querySelector("button.open")).not.toBeNull();
   });
 });
