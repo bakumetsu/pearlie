@@ -19,6 +19,7 @@
     onnavigate,
     onopenitem,
     onopenweb,
+    webHref,
     landscape = false,
   }: {
     items: (LibraryItem | WebItem)[];
@@ -31,6 +32,7 @@
     onnavigate: (e: MouseEvent) => void;
     onopenitem?: (item: LibraryItem) => void;
     onopenweb?: (item: WebItem) => void;
+    webHref?: (item: WebItem) => string | undefined;
     landscape?: boolean;
   } = $props();
 
@@ -110,7 +112,7 @@
       item={item as WebItem}
       variant={variant}
       aspect={aspect}
-      href={webItemHref((item as WebItem).source, (item as WebItem).post_id)}
+      href={webItemHref((item as WebItem).source, (item as WebItem).post_id) ?? webHref?.(item as WebItem)}
       saveState={saveStates[(item as WebItem).source + ":" + (item as WebItem).post_id] ?? "idle"}
       onsave={() => onsave(item as WebItem)}
       onopen={onopenweb ? () => onopenweb(item as WebItem) : undefined}
