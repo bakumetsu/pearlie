@@ -5,7 +5,7 @@
   import { formatDuration } from "../format";
   import FavBadge from "./FavBadge.svelte";
   import { inView } from "../inView";
-  import { takeSlot } from "../gifSlots";
+  import { preloadGif, takeSlot } from "../gifSlots";
   import { options } from "../stores/options.svelte";
 
   let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, onaspect, landscape = false, revealed: revealedProp = false, onreveal }: {
@@ -80,17 +80,13 @@
   });
   $effect(() => {
     if (!wantGif || !gifUrl) return;
-    const pre = new Image();
     let release: (() => void) | null = null;
-    pre.onload = () => {
+    const cancel = preloadGif(gifUrl, () => {
       release = takeSlot(() => (gifReady = false));
       gifReady = true;
-    };
-    pre.src = gifUrl;
+    });
     return () => {
-      pre.onload = null;
-      pre.onerror = null;
-      pre.src = "";
+      cancel();
       release?.();
       gifReady = false;
     };
