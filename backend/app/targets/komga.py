@@ -46,6 +46,8 @@ MAX_PAGE_BYTES = 8 * 1024 * 1024
 MAX_GALLERY_BYTES = 500 * 1024 * 1024
 STALE_S = 3600
 VERIFY_PAGE_SIZE = 50
+ONESHOT_AUTHOR_PAGE_SIZE = 500
+ONESHOT_AUTHOR_MAX_PAGES = 100
 STALE_GRACE = "-1 day"  # Komga may not have scanned a fresh save yet
 
 
@@ -262,7 +264,11 @@ class KomgaTarget:
         allows the name-prefix join, and only in mode ``suggest``; batch and rule saves
         send neither, so they match an exact root only."""
         parsed = parse_name(post.title or "", post.tags.get("artist", []))
-        index = self._index_cache.get(dest_dir, oneshots.name)
+        index = self._index_cache.get(
+            dest_dir,
+            oneshots.name,
+            lambda names: self._oneshot_authors(dest_dir, oneshots.name or "", names, tag),
+        )
         if index.too_large:
             notices.append(
                 Problem(
@@ -291,6 +297,57 @@ class KomgaTarget:
             "override" if override else mode,
         )
         return plan
+
+    def _oneshot_authors(
+        self, dest_dir: Path, oneshots_name: str, names: list[str], tag: str
+    ) -> dict[str, list[str]]:
+        """Komga writer names of the oneshot books *names* (read only; {} on any failure)."""
+        s = self._settings
+        komga_dir = posixpath.normpath(
+            destinations.to_stash_path(
+                dest_dir.as_posix(), s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
+            )
+        )
+        wanted = set(names)
+        found: dict[str, list[str]] = {}
+        try:
+            lib_id = next(
+                (
+                    str(lib["id"])
+                    for lib in self._client.list_libraries()
+                    if komga_dir == posixpath.normpath(str(lib.get("root", "")).replace("\\", "/"))
+                    or komga_dir.startswith(
+                        posixpath.normpath(str(lib.get("root", "")).replace("\\", "/")) + "/"
+                    )
+                ),
+                None,
+            )
+            if lib_id is None:
+                return {}
+            for page_no in range(ONESHOT_AUTHOR_MAX_PAGES):
+                page = self._client.list_books(
+                    page_no, ONESHOT_AUTHOR_PAGE_SIZE, "", "createdDate,desc", library_id=lib_id
+                )
+                books = page.get("content", [])
+                for b in books:
+                    url = str(b.get("url", "")).replace("\\", "/")
+                    name = posixpath.basename(url)
+                    if (
+                        name not in wanted
+                        or posixpath.basename(posixpath.dirname(url)) != oneshots_name
+                    ):
+                        continue
+                    authors = (b.get("metadata") or {}).get("authors") or []
+                    writers = [a for a in authors if str(a.get("role", "")).lower() == "writer"]
+                    found[name] = [str(a.get("name", "")) for a in (writers or authors)]
+                if page.get("last", len(books) < ONESHOT_AUTHOR_PAGE_SIZE) or not books:
+                    break
+            else:
+                logger.warning("KOMGA %s oneshot author scan stopped at the page cap", tag)
+        except KomgaError as e:
+            logger.warning("KOMGA %s oneshot author lookup failed code=%s", tag, e.code)
+            return {}
+        return found
 
     def suggest(self, post: Post) -> Plan:
         """The plan a save would use now. Writes nothing: no folder, no file, no job."""

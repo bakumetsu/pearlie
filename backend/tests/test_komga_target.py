@@ -376,6 +376,44 @@ def test_second_book_pairs_with_oneshot_whose_name_has_no_artist(env) -> None:
     assert not list(ones.iterdir())
 
 
+def _hand_moved(dest: Path) -> Path:
+    ones = dest / "_oneshots"
+    ones.mkdir(parents=True)
+    old = ones / "My Sister [1].cbz"
+    old.write_bytes(b"old")
+    return old
+
+
+def test_pairing_matches_author_case_and_space_insensitive_any_writer(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    old = _hand_moved(dest)
+    komga.authors = {old.name: ["someone", "  BOB "]}
+    target.save(titled("My Sister 2", "2"), [])
+    assert (dest / "[bob] My Sister" / old.name).exists()
+
+
+def test_unscanned_oneshot_stays_unpaired(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    old = _hand_moved(dest)  # Komga has no metadata for it yet
+    target.save(titled("My Sister 2", "2"), [])
+    assert old.exists()
+
+
+def test_komga_failure_in_author_lookup_still_saves(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    old = _hand_moved(dest)
+
+    def boom(*_a, **_k):
+        raise KomgaError("upstream_error", "down", 502)
+
+    komga.list_books = boom  # type: ignore[method-assign]
+    res = target.save(titled("My Sister 2", "2"), [])
+    assert res.status == "saved" and old.exists()
+
+
 def test_move_failure_never_fails_the_save(env, monkeypatch: pytest.MonkeyPatch) -> None:
     target, komga, _s, dest, _h = env
     komga.oneshots = "_oneshots"

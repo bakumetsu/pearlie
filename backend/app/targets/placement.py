@@ -93,8 +93,16 @@ def _split_folder(name: str) -> tuple[str, str]:
     return (m.group(1), m.group(2)) if m else ("", name)
 
 
-def build_index(series_root: Path, oneshots_name: str | None) -> NameIndex:
-    """Scan the series root (folders) and the oneshots folder (files) once each."""
+def build_index(
+    series_root: Path,
+    oneshots_name: str | None,
+    authors_for: Callable[[list[str]], dict[str, list[str]]] | None = None,
+) -> NameIndex:
+    """Scan the series root (folders) and the oneshots folder (files) once each.
+
+    A oneshot file name has no [author]; *authors_for* gets those file names and returns
+    file name -> author names (Komga metadata). Called once, and only when needed.
+    """
     series: dict[str, dict[str, str]] = {}
     oneshots: dict[str, list[tuple[str, str]]] = {}
     entries = _scan(series_root)
@@ -110,13 +118,18 @@ def build_index(series_root: Path, oneshots_name: str | None) -> NameIndex:
         files = _scan(series_root / oneshots_name)
         if files is None:
             return NameIndex(series, {}, too_large=True)
-        for f in files:
-            if not f.is_file():
-                continue
-            p = parse_name(Path(f.name).stem)
-            oneshots.setdefault(p.author.lower(), []).append(
-                (clean_folder_name(p.root).lower(), f.name)
-            )
+        parsed = [(f.name, parse_name(Path(f.name).stem)) for f in files if f.is_file()]
+        known: dict[str, list[str]] = {}
+        bare = [name for name, p in parsed if not p.author]
+        if bare and authors_for is not None:
+            known = authors_for(bare)
+        for name, p in parsed:
+            entry = (clean_folder_name(p.root).lower(), name)
+            keys = [p.author.lower()]
+            if not p.author:
+                keys += {f"[{a.strip()}]".lower() for a in known.get(name, []) if a.strip()}
+            for key in keys:
+                oneshots.setdefault(key, []).append(entry)
     return NameIndex(series, oneshots)
 
 
@@ -128,12 +141,17 @@ class IndexCache:
         self._clock = clock
         self._items: dict[tuple[str, str | None], tuple[float, NameIndex]] = {}
 
-    def get(self, series_root: Path, oneshots_name: str | None) -> NameIndex:
+    def get(
+        self,
+        series_root: Path,
+        oneshots_name: str | None,
+        authors_for: Callable[[list[str]], dict[str, list[str]]] | None = None,
+    ) -> NameIndex:
         key = (str(series_root), oneshots_name)
         hit = self._items.get(key)
         if hit and self._clock() - hit[0] < self._ttl:
             return hit[1]
-        index = build_index(series_root, oneshots_name)
+        index = build_index(series_root, oneshots_name, authors_for)
         self._items[key] = (self._clock(), index)
         return index
 
