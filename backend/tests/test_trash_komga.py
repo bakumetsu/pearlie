@@ -3,6 +3,7 @@
 import json
 import os
 import time
+from typing import Any
 
 import httpx
 from fastapi.testclient import TestClient
@@ -33,17 +34,33 @@ class FakeKomga:
         self.unreachable = False
 
     def add_series(self, sid, folder):
-        self.series[sid] = {"id": sid, "libraryId": "L1", "name": folder.name, "url": str(folder),
-                            "booksCount": 0, "booksReadCount": 0, "deleted": False,
-                            "created": "2026-01-01T00:00:00",
-                            "metadata": {"title": folder.name, "tags": ["a"]}, "booksMetadata": {}}
+        self.series[sid] = {
+            "id": sid,
+            "libraryId": "L1",
+            "name": folder.name,
+            "url": str(folder),
+            "booksCount": 0,
+            "booksReadCount": 0,
+            "deleted": False,
+            "created": "2026-01-01T00:00:00",
+            "metadata": {"title": folder.name, "tags": ["a"]},
+            "booksMetadata": {},
+        }
 
     def add_book(self, bid, sid, f, progress=None):
-        self.books[bid] = {"id": bid, "seriesId": sid, "seriesTitle": "S", "libraryId": "L1",
-                           "name": f.stem, "url": str(f), "deleted": False,
-                           "created": "2026-01-01T00:00:00", "media": {"pagesCount": 10},
-                           "metadata": {"title": f.stem, "tags": ["x", "y"]},
-                           "readProgress": progress}
+        self.books[bid] = {
+            "id": bid,
+            "seriesId": sid,
+            "seriesTitle": "S",
+            "libraryId": "L1",
+            "name": f.stem,
+            "url": str(f),
+            "deleted": False,
+            "created": "2026-01-01T00:00:00",
+            "media": {"pagesCount": 10},
+            "metadata": {"title": f.stem, "tags": ["x", "y"]},
+            "readProgress": progress,
+        }
         self.series[sid]["booksCount"] += 1
 
     def _scan(self):
@@ -56,15 +73,23 @@ class FakeKomga:
                 if self.new_ids:
                     self.n += 1
                     store = self.books if d in self.books.values() else self.series
-                    nd = dict(d, id=f"N{self.n}", deleted=False,
-                              metadata={**d["metadata"], "tags": []}, readProgress=None)
+                    nd: dict = dict(
+                        d,
+                        id=f"N{self.n}",
+                        deleted=False,
+                        metadata={**d["metadata"], "tags": []},
+                        readProgress=None,
+                    )
                     store[nd["id"]] = nd
                 else:
                     d["deleted"] = False
-        if self.new_ids:
-            self._discover()
+        self._discover()
 
     def _discover(self):
+        for folder in {f.parent for f in self.lib.rglob("*.cbz")}:
+            if all(d["url"] != str(folder) for d in self.series.values()):
+                self.n += 1
+                self.add_series(f"N{self.n}", folder)
         known = {d["url"] for d in self.books.values()}
         for f in self.lib.rglob("*.cbz"):
             if str(f) in known:
@@ -74,9 +99,16 @@ class FakeKomga:
                 continue
             self.n += 1
             self.books[f"N{self.n}"] = {
-                "id": f"N{self.n}", "seriesId": sid, "seriesTitle": "S", "libraryId": "L1",
-                "name": f.stem, "url": str(f), "deleted": False, "created": "2026-01-01T00:00:00",
-                "media": {"pagesCount": 10}, "metadata": {"title": f.stem, "tags": []},
+                "id": f"N{self.n}",
+                "seriesId": sid,
+                "seriesTitle": "S",
+                "libraryId": "L1",
+                "name": f.stem,
+                "url": str(f),
+                "deleted": False,
+                "created": "2026-01-01T00:00:00",
+                "media": {"pagesCount": 10},
+                "metadata": {"title": f.stem, "tags": []},
                 "readProgress": None,
             }
 
@@ -126,21 +158,34 @@ class FakeKomga:
         return {"content": items, "last": True, "totalElements": len(items)}
 
 
+def st(c: TestClient) -> Any:
+    return c.app.state  # pyright: ignore[reportAttributeAccessIssue]
+
+
 def make(tmp_path, komga, wait=0.0):
     (tmp_path / "trash").mkdir(exist_ok=True)
     app = create_app(
         Settings(
-            mode="real", real="library_komga", komga_url=URL,
-            db_path=tmp_path / "p.db", static_dir=tmp_path / "nostatic",
-            trash_dir=tmp_path / "trash", _env_file=None,  # pyright: ignore[reportCallIssue]
+            mode="real",
+            real="library_komga",
+            komga_url=URL,
+            db_path=tmp_path / "p.db",
+            static_dir=tmp_path / "nostatic",
+            trash_dir=tmp_path / "trash",
+            _env_file=None,  # pyright: ignore[reportCallIssue]
         )
     )
     app.state.komga = Komga(
         URL, "k", client=httpx.Client(base_url=URL, transport=httpx.MockTransport(komga))
     )
     app.state.komga_trash = KomgaTrash(
-        app.state.settings, app.state.trash, app.state.komga,
-        wait_s=lambda: wait, settle_timeout_s=2.0, poll_s=0.01,
+        app.state.settings,
+        app.state.trash,
+        app.state.komga,
+        wait_s=lambda: wait,
+        settle_timeout_s=2.0,
+        poll_s=0.01,
+        restore_timeout_s=2.0,
     )
     return TestClient(app)
 
@@ -228,22 +273,25 @@ def test_komga_down_rolls_back(tmp_path):
             raise httpx.ConnectError("down")
         return real_get(request)
 
-    c.app.state.komga = Komga(
+    st(c).komga = Komga(
         URL, "k", client=httpx.Client(base_url=URL, transport=httpx.MockTransport(flaky))
     )
-    c.app.state.komga_trash = KomgaTrash(
-        c.app.state.settings, c.app.state.trash, c.app.state.komga,
-        wait_s=lambda: 0.0, poll_s=0.01,
+    st(c).komga_trash = KomgaTrash(
+        st(c).settings,
+        st(c).trash,
+        st(c).komga,
+        wait_s=lambda: 0.0,
+        poll_s=0.01,
     )
     calls = {"n": 0}
-    orig = c.app.state.komga_trash._check_under_library
+    orig = st(c).komga_trash._check_under_library
 
     def arm(local):
         orig(local)
         flaky.armed = True  # type: ignore[attr-defined]
         calls["n"] += 1
 
-    c.app.state.komga_trash._check_under_library = arm
+    st(c).komga_trash._check_under_library = arm
     r = c.delete("/api/library/books/B1")
     assert r.status_code == 502
     assert f1.exists()
@@ -260,9 +308,13 @@ def test_restore_after_empty_trash_gets_new_id_with_tags_and_progress(tmp_path):
     new_id = r.json()["item"]["id"]
     assert new_id.startswith("N")
     assert f1.exists()
-    assert ("/api/v1/books/%s/metadata" % new_id, {"tags": ["x", "y"], "tagsLock": True}) in k.tag_calls
-    assert k.progress_calls == [(f"/api/v1/books/{new_id}/read-progress",
-                                 {"page": 4, "completed": False})]
+    assert (
+        f"/api/v1/books/{new_id}/metadata",
+        {"tags": ["x", "y"], "tagsLock": True},
+    ) in k.tag_calls
+    assert k.progress_calls == [
+        (f"/api/v1/books/{new_id}/read-progress", {"page": 4, "completed": False})
+    ]
     assert c.get("/api/trash").json()["items"] == []
 
 
@@ -283,10 +335,10 @@ def test_restoring_item_is_not_purged(tmp_path):
     c = make(tmp_path, k, wait=60.0)
     c.delete("/api/library/books/B1")
     k.books["B1"]["deleted"] = True
-    assert c.app.state.komga_trash.foreign_deleted("L1") == 0
+    assert st(c).komga_trash.foreign_deleted("L1") == 0
     # a soft-deleted item whose row is `restoring` is not ours any more
-    c.app.state.trash._run("UPDATE trash_items SET state = 'restoring'")
-    assert c.app.state.komga_trash.foreign_deleted("L1") == 1
+    st(c).trash._run("UPDATE trash_items SET state = 'restoring'")
+    assert st(c).komga_trash.foreign_deleted("L1") == 1
 
 
 def test_series_delete_moves_folder_and_empties(tmp_path):
@@ -298,7 +350,10 @@ def test_series_delete_moves_folder_and_empties(tmp_path):
     assert wait_for(lambda: k.empties == 1)
     assert k.series == {} and k.books == {}
     tok = r.json()["token"]
-    assert c.post(f"/api/trash/{tok}/restore").status_code in (200, 502)
+    r = c.post(f"/api/trash/{tok}/restore")
+    assert r.status_code == 200, r.text
+    assert r.json()["item"]["kind"] == "series"
+    assert folder.exists() and f1.exists() and f2.exists()
 
 
 def test_last_book_delete_owns_the_emptied_series(tmp_path):
@@ -322,5 +377,5 @@ def test_dedupe_post_in_trash_is_409(tmp_path):
     conn.commit()
     conn.close()
     tok = c.delete("/api/library/books/B1").json()["token"]
-    row = c.app.state.trash.find_in_trash("nhentai", "42")
+    row = st(c).trash.find_in_trash("nhentai", "42")
     assert row is not None and row["token"] == tok

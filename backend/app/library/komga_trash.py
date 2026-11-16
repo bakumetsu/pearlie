@@ -36,6 +36,7 @@ class KomgaTrash:
         wait_s: Callable[[], float] = lambda: 10.0,
         settle_timeout_s: float = SETTLE_TIMEOUT_S,
         poll_s: float = SETTLE_POLL_S,
+        restore_timeout_s: float = RESTORE_TIMEOUT_S,
     ) -> None:
         self._s = settings
         self._store = store
@@ -43,6 +44,7 @@ class KomgaTrash:
         self._wait_s = wait_s
         self._settle_timeout_s = settle_timeout_s
         self._poll_s = poll_s
+        self._restore_timeout_s = restore_timeout_s
         self._lock = threading.Lock()
         self._pending: dict[str, set[tuple[str, str]]] = {}
         self._timers: dict[str, threading.Timer] = {}
@@ -268,7 +270,7 @@ class KomgaTrash:
         self, plural: str, old_id: str, library_id: str, komga_path: str, name: str
     ) -> dict:
         """The restored item: the same id revived by the scan, or a new id at the path."""
-        deadline = time.monotonic() + RESTORE_TIMEOUT_S
+        deadline = time.monotonic() + self._restore_timeout_s
         want = posixpath.normpath(komga_path)
         while True:
             try:
