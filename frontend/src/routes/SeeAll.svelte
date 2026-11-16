@@ -30,6 +30,7 @@
   import { parseOrder, parseRating } from "../lib/browse/filters";
   import type { SourceFilters } from "../lib/api/client";
   import { parseOpen, openKey, withOpen, findTile } from "../lib/browse/overlayState";
+  import { parseWeb, webKey as webRefKey, withWeb, webTileHref, fetchWebPost } from "../lib/browse/webOpen";
 
   let { match }: { match: Match } = $props();
 
@@ -356,13 +357,53 @@
   let lightboxKey = $state<string | null>(null);
   const webKey = (w: WebItem) => w.source + ":" + w.post_id;
   const webItems = $derived(grid.items.filter((i): i is WebItem => "post_id" in i));
+  // A post from the address that is not in the loaded grid: fetched by id, shown without prev/next.
+  let extraWeb = $state<WebItem | null>(null);
   const lightboxIdx = $derived(lightboxKey ? webItems.findIndex((w) => webKey(w) === lightboxKey) : -1);
-  const lightboxItem = $derived(lightboxIdx >= 0 ? webItems[lightboxIdx] : null);
+  const lightboxItem = $derived(
+    lightboxIdx >= 0 ? webItems[lightboxIdx] : extraWeb && lightboxKey === webKey(extraWeb) ? extraWeb : null,
+  );
 
+  // The address names the open post (replace, no history entries); a new tab opens it from there.
+  function setWebParam(key: string | null) {
+    const qs = withWeb(match.query, key);
+    if (qs !== match.query.toString()) router.navigate(match.path + (qs ? `?${qs}` : ""), { replace: true });
+  }
+  function openWeb(w: WebItem) {
+    lightboxKey = webKey(w);
+    setWebParam(lightboxKey);
+  }
+  function closeWeb() {
+    lightboxKey = null;
+    extraWeb = null;
+    setWebParam(null);
+  }
   function stepLightbox(d: 1 | -1) {
     const next = webItems[lightboxIdx + d];
-    if (next) lightboxKey = webKey(next);
+    if (next) openWeb(next);
   }
+
+  const rawWeb = $derived(parseWeb(match.query));
+  let webTried: string | null = null;
+  $effect(() => {
+    const ref = rawWeb;
+    if (!ref) { webTried = null; return; }
+    if (grid.status !== "done") return;
+    const key = webRefKey(ref.source, ref.postId);
+    if (untrack(() => lightboxKey) === key) return;
+    const hit = webItems.find((w) => webKey(w) === key);
+    if (hit) { lightboxKey = key; return; }
+    if (webTried === key) return;
+    webTried = key;
+    fetchWebPost(api, ref).then((w) => {
+      if (parseWeb(match.query)?.postId !== ref.postId) return;
+      if (w) { extraWeb = w; lightboxKey = key; }
+      else {
+        toasts.push({ kind: "error", message: "Post not available" });
+        setWebParam(null);
+      }
+    });
+  });
 
   // --- URL query updates ---
   function setPage(p: number) {
@@ -553,7 +594,7 @@
         </div>
       </div>
     {:else}
-      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => { const h = webItemHref(w.source, w.post_id); if (h) router.navigate(h); else lightboxKey = webKey(w); }} landscape={source === "stash_videos"} />
+      <ResultsGrid items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => { const h = webItemHref(w.source, w.post_id); if (h) router.navigate(h); else openWeb(w); }} webHref={(w) => webTileHref(match.path, match.query, w)} landscape={source === "stash_videos"} />
     {/if}
 
     {#if infinite && grid.status === "done"}
@@ -583,8 +624,8 @@
     saveState={saveStates[webKey(lightboxItem)] ?? (lightboxItem.saved ? "in_library" : "idle")}
     onsave={() => { if (lightboxItem) handleSave(lightboxItem); }}
     onprev={lightboxIdx > 0 ? () => stepLightbox(-1) : undefined}
-    onnext={lightboxIdx < webItems.length - 1 ? () => stepLightbox(1) : undefined}
-    onclose={() => (lightboxKey = null)}
+    onnext={lightboxIdx >= 0 && lightboxIdx < webItems.length - 1 ? () => stepLightbox(1) : undefined}
+    onclose={closeWeb}
   />
 {/if}
 

@@ -25,6 +25,7 @@
   import Tile from "../lib/components/Tile.svelte";
   import { saveWebItem } from "../lib/web/saveFlow";
   import Lightbox from "../lib/components/Lightbox.svelte";
+  import { parseWeb, withWeb, webTileHref, fetchWebPost } from "../lib/browse/webOpen";
 
   let { match }: { match: Match } = $props();
 
@@ -193,6 +194,44 @@
 
   let lightbox: WebItem | null = $state(null);
 
+  // The address names the open post (replace, no history entries); a new tab opens it from there.
+  function setWebParam(key: string | null) {
+    const qs = withWeb(match.query, key);
+    if (qs !== match.query.toString()) router.navigate(match.path + (qs ? `?${qs}` : ""), { replace: true });
+  }
+  function openWeb(item: WebItem) {
+    lightbox = item;
+    setWebParam(item.source + ":" + item.post_id);
+  }
+  function closeWeb() {
+    lightbox = null;
+    setWebParam(null);
+  }
+
+  const rawWeb = $derived(parseWeb(match.query));
+  let webTried: string | null = null;
+  $effect(() => {
+    const ref = rawWeb;
+    if (!ref) { webTried = null; return; }
+    if (search.loading) return;
+    if (lightbox && lightbox.source === ref.source && lightbox.post_id === ref.postId) return;
+    const hit = Object.values(search.sections)
+      .flatMap((e) => (e.section?.items ?? []))
+      .find((i): i is WebItem => "post_id" in i && i.source === ref.source && i.post_id === ref.postId);
+    if (hit) { lightbox = hit; return; }
+    const key = ref.source + ":" + ref.postId;
+    if (webTried === key) return;
+    webTried = key;
+    fetchWebPost(api, ref).then((w) => {
+      if (parseWeb(match.query)?.postId !== ref.postId) return;
+      if (w) lightbox = w;
+      else {
+        toasts.push({ kind: "error", message: "Post not available" });
+        setWebParam(null);
+      }
+    });
+  });
+
   const lightboxSaveState = $derived(
     lightbox ? (search.saveStateOf(lightbox)?.state ?? "idle") : "idle"
   );
@@ -313,7 +352,7 @@
           onretry={() => search.retrySection(id)}
           onnavigate={(e) => linkClick(e, router)}
         >
-          {#each (entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} href={webItemHref(item.source, item.post_id)} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => { const h = webItemHref(item.source, item.post_id); if (h) router.navigate(h); else lightbox = item; }} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => { if (id === "stash_videos" && inPageClick(e)) queueVideos(entry.section); linkClick(e, router); }} />{/if}{/each}
+          {#each (entry.section?.items ?? []) as item (("post_id" in item) ? item.source + ":" + item.post_id : item.kind + ":" + item.id)}{#if "post_id" in item}<Tile item={item} href={webItemHref(item.source, item.post_id) ?? webTileHref(match.path, match.query, item)} saveState={tileSaveState(item)} savedHref={tileSavedHref(item)} onsave={() => doSave(item)} onopen={() => { const h = webItemHref(item.source, item.post_id); if (h) router.navigate(h); else openWeb(item); }} />{:else}<Tile item={item} href={itemHref(item)} landscape={id === "stash_videos"} onnavigate={(e) => { if (id === "stash_videos" && inPageClick(e)) queueVideos(entry.section); linkClick(e, router); }} />{/if}{/each}
         </SectionRow>
       {/if}
     {/each}
@@ -344,7 +383,7 @@
     saveState={lightboxSaveState}
     savedHref={lightboxSavedHref}
     onsave={() => { if (lightbox) doSave(lightbox); }}
-    onclose={() => (lightbox = null)}
+    onclose={closeWeb}
   />
 {/if}
 
