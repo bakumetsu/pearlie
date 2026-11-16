@@ -12,6 +12,7 @@
   import { toasts } from "../lib/stores/toasts.svelte";
   import { rejectTag } from "../lib/item/reject";
   import { saveWebItem, saveStateFor, savedHrefFor } from "../lib/web/saveFlow";
+  import { restoreSaved } from "../lib/web/restoreSaved";
   import Icon from "../lib/components/Icon.svelte";
   import BookPage from "../lib/book/BookPage.svelte";
   import PageGrid from "../lib/book/PageGrid.svelte";
@@ -81,7 +82,7 @@
   function save() {
     if (!item) return;
     void saveWebItem(
-      { ask: (i) => placement.ask(i), save: (i, p) => search.save(i, p), toast: (t) => toasts.push(t) },
+      { ask: (i) => placement.ask(i), save: (i, p) => search.save(i, p), toast: (t) => toasts.push(t), restore: restoreSaved({ api, navigate: (h) => router.navigate(h), toast: (t) => toasts.push(t) }) },
       item,
     );
   }

@@ -192,4 +192,28 @@ describe("TrashRetentionCard", () => {
     expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
   });
+
+  it("shows a hint only for a Stash root that is not ok", async () => {
+    const { store } = await makeStore(7);
+    const api = {
+      trashStatus: vi.fn().mockResolvedValue({
+        roots: [
+          { index: 0, stash_path: "/a", state: "ok" },
+          { index: 1, stash_path: "/b", state: "not_reachable" },
+        ],
+      }),
+    } as unknown as Api;
+    render(TrashRetentionCard, { store, api });
+    const hints = await screen.findAllByTestId("trash-root-hint");
+    expect(hints).toHaveLength(1);
+    expect(hints[0].textContent).toContain("/b");
+  });
+
+  it("shows no hint when every root is ok", async () => {
+    const { store } = await makeStore(7);
+    const api = { trashStatus: vi.fn().mockResolvedValue({ roots: [{ index: 0, stash_path: "/a", state: "ok" }] }) } as unknown as Api;
+    render(TrashRetentionCard, { store, api });
+    await waitFor(() => expect(api.trashStatus).toHaveBeenCalled());
+    expect(screen.queryByTestId("trash-root-hint")).toBeNull();
+  });
 });

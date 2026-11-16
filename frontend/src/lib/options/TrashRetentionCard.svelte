@@ -3,7 +3,7 @@
 	import { options } from "../stores/options.svelte";
 	import type { OptionsStore } from "../stores/options.svelte";
 	import { getApi } from "../api/client";
-	import type { Api } from "../api/client";
+	import type { Api, TrashRoot } from "../api/client";
 
 	let {
 		store = options,
@@ -20,6 +20,25 @@
 	let dialogOpen = $state(false);
 	let dialogDays = $state(0);
 	let dialogCount = $state(0);
+
+	let roots: TrashRoot[] = $state([]);
+
+	$effect(() => {
+		const ctl = new AbortController();
+		Promise.resolve().then(() => api.trashStatus(ctl.signal)).then(
+			(st) => { roots = st.roots; },
+			() => {},
+		);
+		return () => ctl.abort();
+	});
+
+	const badRoots = $derived(roots.filter((r) => r.state !== "ok"));
+
+	function rootHint(r: TrashRoot): string {
+		return r.state === "other_volume"
+			? `${r.stash_path} is on another drive, so deleted items cannot go to the Trash folder there.`
+			: `${r.stash_path} cannot be reached, so deleting items there will fail.`;
+	}
 
 	let inputEl: HTMLInputElement | undefined = $state();
 	let cancelBtn: HTMLButtonElement | undefined = $state();
@@ -127,6 +146,9 @@
 		/>
 	</div>
 	{#if error}<span class="err" role="alert">{error}</span>{/if}
+	{#each badRoots as r (r.index)}
+		<p class="hint root-hint" data-testid="trash-root-hint">{rootHint(r)}</p>
+	{/each}
 </section>
 
 {#if dialogOpen}
@@ -143,8 +165,8 @@
 				Delete {dialogCount} item{dialogCount === 1 ? "" : "s"} now?
 			</h2>
 			<p id="trash-dialog-desc">
-				Retention drops to {dialogDays} days. Demo trash items older than that
-				are deleted immediately.
+				Retention drops to {dialogDays} days. Items in the Trash older than that
+				are deleted now.
 			</p>
 			<div class="row">
 				<button class="btn" bind:this={cancelBtn} onclick={closeDialog}>Cancel</button>
@@ -155,6 +177,17 @@
 {/if}
 
 <style>
+	#trash-retention-days {
+		appearance: textfield;
+		-moz-appearance: textfield;
+	}
+
+	#trash-retention-days::-webkit-inner-spin-button,
+	#trash-retention-days::-webkit-outer-spin-button {
+		-webkit-appearance: none;
+		margin: 0;
+	}
+
 	.overlay {
 		position: fixed;
 		inset: 0;

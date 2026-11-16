@@ -299,6 +299,41 @@ class TrashList(BaseModel):
     retention_days: int
 
 
+class RestoreResult(BaseModel):
+    item: LibraryItem
+
+
+class TrashBatchItem(BaseModel):
+    kind: Kind
+    id: str = Field(min_length=1, max_length=64)
+
+
+class TrashBatchBody(BaseModel):
+    items: list[TrashBatchItem] = Field(min_length=1, max_length=50)
+
+
+class TrashBatchFailure(BaseModel):
+    kind: Kind
+    id: str
+    code: str
+
+
+class TrashBatchResult(BaseModel):
+    group: str
+    results: list[TrashResult]
+    failed: list[TrashBatchFailure]
+
+
+class TrashRestoreFailure(BaseModel):
+    token: str
+    code: str
+
+
+class GroupRestoreResult(BaseModel):
+    restored: list[RestoreResult]
+    failed: list[TrashRestoreFailure]
+
+
 class TrashEmptied(BaseModel):
     removed: int
 
@@ -315,10 +350,6 @@ class TrashRoot(BaseModel):
 
 class TrashStatus(BaseModel):
     roots: list[TrashRoot]
-
-
-class RestoreResult(BaseModel):
-    item: LibraryItem
 
 
 class ProgressBody(BaseModel):

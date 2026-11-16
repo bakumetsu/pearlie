@@ -715,6 +715,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/library/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trash Batch
+         * @description Move 1-50 demo items to the trash under one group id.
+         */
+        post: operations["trash_batch_api_library_trash_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trash/group/{group}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Group
+         * @description Restore every trashed demo item of one group.
+         */
+        post: operations["restore_group_api_trash_group__group__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/_fixture/reset": {
         parameters: {
             query?: never;
@@ -1420,6 +1460,13 @@ export interface components {
         FolderBody: {
             /** Folder */
             folder: string;
+        };
+        /** GroupRestoreResult */
+        GroupRestoreResult: {
+            /** Restored */
+            restored: components["schemas"]["RestoreResult"][];
+            /** Failed */
+            failed: components["schemas"]["TrashRestoreFailure"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2323,6 +2370,42 @@ export interface components {
             /** Available */
             available: boolean;
         };
+        /** TrashBatchBody */
+        TrashBatchBody: {
+            /** Items */
+            items: components["schemas"]["TrashBatchItem"][];
+        };
+        /** TrashBatchFailure */
+        TrashBatchFailure: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "video" | "series" | "book";
+            /** Id */
+            id: string;
+            /** Code */
+            code: string;
+        };
+        /** TrashBatchItem */
+        TrashBatchItem: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "video" | "series" | "book";
+            /** Id */
+            id: string;
+        };
+        /** TrashBatchResult */
+        TrashBatchResult: {
+            /** Group */
+            group: string;
+            /** Results */
+            results: components["schemas"]["TrashResult"][];
+            /** Failed */
+            failed: components["schemas"]["TrashBatchFailure"][];
+        };
         /** TrashEmptied */
         TrashEmptied: {
             /** Removed */
@@ -2355,6 +2438,13 @@ export interface components {
         TrashPurgePreview: {
             /** Count */
             count: number;
+        };
+        /** TrashRestoreFailure */
+        TrashRestoreFailure: {
+            /** Token */
+            token: string;
+            /** Code */
+            code: string;
         };
         /** TrashResult */
         TrashResult: {
@@ -3905,6 +3995,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrashEmptied"];
+                };
+            };
+        };
+    };
+    trash_batch_api_library_trash_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrashBatchBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashBatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_group_api_trash_group__group__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupRestoreResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -7,8 +7,9 @@
   import { inView } from "../inView";
   import { preloadGif, takeSlot } from "../gifSlots";
   import { options } from "../stores/options.svelte";
+  import { selection } from "../library/selection.svelte";
 
-  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, onaspect, landscape = false, revealed: revealedProp = false, onreveal }: {
+  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, onaspect, landscape = false, selectable = false, revealed: revealedProp = false, onreveal }: {
     item: LibraryItem | WebItem;
     href?: string;
     onnavigate?: (e: MouseEvent) => void;
@@ -22,6 +23,8 @@
     // Reports the real picture shape when it differs from `aspect` by more than 3 %.
     onaspect?: (aspect: number) => void;
     landscape?: boolean;
+    // Shows the select circle and lets a click toggle in select mode; only where a SelectBar exists.
+    selectable?: boolean;
     // A grid that unmounts tiles keeps the reveal for them: it passes the state and hears the change.
     revealed?: boolean;
     onreveal?: () => void;
@@ -133,6 +136,12 @@
 
   function handleLibClick(e: MouseEvent) {
     const l = item as LibraryItem;
+    // In select mode a tile click toggles the pick.
+    if (selectable && selection.active) {
+      e.preventDefault();
+      selection.toggle(l);
+      return;
+    }
     const plain = e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey;
     if (onopenitem && l.kind === "image" && plain && !e.defaultPrevented) {
       e.preventDefault();
@@ -228,7 +237,7 @@
   </div>
 {:else}
   {@const l = item as LibraryItem}
-  <a class="tile lib {variant}" class:cv={variant !== "list" && l.kind === "image"} style:aspect-ratio={variant !== "list" && l.kind === "image" ? aspectRatio : undefined} href={href} data-key={`${l.kind}:${l.id}`} onclick={handleLibClick}>
+  <a class="tile lib {variant}" class:picked={selectable && selection.has(l)} class:selecting={selectable && selection.active} class:cv={variant !== "list" && l.kind === "image"} style:aspect-ratio={variant !== "list" && l.kind === "image" ? aspectRatio : undefined} href={href} data-key={`${l.kind}:${l.id}`} onclick={handleLibClick}>
     {#if l.kind === "video"}
       <VideoCard item={l} {variant} {aspectRatio} {blurred} {landscape} meta={metaLine()} onmediaclick={handleMediaClick} onmediakeydown={handleMediaKeydown} />
     {:else}
@@ -256,6 +265,17 @@
       <div class="title">{l.title}</div>
     {/if}
     {/if}
+    {#if selectable}
+    <button
+      type="button"
+      class="pick"
+      aria-label={`Select ${l.title}`}
+      aria-pressed={selection.has(l)}
+      onclick={(e) => { e.preventDefault(); e.stopPropagation(); selection.toggle(l); }}
+    >
+      <span class="chk"><Icon name="check" size={14} /></span>
+    </button>
+    {/if}
   </a>
 {/if}
 
@@ -274,6 +294,59 @@
   .tile.lib {
     display: block;
     min-width: 0;
+    position: relative;
+  }
+  .pick {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 44px;
+    height: 44px;
+    z-index: 2;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 8px;
+    border: none;
+    background: none;
+    cursor: pointer;
+  }
+  .pick .chk {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid rgb(255 255 255 / 0.85);
+    background: rgb(0 0 0 / 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: transparent;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+  .tile.lib:hover .pick .chk,
+  .pick:focus-visible .chk,
+  .tile.lib:focus-within .pick .chk,
+  .tile.selecting .pick .chk {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .pick .chk { opacity: 0.55; }
+  }
+  .pick:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    border-radius: var(--r-md);
+  }
+  .tile.picked .pick .chk {
+    opacity: 1;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
+  .tile.picked .media {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
   .media {
     position: relative;

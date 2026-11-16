@@ -5,6 +5,9 @@
   import { linkClick, inPageClick } from "../lib/router";
   import type { Match } from "../lib/router";
   import type { Kind, LibraryItem } from "../lib/api/client";
+  import SelectBar from "../lib/components/SelectBar.svelte";
+  import { resetAllGrids } from "../lib/stores/shared.svelte";
+  import { selection } from "../lib/library/selection.svelte";
   import SectionRow from "../lib/components/SectionRow.svelte";
   import Tile from "../lib/components/Tile.svelte";
   import { onMount } from "svelte";
@@ -24,6 +27,7 @@
 
   onMount(() => {
     h1?.focus();
+    return () => selection.clear();
   });
 
   const ROWS: { kind: Kind; title: string; seeAll: string }[] = [
@@ -88,6 +92,11 @@
   const allEmpty = $derived(
     visibleRows.every(({ kind }) => rowStates[kind].status === "done" && rowStates[kind].items.length === 0),
   );
+
+  function reloadRows() {
+    resetAllGrids();
+    for (const { kind } of visibleRows) loadRow(kind);
+  }
 
   function toggleFav(value: boolean) {
     const qs = new SvelteURLSearchParams(match.query);
@@ -156,6 +165,7 @@
     >
       Favorites
     </button>
+    <SelectBar onchanged={reloadRows} />
   </div>
 
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
@@ -182,7 +192,7 @@
           {/each}
         {:else}
           {#each rs.items as item (item.id)}
-            <Tile item={item} href={itemHref(item)} onnavigate={(e) => { if (row.kind === "videos" && inPageClick(e)) queueVideos(rs); onNav(e); }} landscape />
+            <Tile item={item} href={itemHref(item)} onnavigate={(e) => { if (row.kind === "videos" && inPageClick(e)) queueVideos(rs); onNav(e); }} landscape selectable />
           {/each}
         {/if}
       </SectionRow>
