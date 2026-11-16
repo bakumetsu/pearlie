@@ -80,3 +80,19 @@ describe("settleQueued", () => {
     expect(savedHrefFor(item, undefined)).toBeUndefined();
   });
 });
+
+describe("saveWebItem in_trash", () => {
+  it("offers Restore with the token and restores on action", async () => {
+    const restore = vi.fn();
+    const toast = vi.fn();
+    const item = { source: "rule34", post_id: "1" } as unknown as WebItem;
+    await saveWebItem(
+      { ask: async () => ({}) as never, save: async () => ({ result: "in_trash", token: "tk" }), toast, restore },
+      item,
+    );
+    const t = toast.mock.calls[0][0];
+    expect(t.actionLabel).toBe("Restore");
+    t.onAction();
+    expect(restore).toHaveBeenCalledWith("tk");
+  });
+});

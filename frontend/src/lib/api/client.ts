@@ -66,6 +66,8 @@ export class ApiError extends Error {
   public status: number;
   public code: string;
   public libraryRef?: { kind: string; id: string };
+  // Set on 409 in_trash: the trash token that restores the saved item.
+  public trashToken?: string;
 
   constructor(
     status: number,
@@ -212,12 +214,14 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
       let code = "error";
       let message = "Something went wrong";
       let libraryRef: { kind: string; id: string } | undefined;
+      let trashToken: string | undefined;
       try {
         const body: unknown = await res.json();
         if (body !== null && typeof body === "object") {
           const b = body as Record<string, unknown>;
           if (typeof b.code === "string") code = b.code;
           if (typeof b.message === "string") message = b.message;
+          if (typeof b.token === "string") trashToken = b.token;
           if (b.library_ref !== null && typeof b.library_ref === "object") {
             const ref = b.library_ref as Record<string, unknown>;
             if (typeof ref.kind === "string" && typeof ref.id === "string") {
@@ -229,7 +233,9 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         // non-JSON or empty error body – keep defaults
       }
       if (res.status === 403 && code === "host_not_allowed") hostBlock.set(message);
-      throw new ApiError(res.status, code, message, libraryRef);
+      const err = new ApiError(res.status, code, message, libraryRef);
+      if (code === "in_trash") err.trashToken = trashToken;
+      throw err;
     }
 
     if (res.status === 204) return undefined as T;

@@ -24,6 +24,7 @@
   import SectionRow from "../lib/components/SectionRow.svelte";
   import Tile from "../lib/components/Tile.svelte";
   import { saveWebItem } from "../lib/web/saveFlow";
+  import { restoreSaved } from "../lib/web/restoreSaved";
   import Lightbox from "../lib/components/Lightbox.svelte";
   import { parseWeb, withWeb, webTileHref, fetchWebPost } from "../lib/browse/webOpen";
 
@@ -241,7 +242,7 @@
 
   function doSave(item: WebItem): Promise<void> {
     return saveWebItem(
-      { ask: (i) => placement.ask(i), save: (i, p) => search.save(i, p), toast: (t) => toasts.push(t) },
+      { ask: (i) => placement.ask(i), save: (i, p) => search.save(i, p), toast: (t) => toasts.push(t), restore: restoreSaved({ api, navigate: (h) => router.navigate(h), toast: (t) => toasts.push(t) }) },
       item,
     );
   }

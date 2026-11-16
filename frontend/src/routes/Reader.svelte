@@ -6,6 +6,7 @@
 	import { placement } from "../lib/stores/placement.svelte";
 	import { toasts } from "../lib/stores/toasts.svelte";
 	import { saveWebItem, saveStateFor, savedHrefFor } from "../lib/web/saveFlow";
+	import { restoreSaved } from "../lib/web/restoreSaved";
 	import type { SaveSlot } from "../lib/reader/saveSlot";
 	import { komgaSource, webSource, type ReaderSource } from "../lib/reader/source";
 	import { getRouter, findJobs } from "../lib/ctx";
@@ -77,7 +78,7 @@
 						const it = saveItem;
 						if (!it) return;
 						void saveWebItem(
-							{ ask: (i) => placement.ask(i), save: (i, p) => searchStore.save(i, p), toast: (t) => toasts.push(t) },
+							{ ask: (i) => placement.ask(i), save: (i, p) => searchStore.save(i, p), toast: (t) => toasts.push(t), restore: restoreSaved({ api, navigate: (h) => router.navigate(h), toast: (t) => toasts.push(t) }) },
 							it,
 						);
 					},

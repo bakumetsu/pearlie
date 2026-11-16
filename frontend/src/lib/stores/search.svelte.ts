@@ -168,6 +168,10 @@ export function createSearch(api: Api, opts?: { debounceMs?: number; remember?: 
       await api.save({ source: item.source, post_id: item.post_id, ...(placement ? { placement } : {}) });
       return { result: "queued" as const };
     } catch (e: unknown) {
+      if (e instanceof ApiError && e.status === 409 && e.code === "in_trash") {
+        delete saves[key];
+        return { result: "in_trash" as const, token: e.trashToken };
+      }
       if (e instanceof ApiError && e.status === 409) {
         saves[key] = { state: "in_library", ref: e.libraryRef };
         return { result: "in_library" as const, ref: e.libraryRef };

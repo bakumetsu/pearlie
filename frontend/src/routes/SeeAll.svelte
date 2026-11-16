@@ -12,6 +12,7 @@
   import Icon from "../lib/components/Icon.svelte";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { onMount } from "svelte";
+  import { restoreSaved } from "../lib/web/restoreSaved";
   import SelectBar from "../lib/components/SelectBar.svelte";
   import { selection } from "../lib/library/selection.svelte";
   import { SvelteURLSearchParams } from "svelte/reactivity";
@@ -383,7 +384,15 @@
       await api.save({ source: item.source, post_id: item.post_id, ...answer });
       toasts.push({ kind: "info", message: "Added to queue", actionLabel: "View", href: "/queue" });
     } catch (e) {
-      if (e instanceof ApiErrorClass && e.status === 409) {
+      if (e instanceof ApiErrorClass && e.status === 409 && e.code === "in_trash") {
+        delete saveStates[key];
+        const token = e.trashToken;
+        toasts.push({
+          kind: "info",
+          message: "Already saved, in the Trash",
+          ...(token ? { actionLabel: "Restore", onAction: restoreSaved({ api, navigate: (h) => router.navigate(h), toast: (t) => toasts.push(t) }).bind(null, token) } : {}),
+        });
+      } else if (e instanceof ApiErrorClass && e.status === 409) {
         saveStates[key] = "in_library";
       } else {
         delete saveStates[key];
