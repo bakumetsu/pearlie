@@ -14,7 +14,7 @@
   import ImageStage from "../lib/item/ImageStage.svelte";
   import { createZoom, zoomKey } from "../lib/item/zoomModel.svelte";
   import ItemPanel from "../lib/item/ItemPanel.svelte";
-  import SeriesGrid from "../lib/item/SeriesGrid.svelte";
+  import KomgaSeries from "../lib/item/KomgaSeries.svelte";
   import KomgaBook from "../lib/item/KomgaBook.svelte";
   import { rejectTag } from "../lib/item/reject";
   import { PHONE_MAX, initialOpen, savePanel } from "../lib/item/panelState";
@@ -67,6 +67,11 @@
     }
   });
 
+  $effect(() => {
+    const b = oneshot;
+    if (b) untrack(() => router.navigate(itemHref({ kind: "book", id: b.id }), { replace: true }));
+  });
+
   const idx = $derived(
     kind !== null
       ? grid.items.findIndex((t) => keyOf(t) === toSingular(kind) + ":" + id)
@@ -74,6 +79,9 @@
   );
   const hasList = $derived(idx >= 0);
   const bookReady = $derived(view.status === "ready" && view.detail?.kind === "book");
+  const seriesReady = $derived(view.status === "ready" && view.detail?.kind === "series");
+  // A one-book series (oneshot) opens straight on its book; Back skips the series.
+  const oneshot = $derived(seriesReady && view.detail?.books?.length === 1 ? view.detail.books[0] : null);
   const hasPanel = $derived(kind !== null && (view.status === "loading" || (view.status === "ready" && !!view.detail)));
   const backdrop = $derived(backdropStrength(options.values, "item", sfw?.on ?? false));
 
@@ -237,6 +245,24 @@
       onrejecttag={(t) => void rejectTag(api, toasts, t)}
     />
   </div>
+{:else if seriesReady && view.detail && !oneshot}
+  <div class="bookpage">
+    <KomgaSeries
+      detail={view.detail}
+      tags={view.tagStrings}
+      backdropStrength={backdrop}
+      onback={back}
+      onopen={(b) => router.navigate("/read/" + encodeURIComponent(b.id) + "?series=" + encodeURIComponent(view.detail!.id))}
+      onfavorite={() => void view.toggleFavorite()}
+      ondelete={() => void onDelete()}
+      onrate={(n) => view.setRating(n)}
+      onaddtag={(t) => view.addTagInput(t)}
+      onremovetag={(t) => view.removeTagByName(t)}
+      onrejecttag={(t) => void rejectTag(api, toasts, t)}
+    />
+  </div>
+{:else if oneshot}
+  <div class="bookpage" aria-busy="true"></div>
 {:else}
 <div class="item">
   <header class="bar">
@@ -307,14 +333,6 @@
               {/if}
             </p>
           {/if}
-        {:else if view.detail.kind === "series"}
-          <div class="series">
-            {#if view.detail.notice}<p class="notice" role="status">{view.detail.notice.message}</p>{/if}
-            <SeriesGrid
-              books={view.detail.books ?? []}
-              onopen={(b) => router.navigate("/read/" + encodeURIComponent(b.id) + "?series=" + encodeURIComponent(view.detail!.id))}
-            />
-          </div>
         {/if}
       </div>
       <aside class="panel" inert={!panelOpen} aria-hidden={!panelOpen} bind:this={panelEl}>
@@ -421,15 +439,6 @@
 
   .notice { margin: 0 0 var(--s-2); font-size: 0.875rem; color: var(--muted); }
   .stash-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--s-2); }
-
-  .series {
-    width: 100%;
-    height: 100%;
-    overflow-y: auto;
-    padding: var(--s-4);
-    align-self: start;
-    background: var(--bg);
-  }
 
   .panel {
     overflow-y: auto;
