@@ -8,7 +8,7 @@
   import { takeSlot } from "../gifSlots";
   import { options } from "../stores/options.svelte";
 
-  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, landscape = false }: {
+  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, onaspect, landscape = false }: {
     item: LibraryItem | WebItem;
     href?: string;
     onnavigate?: (e: MouseEvent) => void;
@@ -19,6 +19,8 @@
     onopenitem?: (item: LibraryItem) => void;
     variant?: "grid" | "wall" | "masonry" | "list";
     aspect?: number;
+    // Reports the real picture shape when it differs from `aspect` by more than 3 %.
+    onaspect?: (aspect: number) => void;
     landscape?: boolean;
   } = $props();
 
@@ -87,6 +89,13 @@
     };
   });
   const track = (visibleNow: boolean) => (visible = visibleNow);
+
+  function onImgLoad(e: Event) {
+    const img = e.currentTarget as HTMLImageElement;
+    if (!onaspect || aspect == null || !(aspect > 0) || !img.naturalWidth || !img.naturalHeight) return;
+    const real = img.naturalWidth / img.naturalHeight;
+    if (Math.abs(real - aspect) / aspect > 0.03) onaspect(real);
+  }
 
   function handleMediaClick(e: MouseEvent) {
     if (blurred) {
@@ -184,7 +193,7 @@
           <button class="retry" onclick={(e) => { e.stopPropagation(); stage = 0; }}>Retry</button>
         </div>
       {:else}
-        <img src={gifReady && gifUrl ? gifUrl : webSrc(w)} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" class:blur-img={blurred} onerror={onWebError} />
+        <img src={gifReady && gifUrl ? gifUrl : webSrc(w)} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" class:blur-img={blurred} onerror={onWebError} onload={onImgLoad} />
       {/if}
       {#if href}
         <a class="open" {href} onclick={handleOpenClick} aria-label={`${w.source} #${w.post_id}`} title={`${w.source} #${w.post_id}`}></a>
@@ -221,7 +230,7 @@
       <VideoCard item={l} {variant} {aspectRatio} {blurred} {landscape} meta={metaLine()} onmediaclick={handleMediaClick} onmediakeydown={handleMediaKeydown} />
     {:else}
     <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick} role="button" tabindex="0" onkeydown={handleMediaKeydown} use:inView={track}>
-      <img src={gifReady && gifUrl ? gifUrl : l.thumb_url} alt="" loading="lazy" decoding="async" class:blur-img={blurred} />
+      <img src={gifReady && gifUrl ? gifUrl : l.thumb_url} alt="" loading="lazy" decoding="async" class:blur-img={blurred} onload={onImgLoad} />
       {#if variant !== "list" && l.favorite}
         <FavBadge />
       {/if}
