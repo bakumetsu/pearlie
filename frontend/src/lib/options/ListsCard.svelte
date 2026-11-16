@@ -6,6 +6,7 @@
 	let { store = options }: { store?: OptionsStore } = $props();
 
 	const on = $derived(store.values?.infinite_scroll ?? false);
+	const gifOn = $derived(store.values?.gif_grid ?? true);
 </script>
 
 <section class="card">
@@ -18,5 +19,13 @@
 			<span class="row-hint">Load the next page near the end instead of page buttons.</span>
 		</div>
 		<Switch checked={on} label="Infinite scroll" onclick={() => store.set({ infinite_scroll: !on })} />
+	</div>
+
+	<div class="row">
+		<div class="row-text">
+			<span class="row-label">Play GIFs in grid</span>
+			<span class="row-hint">Small animated GIFs play while the tile is on screen. Off: a still image.</span>
+		</div>
+		<Switch checked={gifOn} label="Play GIFs in grid" onclick={() => store.set({ gif_grid: !gifOn })} />
 	</div>
 </section>

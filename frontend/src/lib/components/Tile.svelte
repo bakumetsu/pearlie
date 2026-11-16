@@ -4,6 +4,9 @@
   import type { LibraryItem, WebItem } from "../api/client";
   import { formatDuration } from "../format";
   import FavBadge from "./FavBadge.svelte";
+  import { inView } from "../inView";
+  import { takeSlot } from "../gifSlots";
+  import { options } from "../stores/options.svelte";
 
   let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, landscape = false }: {
     item: LibraryItem | WebItem;
@@ -43,6 +46,42 @@
   }
   let revealed = $state(false);
   const blurred = $derived(!revealed && item.blur != null);
+
+  // Animated GIF in the grid: the backend sets gif_url only for a small GIF. The still stays
+  // until the GIF has loaded; off screen, blurred, reduced motion or the setting off: still.
+  let visible = $state(false);
+  let reduced = $state(false);
+  let gifReady = $state(false);
+  const gifUrl = $derived(item.gif_url ?? null);
+  const wantGif = $derived(
+    visible && !!gifUrl && (options.values?.gif_grid ?? true) && !reduced && !blurred && stage !== 2,
+  );
+  $effect(() => {
+    if (typeof matchMedia !== "function") return;
+    const mq = matchMedia("(prefers-reduced-motion: reduce)");
+    reduced = mq.matches;
+    const on = () => (reduced = mq.matches);
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  });
+  $effect(() => {
+    if (!wantGif || !gifUrl) return;
+    const pre = new Image();
+    let release: (() => void) | null = null;
+    pre.onload = () => {
+      release = takeSlot(() => (gifReady = false));
+      gifReady = true;
+    };
+    pre.src = gifUrl;
+    return () => {
+      pre.onload = null;
+      pre.onerror = null;
+      pre.src = "";
+      release?.();
+      gifReady = false;
+    };
+  });
+  const track = (visibleNow: boolean) => (visible = visibleNow);
 
   function handleMediaClick(e: MouseEvent) {
     if (blurred) {
@@ -128,7 +167,7 @@
 {#if isWeb}
   {@const w = item as WebItem}
   <div class="tile web {variant}" class:cv={variant !== "list"} style:aspect-ratio={variant !== "list" ? aspectRatio : undefined}>
-    <div class="media" style:aspect-ratio={aspectRatio}>
+    <div class="media" style:aspect-ratio={aspectRatio} use:inView={track}>
       {#if !w.thumb_url && !w.preview_url}
         <div class="thumb-fail">
           <Icon name="image" size={24} />
@@ -140,7 +179,7 @@
           <button class="retry" onclick={(e) => { e.stopPropagation(); stage = 0; }}>Retry</button>
         </div>
       {:else}
-        <img src={webSrc(w)} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" class:blur-img={blurred} onerror={onWebError} />
+        <img src={gifReady && gifUrl ? gifUrl : webSrc(w)} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" class:blur-img={blurred} onerror={onWebError} />
       {/if}
       {#if href}
         <a class="open" {href} onclick={handleOpenClick} aria-label={`${w.source} #${w.post_id}`} title={`${w.source} #${w.post_id}`}></a>
@@ -176,8 +215,8 @@
     {#if l.kind === "video"}
       <VideoCard item={l} {variant} {aspectRatio} {blurred} {landscape} meta={metaLine()} onmediaclick={handleMediaClick} onmediakeydown={handleMediaKeydown} />
     {:else}
-    <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick} role="button" tabindex="0" onkeydown={handleMediaKeydown}>
-      <img src={l.thumb_url} alt="" loading="lazy" decoding="async" class:blur-img={blurred} />
+    <div class="media" style:aspect-ratio={aspectRatio} onclick={handleMediaClick} role="button" tabindex="0" onkeydown={handleMediaKeydown} use:inView={track}>
+      <img src={gifReady && gifUrl ? gifUrl : l.thumb_url} alt="" loading="lazy" decoding="async" class:blur-img={blurred} />
       {#if variant !== "list" && l.favorite}
         <FavBadge />
       {/if}

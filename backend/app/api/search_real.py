@@ -19,6 +19,7 @@ from app.api.search_filters import (
     unsupported_notice,
 )
 from app.filters.rules import evaluate, load_rules
+from app.gif_grid import grid_gif_ok
 from app.filters.safe_mode import is_hidden_in_safe_mode, resolve_safe
 from app.jobs.store import JobStore
 from app.komga import Komga, KomgaError, book_item
@@ -224,6 +225,11 @@ def search(
                                 else ""
                             ),
                             media_kind=media_kind(post),
+                            gif_url=(
+                                proxy_path(post.source, post.post_id, "preview")
+                                if grid_gif_ok(pick_url(post, "preview"), post.file_size)
+                                else None
+                            ),
                             title=post.title,
                             tags=[
                                 Tag(name=n, scope=kind)

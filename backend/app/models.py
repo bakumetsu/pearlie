@@ -78,6 +78,10 @@ class LibraryItem(BaseModel):
     date: str | None = None
     size_bytes: int | None = None
     file_name: str | None = None
+    gif_url: str | None = Field(
+        default=None,
+        description="Image tiles only. Full animated GIF to play in a grid tile; set only for a small GIF.",
+    )
     page_count: int | None = None
     read_page: int | None = None
     book_count: int | None = None
@@ -140,6 +144,10 @@ class WebItem(BaseModel):
     saved: SavedRef | None = None
     owned: bool = False  # saved to Stash: the viewer shows the library icon
     blur: Blur | None = None
+    gif_url: str | None = Field(
+        default=None,
+        description="Full animated GIF to play in a grid tile; set only for a GIF of known, small size.",
+    )
 
 
 class WebBook(BaseModel):

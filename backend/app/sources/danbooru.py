@@ -209,6 +209,7 @@ class Danbooru:
             post_id=str(d["id"]),
             md5=d.get("md5"),
             file_url=d.get("file_url") or d.get("large_file_url"),
+            file_size=d.get("file_size") if isinstance(d.get("file_size"), int) else None,
             preview_url=d.get("preview_file_url"),
             sample_url=d.get("large_file_url"),
             width=d.get("image_width") or 0,

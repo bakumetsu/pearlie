@@ -10,6 +10,7 @@ import secrets
 from pathlib import PurePosixPath
 from urllib.parse import parse_qs, urlsplit
 
+from app.gif_grid import grid_gif_ok
 from app.models import LibraryItem, LibraryItemDetail, Problem, StreamOption, Tag
 
 _SEGMENT_RE = re.compile(r"^(stream\.(mp4|webm|m3u8|ts)|[0-9]+\.ts)$")
@@ -144,6 +145,9 @@ def image_item(dto: dict) -> LibraryItem:
     )
     kw["tags"] = _tag_names(dto)
     kw["file_name"] = _image_file_name(dto)
+    size = _first_file(dto.get("visual_files") or []).get("size")
+    if grid_gif_ok(kw["file_name"], size if isinstance(size, int) else None):
+        kw["gif_url"] = f"/api/media/stash/images/{fid}/full"
     return LibraryItem(**kw)
 
 
