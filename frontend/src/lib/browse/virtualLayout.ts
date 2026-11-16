@@ -1,5 +1,5 @@
 import type { Mode } from "./layout";
-import { columnCount } from "./layout";
+import { columnCount, safeAspect } from "./layout";
 
 // Pure, incremental layout for the windowed results grid (D-31). No DOM: it holds a rect per item
 // index and the total height. All modes share reset / append / applyAspect / range.
@@ -34,10 +34,6 @@ export const MASONRY_GAP = 8;
 export const GRID_GAP = 16;
 
 const DEFAULTS: LayoutOptions = { lineH: 18, pad: 8, listPad: 16 };
-
-function safe(value: number): number {
-  return value > 0 && isFinite(value) ? value : 1;
-}
 
 interface Row {
   start: number;
@@ -109,7 +105,7 @@ export class VirtualLayout {
     this.mode = mode;
     this.width = width;
     this.size = size;
-    this.aspects = aspects.map(safe);
+    this.aspects = aspects.map(safeAspect);
     this.lines = aspects.map((_a, i) => extra.lines?.[i] ?? 0);
     this.keys = extra.keys ? extra.keys.slice(0, aspects.length) : [];
     this.keyIndex = new Map();
@@ -143,7 +139,7 @@ export class VirtualLayout {
   append(aspects: number[], extra: LayoutExtra = {}): void {
     const from = this.aspects.length;
     for (let i = 0; i < aspects.length; i++) {
-      this.aspects.push(safe(aspects[i]));
+      this.aspects.push(safeAspect(aspects[i]));
       this.lines.push(extra.lines?.[i] ?? 0);
       const key = extra.keys?.[i];
       if (key !== undefined) {
@@ -160,7 +156,7 @@ export class VirtualLayout {
   applyAspect(index: number, aspect: number): void {
     if (index < 0 || index >= this.aspects.length) return;
     const old = this.aspects[index];
-    this.aspects[index] = safe(aspect);
+    this.aspects[index] = safeAspect(aspect);
     this.stats.touched = 0;
     if (this.mode === "masonry") {
       const c = this.itemCol[index];
