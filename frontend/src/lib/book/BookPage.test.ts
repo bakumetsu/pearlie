@@ -44,6 +44,24 @@ describe("BookPage", () => {
     expect(container.querySelector(".menu")).toBeNull();
   });
 
+  it("closes the menu on a pointer down outside it, not on the button or inside", async () => {
+    const { container, getByLabelText } = render(BookPage, {
+      props: { cover: "/c", title: "T", onback: () => {}, actions: snip('<button class="mi" role="menuitem">Go</button>') },
+    });
+    const more = getByLabelText("More actions");
+    await fireEvent.click(more);
+    expect(container.querySelector(".menu")).toBeTruthy();
+    await fireEvent.pointerDown(container.querySelector(".menu")!);
+    expect(container.querySelector(".menu")).toBeTruthy();
+    await fireEvent.pointerDown(container.querySelector(".title")!);
+    expect(container.querySelector(".menu")).toBeNull();
+    await fireEvent.click(more);
+    expect(container.querySelector(".menu")).toBeTruthy();
+    await fireEvent.pointerDown(more);
+    await fireEvent.click(more);
+    expect(container.querySelector(".menu")).toBeNull();
+  });
+
   it("renders only the bar and content when not ready", () => {
     const { container, getByText } = render(BookPage, {
       props: { ready: false, onback: () => {}, children: snip("<p>Loading…</p>") },

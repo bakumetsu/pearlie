@@ -35,11 +35,15 @@
   } = $props();
 
   let menuOpen = $state(false);
+  let actsEl = $state<HTMLElement>();
   const bg = $derived(backdrop ? `url(${JSON.stringify(backdrop)})` : "");
   const lines = $derived(sub.filter(Boolean));
 </script>
 
-<svelte:window onkeydown={(e) => { if (e.key === "Escape" && menuOpen) menuOpen = false; }} />
+<svelte:window
+  onpointerdown={(e) => { if (menuOpen && actsEl && !actsEl.contains(e.target as Node)) menuOpen = false; }}
+  onkeydown={(e) => { if (e.key === "Escape" && menuOpen) menuOpen = false; }}
+/>
 
 <div class="bp">
   {#if bg && backdropStrength > 0}
@@ -68,7 +72,7 @@
               <div class="ratio" aria-hidden="true"><i style:width={Math.round(Math.min(1, Math.max(0, progress)) * 100) + "%"}></i></div>
             {/if}
             {#if actions}
-              <div class="acts">
+              <div class="acts" bind:this={actsEl}>
                 <button class="ib" type="button" aria-label="More actions" title="More actions" aria-haspopup="menu" aria-expanded={menuOpen} onclick={() => (menuOpen = !menuOpen)}>
                   <Icon name="ellipsis" size={20} />
                 </button>
