@@ -14,6 +14,7 @@ from app.fixtures import data
 from app.fixtures.jobs import JobBoard
 from app.fixtures.rules import rules
 from app.models import (
+    GroupRestoreResult,
     LibraryItem,
     LibraryItemDetail,
     Page,
@@ -21,9 +22,12 @@ from app.models import (
     RestoreResult,
     SavedRef,
     Tag,
+    TrashBatchFailure,
+    TrashBatchResult,
     TrashEmptied,
     TrashItem,
     TrashList,
+    TrashRestoreFailure,
     TrashResult,
     WebItem,
 )
@@ -265,7 +269,7 @@ class Store:
                 raw["_tags"] = [Tag(name=t) for t in tags]
         return self.library_detail(kinds, id)
 
-    def delete(self, kinds: str, id: str) -> TrashResult | None:
+    def delete(self, kinds: str, id: str, group_id: str | None = None) -> TrashResult | None:
         bucket = self._bucket(kinds)
         if bucket is None:
             return None
@@ -279,6 +283,7 @@ class Store:
             self.trash[token] = {
                 "item": raw,
                 "bucket": kinds,
+                "group_id": group_id,
                 "trashed_at": now.timestamp(),
                 "expires": expires_dt.timestamp(),
             }
@@ -286,8 +291,37 @@ class Store:
             token=token,
             expires_at=expires_dt.isoformat(),
             retention_days=self.retention_days,
-            item=TrashItem(kind=raw["kind"], id=id, title=raw["title"]),
+            item=TrashItem(kind=raw["kind"], id=id, title=raw["title"], group_id=group_id),
         )
+
+    def delete_batch(self, items: list[tuple[str, str]]) -> TrashBatchResult:
+        """Trash several items under one group id; unknown ones are listed as failed."""
+        group = uuid.uuid4().hex
+        plural = {"image": "images", "video": "videos", "series": "series", "book": "books"}
+        results: list[TrashResult] = []
+        failed: list[TrashBatchFailure] = []
+        for kind, id in dict.fromkeys(items):
+            res = self.delete(plural[kind], id, group_id=group)
+            if res is None:
+                failed.append(TrashBatchFailure(kind=kind, id=id, code="not_found"))  # type: ignore[arg-type]
+            else:
+                results.append(res)
+        return TrashBatchResult(group=group, results=results, failed=failed)
+
+    def restore_group(self, group: str) -> GroupRestoreResult | None:
+        with self._lock:
+            tokens = [t for t, e in self.trash.items() if e.get("group_id") == group]
+        if not tokens:
+            return None
+        restored: list[RestoreResult] = []
+        failed: list[TrashRestoreFailure] = []
+        for token in tokens:
+            res = self.restore(token)
+            if res is None:
+                failed.append(TrashRestoreFailure(token=token, code="not_found"))
+            else:
+                restored.append(res)
+        return GroupRestoreResult(restored=restored, failed=failed)
 
     def restore(self, token: str) -> RestoreResult | None:
         with self._lock:
@@ -314,6 +348,7 @@ class Store:
                         kind=entry["item"]["kind"],
                         id=entry["item"]["id"],
                         title=entry["item"]["title"],
+                        group_id=entry.get("group_id"),
                     ),
                 )
                 for token, entry in reversed(list(self.trash.items()))
