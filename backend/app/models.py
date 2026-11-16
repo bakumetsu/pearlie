@@ -80,7 +80,7 @@ class LibraryItem(BaseModel):
     file_name: str | None = None
     gif_url: str | None = Field(
         default=None,
-        description="Image tiles only. Full animated GIF to play in a grid tile; set only for a small GIF.",
+        description="Image tiles only. Animated GIF to play in a grid tile; small GIFs only.",
     )
     page_count: int | None = None
     read_page: int | None = None
@@ -146,7 +146,7 @@ class WebItem(BaseModel):
     blur: Blur | None = None
     gif_url: str | None = Field(
         default=None,
-        description="Full animated GIF to play in a grid tile; set only for a GIF of known, small size.",
+        description="Animated GIF to play in a grid tile; GIFs of known, small size only.",
     )
 
 

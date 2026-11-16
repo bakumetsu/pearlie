@@ -37,7 +37,8 @@ def _stash(basename, size):
 
 
 def test_stash_small_gif_gets_gif_url():
-    assert stash_library.image_item(_stash("a.gif", 500)).gif_url == "/api/media/stash/images/5/full"
+    item = stash_library.image_item(_stash("a.gif", 500))
+    assert item.gif_url == "/api/media/stash/images/5/full"
 
 
 def test_stash_big_gif_stays_still():

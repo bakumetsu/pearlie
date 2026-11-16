@@ -1574,7 +1574,7 @@ export interface components {
             file_name?: string | null;
             /**
              * Gif Url
-             * @description Image tiles only. Full animated GIF to play in a grid tile; set only for a small GIF.
+             * @description Image tiles only. Animated GIF to play in a grid tile; small GIFs only.
              */
             gif_url?: string | null;
             /** Page Count */
@@ -1629,7 +1629,7 @@ export interface components {
             file_name?: string | null;
             /**
              * Gif Url
-             * @description Image tiles only. Full animated GIF to play in a grid tile; set only for a small GIF.
+             * @description Image tiles only. Animated GIF to play in a grid tile; small GIFs only.
              */
             gif_url?: string | null;
             /** Page Count */
@@ -2496,7 +2496,7 @@ export interface components {
             blur?: components["schemas"]["Blur"] | null;
             /**
              * Gif Url
-             * @description Full animated GIF to play in a grid tile; set only for a GIF of known, small size.
+             * @description Animated GIF to play in a grid tile; GIFs of known, small size only.
              */
             gif_url?: string | null;
         };
