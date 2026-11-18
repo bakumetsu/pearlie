@@ -65,7 +65,7 @@ def test_list_names_and_key_state(tmp_path: Path) -> None:
     data = r.json()
     assert data["can_store"] is True
     names = [x["name"] for x in data["connections"]]
-    assert names == ["stash", "komga", "danbooru", "gelbooru", "rule34", "nhentai"]
+    assert names == ["stash", "komga", "stump", "danbooru", "gelbooru", "rule34", "nhentai"]
     for conn in data["connections"]:
         assert conn["key"] == "missing"
 
