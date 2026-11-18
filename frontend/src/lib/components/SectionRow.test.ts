@@ -22,4 +22,13 @@ describe("SectionRow", () => {
     expect(rule(source, ".row")).toContain("min-width: 0");
     expect(rule(source, ".strip-wrap")).toContain("min-width: 0");
   });
+
+  it("See all is an arrow-right icon link with a label and a 44px target", () => {
+    expect(source).toContain('aria-label="See all"');
+    expect(source).toContain('<Icon name="arrow-right"');
+    expect(source).not.toContain(">See all<");
+    const r = rule(source, ".see-all");
+    expect(r).toContain("min-width: 44px");
+    expect(r).toContain("min-height: 44px");
+  });
 });
