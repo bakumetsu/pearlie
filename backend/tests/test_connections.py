@@ -836,3 +836,43 @@ def test_save_then_use_without_restart(tmp_path: Path) -> None:
     _seed(c, "komga")
     assert komga_target._c is app.state.komga  # pyright: ignore[reportAttributeAccessIssue]
     assert c.get("/api/library/komga/series").status_code != 503
+
+
+# ---------------------------------------------------------------------------
+# Stump: probe, write-only key
+# ---------------------------------------------------------------------------
+
+
+def test_stump_probe_sends_bearer_to_graphql(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"data": {"libraries": {"nodes": []}}})
+
+    c = make_client(tmp_path, secret_key=master_key(), transport=httpx.MockTransport(handler))
+    r = c.put(
+        "/api/connections/stump",
+        json={"address": "http://stump.local:10801", "secret": "stump-key-xyz"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    assert r.json()["key"] == "set"
+    assert "stump-key-xyz" not in r.text
+    assert "stump-key-xyz" not in c.get("/api/connections").text
+    out = c.post("/api/connections/stump/test", headers=HDR)
+    assert out.json() == {"ok": True, "message": "connected"}
+    assert "stump-key-xyz" not in out.text
+    assert seen[0].url.path == "/api/graphql"
+    assert seen[0].headers["Authorization"] == "Bearer stump-key-xyz"
+
+
+def test_stump_probe_key_rejected(tmp_path: Path) -> None:
+    c = make_client(
+        tmp_path,
+        secret_key=master_key(),
+        transport=httpx.MockTransport(lambda request: httpx.Response(401)),
+    )
+    c.put("/api/connections/stump", json={"address": "http://stump.local:10801"}, headers=HDR)
+    r = c.post("/api/connections/stump/test", headers=HDR)
+    assert r.json() == {"ok": False, "message": "key rejected"}

@@ -23,7 +23,7 @@ def clear_health_cache(app: FastAPI) -> None:
 
 
 def _service(app: FastAPI, name: str) -> tuple[State, str | None]:
-    """State and version of Stash or Komga; the probe result is cached briefly."""
+    """State and version of Stash or the book server; the probe result is cached briefly."""
     store: ConnectionStore = app.state.connection_store
     address = store.address(name)
     if not address:
@@ -71,11 +71,11 @@ def health(request: Request) -> Health:
         # Fixture mode has no real connection to probe: report configuration only.
         store: ConnectionStore = app.state.connection_store
         stash_state: State = "ok" if store.address("stash") else "not_configured"
-        komga_state: State = "ok" if store.address("komga") else "not_configured"
+        komga_state: State = "ok" if store.address(settings.book_server) else "not_configured"
         stash_version = komga_version = None
     else:
         stash_state, stash_version = _service(app, "stash")
-        komga_state, komga_version = _service(app, "komga")
+        komga_state, komga_version = _service(app, settings.book_server)
     if active("offline"):
         stash_state = "down"
     return Health(

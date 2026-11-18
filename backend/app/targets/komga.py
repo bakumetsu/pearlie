@@ -56,8 +56,9 @@ AUTHOR_MISS_TTL_S = 300.0
 STALE_GRACE = "-1 day"  # Komga may not have scanned a fresh save yet
 
 
-def scan_failed_notice() -> Problem:
-    return Problem(code="scan_failed", message="file saved; Komga will pick it up on its next scan")
+def scan_failed_notice(label: str = "Komga") -> Problem:
+    message = f"file saved; {label} will pick it up on its next scan"
+    return Problem(code="scan_failed", message=message)
 
 
 def waiting_for_komga_notice(komga_path: str) -> Problem:
@@ -588,7 +589,7 @@ class KomgaTarget:
                     )
                 )
             else:
-                notices.append(scan_failed_notice())
+                notices.append(scan_failed_notice(self.label))
             return None, outside
 
     def _forget(self, post: Post) -> None:

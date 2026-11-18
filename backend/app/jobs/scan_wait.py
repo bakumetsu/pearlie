@@ -183,7 +183,7 @@ class ScanWait:
         except BookServerError as e:
             logger.warning("KOMGA scan failed code=%s status=%s", e.code, e.status)
             for jid, (src, _p) in live.items():
-                self._end(jid, src, [scan_failed_notice()])
+                self._end(jid, src, [scan_failed_notice(getattr(self._target, "label", "Komga"))])
             return
 
         pending = dict(live)
