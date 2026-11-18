@@ -223,7 +223,7 @@ def rebuild_client(app: FastAPI, name: str) -> None:
         app.state.books = None  # rebuilt by book_server_of from the new settings
         app.state.stump_conn = None
         stump_target = getattr(app.state, "stump_target", None)
-        if stump_target is not None and app.state.stump is not None:
+        if stump_target is not None:
             stump_target.set_client(app.state.stump)
     elif name == "stash":
         app.state.stash = _build_stash(settings)

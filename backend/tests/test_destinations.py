@@ -355,6 +355,48 @@ def test_api_komga_site_validates_against_komga_roots(tmp_path: Path) -> None:
         assert c.delete("/api/destinations/nhentai").status_code == 200
 
 
+def test_api_stump_site_uses_stump_libraries_and_prefixes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.api import destinations as api
+    from app.bookserver.base import LibraryDTO
+    from app.config import Settings
+    from app.main import create_app
+
+    class FakeBooks:
+        def list_libraries(self) -> list[LibraryDTO]:
+            return [LibraryDTO(id="L1", name="doujin", root="/data/stump/doujin")]
+
+    monkeypatch.setattr(api, "book_server_of", lambda _app: FakeBooks())
+    cfg = Settings(
+        mode="real",
+        db_path=tmp_path / "p.db",
+        static_dir=tmp_path / "nostatic",
+        book_server="stump",
+        stump_url="http://stump.local:10801",
+        stump_path_prefix_pearlie="/mnt/pearlie",
+        stump_path_prefix_stump="/data/stump",
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+    )
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        body = c.get("/api/destinations").json()
+        assert body["komga_library_error"] is None
+        assert body["komga_library_paths"] == ["/data/stump/doujin"]
+        bad = c.put("/api/destinations/nhentai", json={"folder": "/mnt/stash/x"})
+        assert bad.status_code == 400
+        assert "Stump" in bad.json()["message"]
+        ok = c.put("/api/destinations/nhentai", json={"folder": "/mnt/pearlie/doujin/in"})
+        assert ok.status_code == 200
+        assert ok.json()["items"] == [{"site": "nhentai", "folder": "/mnt/pearlie/doujin/in"}]
+    app.state.stump = None
+    with TestClient(app) as c:
+        err = c.get("/api/destinations").json()["komga_library_error"]
+        assert err == "Stump is not configured"
+
+
 def test_validate_folder_rejects_backslash():
     for bad in ("/data/lib\\..\\..\\x", "/data/lib/a\\b"):
         with pytest.raises(destinations.DestinationError) as err:

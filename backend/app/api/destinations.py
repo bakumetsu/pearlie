@@ -36,9 +36,16 @@ def _sites(request: Request, target: str = "stash") -> list[str]:
     return [sid for sid, src in request.app.state.sources.items() if src.target == target]
 
 
+def _book_name(request: Request) -> str:
+    """Display name of the configured book server."""
+    return "Stump" if request.app.state.settings.book_server == "stump" else "Komga"
+
+
 def _komga_libraries(request: Request) -> list[LibraryDTO]:
-    if request.app.state.komga is None:
-        raise ApiError(502, "not_configured", "Komga is not configured")
+    state = request.app.state
+    client = state.stump if state.settings.book_server == "stump" else state.komga
+    if client is None:
+        raise ApiError(502, "not_configured", f"{_book_name(request)} is not configured")
     try:
         return book_server_of(request.app).list_libraries()
     except BookServerError as err:
@@ -50,7 +57,7 @@ def _komga_roots(request: Request) -> list[str]:
 
 
 def _oneshots_name(libraries: list[LibraryDTO]) -> str | None:
-    """First usable oneshots folder name set in Komga (read-only display)."""
+    """First usable oneshots folder name set in the book server (read-only display)."""
     for lib in libraries:
         found = oneshots_dir_of([lib], lib.root)
         if found.name:
@@ -146,12 +153,17 @@ def delete_mapping(request: Request) -> Destinations:
 def put_destination(body: FolderBody, request: Request, site: str) -> Destinations:
     if site in _sites(request, "komga"):
         s = request.app.state.settings
+        prefixes = (
+            (s.stump_path_prefix_pearlie, s.stump_path_prefix_stump)
+            if s.book_server == "stump"
+            else (s.komga_path_prefix_pearlie, s.komga_path_prefix_komga)
+        )
         try:
             validated = destinations.validate_komga_folder(
                 body.folder,
                 _komga_roots(request),
-                s.komga_path_prefix_pearlie,
-                s.komga_path_prefix_komga,
+                *prefixes,
+                server=_book_name(request),
             )
         except DestinationError as err:
             raise ApiError(err.status, err.code, err.message) from None

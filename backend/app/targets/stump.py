@@ -44,7 +44,7 @@ class StumpTarget(KomgaTarget):
         self._stump = client
         self._stump_books: StumpBookServer | None = None
 
-    def set_client(self, client: Stump) -> None:  # type: ignore[override]
+    def set_client(self, client: Stump | None) -> None:  # type: ignore[override]
         self._stump = client
 
     @property
