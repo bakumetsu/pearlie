@@ -7,16 +7,18 @@ import threading
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 from app import logs
 from app.jobs.scan_wait import ScanWait
 from app.jobs.store import JobStore
 from app.models import Problem
 from app.sources.base import Post, Source, SourceError
-from app.targets.komga import KomgaTarget
 from app.targets.stash import PendingScan, SaveError, SaveResult
 from app.targets.stash_client import StashError
+
+if TYPE_CHECKING:
+    from app.targets.komga import KomgaTarget
 
 logger = logging.getLogger("pearlie.jobs")
 
@@ -52,7 +54,14 @@ class JobWorker:
         self._cond = threading.Condition()
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
-        komga = next((t for t in targets.values() if isinstance(t, KomgaTarget)), None)
+        komga = next(
+            (
+                cast("KomgaTarget", t)
+                for t in targets.values()
+                if getattr(t, "is_book_target", False)
+            ),
+            None,
+        )
         self.scan_wait: ScanWait | None = (
             ScanWait(komga, self._store, self.finish_saved, wait_s=scan_wait_s, clock=clock)
             if komga is not None
@@ -259,8 +268,8 @@ class JobWorker:
 
             tags = sorted({tag for group in post.tags.values() for tag in group})
             placement = self._store.load_placement(job_id)
-            if isinstance(target, KomgaTarget):
-                result = target.save(
+            if getattr(target, "is_book_target", False):
+                result = cast("KomgaTarget", target).save(
                     post, tags, placement=placement, on_progress=self._progress_cb(job_id)
                 )
             else:

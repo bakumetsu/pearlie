@@ -49,14 +49,14 @@ def book_dto(d: dict) -> BookDTO:
     meta = d.get("metadata") or {}
     rp = d.get("readProgress")
     return BookDTO(
-        id=str(d["id"]),
+        id=str(d.get("id", "")),
         library_id=str(d.get("libraryId", "")),
         series_id=str(d.get("seriesId", "")),
-        name=d["name"],
-        title=meta.get("title") or d["name"],
+        name=d.get("name", ""),
+        title=meta.get("title") or d.get("name", ""),
         path=str(d.get("url", "")),
-        created_at=d["created"],
-        page_count=d["media"]["pagesCount"],
+        created_at=d.get("created", ""),
+        page_count=(d.get("media") or {}).get("pagesCount", 0),
         read_page=rp["page"] if rp else None,
         read_done=bool(rp and rp.get("completed")),
         deleted=bool(d.get("deleted")),
@@ -64,6 +64,7 @@ def book_dto(d: dict) -> BookDTO:
         tags=sorted(meta.get("tags", [])),
         links=_links(meta),
         writers=[a["name"] for a in meta.get("authors") or [] if a.get("role") == "writer"],
+        authors=[str(a.get("name", "")) for a in meta.get("authors") or []],
     )
 
 

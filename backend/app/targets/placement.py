@@ -10,6 +10,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app.bookserver.base import LibraryDTO
 from app.targets.destinations import to_stash_path
 from app.targets.placement_name import ParsedName, parse_name
 
@@ -200,3 +201,14 @@ def make_plan(
         moves = tuple(name for r, name in ones if r == rkey)
         return Plan("series", root, parsed.number, folder, via or "new", moves)
     return Plan("oneshot", None, "", None, "oneshot")
+
+
+def oneshots_dir_of(
+    libraries: Iterable[LibraryDTO],
+    series_root: str,
+    prefix_pearlie: str = "",
+    prefix_komga: str = "",
+) -> OneshotsDir:
+    """`oneshots_dir_name` over book-server library DTOs."""
+    libs = [{"root": lib.root, ONESHOTS_FIELD: lib.oneshots_dir} for lib in libraries]
+    return oneshots_dir_name(libs, series_root, prefix_pearlie, prefix_komga)

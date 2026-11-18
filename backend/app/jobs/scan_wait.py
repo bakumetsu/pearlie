@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
+from app.bookserver.base import BookServerError
 from app.jobs.store import JobStore
-from app.komga import KomgaError
 from app.models import Problem
 from app.targets.komga import scan_failed_notice, waiting_for_komga_notice
 from app.targets.stash import PendingScan
@@ -180,7 +180,7 @@ class ScanWait:
         )
         try:
             self._target.scan(library_id)
-        except KomgaError as e:
+        except BookServerError as e:
             logger.warning("KOMGA scan failed code=%s status=%s", e.code, e.status)
             for jid, (src, _p) in live.items():
                 self._end(jid, src, [scan_failed_notice()])
@@ -200,7 +200,7 @@ class ScanWait:
                 found = self._target.find_books(
                     library_id, {jid: p for jid, (_s, p) in pending.items()}
                 )
-            except KomgaError as e:
+            except BookServerError as e:
                 logger.warning("KOMGA verify failed code=%s status=%s", e.code, e.status)
                 break
             for jid in found & set(pending):
@@ -215,7 +215,7 @@ class ScanWait:
                 logger.info("KOMGA scan retry library=%s", library_id)
                 try:
                     self._target.scan(library_id)
-                except KomgaError as e:
+                except BookServerError as e:
                     logger.warning("KOMGA scan failed code=%s status=%s", e.code, e.status)
         for jid, (src, p) in pending.items():
             logger.warning("KOMGA source=%s book not found in Komga path=%s", src, p.komga_path)

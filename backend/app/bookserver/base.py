@@ -58,6 +58,7 @@ class BookDTO:
     tags: list[str] = field(default_factory=list)
     links: list[tuple[str, str]] = field(default_factory=list)
     writers: list[str] = field(default_factory=list)
+    authors: list[str] = field(default_factory=list)  # every author name, any role
 
 
 @dataclass(frozen=True)
