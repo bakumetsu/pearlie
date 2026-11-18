@@ -59,11 +59,16 @@ describe("KomgaSeries", () => {
     expect(getByText("No books")).toBeTruthy();
   });
 
-  it("shows two tag chips plus the studio and the series bar", () => {
+  it("shows the studio only in the sub line, plus the series bar", () => {
     const { container } = setup();
     const subs = [...container.querySelectorAll(".sub")].map((e) => e.textContent);
-    expect(subs).toEqual(["action", "seinen", "Studio"]);
+    expect(subs).toEqual(["Studio"]);
     expect(container.querySelector(".ratio i")?.getAttribute("style")).toContain("33%");
+  });
+
+  it("shows no sub line when the series has tags but no studio", () => {
+    const { container } = setup({ studio: undefined });
+    expect(container.querySelectorAll(".sub").length).toBe(0);
   });
 
   it("a half-read book alone gives Continue on that book", async () => {

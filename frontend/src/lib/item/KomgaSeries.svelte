@@ -37,7 +37,8 @@
   // Continue only when something was read (a finished or a partly read book) and an unfinished book is left; otherwise Read opens book 1.
   const resume = $derived(next !== null && books.some((b) => (b.read_page ?? 0) > 0));
   const target = $derived(resume ? next : (books[0] ?? null));
-  const chips = $derived([...(detail.tags ?? []).slice(0, 2).map((t) => t.name), ...(detail.studio ? [detail.studio] : [])]);
+  // The sub line shows the studio only; tags live in the side panel.
+  const chips = $derived(detail.studio ? [detail.studio] : []);
 </script>
 
 <BookPage
