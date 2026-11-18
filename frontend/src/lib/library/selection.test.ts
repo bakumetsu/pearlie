@@ -41,6 +41,26 @@ describe("library selection", () => {
     expect(selection.count).toBe(0);
   });
 
+  it("un-picking the last item leaves select mode and hides the bar", () => {
+    render(SelectBar, { props: { onchanged: () => {} }, context: new Map([[API_CONTEXT_KEY, {} as Api]]) });
+    expect(screen.queryByRole("group", { name: "Selection" })).toBeNull();
+    selection.toggle(item);
+    expect(selection.active).toBe(true);
+    expect(selection.count).toBe(1);
+    selection.toggle(item);
+    expect(selection.active).toBe(false);
+    expect(selection.count).toBe(0);
+  });
+
+  it("the bar is absent at 0 after un-pick", async () => {
+    render(SelectBar, { props: { onchanged: () => {} }, context: new Map([[API_CONTEXT_KEY, {} as Api]]) });
+    selection.toggle(item);
+    expect(await screen.findByRole("group", { name: "Selection" })).toBeTruthy();
+    selection.toggle(item);
+    await Promise.resolve();
+    expect(screen.queryByRole("group", { name: "Selection" })).toBeNull();
+  });
+
   it("Escape leaves select mode", async () => {
     render(SelectBar, { props: { onchanged: () => {} }, context: new Map([[API_CONTEXT_KEY, {} as Api]]) });
     selection.toggle(item);
