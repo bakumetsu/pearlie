@@ -164,8 +164,9 @@ async def _trash_purge_loop(app_: FastAPI) -> None:
     destroyers = {}
     if stash is not None:
         destroyers["stash"] = StashTrash(app_.state.settings, store, stash).destroy_row
-    if app_.state.komga is not None:
-        destroyers["komga"] = trash_real.komga_trash_of_app(app_).destroy_row
+    book_kind = app_.state.settings.book_server
+    if trash_real.book_server_ready(app_):
+        destroyers[book_kind] = trash_real.komga_trash_of_app(app_).destroy_row
     try:
         await asyncio.to_thread(store.repair, destroyers)
     except Exception:

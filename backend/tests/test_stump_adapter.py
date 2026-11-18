@@ -12,7 +12,7 @@ from PIL import Image
 from pydantic import SecretStr
 
 from app import stump as stump_mod
-from app.bookserver.base import BookServerError
+from app.bookserver.base import BookServerError, MetadataPatch
 from app.bookserver.factory import book_server_of
 from app.bookserver.stump import StumpBookServer, book_dto
 from app.stump import Stump, StumpError
@@ -221,20 +221,61 @@ def test_wait_job_failed_and_timeout() -> None:
     assert err2.value.status == 504
 
 
-@pytest.mark.parametrize(
-    "call",
-    [
-        lambda s: s.list_deleted("books", "L1"),
-        lambda s: s.purge_deleted("L1"),
-        lambda s: s.set_tags("books", "b1", ["a"]),
-        lambda s: s.set_progress("b1", 1, False),
-    ],
-)
-def test_write_stubs_raise_not_supported(call) -> None:  # noqa: ANN001
-    server, _ = _server()
+def test_list_deleted_reads_missing_and_purge_cleans_library() -> None:
+    server, mock = _server()
+    mock.books.append(stump_mock.book(7, gone=True))
+    assert [b.id for b in server.list_deleted("books", "L1") if b.id == "b7"] == ["b7"]
+    assert server.list_deleted("series", "L1") == []
+    server.purge_deleted("L1")
+    assert mock.cleaned == ["L1"]
+    assert all(b["status"] != "MISSING" for b in mock.books)
+
+
+def test_set_tags_writes_and_locks() -> None:
+    server, mock = _server()
+    server.set_tags("books", "b1", ["b", "a"])
+    server.set_tags("series", "s1", ["z"])
+    assert _ops(mock, "SetMediaTags")[0]["variables"] == {"id": "b1", "tags": ["b", "a"]}
+    assert _ops(mock, "SetSeriesTags")[0]["variables"] == {"id": "s1", "tags": ["z"]}
+    assert mock.locks == [
+        ("setMediaLockedFields", "b1", ["TAGS"]),
+        ("setSeriesLockedFields", "s1", ["TAGS"]),
+    ]
+
+
+def test_set_metadata_maps_fields_and_locks() -> None:
+    server, mock = _server()
+    patch = MetadataPatch(
+        title="T", summary="S", links=[("a", "http://a")], writers=["W"], tags=["t"]
+    )
+    server.set_metadata("books", "b1", patch)
+    sent = _ops(mock, "UpdateMediaMetadata")[0]["variables"]["input"]
+    assert sent == {"title": "T", "summary": "S", "links": ["http://a"], "writers": ["W"]}
+    assert mock.locks == [
+        ("setMediaLockedFields", "b1", ["TITLE", "SUMMARY", "LINKS", "WRITERS", "TAGS"])
+    ]
+    assert [t["name"] for t in mock.books[0]["tags"]] == ["t"]
+
+
+def test_set_metadata_series_skips_writers_and_empty_patch_is_refused() -> None:
+    server, mock = _server()
+    server.set_metadata("series", "s1", MetadataPatch(title="T", writers=["W"]))
+    assert _ops(mock, "UpdateSeriesMetadata")[0]["variables"]["input"] == {"title": "T"}
     with pytest.raises(BookServerError) as err:
-        call(server)
-    assert err.value.code == "not_supported"
+        server.set_metadata("books", "b1", MetadataPatch())
+    assert err.value.code == "bad_request"
+
+
+def test_progress_update_and_finish() -> None:
+    server, mock = _server()
+    server.set_progress("b1", 3, False)
+    assert _ops(mock, "UpdateMediaProgress")[0]["variables"]["input"] == {"paged": {"page": 3}}
+    assert server.get_book("b1").read_page == 3
+    server.set_progress("b1", 5, True)
+    assert _ops(mock, "FinishMediaProgress")[0]["variables"] == {"id": "b1"}
+    assert server.get_book("b1").read_done is True
+    with pytest.raises(BookServerError):
+        server.set_progress("b1", 0, False)
 
 
 def test_ids_allow_cuid_chars_only() -> None:

@@ -1,7 +1,7 @@
-"""Stump adapter (read side): the only place that knows Stump's GraphQL fields and filters.
+"""Stump adapter: the only place that knows Stump's GraphQL fields and filters.
 
-Write methods are stubs that raise `not_supported`: scan is T-328; trash listing and purge
-are T-329; tags, metadata and progress writes are also marked T-329.
+Trash: Pearlie moves the file, so Stump shows the item as `MISSING` after a scan; `purge_deleted`
+runs `cleanLibrary` (the caller guards against foreign MISSING items).
 """
 
 from __future__ import annotations
@@ -114,7 +114,7 @@ def series_dto(d: dict) -> SeriesDTO:
         created_at=d.get("createdAt") or "",
         book_count=int(d.get("mediaCount") or 0),
         read_count=int(d.get("readCount") or 0),
-        deleted=bool(d.get("deletedAt")),
+        deleted=bool(d.get("deletedAt")) or d.get("status") == _MISSING,
         oneshot=bool(d.get("isOneshot")),
         summary=meta.get("summary") or "",
         tags=_tags(d),
@@ -158,10 +158,6 @@ def _order(q: str, sort: str) -> list[dict]:
     if q or sort == SORT_NUMBER_ASC:
         return _NAME_ASC
     return _CREATED_DESC if sort == SORT_CREATED_DESC else _NAME_ASC
-
-
-def _not_supported(what: str) -> BookServerError:
-    return BookServerError("not_supported", f"Stump {what} is not supported yet", 501)
 
 
 class StumpBookServer:
@@ -302,21 +298,59 @@ class StumpBookServer:
     # trash / undo (T-329)
 
     def list_deleted(self, kind: Kind, library_id: str) -> list[BookDTO | SeriesDTO]:
-        raise _not_supported("trash listing")  # T-329
+        """Items of the library Stump shows as MISSING (their file is gone)."""
+        filt = {"_and": [{"libraryId": {"eq": library_id}}, {"status": {"eq": _MISSING}}]}
+        out: list[BookDTO | SeriesDTO] = []
+        for page in range(1, SERIES_BOOKS_PAGES + 1):
+            if kind == "books":
+                conn = self._c.list_media(page, PAGE_SIZE, filt, _NAME_ASC)
+                out.extend(book_dto(d) for d in conn.get("nodes") or [])
+            else:
+                conn = self._c.list_series(page, PAGE_SIZE, filt, _NAME_ASC)
+                out.extend(series_dto(d) for d in conn.get("nodes") or [])
+            if _page(conn, page, PAGE_SIZE, []).last:
+                break
+        return out
 
     def purge_deleted(self, library_id: str) -> None:
-        raise _not_supported("trash purge")  # T-329
+        self._c.clean_library(library_id)
 
     # tags / metadata / progress (T-329)
 
     def set_tags(self, kind: Kind, id: str, tags: list[str]) -> None:
-        raise _not_supported("tag write")  # T-329
+        self._c.set_tags(kind, id, tags)
+        self._c.lock_fields(kind, id, ["TAGS"])
 
     def set_metadata(self, kind: Kind, id: str, patch: MetadataPatch) -> None:
-        raise _not_supported("metadata write")  # T-329
+        fields: dict = {}
+        locks: list[str] = []
+        if patch.title is not None:
+            fields["title"] = patch.title
+            locks.append("TITLE")
+        if patch.summary is not None:
+            fields["summary"] = patch.summary
+            locks.append("SUMMARY")
+        if patch.links is not None:
+            fields["links"] = [url for _label, url in patch.links]  # Stump links have no label
+            locks.append("LINKS")
+        if patch.writers is not None and kind == "books":
+            fields["writers"] = list(patch.writers)  # Komga authors with role writer
+            locks.append("WRITERS")
+        if fields:
+            self._c.update_metadata(kind, id, fields)
+        if patch.tags is not None:
+            self._c.set_tags(kind, id, patch.tags)
+            locks.append("TAGS")
+        if not locks:
+            raise BookServerError("bad_request", "Empty metadata patch", 400)
+        self._c.lock_fields(kind, id, locks)
 
     def set_progress(self, book_id: str, page: int, completed: bool) -> None:
-        raise _not_supported("progress write")  # T-329
+        if completed:
+            self._c.finish_progress(book_id)
+            return
+        self._check_page(page)
+        self._c.update_progress(book_id, page)
 
     # health
 
