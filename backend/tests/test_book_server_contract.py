@@ -155,12 +155,6 @@ def server(request):  # noqa: ANN001, ANN201
     return {"komga": _komga, "fake": _fake, "stump": _stump}[request.param]()
 
 
-def _needs_write(server) -> None:  # noqa: ANN001
-    """Stump write methods are stubs until T-329 (trash, tags, progress)."""
-    if server.kind == "stump":
-        pytest.skip("Stump write side: T-329")
-
-
 def test_list_libraries(server) -> None:  # noqa: ANN001
     libs = server.list_libraries()
     assert [(x.id, x.root, x.oneshots_dir) for x in libs] == [("L1", "/data", "oneshots")]
@@ -197,7 +191,6 @@ def test_komga_error_is_a_book_server_error() -> None:
 
 
 def test_progress_round_trip(server) -> None:  # noqa: ANN001
-    _needs_write(server)
     server.set_progress("b1", 3, False)
     book = server.get_book("b1")
     assert (book.read_page, book.read_done) == (3, False)
@@ -206,7 +199,6 @@ def test_progress_round_trip(server) -> None:  # noqa: ANN001
 
 
 def test_tags_and_metadata(server) -> None:  # noqa: ANN001
-    _needs_write(server)
     server.set_tags("books", "b1", ["b", "a"])
     assert sorted(server.get_book("b1").tags) == ["a", "b"]
     server.set_metadata("books", "b1", MetadataPatch(title="New", summary="S"))
@@ -236,7 +228,6 @@ def test_scan(server) -> None:  # noqa: ANN001
 
 
 def test_trash(server) -> None:  # noqa: ANN001
-    _needs_write(server)
     assert [b.id for b in server.list_deleted("books", "L1")] == ["b4"]
     server.purge_deleted("L1")
 

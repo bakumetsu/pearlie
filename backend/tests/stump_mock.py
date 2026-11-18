@@ -50,6 +50,8 @@ class MockStump:
         self.job_status = ["RUNNING", "COMPLETED"]
         self.scanned: list[str] = []
         self.last_job: str | None = "job1"
+        self.cleaned: list[str] = []
+        self.locks: list[tuple[str, str, list[str]]] = []  # (operation, id, fields)
 
     def __call__(self, req: httpx.Request) -> httpx.Response:
         body = json.loads(req.content) if req.content else {}
@@ -93,7 +95,44 @@ class MockStump:
         if op == "Job":
             status = self.job_status.pop(0) if len(self.job_status) > 1 else self.job_status[0]
             return self._ok({"jobById": {"id": v["id"], "status": status}})
-        return httpx.Response(200, json={"errors": [{"message": "Unknown operation"}]})
+        return self._write(op, v, body["query"]) or httpx.Response(
+            200, json={"errors": [{"message": "Unknown operation"}]}
+        )
+
+    def _find(self, rows: list, id_: str) -> dict:
+        return next(r for r in rows if r["id"] == id_)
+
+    def _write(self, op: str, v: dict, query: str) -> httpx.Response | None:
+        """The write operations; `None` for an unknown one."""
+        done = self._ok({op[0].lower() + op[1:]: {"__typename": "X"}})
+        if op == "CleanLibrary":
+            self.cleaned.append(v["id"])
+            self.books[:] = [b for b in self.books if b["status"] != "MISSING"]
+            self.series[:] = [s for s in self.series if s.get("status") != "MISSING"]
+            return self._ok({"cleanLibrary": {"__typename": "X"}})
+        if op in ("SetMediaTags", "SetSeriesTags"):
+            rows = self.books if op == "SetMediaTags" else self.series
+            self._find(rows, v["id"])["tags"] = [{"name": t} for t in v["tags"]]
+            return self._ok({"set": {"__typename": "X"}})
+        if op in ("UpdateMediaMetadata", "UpdateSeriesMetadata"):
+            rows = self.books if op == "UpdateMediaMetadata" else self.series
+            self._find(rows, v["id"])["metadata"].update(v["input"])
+            return self._ok({"update": {"__typename": "X"}})
+        if op == "Lock":
+            m = re.search(r"(set\w+LockedFields)\(\w+: \$id, fields: \[([A-Z, ]+)\]", query)
+            if m is None:
+                return None
+            self.locks.append((m[1], v["id"], m[2].split(", ")))
+            return self._ok({m[1]: {"__typename": "X"}})
+        if op == "UpdateMediaProgress":
+            page = v["input"]["paged"]["page"]
+            self._find(self.books, v["id"])["readProgress"] = {"page": page, "isCompleted": False}
+            return done
+        if op == "FinishMediaProgress":
+            rp = self._find(self.books, v["id"]).get("readProgress") or {"page": 0}
+            self._find(self.books, v["id"])["readProgress"] = {**rp, "isCompleted": True}
+            return done
+        return None
 
     @staticmethod
     def _ok(data: dict) -> httpx.Response:
@@ -101,7 +140,10 @@ class MockStump:
 
     @staticmethod
     def _filtered(rows: list, filter_: dict | None) -> list:
-        rows = [r for r in rows if not r.get("deletedAt") and r.get("status") != "MISSING"]
+        if _eq(filter_, "status") == "MISSING":
+            rows = [r for r in rows if r.get("status") == "MISSING"]
+        else:
+            rows = [r for r in rows if not r.get("deletedAt") and r.get("status") != "MISSING"]
         for field in ("libraryId", "seriesId"):
             want = _eq(filter_, field)
             if want:
@@ -154,6 +196,7 @@ def series() -> dict:
         "libraryId": "L1",
         "name": "Series",
         "path": "/data/s",
+        "status": "READY",
         "createdAt": "2026-01-01T00:00:00Z",
         "deletedAt": None,
         "isOneshot": False,

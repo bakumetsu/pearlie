@@ -10,8 +10,10 @@ from fastapi import APIRouter, Query, Request
 from app.api import options
 from app.api.errors import ApiError
 from app.bookserver.base import BOOK_TARGETS, BookServerError
+from app.bookserver.factory import book_server_of
 from app.library.komga_trash import KomgaTrash
 from app.library.stash_trash import StashTrash
+from app.library.stump_trash import StumpTrash
 from app.library.trash import TrashError, TrashStore
 from app.models import (
     GroupRestoreResult,
@@ -45,17 +47,34 @@ def komga_trash_of(request: Request) -> KomgaTrash:
 
 
 def komga_trash_of_app(app) -> KomgaTrash:  # noqa: ANN001
-    """One KomgaTrash per app: it holds the scan debounce timers."""
+    """One book-server trash per app (Komga or Stump): it holds the scan debounce timers."""
     kt = getattr(app.state, "komga_trash", None)
     if kt is None:
-        kt = KomgaTrash(
-            app.state.settings,
-            app.state.trash,
-            app.state.komga,
-            wait_s=lambda: options.komga_scan_wait_s(app),
-        )
+        if app.state.settings.book_server == "stump":
+            kt = StumpTrash(
+                app.state.settings,
+                app.state.trash,
+                book_server_of(app),
+                wait_s=lambda: options.komga_scan_wait_s(app),
+            )
+        else:
+            kt = KomgaTrash(
+                app.state.settings,
+                app.state.trash,
+                app.state.komga,
+                wait_s=lambda: options.komga_scan_wait_s(app),
+            )
         app.state.komga_trash = kt
     return kt
+
+
+def _book_server_ready(app) -> bool:  # noqa: ANN001
+    s = app.state.settings
+    return bool(s.stump_url) if s.book_server == "stump" else app.state.komga is not None
+
+
+def _book_server_name(app) -> str:  # noqa: ANN001
+    return "Stump" if app.state.settings.book_server == "stump" else "Komga"
 
 
 def err(e: TrashError) -> ApiError:
@@ -99,8 +118,9 @@ def trash_batch(request: Request, body: TrashBatchBody) -> TrashBatchResult:
             if not ok:
                 raise TrashError(404, "not_found", "Item not found")
             if it.kind in ("series", "book"):
-                if request.app.state.komga is None:
-                    raise TrashError(503, "not_configured", "Komga is not configured")
+                if not _book_server_ready(request.app):
+                    name = _book_server_name(request.app)
+                    raise TrashError(503, "not_configured", f"{name} is not configured")
                 row = komga_trash_of(request).delete(PLURAL_OF[it.kind], it.id, group_id=group)
             else:
                 client = request.app.state.stash
@@ -181,7 +201,7 @@ def _library_roots(request: Request) -> list[str]:
         if app.state.stash is not None:
             st = StashTrash(app.state.settings, store_of(request), app.state.stash)
             roots += [os.path.realpath(st._to_local(p)) for p in app.state.stash.library_paths()]
-        if app.state.komga is not None:
+        if _book_server_ready(app):
             roots += komga_trash_of(request)._roots()
     except (StashError, BookServerError) as e:
         raise ApiError(502, "upstream_error", e.message) from None
@@ -275,8 +295,9 @@ def restore(request: Request, token: str) -> RestoreResult:
     if row is None:
         raise ApiError(404, "not_found", "Item not found")
     if row["target"] in BOOK_TARGETS:
-        if request.app.state.komga is None:
-            raise ApiError(503, "not_configured", "Komga is not configured")
+        if not _book_server_ready(request.app):
+            name = _book_server_name(request.app)
+            raise ApiError(503, "not_configured", f"{name} is not configured")
         try:
             return RestoreResult(item=komga_trash_of(request).restore(token))
         except TrashError as e:
