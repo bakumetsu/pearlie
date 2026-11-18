@@ -65,9 +65,11 @@
   const savedHref = $derived(item ? savedHrefFor(item, search.saveStateOf(item)) : undefined);
   const count = $derived(book?.page_count ?? 0);
   const readBase = $derived("/read/web/" + encodeURIComponent(source) + "/" + encodeURIComponent(id));
-  // Name block: big romaji (`title`), the Japanese title as stored, English (title_main when it differs)
+  // Name block: `name_lines` from the backend (Latin first, kana last); old fallback: big romaji (`title`), the Japanese title as stored, English (title_main when it differs)
   const names = $derived.by(() => {
     if (!book) return { big: "", sub: [] as string[] };
+    const lines = (book.name_lines ?? []).map((l) => l.trim()).filter(Boolean);
+    if (lines.length > 0) return { big: lines[0], sub: lines.slice(1) };
     const big = (book.title || book.title_main).trim();
     const sub = [book.title_sub?.trim() ?? "", book.title_main.trim()].filter((l, i, a) => l && l !== big && a.indexOf(l) === i);
     return { big, sub };

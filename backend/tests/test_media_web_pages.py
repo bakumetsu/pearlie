@@ -15,7 +15,7 @@ from app.config import Settings
 from app.main import create_app
 from app.sources.nhentai import NHentai
 from app.sources.throttle import Throttle
-from app.sources.title import parse_title
+from app.sources.title import name_lines, parse_title, script_of
 from tests.test_media_stash_real import stream_response
 
 IMG = b"\xff\xd8\xffJPEGDATA"
@@ -99,6 +99,39 @@ def test_parse_title_cases(k):
         assert p.title_sub == "Otonashi Ookami"
     if k == 0:
         assert p.language == "English" and p.translator is None  # cut-off "[Coffed" dropped
+
+
+def test_script_of():
+    assert script_of("Moonlit Tea") == "latin"
+    assert script_of("ひらがな") == "ja"
+    assert script_of("カタカナ Latin") == "ja"
+    assert script_of("月下茶房") == "cjk"
+    assert script_of("月下 Tea") == "latin"
+
+
+@pytest.mark.parametrize(
+    ("args", "want"),
+    [
+        (("Romaji", "English", "日本語のタイトル"), ["Romaji", "English", "日本語のタイトル"]),
+        (("Same", "same", "かな"), ["Same", "かな"]),
+        ((None, "English", None), ["English"]),
+        (("Romaji", "English", "月下茶房"), ["Romaji", "English", "月下茶房"]),
+        ((None, None, "月下茶房"), ["月下茶房"]),
+        (("月下茶房", None, "かなタイトル"), ["かなタイトル"]),
+        (("A", "B", None), ["A", "B"]),
+        ((None, None, None), []),
+        (("  ", "", "かな"), ["かな"]),
+    ],
+)
+def test_name_lines(args, want):
+    assert name_lines(*args) == want
+
+
+def test_book_name_lines_and_titles_unchanged(rig):
+    body = rig.client.get("/api/media/web/nhentai/7/book").json()
+    assert body["title_main"] == "English Name"
+    assert body["name_lines"] and len(body["name_lines"]) <= 3
+    assert "English Name" in body["name_lines"]
 
 
 def test_book_meta_and_cache(rig):

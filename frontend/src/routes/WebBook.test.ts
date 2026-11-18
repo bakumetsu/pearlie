@@ -80,6 +80,14 @@ describe("WebBook", () => {
     expect(queryByText(/^by /)).toBeNull();
   });
 
+  it("uses name_lines from the backend: first line big, the rest below", async () => {
+    const { ctx, match } = setup(8, { name_lines: ["Romaji Name", "English Name", "日本語"], title: "Other", title_main: "Other2", title_sub: "Other3" });
+    const { container, getByText } = render(WebBook, { props: { match }, context: ctx });
+    await waitFor(() => expect(getByText("Romaji Name")).toBeTruthy());
+    expect(container.querySelector("h1")?.textContent).toBe("Romaji Name");
+    expect([...container.querySelectorAll(".sub")].map((e) => e.textContent)).toEqual(["English Name", "日本語"]);
+  });
+
   it("shows one name only as the big title", async () => {
     const { ctx, match } = setup(8, { title: "Only Name", title_main: "Only Name", title_sub: null });
     const { container, getByText } = render(WebBook, { props: { match }, context: ctx });

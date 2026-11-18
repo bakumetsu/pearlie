@@ -11,7 +11,7 @@ from app.api.media_web_pages import PAGE_CACHE_CONTROL
 from app.fixtures.mediagen import media_dir
 from app.fixtures.store import store
 from app.models import Tag, WebBook, WebItem
-from app.sources.title import parse_title
+from app.sources.title import name_lines, parse_title
 
 router = APIRouter(prefix="/api/media/web/nhentai")
 DEFAULT_PAGES = 18
@@ -56,6 +56,7 @@ def book(request: Request, gid: str) -> JSONResponse:
         title=item.title,
         title_main=parsed.title_main or f"Gallery {gid}",
         title_sub=parsed.title_sub,
+        name_lines=name_lines(item.title, str(raw.get("title") or ""), None),
         artist=parsed.artist,
         circle=parsed.circle,
         event=parsed.event,
