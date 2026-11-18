@@ -34,7 +34,9 @@ class Settings(BaseSettings):
     stash_url: str = ""
     stash_api_key: SecretStr = SecretStr("")
     stash_public_url: str = ""
-    book_server: Literal["komga", "stump"] = "komga"
+    # Unset: Stump when a Stump address is saved, else Komga (resolved in main). Env wins.
+    book_server: Literal["komga", "stump"] | None = None
+    book_server_auto: bool = False
     komga_url: str = ""
     komga_api_key: SecretStr = SecretStr("")
     stump_url: str = ""
