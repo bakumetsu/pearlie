@@ -13,7 +13,7 @@ Kind = Literal["series", "books"]
 
 
 class BookServerError(Exception):
-    """Server-neutral error: `not_found` 404, `upstream_error` 502, `not_configured` 503, `bad_request` 400."""
+    """Server-neutral error. Codes: not_found, upstream_error, not_configured, bad_request."""
 
     def __init__(self, code: str, message: str, status: int) -> None:
         self.code = code
