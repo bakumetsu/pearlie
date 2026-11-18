@@ -20,6 +20,7 @@ export function createSelection() {
     const k = pickKey(item);
     if (picked[k]) delete picked[k];
     else picked[k] = { kind: item.kind, id: item.id, title: item.title };
+    if (Object.keys(picked).length === 0) active = false;
   }
 
   function clear() {
