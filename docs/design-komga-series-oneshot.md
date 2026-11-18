@@ -42,7 +42,7 @@ Port of Sort-Doujin (script lines 157-217), in this order:
 6. Else, if there was a ` - ` part and that second part matches the same pattern alone (192), the root is `primaryTitle`, `is_series = true`.
 7. Else root = `primaryTitle`, `is_series = false`. Empty root = `Unknown_Title`.
 
-New saves use the T-338 name rule: the number follows the title and has at least two digits (`5` → `05`; `100` keeps all digits; helper `pad_number`). `ParsedName.number` stays the plain number.
+No save path writes the number into a file name (the name is the post title plus ` - <site>-<id>`); the number goes only to ComicInfo `Number`, as the plain number. The T-338 padding rule (`5` → `05`, `100` unchanged) has no code to apply to until a save path builds a numbered name.
 
 New (the script does not output a number): `number` = the first numeric token of the matched suffix (`2`, `1.5`; Roman → int), as a string; empty if none.
 

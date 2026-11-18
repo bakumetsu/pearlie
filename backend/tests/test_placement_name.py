@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.targets.placement_name import pad_number, parse_name
+from app.targets.placement_name import parse_name
 
 CASES = [
     # (title, artists, hardened, author, root, number, is_series)
@@ -99,10 +99,3 @@ def test_year_after_dash_is_not_a_volume() -> None:
     assert not parse_name("Fate - 2025").is_series
     assert parse_name("Fate - 2025", hardened=False).is_series
 
-
-@pytest.mark.parametrize(
-    ("num", "padded"),
-    [("5", "05"), ("05", "05"), ("12", "12"), ("100", "100"), ("1.5", "1.5"), ("", "")],
-)
-def test_pad_number(num: str, padded: str) -> None:
-    assert pad_number(num) == padded

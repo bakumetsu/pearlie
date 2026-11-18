@@ -45,11 +45,6 @@ def _roman_to_int(s: str) -> int:
     return total
 
 
-def pad_number(num: str) -> str:
-    """New-save name rule: a whole number has at least two digits (5 -> 05; 100 stays 100)."""
-    return num.zfill(2) if num.isdecimal() else num
-
-
 def _is_year(num: str) -> bool:
     return re.fullmatch(r"\d{4}", num) is not None and 1900 <= int(num) <= 2099
 
