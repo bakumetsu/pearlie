@@ -10,7 +10,10 @@ import pytest
 
 from app.bookserver.base import BookServerError, LibraryDTO, MetadataPatch
 from app.bookserver.komga import KomgaBookServer, book_dto, series_dto
+from app.bookserver.stump import StumpBookServer
 from app.komga import Komga, KomgaError
+from app.stump import Stump
+from tests import stump_mock
 from tests.fake_book_server import FakeBookServer
 
 
@@ -127,6 +130,18 @@ def _komga() -> KomgaBookServer:
     return server
 
 
+def _stump() -> StumpBookServer:
+    mock = stump_mock.MockStump(
+        [stump_mock.lib()],
+        [stump_mock.series()],
+        [stump_mock.book(1), stump_mock.book(2), stump_mock.book(3), stump_mock.book(4, gone=True)],
+    )
+    client = httpx.Client(base_url="http://stump", transport=httpx.MockTransport(mock))
+    server = StumpBookServer(Stump("http://stump", "k", client))
+    server.mock = mock  # type: ignore[attr-defined]
+    return server
+
+
 def _fake() -> FakeBookServer:
     return FakeBookServer(
         libraries=[LibraryDTO("L1", "Lib", "/data", "oneshots")],
@@ -135,9 +150,15 @@ def _fake() -> FakeBookServer:
     )
 
 
-@pytest.fixture(params=["komga", "fake"])
+@pytest.fixture(params=["komga", "fake", "stump"])
 def server(request):  # noqa: ANN001, ANN201
-    return _komga() if request.param == "komga" else _fake()
+    return {"komga": _komga, "fake": _fake, "stump": _stump}[request.param]()
+
+
+def _needs_write(server) -> None:  # noqa: ANN001
+    """Stump write methods are stubs until T-328 (scan) and T-329 (trash, tags, progress)."""
+    if server.kind == "stump":
+        pytest.skip("Stump write side: T-328/T-329")
 
 
 def test_list_libraries(server) -> None:  # noqa: ANN001
@@ -176,6 +197,7 @@ def test_komga_error_is_a_book_server_error() -> None:
 
 
 def test_progress_round_trip(server) -> None:  # noqa: ANN001
+    _needs_write(server)
     server.set_progress("b1", 3, False)
     book = server.get_book("b1")
     assert (book.read_page, book.read_done) == (3, False)
@@ -184,6 +206,7 @@ def test_progress_round_trip(server) -> None:  # noqa: ANN001
 
 
 def test_tags_and_metadata(server) -> None:  # noqa: ANN001
+    _needs_write(server)
     server.set_tags("books", "b1", ["b", "a"])
     assert sorted(server.get_book("b1").tags) == ["a", "b"]
     server.set_metadata("books", "b1", MetadataPatch(title="New", summary="S"))
@@ -209,19 +232,26 @@ def test_series_books(server) -> None:  # noqa: ANN001
 
 
 def test_scan_and_trash(server) -> None:  # noqa: ANN001
+    _needs_write(server)
     server.scan_library("L1")
     assert [b.id for b in server.list_deleted("books", "L1")] == ["b4"]
     server.purge_deleted("L1")
 
 
 def test_images(server) -> None:  # noqa: ANN001
-    for img in (
-        server.open_thumb("books", "b1"),
-        server.open_page("b1", 1),
-        server.open_page_thumb("b1", 1, 200),
-    ):
+    stump = server.kind == "stump"
+    cases = (
+        (server.open_thumb("books", "b1"), b"jpg", False),
+        (server.open_page("b1", 1), stump_mock.png() if stump else b"jpg", False),
+        (server.open_page_thumb("b1", 1, 200), b"jpg", stump),
+    )
+    for img, want, made_here in cases:
         assert img.content_type.startswith("image/")
-        assert b"".join(img.iter_bytes()) == b"jpg"
+        body = b"".join(img.iter_bytes())
+        if made_here:
+            assert body.startswith(b"\xff\xd8")  # Pearlie downscaled the page itself
+        else:
+            assert body == want
         img.close()
 
 

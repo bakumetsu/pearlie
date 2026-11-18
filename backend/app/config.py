@@ -34,9 +34,11 @@ class Settings(BaseSettings):
     stash_url: str = ""
     stash_api_key: SecretStr = SecretStr("")
     stash_public_url: str = ""
-    book_server: Literal["komga"] = "komga"
+    book_server: Literal["komga", "stump"] = "komga"
     komga_url: str = ""
     komga_api_key: SecretStr = SecretStr("")
+    stump_url: str = ""
+    stump_api_key: SecretStr = SecretStr("")
     gelbooru_user_id: str = ""
     gelbooru_api_key: SecretStr = SecretStr("")
     rule34_user_id: str = ""
@@ -63,7 +65,7 @@ class Settings(BaseSettings):
     def _blank_log_dir(cls, v: Any) -> Any:
         return None if isinstance(v, str) and not v.strip() else v
 
-    @field_validator("stash_url", "stash_public_url", "komga_url")
+    @field_validator("stash_url", "stash_public_url", "komga_url", "stump_url")
     @classmethod
     def _no_userinfo(cls, v: str) -> str:
         """user:pass@ in a URL would reach logs, repr and links: use the API key instead."""

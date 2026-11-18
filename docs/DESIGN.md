@@ -206,10 +206,10 @@ Auth: a login that returns a token (cookie for the web UI, bearer token for iOS)
 
 ### Thumbnail cache
 
-A disposable cache of web-site thumbnails (Danbooru, Gelbooru, Rule34, nhentai). Thumbnails only: never full images, video, book pages or nhentai page images; Stash and Komga thumbnails are not cached. Code: `backend/app/thumbcache.py`.
+A disposable cache of web-site thumbnails (Danbooru, Gelbooru, Rule34, nhentai) and of Stump page thumbnails (folder `stump-pages`: Stump has no page-thumbnail route, so Pearlie downscales the page to JPEG, key `book:page:width`; derived data, deleted with the cache). Thumbnails only: never full images, video, full book pages or nhentai page images; Stash, Komga and Stump cover thumbnails are not cached. Code: `backend/app/thumbcache.py`.
 
 - **Root:** `PEARLIE_THUMB_CACHE_DIR`, default `thumbcache` next to the database (`data/thumbcache`). A root inside the trash folder, `stash_temp_dir` or `komga_temp_dir` is refused.
-- **Layout:** one folder per site (fixed list of four ids), file name `sha256(source + "\0" + post_id)` in hex with a two-character fan-out folder and the extension `.img`. The name holds no URL, token or cookie. The content type is read from the first bytes at serve time.
+- **Layout:** one folder per site (fixed list of five ids), file name `sha256(source + "\0" + post_id)` in hex with a two-character fan-out folder and the extension `.img`. The name holds no URL, token or cookie. The content type is read from the first bytes at serve time.
 - **Write:** atomic (`*.part` in the same folder, then `os.replace`); start-up deletes leftover `*.part`.
 - **Cap:** `thumbcache.max_mb` in the settings table, default 1024, allowed 50 to 20480. Eviction is by least recent use: a hit touches the file's mtime. The folder is the truth; no index. A background walk at start-up builds the in-memory total. After a store above the cap, the oldest files go until the total is at most 90 % of the cap. Lowering the cap evicts at once.
 - **Errors:** a full disk or write error serves the bytes without storing them and logs one warning a minute. A folder that is missing or not writable at start-up runs the cache in pass-through mode (fetch and serve, no store) and Options shows "cache unavailable".
