@@ -302,10 +302,10 @@ class StumpBookServer:
     # trash / undo (T-329)
 
     def list_deleted(self, kind: Kind, library_id: str) -> list[BookDTO | SeriesDTO]:
-        raise _not_supported("trash listing")  # T-328
+        raise _not_supported("trash listing")  # T-329
 
     def purge_deleted(self, library_id: str) -> None:
-        raise _not_supported("trash purge")  # T-328
+        raise _not_supported("trash purge")  # T-329
 
     # tags / metadata / progress (T-329)
 
