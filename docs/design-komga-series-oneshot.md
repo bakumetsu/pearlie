@@ -36,11 +36,13 @@ Port of Sort-Doujin (script lines 157-217), in this order:
 
 1. Clean: in ONE loop, strip a trailing `[...]` or `(...)` group (any order) until neither matches at the end. Deviation from the script (172-173: all `[...]` first, then all `(...)`). User decision 2026-11-14: `Love 2 [TeamX] (Original)` kept `[TeamX]` in the title with the script's order. The author rule (step 2: first `[...]`, full text kept, e.g. `[Circle (Artist)]`) does not change. The store-id rule (163-169) is dropped: nhentai titles have no store id.
 2. Author tag: the first `[...]` in the cleaned name; the rest is the title part (177-180). If none, use the first `artist` tag of the post as `[Artist]`; if none, author is empty.
-3. Cut at the first `~` or `〜` (182).
+3. Cut at the first `~` or `〜` (182), then at the first ` | ` (the other-language title).
 4. Split at the first ` - ` (spaces around); the first part is `primaryTitle` (183-184).
-5. Volume regex on `primaryTitle` (185, case-insensitive): a space or `#`, an optional keyword (`v vol volume c ch chapter no issue part episode #`), an optional `.`, then a number (`2`, `1.5`) or a Roman numeral (`I`–`XXXX` letters `[IVX]{1,4}`), then end or space/dash plus anything. A match removes the suffix: that is the root, `is_series = true`.
+5. Volume regex on `primaryTitle` (185, case-insensitive): a space or `#`, an optional keyword (`v vol volume c ch chapter no issue part episode ep #`), an optional `.`, then a number (`2`, `1.5`) or a Roman numeral (`I`–`XXXX` letters `[IVX]{1,4}`), then end or space/dash plus anything. The form `第N話` (also `巻`, `章`; no space needed before it) is a keyword form too. A match removes the suffix: that is the root, `is_series = true`.
 6. Else, if there was a ` - ` part and that second part matches the same pattern alone (192), the root is `primaryTitle`, `is_series = true`.
 7. Else root = `primaryTitle`, `is_series = false`. Empty root = `Unknown_Title`.
+
+New saves use the T-338 name rule: the number follows the title and has at least two digits (`5` → `05`; `100` keeps all digits; helper `pad_number`). `ParsedName.number` stays the plain number.
 
 New (the script does not output a number): `number` = the first numeric token of the matched suffix (`2`, `1.5`; Roman → int), as a string; empty if none.
 
@@ -64,6 +66,9 @@ Unavoidable: `[Kisaragi] Love 2` alone is parsed as volume 2 of "Love". Mode C l
 | `[Nanao] Sailor Moon 3D [English]` | Sailor Moon 3D | – | oneshot | oneshot |
 | `My Sister Vol. 2 [English]` | My Sister | 2 | series | series |
 | `My Sister #3` | My Sister | 3 | series | series |
+| `My Sister Ep 5` | My Sister | 5 | series | series |
+| `[Foo] English Title \| 日本語タイトル 3` | English Title | – | oneshot (cut at ` \| `) | oneshot |
+| `タイトル 第5話` | タイトル | 5 | series | series |
 | `My Sister Chapter 12 - The Beach` | My Sister | 12 | series | series |
 | `My Sister - 4` | My Sister | 4 | series (rule 6) | series |
 | `My Sister II` | My Sister | 2 | series | series |
