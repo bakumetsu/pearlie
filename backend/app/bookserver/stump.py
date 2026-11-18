@@ -1,7 +1,7 @@
 """Stump adapter (read side): the only place that knows Stump's GraphQL fields and filters.
 
-Write methods are stubs that raise `not_supported`: tags, metadata and progress are T-329,
-scan, trash and purge are T-328.
+Write methods are stubs that raise `not_supported`: scan is T-328; trash listing and purge
+are T-329; tags, metadata and progress writes are also marked T-329.
 """
 
 from __future__ import annotations
@@ -299,7 +299,7 @@ class StumpBookServer:
     def scan_library(self, library_id: str) -> None:
         raise _not_supported("scan")  # T-328
 
-    # trash / undo (T-328)
+    # trash / undo (T-329)
 
     def list_deleted(self, kind: Kind, library_id: str) -> list[BookDTO | SeriesDTO]:
         raise _not_supported("trash listing")  # T-328

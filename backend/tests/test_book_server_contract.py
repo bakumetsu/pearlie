@@ -156,7 +156,7 @@ def server(request):  # noqa: ANN001, ANN201
 
 
 def _needs_write(server) -> None:  # noqa: ANN001
-    """Stump write methods are stubs until T-328 (scan, trash) and T-329 (tags, progress)."""
+    """Stump write methods are stubs until T-328 (scan) and T-329 (trash, tags, progress)."""
     if server.kind == "stump":
         pytest.skip("Stump write side: T-328/T-329")
 
