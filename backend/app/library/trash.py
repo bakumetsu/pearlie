@@ -23,6 +23,8 @@ from typing import Any
 from app.bookserver.base import BOOK_TARGETS
 from app.db import connect
 
+_BOOK_TARGET_SQL = f"target IN ({','.join('?' * len(BOOK_TARGETS))})"
+
 logger = logging.getLogger("pearlie")
 
 RETENTION_KEY = "options.global.trash_retention_days"
@@ -234,8 +236,9 @@ class TrashStore:
         conn = connect(self._db)
         try:
             rows = conn.execute(
-                "SELECT entity_id, meta FROM trash_items WHERE target IN ('komga', 'stump') "
-                "AND state IN ('moving','trashed')"
+                f"SELECT entity_id, meta FROM trash_items WHERE {_BOOK_TARGET_SQL} "
+                "AND state IN ('moving','trashed')",
+                BOOK_TARGETS,
             ).fetchall()
         finally:
             conn.close()
@@ -256,8 +259,9 @@ class TrashStore:
         conn = connect(self._db)
         try:
             rows = conn.execute(
-                "SELECT * FROM trash_items WHERE target IN ('komga', 'stump') AND state IN "
-                "('moving','trashed','restoring')"
+                f"SELECT * FROM trash_items WHERE {_BOOK_TARGET_SQL} AND state IN "
+                "('moving','trashed','restoring')",
+                BOOK_TARGETS,
             ).fetchall()
         finally:
             conn.close()
@@ -467,9 +471,8 @@ class TrashStore:
                     book_ids = []
                 for book_id in [row["entity_id"], *book_ids]:
                     conn.execute(
-                        "DELETE FROM saved_items WHERE target IN ('komga', 'stump')"
-                        " AND library_id = ?",
-                        (str(book_id),),
+                        f"DELETE FROM saved_items WHERE {_BOOK_TARGET_SQL} AND library_id = ?",
+                        (*BOOK_TARGETS, str(book_id)),
                     )
             conn.commit()
         finally:
