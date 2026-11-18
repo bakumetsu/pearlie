@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import httpx
 
+from app.bookserver.base import BookServerError
 from app.logs import install_http_hooks
 from app.models import LibraryItem, LibraryItemDetail, Problem, Tag
 
@@ -13,14 +14,8 @@ SERIES_BOOKS_PAGES = 20
 SERIES_BOOKS_SIZE = 500
 
 
-class KomgaError(Exception):
+class KomgaError(BookServerError):
     """Error raised by the Komga client."""
-
-    def __init__(self, code: str, message: str, status: int) -> None:
-        self.code = code
-        self.message = message
-        self.status = status
-        super().__init__(message)
 
 
 class Komga:

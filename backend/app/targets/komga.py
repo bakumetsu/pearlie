@@ -17,9 +17,11 @@ from urllib.parse import urlparse
 
 import httpx
 
+from app.bookserver.base import SORT_CREATED_DESC, BookDTO, BookServerError
+from app.bookserver.komga import KomgaBookServer
 from app.config import Settings
 from app.db import connect
-from app.komga import Komga, KomgaError
+from app.komga import Komga
 from app.library.trash import TrashStore
 from app.models import Problem
 from app.sources.base import Post, Source
@@ -33,7 +35,7 @@ from app.targets.placement import (
     OneshotsDir,
     Plan,
     make_plan,
-    oneshots_dir_name,
+    oneshots_dir_of,
     series_folder_name,
 )
 from app.targets.placement_name import parse_name
@@ -78,6 +80,8 @@ def _file_name(post: Post) -> str:
 class KomgaTarget:
     """Komga save target (nhentai galleries)."""
 
+    is_book_target = True  # the worker waits for the library scan after a save
+
     def __init__(
         self,
         settings: Settings,
@@ -90,6 +94,7 @@ class KomgaTarget:
     ) -> None:
         self._settings = settings
         self._c = client
+        self._server: KomgaBookServer | None = None
         self._http = http
         self._sources = sources
         self._throttles = throttles or {}
@@ -112,6 +117,15 @@ class KomgaTarget:
     def _client(self, client: Komga) -> None:
         self._c = client
 
+    @property
+    def _books(self) -> KomgaBookServer:
+        """The book-server view of the current client (cached per client object)."""
+        client = self._client
+        cached = self._server
+        if cached is None or cached.client is not client:
+            cached = self._server = KomgaBookServer(client)
+        return cached
+
     def _folder(self, source_id: str) -> str:
         s = self._settings
         folder = destinations.resolve_site(s.db_path, source_id, s.komga_incoming_dir)
@@ -128,8 +142,8 @@ class KomgaTarget:
 
     def _roots(self) -> list[str]:
         try:
-            return [str(lib.get("root", "")) for lib in self._client.list_libraries()]
-        except KomgaError as e:
+            return [lib.root for lib in self._books.list_libraries()]
+        except BookServerError as e:
             raise SaveError(e.code, e.message, e.status) from None
 
     def _check_mounted(self, folder: str, tag: str) -> None:
@@ -243,10 +257,10 @@ class KomgaTarget:
     def _oneshots(self, folder: str, tag: str) -> OneshotsDir:
         s = self._settings
         try:
-            libs = self._client.list_libraries()
-        except KomgaError:
+            libs = self._books.list_libraries()
+        except BookServerError:
             return OneshotsDir(None, "oneshots_not_set")
-        found = oneshots_dir_name(
+        found = oneshots_dir_of(
             libs, folder, s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
         )
         logger.info(
@@ -352,40 +366,39 @@ class KomgaTarget:
         try:
             lib_id = next(
                 (
-                    str(lib["id"])
-                    for lib in self._client.list_libraries()
-                    if komga_dir == posixpath.normpath(str(lib.get("root", "")).replace("\\", "/"))
-                    or komga_dir.startswith(
-                        posixpath.normpath(str(lib.get("root", "")).replace("\\", "/")) + "/"
-                    )
+                    lib.id
+                    for lib in self._books.list_libraries()
+                    if komga_dir == posixpath.normpath(lib.root.replace("\\", "/"))
+                    or komga_dir.startswith(posixpath.normpath(lib.root.replace("\\", "/")) + "/")
                 ),
                 None,
             )
             if lib_id is None:
                 return {}
             for page_no in range(ONESHOT_AUTHOR_MAX_PAGES):
-                page = self._client.list_books(
-                    page_no, ONESHOT_AUTHOR_PAGE_SIZE, "", "createdDate,desc", library_id=lib_id
+                page = self._books.list_books(
+                    page_no + 1,
+                    ONESHOT_AUTHOR_PAGE_SIZE,
+                    "",
+                    SORT_CREATED_DESC,
+                    library_id=lib_id,
                 )
-                books = page.get("content", [])
-                for b in books:
-                    url = str(b.get("url", "")).replace("\\", "/")
+                for b in page.items:
+                    url = b.path.replace("\\", "/")
                     name = posixpath.basename(url)
                     if (
                         name not in wanted
                         or posixpath.basename(posixpath.dirname(url)) != oneshots_name
                     ):
                         continue
-                    authors = (b.get("metadata") or {}).get("authors") or []
-                    writers = [a for a in authors if str(a.get("role", "")).lower() == "writer"]
-                    found[name] = [str(a.get("name", "")) for a in (writers or authors)]
-                if len(found) == len(wanted) or not books:
+                    found[name] = b.writers or b.authors
+                if len(found) == len(wanted) or not page.items:
                     break
-                if page.get("last", len(books) < ONESHOT_AUTHOR_PAGE_SIZE):
+                if page.last:
                     break
             else:
                 logger.warning("KOMGA %s oneshot author scan stopped at the page cap", tag)
-        except KomgaError as e:
+        except BookServerError as e:
             logger.warning("KOMGA %s oneshot author lookup failed code=%s", tag, e.code)
             return None
         return found
@@ -559,13 +572,13 @@ class KomgaTarget:
         """Find the library holding the file; the flag says no library holds it."""
         outside = False
         try:
-            for lib in self._client.list_libraries():
-                root = posixpath.normpath(str(lib.get("root", "")).replace("\\", "/"))
+            for lib in self._books.list_libraries():
+                root = posixpath.normpath(lib.root.replace("\\", "/"))
                 if komga_path == root or komga_path.startswith(root + "/"):
-                    return str(lib["id"]), False
+                    return lib.id, False
             outside = True
-            raise KomgaError("not_found", "no library holds the folder", 404)
-        except KomgaError as e:
+            raise BookServerError("not_found", "no library holds the folder", 404)
+        except BookServerError as e:
             logger.warning("KOMGA library lookup failed code=%s status=%s", e.code, e.status)
             if outside:
                 notices.append(
@@ -593,23 +606,23 @@ class KomgaTarget:
             conn.close()
 
     def scan(self, library_id: str) -> None:
-        """Ask Komga for one scan of the library; raises KomgaError."""
-        self._client.scan_library(library_id)
+        """Ask the book server for one scan of the library; raises BookServerError."""
+        self._books.scan_library(library_id)
 
     def find_books(self, library_id: str, books: dict[str, PendingScan]) -> set[str]:
         """Job ids whose book Komga lists now: one list call for the whole batch.
 
-        A book matches by its full path or by its file name. Raises KomgaError.
+        A book matches by its full path or by its file name. Raises BookServerError.
         """
         size = min(500, max(VERIFY_PAGE_SIZE, 2 * len(books)))
-        page = self._client.list_books(0, size, "", "createdDate,desc", library_id=library_id)
-        urls = [str(b.get("url", "")).replace("\\", "/") for b in page.get("content", [])]
+        page = self._books.list_books(1, size, "", SORT_CREATED_DESC, library_id=library_id)
+        urls = [b.path.replace("\\", "/") for b in page.items]
         found: set[str] = set()
         for job_id, book in books.items():
-            for url, b in zip(urls, page.get("content", []), strict=True):
+            for url, b in zip(urls, page.items, strict=True):
                 if book.komga_path == url or book.name == posixpath.basename(url):
                     found.add(job_id)
-                    self._record_book(book, str(b.get("id", "")))
+                    self._record_book(book, b.id)
                     break
         return found
 
@@ -661,14 +674,13 @@ class KomgaTarget:
         return row is not None
 
     @staticmethod
-    def _book_matches(book: dict, post_id: str) -> bool:
-        """True when a Komga book is the saved copy of *post_id* (file name or Web link)."""
-        url = str(book.get("url", "")).replace("\\", "/")
+    def _book_matches(book: BookDTO, post_id: str) -> bool:
+        """True when a library book is the saved copy of *post_id* (file name or Web link)."""
+        url = book.path.replace("\\", "/")
         base = posixpath.basename(url)
         if f"[{post_id}]" in base or posixpath.splitext(base)[0].endswith(f"-{post_id}"):
             return True
-        links = (book.get("metadata") or {}).get("links") or []
-        return any(f"/{post_id}/" in str(ln.get("url", "")).rstrip("/") + "/" for ln in links)
+        return any(f"/{post_id}/" in url_.rstrip("/") + "/" for _label, url_ in book.links)
 
     def trash_token(self, source: str, post_id: str) -> str | None:
         """Token of a live trash row that holds this post (the book or its series)."""
@@ -711,11 +723,11 @@ class KomgaTarget:
             logger.info("KOMGA %s stale check skipped: saved within the grace period", tag)
             return False
         try:
-            page = self._client.list_books(0, VERIFY_PAGE_SIZE, post_id, "createdDate,desc")
-        except KomgaError as e:
+            page = self._books.list_books(1, VERIFY_PAGE_SIZE, post_id, SORT_CREATED_DESC)
+        except BookServerError as e:
             logger.warning("KOMGA %s stale check failed code=%s status=%s", tag, e.code, e.status)
             return False
-        books = page.get("content", [])
+        books = page.items
         if any(self._book_matches(b, post_id) for b in books):
             return False
         if len(books) >= VERIFY_PAGE_SIZE:

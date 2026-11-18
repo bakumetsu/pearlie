@@ -1,4 +1,4 @@
-"""In-memory shuffled-DTO cache and pagination helpers for Komga browsing."""
+"""In-memory shuffled-DTO cache and pagination helpers for book-server browsing."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable
+from typing import Any
 
 type _Key = tuple[str, str, int]
 
@@ -27,10 +28,10 @@ class ShuffleCache:
         self._max_entries: int = max_entries
         self._ttl_s: float = ttl_s
         self._clock: Callable[[], float] = clock
-        self._store: OrderedDict[_Key, tuple[list[dict], bool, float]] = OrderedDict()
+        self._store: OrderedDict[_Key, tuple[list[Any], bool, float]] = OrderedDict()
         self._lock: threading.Lock = threading.Lock()
 
-    def get(self, key: _Key) -> tuple[list[dict], bool] | None:
+    def get(self, key: _Key) -> tuple[list[Any], bool] | None:
         """Return the cached value for *key*, or ``None`` if absent/expired.
 
         Expired entries are evicted on access.  A hit refreshes the entry's
@@ -47,7 +48,7 @@ class ShuffleCache:
             self._store.move_to_end(key)
             return value, truncated
 
-    def put(self, key: _Key, value: list[dict], truncated: bool) -> None:
+    def put(self, key: _Key, value: list[Any], truncated: bool) -> None:
         """Store *value* under *key*, evicting the LRU entry if over capacity."""
         with self._lock:
             self._store[key] = (value, truncated, self._clock())
@@ -60,7 +61,7 @@ def fetch_all(
     fetch_page: Callable[[int, int], dict],
     size: int = 500,
     max_pages: int = 40,
-) -> tuple[list[dict], bool]:
+) -> tuple[list[Any], bool]:
     """Fetch every item by paginating through *fetch_page*.
 
     *fetch_page* receives a 0-based page index and a page size, and returns a
@@ -68,7 +69,7 @@ def fetch_all(
     Returns the accumulated list and whether the result was truncated
     (*max_pages* exhausted without reaching ``"last"``).
     """
-    items: list[dict] = []
+    items: list[Any] = []
     truncated = False
     for page in range(max_pages):
         result = fetch_page(page, size)
@@ -80,7 +81,7 @@ def fetch_all(
     return items, truncated
 
 
-def shuffled(items: list[dict], seed: int) -> list[dict]:
+def shuffled(items: list[Any], seed: int) -> list[Any]:
     """Return a new list with elements in a deterministic order for *seed*.
 
     The input list is not mutated.  The same seed always produces the same
@@ -91,7 +92,7 @@ def shuffled(items: list[dict], seed: int) -> list[dict]:
     return result
 
 
-def page_slice(items: list[dict], page: int, page_size: int) -> tuple[list[dict], int | None]:
+def page_slice(items: list[Any], page: int, page_size: int) -> tuple[list[Any], int | None]:
     """Return the *page*-th slice (1-based) of *items*.
 
     Returns the slice and the next page number, or ``None`` when there are no

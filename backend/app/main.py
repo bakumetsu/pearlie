@@ -198,6 +198,7 @@ def rebuild_client(app: FastAPI, name: str) -> None:
     app.state.settings = settings
     if name == "komga":
         app.state.komga = _build_komga(settings)
+        app.state.books = None  # rebuilt by book_server_of for the new client
         komga_target = getattr(app.state, "komga_target", None)
         if komga_target is not None:
             komga_target.set_client(app.state.komga)

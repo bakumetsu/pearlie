@@ -3,11 +3,12 @@
 from fastapi import APIRouter, Request
 
 from app.api.errors import ApiError
-from app.komga import KomgaError
+from app.bookserver.base import BookServerError, LibraryDTO
+from app.bookserver.factory import book_server_of
 from app.models import DestinationItem, Destinations, FolderBody, MappingBody
 from app.targets import destinations
 from app.targets.destinations import DestinationError
-from app.targets.placement import oneshots_dir_name
+from app.targets.placement import oneshots_dir_of
 from app.targets.stash_client import StashError
 
 router = APIRouter(prefix="/api")
@@ -35,24 +36,23 @@ def _sites(request: Request, target: str = "stash") -> list[str]:
     return [sid for sid, src in request.app.state.sources.items() if src.target == target]
 
 
-def _komga_libraries(request: Request) -> list[dict]:
-    client = request.app.state.komga
-    if client is None:
+def _komga_libraries(request: Request) -> list[LibraryDTO]:
+    if request.app.state.komga is None:
         raise ApiError(502, "not_configured", "Komga is not configured")
     try:
-        return client.list_libraries()
-    except KomgaError as err:
+        return book_server_of(request.app).list_libraries()
+    except BookServerError as err:
         raise ApiError(err.status, err.code, err.message) from None
 
 
 def _komga_roots(request: Request) -> list[str]:
-    return [str(lib.get("root", "")) for lib in _komga_libraries(request)]
+    return [lib.root for lib in _komga_libraries(request)]
 
 
-def _oneshots_name(libraries: list[dict]) -> str | None:
+def _oneshots_name(libraries: list[LibraryDTO]) -> str | None:
     """First usable oneshots folder name set in Komga (read-only display)."""
     for lib in libraries:
-        found = oneshots_dir_name([lib], str(lib.get("root", "")))
+        found = oneshots_dir_of([lib], lib.root)
         if found.name:
             return found.name
     return None
@@ -93,7 +93,7 @@ def _payload(request: Request) -> Destinations:
     if komga_sites:
         try:
             libs = _komga_libraries(request)
-            komga_roots = [str(lib.get("root", "")) for lib in libs]
+            komga_roots = [lib.root for lib in libs]
             komga_oneshots = _oneshots_name(libs)
         except ApiError as err:
             komga_error = err.message

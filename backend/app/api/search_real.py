@@ -7,7 +7,7 @@ import typing
 from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
-from app.api.library_komga_real import fetch_komga_page
+from app.api.library_komga_real import fetch_book_page
 from app.api.library_stash_real import fetch_stash_page
 from app.api.media_owned import is_owned
 from app.api.media_web_real import media_kind, pick_url, proxy_path, remember, tile_url
@@ -18,11 +18,13 @@ from app.api.search_filters import (
     title_notice,
     unsupported_notice,
 )
+from app.bookserver.base import SORT_CREATED_DESC, BookServerError
+from app.bookserver.factory import book_server_of
+from app.bookserver.map import book_item
 from app.filters.rules import evaluate, load_rules
 from app.filters.safe_mode import is_hidden_in_safe_mode, resolve_safe
 from app.gif_grid import grid_gif_ok
 from app.jobs.store import JobStore
-from app.komga import Komga, KomgaError, book_item
 from app.models import (
     Blur,
     LibraryItem,
@@ -87,16 +89,13 @@ def _library_section(request: Request, sid: str, q: str, page: int, page_size: i
     size = 18 if multi else clamp_page_size(sid, page_size)
     try:
         if sid == "komga_books":
-            komga: Komga = client
-            # Pearlie pages are 1-based; fetch_komga_page converts to Komga's 0-based.
-            reply, pages, served = fetch_komga_page(
-                lambda p0, n: komga.list_books(page=p0, size=n, sort="createdDate,desc", q=q),
-                pg,
-                size,
+            server = book_server_of(request.app)
+            reply, pages, served = fetch_book_page(
+                lambda p, n: server.list_books(p, n, q, SORT_CREATED_DESC), pg, size
             )
-            items = [book_item(r) for r in reply["content"]]
-            total = reply["totalElements"]
-            next_page = served + 1 if not reply["last"] else None
+            items = [book_item(r) for r in reply.items]
+            total = reply.total_items
+            next_page = served + 1 if not reply.last else None
         else:
             stash: StashClient = client
             field, direction = stash_sort("newest", None)
@@ -113,7 +112,7 @@ def _library_section(request: Request, sid: str, q: str, page: int, page_size: i
                 items, _bad = map_items(dtos, video_item)
             pages = pages_for(total, size)
             next_page = served + 1 if served * size < total else None
-    except (StashError, KomgaError) as e:
+    except (StashError, BookServerError) as e:
         return Section(
             id=cast_sid,
             title=title,

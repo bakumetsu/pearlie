@@ -20,7 +20,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from app.bookserver.base import BOOK_TARGETS
 from app.db import connect
+
+_BOOK_TARGET_SQL = f"target IN ({','.join('?' * len(BOOK_TARGETS))})"
 
 logger = logging.getLogger("pearlie")
 
@@ -233,8 +236,9 @@ class TrashStore:
         conn = connect(self._db)
         try:
             rows = conn.execute(
-                "SELECT entity_id, meta FROM trash_items WHERE target = 'komga' "
-                "AND state IN ('moving','trashed')"
+                f"SELECT entity_id, meta FROM trash_items WHERE {_BOOK_TARGET_SQL} "
+                "AND state IN ('moving','trashed')",
+                BOOK_TARGETS,
             ).fetchall()
         finally:
             conn.close()
@@ -255,8 +259,9 @@ class TrashStore:
         conn = connect(self._db)
         try:
             rows = conn.execute(
-                "SELECT * FROM trash_items WHERE target = 'komga' AND state IN "
-                "('moving','trashed','restoring')"
+                f"SELECT * FROM trash_items WHERE {_BOOK_TARGET_SQL} AND state IN "
+                "('moving','trashed','restoring')",
+                BOOK_TARGETS,
             ).fetchall()
         finally:
             conn.close()
@@ -459,15 +464,15 @@ class TrashStore:
                     "DELETE FROM saved_items WHERE source = ? AND post_id = ?",
                     (row["source"], row["post_id"]),
                 )
-            if row["target"] == "komga":
+            if row["target"] in BOOK_TARGETS:
                 try:
                     book_ids = json.loads(row["meta"] or "{}").get("book_ids") or []
                 except ValueError:
                     book_ids = []
                 for book_id in [row["entity_id"], *book_ids]:
                     conn.execute(
-                        "DELETE FROM saved_items WHERE target = 'komga' AND library_id = ?",
-                        (str(book_id),),
+                        f"DELETE FROM saved_items WHERE {_BOOK_TARGET_SQL} AND library_id = ?",
+                        (*BOOK_TARGETS, str(book_id)),
                     )
             conn.commit()
         finally:

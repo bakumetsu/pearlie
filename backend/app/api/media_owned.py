@@ -6,12 +6,14 @@ import logging
 import time
 
 from fastapi import Request, Response
+from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 
-from app.api.library_komga_real import _ID_RE
 from app.api.media_stash_real import _forward_range, _stream
+from app.bookserver.base import SORT_CREATED_DESC, BookServerError
+from app.bookserver.factory import book_server_of
 from app.db import connect
 from app.jobs.store import JobStore
-from app.komga import KomgaError
 from app.models import SavedRef
 from app.sources.base import Source
 from app.targets import stash_library
@@ -24,6 +26,7 @@ FAILURE_TTL = 60.0
 OPEN_TIMEOUT = 10.0
 OFF_AFTER = 8  # this many posts failing inside one TTL: Stash is down, stop trying
 _FAILURES_MAX = 2000
+_PAGE_THUMB_WIDTH = 300
 
 
 def is_owned(ref: SavedRef | None) -> bool:
@@ -43,7 +46,7 @@ def lookup(
         if getattr(app.state, "komga", None) is None:
             return None
         book_id = ref.id or _backfill_book(app, source, post_id)
-        return ("book", book_id) if book_id and _ID_RE.fullmatch(book_id) else None
+        return ("book", book_id) if book_id and book_server_of(app).valid_id(book_id) else None
     if getattr(app.state, "stash", None) is None:
         return None
     if ref is None or ref.kind not in ("image", "video") or ref.kind != post_kind:
@@ -59,12 +62,12 @@ def _backfill_book(app, source: str, post_id: str) -> str | None:
     if _skip(app, key):
         return None
     try:
-        page = app.state.komga.list_books(0, VERIFY_PAGE_SIZE, post_id, "createdDate,desc")
-        books = page.get("content", [])
+        page = book_server_of(app).list_books(1, VERIFY_PAGE_SIZE, post_id, SORT_CREATED_DESC)
+        books = page.items
         match = next((b for b in books if KomgaTarget._book_matches(b, post_id)), None)
     except Exception:  # Komga down or odd answer: the site path stays
         match = None
-    book_id = str(match.get("id", "")) if match else ""
+    book_id = match.id if match else ""
     if not book_id:
         _note_failure(app, key)
         return None
@@ -173,20 +176,30 @@ def _open_book(
     thumb: bool,
 ) -> Response | None:
     """Page *n* of the saved Komga book, or None to use the site."""
-    suffix = "/thumbnail" if thumb else ""
     reason = "komga_error"
     try:
-        upstream = app.state.komga.open_image(
-            f"/api/v1/books/{book_id}/pages/{n}{suffix}", {"zero_based": "false"}
+        server = book_server_of(app)
+        upstream = (
+            server.open_page_thumb(book_id, n, _PAGE_THUMB_WIDTH)
+            if thumb
+            else server.open_page(book_id, n)
         )
-    except KomgaError as err:
+    except BookServerError as err:
         reason = err.code
     except Exception:  # a broken library must never break the site path
         reason = "error"
     else:
-        ctype = upstream.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        ctype = upstream.content_type.split(";", 1)[0].strip().lower()
         if ctype.startswith("image/"):
-            return _stream(upstream, "private, max-age=3600")
+            headers = {"Cache-Control": "private, max-age=3600"}
+            if upstream.content_length is not None:
+                headers["Content-Length"] = upstream.content_length
+            return StreamingResponse(
+                upstream.iter_bytes(),
+                media_type=upstream.content_type,
+                headers=headers,
+                background=BackgroundTask(upstream.close),
+            )
         upstream.close()
         reason = "bad_type"
     _note_failure(app, key)
@@ -207,6 +220,6 @@ def try_book_page(request: Request, post_id: str, n: int, thumb: bool) -> Respon
     if ref is None or ref.kind != "book":
         return None
     book_id = ref.id or _backfill_book(app, "nhentai", post_id)
-    if not book_id or not _ID_RE.fullmatch(book_id):
+    if not book_id or not book_server_of(app).valid_id(book_id):
         return None
     return _open_book(app, key, "nhentai", post_id, book_id, n, thumb)

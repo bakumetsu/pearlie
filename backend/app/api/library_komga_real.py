@@ -3,20 +3,23 @@
 import re
 import secrets
 from collections.abc import Callable
+from typing import Any
 
 from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
 from app.api.patch_rules import check_patch
 from app.api.trash_real import komga_trash_of, result_of
-from app.komga import (
-    Komga,
-    KomgaError,
-    book_detail,
-    book_item,
-    series_detail,
-    series_item,
+from app.bookserver.base import (
+    SORT_CREATED_DESC,
+    BookDTO,
+    BookServerError,
+    Kind,
+    PageResult,
+    SeriesDTO,
 )
+from app.bookserver.factory import book_server_of
+from app.bookserver.map import book_detail, book_item, series_detail, series_item
 from app.komga_shuffle import ShuffleCache, fetch_all, page_slice, shuffled
 from app.library.trash import TrashError
 from app.models import (
@@ -35,21 +38,21 @@ router = APIRouter(prefix="/api")
 _ID_RE = re.compile(r"[A-Za-z0-9]{1,64}")
 
 
-def _check_id(id: str) -> None:
-    if not _ID_RE.fullmatch(id):
+def _check_id(request: Request, id: str) -> None:
+    if not book_server_of(request.app).valid_id(id):
         raise ApiError(404, "not_found", "Item not found")
 
 
-def _up(err: KomgaError) -> ApiError:
+def _up(err: BookServerError) -> ApiError:
     return ApiError(err.status, err.code, err.message)
 
 
-def _visible(request: Request, dtos: list[dict]) -> list[dict]:
+def _visible[T: (BookDTO, SeriesDTO)](request: Request, dtos: list[T]) -> list[T]:
     """Drop items Pearlie trashed that Komga still lists until its scan runs (or forever, if
     the scan or empty-trash did not happen): deleted, UNAVAILABLE or not yet scanned. Items
     Komga marks deleted are hidden for every owner (a purged row can leave a ghost)."""
     owned = request.app.state.trash.komga_owned_ids()
-    return [d for d in dtos if not d.get("deleted") and str(d.get("id")) not in owned]
+    return [d for d in dtos if not d.deleted and d.id not in owned]
 
 
 def _hide_trashed(request: Request, id: str) -> None:
@@ -68,8 +71,8 @@ def _cache(request: Request) -> ShuffleCache:
 def _random_page(
     request: Request,
     kind: str,
-    list_fn: Callable[..., dict],
-    mapper: Callable[[dict], LibraryItem],
+    list_fn: Callable[[int, int, str, str], PageResult],
+    mapper: Callable[[Any], LibraryItem],
     page: int,
     page_size: int,
     q: str,
@@ -83,9 +86,9 @@ def _random_page(
     if cached is None:
         try:
             all_dtos, truncated = fetch_all(
-                lambda p0, size: list_fn(page=p0, size=size, q=q, sort="createdDate,desc")
+                lambda p0, size: _as_reply(list_fn(p0 + 1, size, q, SORT_CREATED_DESC))
             )
-        except KomgaError as e:
+        except BookServerError as e:
             raise _up(e) from None
         ordered = shuffled(all_dtos, seed_val)
         cache.put(key, ordered, truncated)
@@ -114,6 +117,11 @@ def _random_page(
     )
 
 
+def _as_reply(res: PageResult) -> dict:
+    """Shape a `PageResult` for `fetch_all` (0-based page index, content/last)."""
+    return {"content": res.items, "last": res.last}
+
+
 def _ignored_notice(sort: str, favorite: bool | None) -> Problem | None:
     parts: list[str] = []
     if sort == "rating":
@@ -128,14 +136,15 @@ def _ignored_notice(sort: str, favorite: bool | None) -> Problem | None:
     )
 
 
-def fetch_komga_page(
-    fetch: Callable[[int, int], dict], page: int, page_size: int
-) -> tuple[dict, int, int]:
-    reply = fetch(page - 1, page_size)
-    pages = pages_for(reply["totalElements"], page_size)
+def fetch_book_page(
+    fetch: Callable[[int, int], PageResult], page: int, page_size: int
+) -> tuple[PageResult, int, int]:
+    """Fetch a 1-based page; past the end, serve the last page."""
+    reply = fetch(page, page_size)
+    pages = pages_for(reply.total_items, page_size)
     if page > max(pages, 1):
         served = clamp_page(page, pages)
-        reply = fetch(served - 1, page_size)
+        reply = fetch(served, page_size)
     else:
         served = page
     return (reply, pages, served)
@@ -151,28 +160,25 @@ def list_komga_series(
     favorite: bool | None = Query(None),
     seed: int | None = Query(None, ge=0, lt=10**8),
 ) -> Page[LibraryItem]:
-    komga: Komga = request.app.state.komga
+    server = book_server_of(request.app)
     page_size = clamp_page_size("komga_series", page_size)
     if sort == "random":
         return _random_page(
-            request, "series", komga.list_series, series_item, page, page_size, q, seed, favorite
+            request, "series", server.list_series, series_item, page, page_size, q, seed, favorite
         )
     try:
-        # Pearlie pages are 1-based; Komga expects 0-based (sole conversion point).
-        reply, pages, served = fetch_komga_page(
-            lambda p0, size: komga.list_series(page=p0, size=size, sort="createdDate,desc", q=q),
-            page,
-            page_size,
+        reply, pages, served = fetch_book_page(
+            lambda p, size: server.list_series(p, size, q, SORT_CREATED_DESC), page, page_size
         )
-    except KomgaError as e:
+    except BookServerError as e:
         raise _up(e) from None
     return Page[LibraryItem](
-        items=[series_item(r) for r in _visible(request, reply["content"])],
+        items=[series_item(r) for r in _visible(request, reply.items)],
         page=served,
         page_size=page_size,
         pages=pages,
-        total=reply["totalElements"],
-        next_page=served + 1 if not reply["last"] else None,
+        total=reply.total_items,
+        next_page=served + 1 if not reply.last else None,
         notice=_ignored_notice(sort, favorite),
     )
 
@@ -187,57 +193,54 @@ def list_komga_books(
     favorite: bool | None = Query(None),
     seed: int | None = Query(None, ge=0, lt=10**8),
 ) -> Page[LibraryItem]:
-    komga: Komga = request.app.state.komga
+    server = book_server_of(request.app)
     page_size = clamp_page_size("komga_books", page_size)
     if sort == "random":
         return _random_page(
-            request, "books", komga.list_books, book_item, page, page_size, q, seed, favorite
+            request, "books", server.list_books, book_item, page, page_size, q, seed, favorite
         )
     try:
-        # Pearlie pages are 1-based; Komga expects 0-based (sole conversion point).
-        reply, pages, served = fetch_komga_page(
-            lambda p0, size: komga.list_books(page=p0, size=size, sort="createdDate,desc", q=q),
-            page,
-            page_size,
+        reply, pages, served = fetch_book_page(
+            lambda p, size: server.list_books(p, size, q, SORT_CREATED_DESC), page, page_size
         )
-    except KomgaError as e:
+    except BookServerError as e:
         raise _up(e) from None
     return Page[LibraryItem](
-        items=[book_item(r) for r in _visible(request, reply["content"])],
+        items=[book_item(r) for r in _visible(request, reply.items)],
         page=served,
         page_size=page_size,
         pages=pages,
-        total=reply["totalElements"],
-        next_page=served + 1 if not reply["last"] else None,
+        total=reply.total_items,
+        next_page=served + 1 if not reply.last else None,
         notice=_ignored_notice(sort, favorite),
     )
 
 
 @router.get("/library/series/{id}")
 def get_series(request: Request, id: str):
-    _check_id(id)
+    _check_id(request, id)
     _hide_trashed(request, id)
-    komga: Komga = request.app.state.komga
+    server = book_server_of(request.app)
     try:
-        series = komga.get_series(id)
-        books, truncated = komga.all_series_books(id)
-    except KomgaError as e:
+        series = server.get_series(id)
+        books, truncated = server.series_books(id)
+    except BookServerError as e:
         raise _up(e) from None
-    if series.get("deleted"):
+    if series.deleted:
         raise ApiError(404, "not_found", "Item not found")
     return series_detail(series, books, truncated)
 
 
 @router.get("/library/books/{id}")
 def get_book(request: Request, id: str):
-    _check_id(id)
+    _check_id(request, id)
     _hide_trashed(request, id)
-    komga: Komga = request.app.state.komga
+    server = book_server_of(request.app)
     try:
-        book = komga.get_book(id)
-    except KomgaError as e:
+        book = server.get_book(id)
+    except BookServerError as e:
         raise _up(e) from None
-    if book.get("deleted"):
+    if book.deleted:
         raise ApiError(404, "not_found", "Item not found")
     return book_detail(book)
 
@@ -252,22 +255,22 @@ def patch_book(request: Request, id: str, body: PatchBody):
     return _patch(request, "books", id, body)
 
 
-def _patch(request: Request, kind: str, id: str, body: PatchBody):
-    _check_id(id)
+def _patch(request: Request, kind: Kind, id: str, body: PatchBody):
+    _check_id(request, id)
     check_patch("Komga", body)
     if body.tags is not None:
         for t in body.tags:
             if not t or len(t) > 64:
                 raise ApiError(422, "invalid_tag", "Bad tag", field="tags")
-    komga: Komga = request.app.state.komga
+    server = book_server_of(request.app)
     try:
         if kind == "series":
-            komga.get_series(id)
+            server.get_series(id)
         else:
-            komga.get_book(id)
+            server.get_book(id)
         if body.tags is not None:
-            komga.set_tags(kind, id, body.tags)
-    except KomgaError as e:
+            server.set_tags(kind, id, body.tags)
+    except BookServerError as e:
         raise _up(e) from None
     if kind == "series":
         return get_series(request, id)
@@ -275,7 +278,7 @@ def _patch(request: Request, kind: str, id: str, body: PatchBody):
 
 
 def _delete(request: Request, plural: str, id: str) -> TrashResult:
-    _check_id(id)
+    _check_id(request, id)
     store = request.app.state.trash
     try:
         row = komga_trash_of(request).delete(plural, id)
@@ -296,19 +299,19 @@ def delete_book(request: Request, id: str) -> TrashResult:
 
 @router.post("/library/komga/books/{id}/progress", response_model=ProgressResult)
 def set_progress(request: Request, id: str, body: ProgressBody) -> ProgressResult:
-    _check_id(id)
-    komga: Komga = request.app.state.komga
+    _check_id(request, id)
+    server = book_server_of(request.app)
     try:
-        book = komga.get_book(id)
-    except KomgaError as e:
+        book = server.get_book(id)
+    except BookServerError as e:
         raise _up(e) from None
-    pages_count = book["media"]["pagesCount"]
+    pages_count = book.page_count
     page = body.page
     if not (1 <= page <= pages_count):
         raise ApiError(422, "invalid", "Page out of range", field="page")
     completed = page >= pages_count
     try:
-        komga.set_progress(id, page, completed)
-    except KomgaError as e:
+        server.set_progress(id, page, completed)
+    except BookServerError as e:
         raise _up(e) from None
     return ProgressResult(page=page, completed=completed)
