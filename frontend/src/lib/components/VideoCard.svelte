@@ -184,6 +184,7 @@
 <div
   class="media"
   class:landscape
+  class:list={variant === "list"}
 
   style:aspect-ratio={aspectRatio}
   onclick={onmediaclick}
@@ -252,6 +253,10 @@
     user-select: none;
     -webkit-user-select: none;
     touch-action: manipulation;
+  }
+  .media.list {
+    width: var(--list-thumb, 64px);
+    flex: none;
   }
   .media img {
     position: absolute;

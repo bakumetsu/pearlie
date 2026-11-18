@@ -286,4 +286,15 @@ describe("VideoCard", () => {
     const { container } = render(VideoCard, baseProps);
     expect(container.querySelector(".media")!.classList.contains("landscape")).toBe(false);
   });
+
+  it("list variant: media gets the list class and a --list-thumb width rule", () => {
+    const { container } = render(VideoCard, { props: { ...baseProps, variant: "list" as const } });
+    expect(container.querySelector(".media")!.classList.contains("list")).toBe(true);
+    expect(cardSrc).toMatch(/\.media\.list\s*\{[^}]*width:\s*var\(--list-thumb/);
+  });
+
+  it("grid variant: media has no list class", () => {
+    const { container } = render(VideoCard, { props: baseProps });
+    expect(container.querySelector(".media")!.classList.contains("list")).toBe(false);
+  });
 });
