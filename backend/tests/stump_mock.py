@@ -48,6 +48,8 @@ class MockStump:
         self.calls: list[tuple[str, str, dict]] = []  # (method, path, body)
         self.headers: list[httpx.Headers] = []
         self.job_status = ["RUNNING", "COMPLETED"]
+        self.scanned: list[str] = []
+        self.last_job: str | None = "job1"
 
     def __call__(self, req: httpx.Request) -> httpx.Response:
         body = json.loads(req.content) if req.content else {}
@@ -81,6 +83,13 @@ class MockStump:
         if op == "MediaByPath":
             hit = next((r for r in self.books if r["path"] == v["path"]), None)
             return self._ok({"mediaByPath": hit})
+        if op == "ScanLibrary":
+            self.scanned.append(v["id"])
+            return self._ok({"scanLibrary": True})
+        if op == "LastScan":
+            hit = next((r for r in self.libs if r["id"] == v["id"]), None)
+            last = {"jobId": self.last_job} if self.last_job else None
+            return self._ok({"libraryById": {"lastScan": last} if hit else None})
         if op == "Job":
             status = self.job_status.pop(0) if len(self.job_status) > 1 else self.job_status[0]
             return self._ok({"jobById": {"id": v["id"], "status": status}})

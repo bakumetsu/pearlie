@@ -18,7 +18,7 @@ from app.db import connect
 
 logger = logging.getLogger("pearlie")
 
-NAMES: tuple[str, ...] = ("stash", "komga", "danbooru", "gelbooru", "rule34", "nhentai")
+NAMES: tuple[str, ...] = ("stash", "komga", "stump", "danbooru", "gelbooru", "rule34", "nhentai")
 
 FIXED_HOSTS: dict[str, str] = {
     "danbooru": "https://danbooru.donmai.us",
@@ -30,6 +30,7 @@ FIXED_HOSTS: dict[str, str] = {
 ENV_FIELDS: dict[str, tuple[str, str]] = {
     "stash": ("stash_url", "stash_api_key"),
     "komga": ("komga_url", "komga_api_key"),
+    "stump": ("stump_url", "stump_api_key"),
     "danbooru": ("", ""),
     "gelbooru": ("", "gelbooru_api_key"),
     "rule34": ("", "rule34_api_key"),
@@ -46,6 +47,7 @@ class FieldDef(NamedTuple):
 FIELDS: dict[str, tuple[FieldDef, ...]] = {
     "stash": (FieldDef("api_key", "API key", "stash_api_key"),),
     "komga": (FieldDef("api_key", "API key", "komga_api_key"),),
+    "stump": (FieldDef("api_key", "API key", "stump_api_key"),),
     "danbooru": (FieldDef("login", "Login", ""), FieldDef("api_key", "API key", "")),
     "gelbooru": (
         FieldDef("user_id", "User ID", "gelbooru_user_id"),
@@ -65,6 +67,7 @@ FIELDS: dict[str, tuple[FieldDef, ...]] = {
 PRIMARY: dict[str, str] = {
     "stash": "api_key",
     "komga": "api_key",
+    "stump": "api_key",
     "danbooru": "api_key",
     "gelbooru": "api_key",
     "rule34": "api_key",
@@ -98,9 +101,7 @@ class ConnectionStore:
             return None
         conn = connect(self._settings.db_path)
         try:
-            row = conn.execute(
-                "SELECT value FROM settings WHERE key = ?", (key,)
-            ).fetchone()
+            row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         finally:
             conn.close()
         return row["value"] if row is not None else None

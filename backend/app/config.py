@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     komga_temp_dir: Path = Path("/mnt/media/komga/.pearlie-tmp")
     komga_path_prefix_pearlie: str = ""
     komga_path_prefix_komga: str = ""
+    stump_incoming_dir: str = ""
+    stump_temp_dir: Path = Path("/mnt/media/stump/.pearlie-tmp")
+    stump_path_prefix_pearlie: str = ""
+    stump_path_prefix_stump: str = ""
     download_interval_s: float = Field(default=2.0, ge=0, allow_inf_nan=False)
     worker_enabled: bool = True
     log_dir: Path | None = None

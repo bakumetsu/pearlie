@@ -156,9 +156,9 @@ def server(request):  # noqa: ANN001, ANN201
 
 
 def _needs_write(server) -> None:  # noqa: ANN001
-    """Stump write methods are stubs until T-328 (scan) and T-329 (trash, tags, progress)."""
+    """Stump write methods are stubs until T-329 (trash, tags, progress)."""
     if server.kind == "stump":
-        pytest.skip("Stump write side: T-328/T-329")
+        pytest.skip("Stump write side: T-329")
 
 
 def test_list_libraries(server) -> None:  # noqa: ANN001
@@ -231,9 +231,12 @@ def test_series_books(server) -> None:  # noqa: ANN001
     assert truncated is False and {b.id for b in books} >= {"b1", "b2", "b3"}
 
 
-def test_scan_and_trash(server) -> None:  # noqa: ANN001
-    _needs_write(server)
+def test_scan(server) -> None:  # noqa: ANN001
     server.scan_library("L1")
+
+
+def test_trash(server) -> None:  # noqa: ANN001
+    _needs_write(server)
     assert [b.id for b in server.list_deleted("books", "L1")] == ["b4"]
     server.purge_deleted("L1")
 

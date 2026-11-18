@@ -224,7 +224,6 @@ def test_wait_job_failed_and_timeout() -> None:
 @pytest.mark.parametrize(
     "call",
     [
-        lambda s: s.scan_library("L1"),
         lambda s: s.list_deleted("books", "L1"),
         lambda s: s.purge_deleted("L1"),
         lambda s: s.set_tags("books", "b1", ["a"]),

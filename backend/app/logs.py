@@ -98,6 +98,7 @@ def register_settings_secrets(settings: object) -> None:
         "secret_key",
         "stash_api_key",
         "komga_api_key",
+        "stump_api_key",
         "gelbooru_api_key",
         "rule34_api_key",
         "nhentai_cookies",

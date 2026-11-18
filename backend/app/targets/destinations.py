@@ -215,13 +215,14 @@ def validate_komga_folder(
     library_roots: list[str],
     prefix_pearlie: str = "",
     prefix_komga: str = "",
+    server: str = "Komga",
 ) -> str:
-    """Like validate_folder, but against Komga library roots."""
+    """Like validate_folder, but against the library roots of a book server."""
     try:
         return validate_folder(folder, library_roots, prefix_pearlie, prefix_komga)
     except DestinationError as err:
         if err.code == "outside_library":
             raise DestinationError(
-                "outside_library", "folder is not inside a Komga library root", 400
+                "outside_library", f"folder is not inside a {server} library root", 400
             ) from None
         raise

@@ -161,6 +161,9 @@ class ScanWait:
         except Exception as e:
             logger.error("KOMGA scan fire failed library=%s: %s", lib, type(e).__name__)
 
+    def _label(self) -> str:
+        return getattr(self._target, "label", "Komga")
+
     def _end(self, job_id: str, source_id: str, extra: list[Problem]) -> None:
         """End one job Done through the shared helper; a removed job is skipped."""
         job = self._store.get(job_id)
@@ -181,9 +184,11 @@ class ScanWait:
         try:
             self._target.scan(library_id)
         except BookServerError as e:
-            logger.warning("KOMGA scan failed code=%s status=%s", e.code, e.status)
+            logger.warning(
+                "%s scan failed code=%s status=%s", self._label(), e.code, e.status
+            )
             for jid, (src, _p) in live.items():
-                self._end(jid, src, [scan_failed_notice()])
+                self._end(jid, src, [scan_failed_notice(self._label())])
             return
 
         pending = dict(live)
@@ -216,7 +221,9 @@ class ScanWait:
                 try:
                     self._target.scan(library_id)
                 except BookServerError as e:
-                    logger.warning("KOMGA scan failed code=%s status=%s", e.code, e.status)
+                    logger.warning(
+                        "%s scan failed code=%s status=%s", self._label(), e.code, e.status
+                    )
         for jid, (src, p) in pending.items():
             logger.warning("KOMGA source=%s book not found in Komga path=%s", src, p.komga_path)
             self._end(jid, src, [waiting_for_komga_notice(p.komga_path)])

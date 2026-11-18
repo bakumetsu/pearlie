@@ -207,6 +207,7 @@
   const LIBRARY_NAMES = [
     { key: "stash", label: "Stash" },
     { key: "komga", label: "Komga" },
+    { key: "stump", label: "Stump" },
   ];
 </script>
 
@@ -232,7 +233,7 @@
   {:else if sectionId === "sources" && card.title === "Site access"}
     <ConnectionRows title="Site access" names={SITE_NAMES} />
   {:else if sectionId === "library" && card.title === "Stash"}
-    <ConnectionRows title="Stash and Komga" names={LIBRARY_NAMES} />
+    <ConnectionRows title="Stash, Komga and Stump" names={LIBRARY_NAMES} />
   {:else if sectionId === "library" && card.title === "Komga"}
     <!-- shown with Stash -->
   {:else if sectionId === "library" && card.title === "Status"}

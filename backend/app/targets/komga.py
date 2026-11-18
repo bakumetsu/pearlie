@@ -56,8 +56,9 @@ AUTHOR_MISS_TTL_S = 300.0
 STALE_GRACE = "-1 day"  # Komga may not have scanned a fresh save yet
 
 
-def scan_failed_notice() -> Problem:
-    return Problem(code="scan_failed", message="file saved; Komga will pick it up on its next scan")
+def scan_failed_notice(label: str = "Komga") -> Problem:
+    message = f"file saved; {label} will pick it up on its next scan"
+    return Problem(code="scan_failed", message=message)
 
 
 def waiting_for_komga_notice(komga_path: str) -> Problem:
@@ -81,6 +82,20 @@ class KomgaTarget:
     """Komga save target (nhentai galleries)."""
 
     is_book_target = True  # the worker waits for the library scan after a save
+    # T-330: move the shared base out of komga.py when Komga goes.
+    target = "komga"  # saved_items.target of this server
+    label = "Komga"
+
+    def _incoming(self) -> str:
+        return self._settings.komga_incoming_dir
+
+    def _temp_dir(self) -> Path:
+        return self._settings.komga_temp_dir
+
+    def _prefixes(self) -> tuple[str, str]:
+        """(Pearlie side, server side) path prefixes."""
+        s = self._settings
+        return s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
 
     def __init__(
         self,
@@ -128,15 +143,13 @@ class KomgaTarget:
 
     def _folder(self, source_id: str) -> str:
         s = self._settings
-        folder = destinations.resolve_site(s.db_path, source_id, s.komga_incoming_dir)
+        folder = destinations.resolve_site(s.db_path, source_id, self._incoming())
         if not folder:
             raise SaveError(
                 "no_destination", "no Komga folder set; choose one in Options > Save folders", 422
             )
         try:
-            return destinations.validate_komga_folder(
-                folder, self._roots(), s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
-            )
+            return destinations.validate_komga_folder(folder, self._roots(), *self._prefixes())
         except destinations.DestinationError as e:
             raise SaveError(e.code, e.message, e.status) from e
 
@@ -152,17 +165,12 @@ class KomgaTarget:
         A wrong mount or prefix map would otherwise make the save create a
         fresh folder tree that Komga never scans.
         """
-        s = self._settings
-        mapped = destinations.to_stash_path(
-            folder, s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
-        )
+        mapped = destinations.to_stash_path(folder, *self._prefixes())
         for root in self._roots():
             root = posixpath.normpath(root.replace("\\", "/"))
             if mapped != root and not mapped.startswith(root + "/"):
                 continue
-            local = destinations.to_pearlie_path(
-                root, s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
-            )
+            local = destinations.to_pearlie_path(root, *self._prefixes())
             if Path(local).is_dir():
                 return
             logger.warning("KOMGA %s library root missing on Pearlie side root=%s", tag, local)
@@ -255,14 +263,11 @@ class KomgaTarget:
         return "auto" if row is not None and row["value"] == "auto" else "suggest"
 
     def _oneshots(self, folder: str, tag: str) -> OneshotsDir:
-        s = self._settings
         try:
             libs = self._books.list_libraries()
         except BookServerError:
             return OneshotsDir(None, "oneshots_not_set")
-        found = oneshots_dir_of(
-            libs, folder, s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
-        )
+        found = oneshots_dir_of(libs, folder, *self._prefixes())
         logger.info(
             "KOMGA %s oneshots dir=%s via=%s",
             tag,
@@ -355,11 +360,8 @@ class KomgaTarget:
         self, dest_dir: Path, oneshots_name: str, names: list[str], tag: str
     ) -> dict[str, list[str]] | None:
         """Komga writer names of the oneshot books *names* (read only; None on a failure)."""
-        s = self._settings
         komga_dir = posixpath.normpath(
-            destinations.to_stash_path(
-                dest_dir.as_posix(), s.komga_path_prefix_pearlie, s.komga_path_prefix_komga
-            )
+            destinations.to_stash_path(dest_dir.as_posix(), *self._prefixes())
         )
         wanted = set(names)
         found: dict[str, list[str]] = {}
@@ -505,7 +507,7 @@ class KomgaTarget:
         oneshots = self._oneshots(folder, tag)
         plan = self._plan(post, dest_dir, oneshots, placement, notices, tag)
 
-        work = self._settings.komga_temp_dir / f"{TEMP_PREFIX}{post.source}-{post.post_id}"
+        work = self._temp_dir() / f"{TEMP_PREFIX}{post.source}-{post.post_id}"
         try:
             work.mkdir(parents=True, exist_ok=True)
         except OSError:
@@ -536,11 +538,7 @@ class KomgaTarget:
             self._move_first(plan, dest_dir, oneshots, place_dir, tag, notices)
         self._index_cache.invalidate()
 
-        komga_path = destinations.to_stash_path(
-            target.as_posix(),
-            self._settings.komga_path_prefix_pearlie,
-            self._settings.komga_path_prefix_komga,
-        )
+        komga_path = destinations.to_stash_path(target.as_posix(), *self._prefixes())
         library_id, outside = self._find_library(komga_path, notices)
         pending: PendingScan | None = None
         if outside:
@@ -591,15 +589,15 @@ class KomgaTarget:
                     )
                 )
             else:
-                notices.append(scan_failed_notice())
+                notices.append(scan_failed_notice(self.label))
             return None, outside
 
     def _forget(self, post: Post) -> None:
         conn = connect(self._settings.db_path)
         try:
             conn.execute(
-                "DELETE FROM saved_items WHERE target = 'komga' AND source = ? AND post_id = ?",
-                (post.source, post.post_id),
+                "DELETE FROM saved_items WHERE target = ? AND source = ? AND post_id = ?",
+                (self.target, post.source, post.post_id),
             )
             conn.commit()
         finally:
@@ -633,9 +631,9 @@ class KomgaTarget:
         conn = connect(self._settings.db_path)
         try:
             conn.execute(
-                "UPDATE saved_items SET library_id = ? WHERE target = 'komga' "
+                "UPDATE saved_items SET library_id = ? WHERE target = ? "
                 "AND source = ? AND post_id = ? AND library_id IS NULL",
-                (book_id, pending.source, pending.post_id),
+                (book_id, self.target, pending.source, pending.post_id),
             )
             conn.commit()
         except sqlite3.Error:
@@ -690,9 +688,9 @@ class KomgaTarget:
             conn = connect(self._settings.db_path)
             try:
                 r = conn.execute(
-                    "SELECT library_id FROM saved_items WHERE target = 'komga' "
+                    "SELECT library_id FROM saved_items WHERE target = ? "
                     "AND source = ? AND post_id = ?",
-                    (source, post_id),
+                    (self.target, source, post_id),
                 ).fetchone()
             finally:
                 conn.close()
@@ -713,9 +711,9 @@ class KomgaTarget:
         conn = connect(self._settings.db_path)
         try:
             fresh = conn.execute(
-                "SELECT 1 FROM saved_items WHERE target = 'komga' AND source = ? "
+                "SELECT 1 FROM saved_items WHERE target = ? AND source = ? "
                 "AND post_id = ? AND created_at > datetime('now', ?)",
-                (source, post_id, STALE_GRACE),
+                (self.target, source, post_id, STALE_GRACE),
             ).fetchone()
         finally:
             conn.close()
@@ -736,8 +734,8 @@ class KomgaTarget:
         conn = connect(self._settings.db_path)
         try:
             conn.execute(
-                "DELETE FROM saved_items WHERE target = 'komga' AND source = ? AND post_id = ?",
-                (source, post_id),
+                "DELETE FROM saved_items WHERE target = ? AND source = ? AND post_id = ?",
+                (self.target, source, post_id),
             )
             conn.commit()
         finally:
@@ -757,8 +755,8 @@ class KomgaTarget:
         try:
             conn.execute(
                 "INSERT OR IGNORE INTO saved_items (source, post_id, md5, target, image_id) "
-                "VALUES (?, ?, ?, 'komga', '')",
-                (post.source, post.post_id, md5),
+                "VALUES (?, ?, ?, ?, '')",
+                (post.source, post.post_id, md5, self.target),
             )
             conn.commit()
         finally:
@@ -766,7 +764,7 @@ class KomgaTarget:
 
     def cleanup_temp(self) -> list[str]:
         """Remove stale work folders left by a crash (older than an hour)."""
-        root = self._settings.komga_temp_dir
+        root = self._temp_dir()
         removed: list[str] = []
         if not root.is_dir():
             return removed
