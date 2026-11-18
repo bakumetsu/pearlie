@@ -378,6 +378,26 @@ def test_grid_row_tags_come_from_learned_gallery_tags(caplog: pytest.LogCaptureF
     assert sum("tag ids not seen" in r.message for r in caplog.records) == 1
 
 
+def test_definition_revised_tag_is_dropped() -> None:
+    g = gallery(
+        5,
+        [
+            {"id": 7, "type": "tag", "name": "bad"},
+            {"id": 9, "type": "tag", "name": "Definition Revised"},
+            {"id": 8, "type": "artist", "name": "x"},
+        ],
+    )
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path.endswith("/galleries/5"):
+            return httpx.Response(200, json=g)
+        return httpx.Response(200, json={"result": [_row_with_ids(1, [7, 9])], "num_pages": 1})
+
+    src = make(handler)
+    assert src.get_post("5").tags == {"general": ["bad"], "artist": ["x"]}
+    assert src.search(["x"]).posts[0].tags == {"general": ["bad"]}
+
+
 def test_reject_terms() -> None:
     got = reject_terms(["bad", "artist:blocked artist", "wild*", "weird:x", "general:g"])
     assert got == ["-tag:bad", "-artist:blocked artist", "-tag:g"]

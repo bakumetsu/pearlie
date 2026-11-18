@@ -44,6 +44,11 @@ def _term(token: str) -> str:
     return f'{neg}{prefix}"{name}"' if name else ""
 
 
+def _is_noise_tag(name: str) -> bool:
+    """The site's 'definition revised' marker is not a content tag; drop it."""
+    return "definition revised" in name.lower()
+
+
 def _int(value: object) -> int:
     """A size field as an int; anything that is not a whole number counts as 0."""
     try:
@@ -264,6 +269,8 @@ class NHentai:
         grouped: dict[str, list[str]] = {}
         for t in _list(d.get("tags")):
             if not isinstance(t, dict) or not t.get("name"):
+                continue
+            if _is_noise_tag(str(t["name"])):
                 continue
             kind = str(t.get("type"))
             kind = kind if kind in TYPES else "general"
