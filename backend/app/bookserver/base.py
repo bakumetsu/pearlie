@@ -11,6 +11,9 @@ SORT_NUMBER_ASC = "number_asc"
 
 Kind = Literal["series", "books"]
 
+# Every `BookServer.kind`: the `target` of saved_items and trash_items rows of a book server.
+BOOK_TARGETS = ("komga", "stump")
+
 
 class BookServerError(Exception):
     """Server-neutral error. Codes: not_found, upstream_error, not_configured, bad_request."""

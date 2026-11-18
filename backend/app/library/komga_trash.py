@@ -11,9 +11,12 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from app.bookserver.base import BookDTO, BookServer, BookServerError, Kind, MetadataPatch, SeriesDTO
+from app.bookserver.komga import KomgaBookServer
+from app.bookserver.map import book_item, series_item
 from app.config import Settings
 from app.db import connect
-from app.komga import Komga, KomgaError, book_item, series_item
+from app.komga import Komga
 from app.library.trash import TrashError, TrashSpec, TrashStore
 from app.models import LibraryItem
 from app.targets import destinations
@@ -21,7 +24,7 @@ from app.targets import destinations
 logger = logging.getLogger("pearlie")
 
 KIND_OF = {"books": "book", "series": "series"}
-PLURAL_OF = {"book": "books", "series": "series"}
+PLURAL_OF: dict[str, Kind] = {"book": "books", "series": "series"}
 SETTLE_TIMEOUT_S = 120.0
 SETTLE_POLL_S = 2.0
 RESTORE_TIMEOUT_S = 60.0
@@ -32,7 +35,7 @@ class KomgaTrash:
         self,
         settings: Settings,
         store: TrashStore,
-        client: Komga,
+        client: Komga | BookServer,
         wait_s: Callable[[], float] = lambda: 10.0,
         settle_timeout_s: float = SETTLE_TIMEOUT_S,
         poll_s: float = SETTLE_POLL_S,
@@ -40,7 +43,7 @@ class KomgaTrash:
     ) -> None:
         self._s = settings
         self._store = store
-        self._c = client
+        self._c: BookServer = client if hasattr(client, "kind") else KomgaBookServer(client)  # type: ignore[arg-type]
         self._wait_s = wait_s
         self._settle_timeout_s = settle_timeout_s
         self._poll_s = poll_s
@@ -65,10 +68,7 @@ class KomgaTrash:
         )
 
     def _roots(self) -> list[str]:
-        return [
-            os.path.realpath(self._to_local(str(lib.get("root", ""))))
-            for lib in self._c.list_libraries()
-        ]
+        return [os.path.realpath(self._to_local(lib.root)) for lib in self._c.list_libraries()]
 
     def _check_under_library(self, local: Path) -> None:
         real = os.path.realpath(local)
@@ -87,27 +87,26 @@ class KomgaTrash:
         self._store.check_dir()
         try:
             dto = self._c.get_book(id) if kind == "book" else self._c.get_series(id)
-        except KomgaError as e:
+        except BookServerError as e:
             raise TrashError(e.status, e.code, e.message) from None
-        if dto.get("deleted"):
+        if dto.deleted:
             raise TrashError(404, "not_found", "Item not found")
-        if self._store.active_for_entity("komga", id):
+        if self._store.active_for_entity(self._c.kind, id):
             raise TrashError(409, "already_trashed", "Item is already in the trash")
         try:
-            local = self._to_local(str(dto.get("url", "")))
+            local = self._to_local(dto.path)
             self._check_under_library(local)
             meta = self._meta(kind, dto)
-        except KomgaError as e:
+        except BookServerError as e:
             raise TrashError(e.status, e.code, e.message) from None
-        library_id = str(dto["libraryId"])
+        library_id = dto.library_id
         meta["library_id"] = library_id
         source, post_id = self._saved_row(id) if kind == "book" else (None, None)
-        md = dto.get("metadata") or {}
         spec = TrashSpec(
-            target="komga",
+            target=self._c.kind,
             kind=kind,
             entity_id=id,
-            title=md.get("title") or dto.get("name") or local.name,
+            title=dto.title or dto.name or local.name,
             orig_path=local,
             meta=meta,
             source=source,
@@ -122,37 +121,33 @@ class KomgaTrash:
 
         try:
             return self._store.delete(spec, forget)
-        except KomgaError:
+        except BookServerError:
             raise TrashError(502, "upstream_error", "Komga did not accept the delete") from None
 
-    def _meta(self, kind: str, dto: dict) -> dict:
-        md = dto.get("metadata") or {}
+    def _meta(self, kind: str, dto: BookDTO | SeriesDTO) -> dict:
         meta: dict = {
-            "title": md.get("title"),
-            "summary": md.get("summary"),
-            "tags": sorted(md.get("tags") or []),
-            "komga_path": dto.get("url"),
+            "title": dto.title,
+            "summary": dto.summary,
+            "tags": sorted(dto.tags),
+            "komga_path": dto.path,
         }
-        if kind == "book":
-            rp = dto.get("readProgress")
-            if rp:
-                meta["progress"] = {"page": rp.get("page"), "completed": bool(rp.get("completed"))}
-            meta["series_id"] = dto.get("seriesId")
-            meta["series_title"] = dto.get("seriesTitle")
-            series = self._c.get_series(str(dto["seriesId"]))
-            if int(series.get("booksCount", 0)) <= 1:
-                meta["series_gone_id"] = dto["seriesId"]
+        if isinstance(dto, BookDTO):
+            if dto.read_page is not None:
+                meta["progress"] = {"page": dto.read_page, "completed": dto.read_done}
+            meta["series_id"] = dto.series_id
+            if self._c.get_series(dto.series_id).book_count <= 1:
+                meta["series_gone_id"] = dto.series_id
         else:
-            books, _ = self._c.all_series_books(str(dto["id"]))
-            meta["book_ids"] = [b["id"] for b in books]
+            books, _ = self._c.series_books(dto.id)
+            meta["book_ids"] = [b.id for b in books]
         return meta
 
     def _saved_row(self, book_id: str) -> tuple[str | None, str | None]:
         conn = connect(self._s.db_path)
         try:
             r = conn.execute(
-                "SELECT source, post_id FROM saved_items WHERE target = 'komga' AND library_id = ?",
-                (book_id,),
+                "SELECT source, post_id FROM saved_items WHERE target = ? AND library_id = ?",
+                (self._c.kind, book_id),
             ).fetchone()
         finally:
             conn.close()
@@ -191,7 +186,7 @@ class KomgaTrash:
             return
         try:
             self._c.scan_library(library_id)
-        except KomgaError as e:
+        except BookServerError as e:
             logger.warning("trash komga scan failed code=%s: items stay hidden", e.code)
             return
         self._settle(items)
@@ -200,9 +195,9 @@ class KomgaTrash:
     def _settled(self, kind: str, id: str) -> bool:
         try:
             dto = self._c.get_book(id) if kind == "book" else self._c.get_series(id)
-        except KomgaError as e:
+        except BookServerError as e:
             return e.status == 404
-        return bool(dto.get("deleted"))
+        return dto.deleted
 
     def _settle(self, items: set[tuple[str, str]]) -> None:
         deadline = time.monotonic() + self._settle_timeout_s
@@ -218,9 +213,7 @@ class KomgaTrash:
         owned = self._store.komga_owned_ids()
         foreign = 0
         for plural in ("books", "series"):
-            foreign += sum(
-                1 for d in self._c.list_deleted(plural, library_id) if str(d.get("id")) not in owned
-            )
+            foreign += sum(1 for d in self._c.list_deleted(plural, library_id) if d.id not in owned)
         return foreign
 
     def empty_if_ours(self, library_id: str) -> bool:
@@ -232,8 +225,8 @@ class KomgaTrash:
                     "trash komga empty-trash skipped: %d foreign soft-deleted items", foreign
                 )
                 return False
-            self._c.empty_trash(library_id)
-        except KomgaError as e:
+            self._c.purge_deleted(library_id)
+        except BookServerError as e:
             logger.warning("trash komga empty-trash failed code=%s: items stay hidden", e.code)
             return False
         return True
@@ -256,48 +249,49 @@ class KomgaTrash:
         komga_path = self._to_komga(new_path)
         self._c.scan_library(library_id)
         dto = self._wait_found(plural, row["entity_id"], library_id, komga_path, new_path.name)
-        new_id = str(dto["id"])
+        new_id = dto.id
         patch = self._metadata_patch(meta, dto)
-        if patch:
+        if patch is not None:
             self._c.set_metadata(plural, new_id, patch)
         progress = meta.get("progress")
         if kind == "book" and progress and progress.get("page"):
             self._c.set_progress(new_id, int(progress["page"]), bool(progress.get("completed")))
-        dto = self._c.get_book(new_id) if kind == "book" else self._c.get_series(new_id)
+        if kind == "book":
+            book = self._c.get_book(new_id)
+            item = book_item(book)
+        else:
+            item = series_item(self._c.get_series(new_id))
         self._relink_saved(row["entity_id"], new_id)
-        return new_id, (book_item(dto) if kind == "book" else series_item(dto))
+        return new_id, item
 
     @staticmethod
-    def _metadata_patch(meta: dict, dto: dict) -> dict:
+    def _metadata_patch(meta: dict, dto: BookDTO | SeriesDTO) -> MetadataPatch | None:
         """Tags, title and summary saved at delete time; only fields the scan lost."""
-        scanned = dto.get("metadata") or {}
-        patch: dict = {}
-        if meta.get("tags"):
-            patch.update(tags=list(meta["tags"]), tagsLock=True)
-        for field in ("title", "summary"):
-            saved = meta.get(field)
-            if saved and saved != scanned.get(field):
-                patch.update({field: saved, f"{field}Lock": True})
-        return patch
+        tags = list(meta["tags"]) if meta.get("tags") else None
+        title, summary = meta.get("title"), meta.get("summary")
+        title = title if title and title != dto.title else None
+        summary = summary if summary and summary != dto.summary else None
+        if tags is None and title is None and summary is None:
+            return None
+        return MetadataPatch(tags=tags, title=title, summary=summary)
 
     def _wait_found(
-        self, plural: str, old_id: str, library_id: str, komga_path: str, name: str
-    ) -> dict:
+        self, plural: Kind, old_id: str, library_id: str, komga_path: str, name: str
+    ) -> BookDTO | SeriesDTO:
         """The restored item: the same id revived by the scan, or a new id at the path."""
         deadline = time.monotonic() + self._restore_timeout_s
         want = posixpath.normpath(komga_path)
         while True:
             try:
                 dto = self._c.get_book(old_id) if plural == "books" else self._c.get_series(old_id)
-                if (
-                    not dto.get("deleted")
-                    and posixpath.normpath(str(dto.get("url", "")).replace("\\", "/")) == want
-                ):
+                if not dto.deleted and posixpath.normpath(dto.path.replace("\\", "/")) == want:
                     return dto
-            except KomgaError as e:
+            except BookServerError as e:
                 if e.status != 404:
                     raise
-            found = self._c.find_by_url(plural, library_id, komga_path, posixpath.splitext(name)[0])
+            found = self._c.find_by_path(
+                plural, library_id, komga_path, posixpath.splitext(name)[0]
+            )
             if found is not None:
                 return found
             if time.monotonic() >= deadline:
@@ -308,8 +302,8 @@ class KomgaTrash:
         conn = connect(self._s.db_path)
         try:
             conn.execute(
-                "UPDATE saved_items SET library_id = ? WHERE target = 'komga' AND library_id = ?",
-                (new_id, old_id),
+                "UPDATE saved_items SET library_id = ? WHERE target = ? AND library_id = ?",
+                (new_id, self._c.kind, old_id),
             )
             conn.commit()
         finally:

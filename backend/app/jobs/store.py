@@ -7,6 +7,7 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app.bookserver.base import BOOK_TARGETS
 from app.db import connect
 from app.models import Job, Problem, SavedRef
 from app.sources.base import Post
@@ -95,7 +96,7 @@ def _ref(
     target: str, image_id: str | None, kind: str = "image", library_id: str | None = None
 ) -> SavedRef:
     # A Komga row has no image id: its book id (when known) is in `library_id`.
-    if target == "komga":
+    if target in BOOK_TARGETS:
         return SavedRef(kind="book", id=library_id or "")
     if kind == "video":
         return SavedRef(kind="video", id=image_id or "")

@@ -121,7 +121,7 @@ class KomgaBookServer:
             raw = d.get(ONESHOTS_FIELD)
             out.append(
                 LibraryDTO(
-                    id=str(d["id"]),
+                    id=str(d.get("id", "")),
                     name=str(d.get("name", "")),
                     root=str(d.get("root", "")),
                     oneshots_dir=raw if isinstance(raw, str) else None,

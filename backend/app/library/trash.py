@@ -20,6 +20,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from app.bookserver.base import BOOK_TARGETS
 from app.db import connect
 
 logger = logging.getLogger("pearlie")
@@ -233,7 +234,7 @@ class TrashStore:
         conn = connect(self._db)
         try:
             rows = conn.execute(
-                "SELECT entity_id, meta FROM trash_items WHERE target = 'komga' "
+                "SELECT entity_id, meta FROM trash_items WHERE target IN ('komga', 'stump') "
                 "AND state IN ('moving','trashed')"
             ).fetchall()
         finally:
@@ -255,7 +256,7 @@ class TrashStore:
         conn = connect(self._db)
         try:
             rows = conn.execute(
-                "SELECT * FROM trash_items WHERE target = 'komga' AND state IN "
+                "SELECT * FROM trash_items WHERE target IN ('komga', 'stump') AND state IN "
                 "('moving','trashed','restoring')"
             ).fetchall()
         finally:
@@ -459,14 +460,15 @@ class TrashStore:
                     "DELETE FROM saved_items WHERE source = ? AND post_id = ?",
                     (row["source"], row["post_id"]),
                 )
-            if row["target"] == "komga":
+            if row["target"] in BOOK_TARGETS:
                 try:
                     book_ids = json.loads(row["meta"] or "{}").get("book_ids") or []
                 except ValueError:
                     book_ids = []
                 for book_id in [row["entity_id"], *book_ids]:
                     conn.execute(
-                        "DELETE FROM saved_items WHERE target = 'komga' AND library_id = ?",
+                        "DELETE FROM saved_items WHERE target IN ('komga', 'stump')"
+                        " AND library_id = ?",
                         (str(book_id),),
                     )
             conn.commit()

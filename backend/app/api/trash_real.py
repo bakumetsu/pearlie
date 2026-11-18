@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query, Request
 
 from app.api import options
 from app.api.errors import ApiError
-from app.komga import KomgaError
+from app.bookserver.base import BOOK_TARGETS, BookServerError
 from app.library.komga_trash import KomgaTrash
 from app.library.stash_trash import StashTrash
 from app.library.trash import TrashError, TrashStore
@@ -183,7 +183,7 @@ def _library_roots(request: Request) -> list[str]:
             roots += [os.path.realpath(st._to_local(p)) for p in app.state.stash.library_paths()]
         if app.state.komga is not None:
             roots += komga_trash_of(request)._roots()
-    except (StashError, KomgaError) as e:
+    except (StashError, BookServerError) as e:
         raise ApiError(502, "upstream_error", e.message) from None
     return roots
 
@@ -274,7 +274,7 @@ def restore(request: Request, token: str) -> RestoreResult:
     row = store.get(token)
     if row is None:
         raise ApiError(404, "not_found", "Item not found")
-    if row["target"] == "komga":
+    if row["target"] in BOOK_TARGETS:
         if request.app.state.komga is None:
             raise ApiError(503, "not_configured", "Komga is not configured")
         try:
