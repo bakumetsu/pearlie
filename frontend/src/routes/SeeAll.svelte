@@ -637,6 +637,7 @@
         {:else}
           <p>Nothing here.</p>
         {/if}
+        {#if grid.hidden > 0}<p class="muted" data-testid="hidden-note">{grid.hidden} hidden by rules or Safe mode</p>{/if}
         <div class="empty-actions">
           {#if q.trim()}<button class="clear-btn" type="button" onclick={() => setQuery("")}>Clear search</button>{/if}
           {#if filtersSet}<button class="clear-btn" type="button" onclick={clearFilters}>Clear filters</button>{/if}
