@@ -26,6 +26,7 @@ _REST_VOL_RE = re.compile(
     re.IGNORECASE,
 )
 _TRAIL_BRACKET_RE = re.compile(r"(\[[^\]]*\]|\([^()]*\))$")
+_SAVED_SUFFIX_RE = re.compile(r"\s+-\s+[A-Za-z0-9_]+-\d+$")  # Pearlie's " - <site>-<id>"
 _AUTHOR_TAG_RE = re.compile(r"\[[^\]]+\]")
 _ACTUAL_KWS = frozenset(
     ("volume", "vol", "chapter", "ch", "episode", "issue", "part", "no", "v", "c"),
@@ -77,7 +78,7 @@ def parse_name(
     hardened: bool = True,
 ) -> ParsedName:
     # 1. Clean trailing bracket groups
-    s = title.strip()
+    s = _SAVED_SUFFIX_RE.sub("", title.strip())
     while True:
         m = _TRAIL_BRACKET_RE.search(s)
         if not m:

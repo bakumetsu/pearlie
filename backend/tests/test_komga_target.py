@@ -564,3 +564,37 @@ def test_book_not_listed_yet_keeps_row_for_grace(env) -> None:
     res = target.save(make_post(), [])
     assert res.pending_scan is not None
     assert _row_count(settings) == 1
+
+
+def test_oneshot_file_name_ends_in_site_and_id(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    target.save(titled("[Foo] Lonely Book", "7"), [])
+    assert next((dest / "_oneshots").iterdir()).name == "[Foo] Lonely Book - nhentai-7.cbz"
+
+
+def test_series_file_name_ends_in_site_and_id(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    target.save(titled("[Foo] My Sister vol 2", "2"), [])
+    book = next((dest / "[Foo] My Sister").iterdir())
+    assert book.name == "[Foo] My Sister vol 2 - nhentai-2.cbz"
+
+
+def test_long_title_is_cut_but_keeps_site_and_id(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    target.save(titled("[Foo] " + "Long " * 60, "695284"), [])
+    name = next((dest / "_oneshots").iterdir()).name
+    suffix = " - nhentai-695284.cbz"
+    assert name.endswith(suffix) and len(name) <= 100 + len(suffix)
+
+
+def test_second_volume_pairs_with_oneshot_saved_with_site_id(env) -> None:
+    target, komga, _s, dest, _h = env
+    komga.oneshots = "_oneshots"
+    target.save(titled("[Foo] My Sister", "1"), [])
+    first = next((dest / "_oneshots").iterdir())
+    target.save(titled("[Foo] My Sister 2", "2"), [])
+    assert (dest / "[Foo] My Sister" / first.name).exists()
+    assert not list((dest / "_oneshots").iterdir())
