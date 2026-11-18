@@ -94,6 +94,7 @@ class PageResult[T]:
 
 class ImageStream(Protocol):
     content_type: str
+    content_length: str | None
 
     def iter_bytes(self) -> Iterator[bytes]: ...
 

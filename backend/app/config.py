@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     stash_url: str = ""
     stash_api_key: SecretStr = SecretStr("")
     stash_public_url: str = ""
+    book_server: Literal["komga"] = "komga"
     komga_url: str = ""
     komga_api_key: SecretStr = SecretStr("")
     gelbooru_user_id: str = ""
