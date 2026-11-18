@@ -177,3 +177,30 @@ def test_restore_before_clean_keeps_same_id(tmp_path):
     assert r.json()["item"]["id"] == "B1"
     assert f1.exists() and next(b for b in m.books if b["id"] == "B1")["status"] == "READY"
     assert m.cleaned == []
+
+
+def test_startup_repair_has_a_stump_destroyer(tmp_path):
+    import asyncio
+
+    from app.db import connect
+    from app.main import _trash_purge_loop
+
+    _, _, _, m = setup_lib(tmp_path)
+    c = make(tmp_path, m, wait=60.0)
+    token = c.delete("/api/library/books/B1").json()["token"]
+    state: Any = c.app.state  # pyright: ignore[reportAttributeAccessIssue]
+    conn = connect(state.settings.db_path)
+    conn.execute("UPDATE trash_items SET state='moving' WHERE token=?", (token,))
+    conn.commit()
+    conn.close()
+    called: list[str] = []
+    state.komga_trash.destroy_row = lambda row: called.append(row["token"])
+
+    async def run() -> None:
+        task = asyncio.create_task(_trash_purge_loop(c.app))  # pyright: ignore[reportArgumentType]
+        await asyncio.sleep(0.3)
+        task.cancel()
+
+    asyncio.run(run())
+    assert called == [token]
+    assert state.trash.get(token)["state"] == "trashed"
