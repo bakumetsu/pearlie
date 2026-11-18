@@ -31,6 +31,8 @@ RESTORE_TIMEOUT_S = 60.0
 
 
 class KomgaTrash:
+    label = "Komga"  # the book server named in messages
+
     def __init__(
         self,
         settings: Settings,
@@ -115,14 +117,16 @@ class KomgaTrash:
         )
 
         def forget() -> None:
-            # Komga is checked reachable; the scan itself runs debounced.
+            # the server is checked reachable; the scan itself runs debounced.
             self._c.list_libraries()
             self._queue(library_id, kind, id)
 
         try:
             return self._store.delete(spec, forget)
         except BookServerError:
-            raise TrashError(502, "upstream_error", "Komga did not accept the delete") from None
+            raise TrashError(
+                502, "upstream_error", f"{self.label} did not accept the delete"
+            ) from None
 
     def _meta(self, kind: str, dto: BookDTO | SeriesDTO) -> dict:
         meta: dict = {

@@ -61,31 +61,49 @@ Q_JOB = "query Job($id: ID!) { jobById(id: $id) { id status } }"
 M_SCAN_LIBRARY = "mutation ScanLibrary($id: ID!) { scanLibrary(id: $id) }"
 Q_LAST_SCAN = "query LastScan($id: ID!) { libraryById(id: $id) { lastScan { jobId } } }"
 
-# Write operations. Return selections are `__typename` only: Pearlie reads nothing back, and
-# that selection is valid for any object type (the schema is not verified live; see STUMP_MAP).
-M_CLEAN_LIBRARY = "mutation CleanLibrary($id: ID!) { cleanLibrary(id: $id) { __typename } }"
+# Write operations. Return type not verified live (T-330): the selection set of each mutation is
+# set here, one line each. "" = scalar return (no selection); `{ __typename }` is valid for any
+# object type and Pearlie reads nothing back. STUMP_MAP names no return type except scanLibrary
+# (Boolean).
+_SEL = " { __typename }"
+RETURN_SELECTION = {
+    "cleanLibrary": _SEL,  # guess: object (deleted counts)
+    "setMediaTags": _SEL,  # guess: [Tag]
+    "setSeriesTags": _SEL,  # guess: [Tag]
+    "updateMediaMetadata": _SEL,  # guess: MediaMetadata
+    "updateSeriesMetadata": _SEL,  # guess: SeriesMetadata
+    "updateMediaProgress": _SEL,  # guess: ReadProgress object
+    "finishMediaProgress": _SEL,  # guess: ReadProgress object
+    "setMediaLockedFields": _SEL,  # guess: Media (or Boolean: set "")
+    "setSeriesLockedFields": _SEL,  # guess: Series (or Boolean: set "")
+}
+
+M_CLEAN_LIBRARY = (
+    f"mutation CleanLibrary($id: ID!) {{ cleanLibrary(id: $id){RETURN_SELECTION['cleanLibrary']} }}"
+)
 M_SET_MEDIA_TAGS = (
     "mutation SetMediaTags($id: ID!, $tags: [String!]!) "
-    "{ setMediaTags(id: $id, tags: $tags) { __typename } }"
+    f"{{ setMediaTags(id: $id, tags: $tags){RETURN_SELECTION['setMediaTags']} }}"
 )
 M_SET_SERIES_TAGS = (
     "mutation SetSeriesTags($id: ID!, $tags: [String!]!) "
-    "{ setSeriesTags(id: $id, tags: $tags) { __typename } }"
+    f"{{ setSeriesTags(id: $id, tags: $tags){RETURN_SELECTION['setSeriesTags']} }}"
 )
 M_UPDATE_MEDIA_META = (
     "mutation UpdateMediaMetadata($id: ID!, $input: MediaMetadataInput!) "
-    "{ updateMediaMetadata(id: $id, input: $input) { __typename } }"
+    f"{{ updateMediaMetadata(id: $id, input: $input){RETURN_SELECTION['updateMediaMetadata']} }}"
 )
 M_UPDATE_SERIES_META = (
     "mutation UpdateSeriesMetadata($id: ID!, $input: SeriesMetadataInput!) "
-    "{ updateSeriesMetadata(id: $id, input: $input) { __typename } }"
+    f"{{ updateSeriesMetadata(id: $id, input: $input){RETURN_SELECTION['updateSeriesMetadata']} }}"
 )
 M_UPDATE_PROGRESS = (
     "mutation UpdateMediaProgress($id: ID!, $input: MediaProgressInput!) "
-    "{ updateMediaProgress(id: $id, input: $input) { __typename } }"
+    f"{{ updateMediaProgress(id: $id, input: $input){RETURN_SELECTION['updateMediaProgress']} }}"
 )
 M_FINISH_PROGRESS = (
-    "mutation FinishMediaProgress($id: ID!) { finishMediaProgress(id: $id) { __typename } }"
+    "mutation FinishMediaProgress($id: ID!) "
+    f"{{ finishMediaProgress(id: $id){RETURN_SELECTION['finishMediaProgress']} }}"
 )
 
 # Locked-field names (enum literals, inlined: the set is fixed and the enum type name is unknown)
@@ -252,8 +270,8 @@ class Stump:
         if kind == "series":
             arg, op = ("seriesId", "setSeriesLockedFields")
         query = (
-            f"mutation Lock($id: ID!) {{ {op}({arg}: $id, fields: [{', '.join(names)}]) "
-            "{ __typename } }"
+            f"mutation Lock($id: ID!) {{ {op}({arg}: $id, fields: [{', '.join(names)}])"
+            f"{RETURN_SELECTION[op]} }}"
         )
         self.gql("Lock", query, {"id": id})
 

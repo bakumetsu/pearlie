@@ -11,11 +11,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.library.komga_trash import KomgaTrash
-from app.library.trash import TrashError
 from app.targets import destinations
 
 
 class StumpTrash(KomgaTrash):
+    label = "Stump"
+
     def _to_local(self, komga_path: str) -> Path:
         s = self._s
         p = destinations.to_pearlie_path(
@@ -28,11 +29,3 @@ class StumpTrash(KomgaTrash):
         return destinations.to_stash_path(
             local.as_posix(), s.stump_path_prefix_pearlie, s.stump_path_prefix_stump
         )
-
-    def delete(self, plural: str, id: str, group_id: str | None = None) -> dict:
-        try:
-            return super().delete(plural, id, group_id)
-        except TrashError as e:
-            if e.code == "upstream_error" and e.message.startswith("Komga"):
-                raise TrashError(e.status, e.code, "Stump did not accept the delete") from None
-            raise
