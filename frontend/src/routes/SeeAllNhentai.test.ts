@@ -21,6 +21,7 @@ function post(i: number, size: { width?: number; height?: number }) {
 describe("SeeAll nhentai", () => {
   let infinite: boolean;
   let size: { width?: number; height?: number };
+  let hideAll = false;
   let tl: typeof import("@testing-library/svelte");
 
   beforeAll(async () => {
@@ -34,6 +35,7 @@ describe("SeeAll nhentai", () => {
     vi.stubGlobal("IntersectionObserver", class { observe() {} disconnect() {} unobserve() {} });
     vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} unobserve() {} });
     window.scrollTo = vi.fn();
+    hideAll = false;
     history.replaceState({}, "", "/see-all?source=nhentai");
     globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, "http://localhost");
@@ -46,7 +48,7 @@ describe("SeeAll nhentai", () => {
         return json({
           q: "",
           sections: [
-            { id: "nhentai", title: "nhentai", items: Array.from({ length: 25 }, (_u, i) => post(i, size)), total: 25, next_page: null, pages: 1, page_size: 60, hidden: 0 },
+            { id: "nhentai", title: "nhentai", items: hideAll ? [] : Array.from({ length: 25 }, (_u, i) => post(i, size)), total: 25, next_page: null, pages: 1, page_size: 60, hidden: hideAll ? 25 : 0 },
           ],
         });
       }
@@ -71,4 +73,14 @@ describe("SeeAll nhentai", () => {
       });
     }
   }
+
+  it("says how many posts the rules hid when the whole page is hidden", async () => {
+    infinite = false;
+    size = { width: 350, height: 500 };
+    hideAll = true;
+    tl = await import("@testing-library/svelte");
+    const { default: App } = await import("../App.svelte");
+    const r = tl.render(App);
+    await vi.waitFor(() => expect(r.container.querySelector("[data-testid=hidden-note]")?.textContent).toContain("25 hidden"));
+  });
 });
