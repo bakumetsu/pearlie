@@ -297,7 +297,7 @@ class StumpBookServer:
     # save target + scan (T-328)
 
     def scan_library(self, library_id: str) -> None:
-        raise _not_supported("scan")  # T-328
+        self._c.scan_library(library_id)
 
     # trash / undo (T-329)
 

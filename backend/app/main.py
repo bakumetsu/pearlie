@@ -65,9 +65,11 @@ from app.sources.danbooru import Danbooru
 from app.sources.dapi import Gelbooru, Rule34
 from app.sources.nhentai import NHentai
 from app.sources.throttle import DEFAULT_PACE, Throttle
+from app.stump import Stump
 from app.targets.komga import KomgaTarget
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
+from app.targets.stump import StumpTarget
 from app.thumbcache import ThumbCache
 from app.update import runner
 from app.update.changelog import Changelog, FakeChangelog
@@ -106,6 +108,8 @@ def _with_stored_connections(settings: Settings, store: ConnectionStore) -> Sett
     stash_key = store.effective_secret("stash")
     komga_url = store.address("komga")
     komga_key = store.effective_secret("komga")
+    stump_url = store.address("stump")
+    stump_key = store.effective_secret("stump")
     updates: dict[str, object] = {}
     if stash_url and stash_url != settings.stash_url:
         updates["stash_url"] = stash_url
@@ -120,6 +124,12 @@ def _with_stored_connections(settings: Settings, store: ConnectionStore) -> Sett
         komga_key != settings.komga_api_key.get_secret_value()
     ):
         updates["komga_api_key"] = SecretStr(komga_key)
+    if stump_url and stump_url != settings.stump_url:
+        updates["stump_url"] = stump_url
+    if (stump_key or "stump_url" in updates) and (
+        stump_key != settings.stump_api_key.get_secret_value()
+    ):
+        updates["stump_api_key"] = SecretStr(stump_key)
     if updates:
         return settings.model_copy(update=updates)
     return settings
@@ -180,6 +190,12 @@ def _build_komga(settings: Settings) -> Komga | None:
     return Komga(settings.komga_url, settings.komga_api_key.get_secret_value())
 
 
+def _build_stump(settings: Settings) -> Stump | None:
+    if not settings.stump_url:
+        return None
+    return Stump(settings.stump_url, settings.stump_api_key.get_secret_value())
+
+
 def _require_configured(name: str, clients: tuple[str, ...]):
     """Per-request guard: 503 until at least one of *clients* is connected."""
 
@@ -202,6 +218,13 @@ def rebuild_client(app: FastAPI, name: str) -> None:
         komga_target = getattr(app.state, "komga_target", None)
         if komga_target is not None:
             komga_target.set_client(app.state.komga)
+    elif name == "stump":
+        app.state.stump = _build_stump(settings)
+        app.state.books = None  # rebuilt by book_server_of from the new settings
+        app.state.stump_conn = None
+        stump_target = getattr(app.state, "stump_target", None)
+        if stump_target is not None and app.state.stump is not None:
+            stump_target.set_client(app.state.stump)
     elif name == "stash":
         app.state.stash = _build_stash(settings)
         stash_target = getattr(app.state, "stash_target", None)
@@ -343,7 +366,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         trash_dir = app.state.trash.dir
         # Only the .env default is guarded; a path saved in Options skips the temp/cache check.
         trash_root = settings.trash_dir.resolve()
-        guarded = [settings.stash_temp_dir, settings.komga_temp_dir, settings.thumb_cache_root]
+        guarded = [
+            settings.stash_temp_dir,
+            settings.komga_temp_dir,
+            settings.stump_temp_dir,
+            settings.thumb_cache_root,
+        ]
         for bad in guarded:
             bad_root = bad.resolve()
             if trash_root == bad_root or bad_root in trash_root.parents:
@@ -357,12 +385,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 type(e).__name__,
             )
     app.state.komga = _build_komga(settings) if settings.mode != "fixture" else None
+    app.state.stump = _build_stump(settings) if settings.mode != "fixture" else None
     app.state.stash = _build_stash(settings) if settings.mode != "fixture" else None
 
     app.state.worker = None
     app.state.http = None
     app.state.stash_target = None
     app.state.komga_target = None
+    app.state.stump_target = None
     if "jobs" in real:
         http = install_http_hooks(httpx.Client(), "download", save=True)
         app.state.http = http
@@ -374,21 +404,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         app.state.stash_target = stash_target
         app.state.komga_target = komga_target
+        # The job target id stays "komga"; the book server in use decides which class runs it.
+        book_target: KomgaTarget = komga_target
+        if settings.book_server == "stump":
+            stump_target = StumpTarget(
+                settings, app.state.stump, http, app.state.sources, throttles=throttles
+            )
+            app.state.stump_target = stump_target
+            book_target = stump_target
         app.state.worker = JobWorker(
             settings.db_path,
             app.state.sources,
-            {"stash": stash_target, "komga": komga_target},
+            {"stash": stash_target, "komga": book_target},
             interval_s=settings.download_interval_s,
             scan_wait_s=lambda: options.komga_scan_wait_s(app),
-            startup_hooks=[stash_target.cleanup_temp, komga_target.cleanup_temp],
+            startup_hooks=[stash_target.cleanup_temp, book_target.cleanup_temp],
         )
 
     needs = {
-        "library_komga": ("komga",),
-        "media_komga": ("komga",),
+        "library_komga": ("komga", "stump"),
+        "media_komga": ("komga", "stump"),
         "library_stash": ("stash",),
         "media_stash": ("stash",),
-        "jobs": ("stash", "komga"),
+        "jobs": ("stash", "komga", "stump"),
     }
     for name in (n for n in REAL_ROUTERS if n in real):  # order: /book before {kind}
         deps = [Depends(_require_configured(name, needs[name]))] if name in needs else []

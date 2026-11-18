@@ -58,6 +58,9 @@ Q_MEDIA_BY_PATH = (
 )
 Q_JOB = "query Job($id: ID!) { jobById(id: $id) { id status } }"
 
+M_SCAN_LIBRARY = "mutation ScanLibrary($id: ID!) { scanLibrary(id: $id) }"
+Q_LAST_SCAN = "query LastScan($id: ID!) { libraryById(id: $id) { lastScan { jobId } } }"
+
 _NOT_FOUND_WORDS = ("not found", "notfound", "no such")
 
 
@@ -180,6 +183,17 @@ class Stump:
             if time.monotonic() >= deadline:
                 raise StumpError("upstream_error", "Stump job timed out", 504)
             self._sleep(JOB_POLL_S)
+
+    def scan_library(self, library_id: str, timeout: float = JOB_TIMEOUT_S) -> None:
+        """Queue one library scan and wait for its job. `scanLibrary` returns only a Boolean,
+        so the job id comes from `libraryById.lastScan`."""
+        self.gql("ScanLibrary", M_SCAN_LIBRARY, {"id": library_id})
+        lib = self.gql("LastScan", Q_LAST_SCAN, {"id": library_id}).get("libraryById")
+        if not lib:
+            raise StumpError("not_found", "Not found", 404)
+        job_id = (lib.get("lastScan") or {}).get("jobId")
+        if job_id:
+            self.wait_job(str(job_id), timeout)
 
     # REST images
 
