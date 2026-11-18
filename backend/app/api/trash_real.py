@@ -68,7 +68,7 @@ def komga_trash_of_app(app) -> KomgaTrash:  # noqa: ANN001
     return kt
 
 
-def _book_server_ready(app) -> bool:  # noqa: ANN001
+def book_server_ready(app) -> bool:  # noqa: ANN001
     s = app.state.settings
     return bool(s.stump_url) if s.book_server == "stump" else app.state.komga is not None
 
@@ -118,7 +118,7 @@ def trash_batch(request: Request, body: TrashBatchBody) -> TrashBatchResult:
             if not ok:
                 raise TrashError(404, "not_found", "Item not found")
             if it.kind in ("series", "book"):
-                if not _book_server_ready(request.app):
+                if not book_server_ready(request.app):
                     name = _book_server_name(request.app)
                     raise TrashError(503, "not_configured", f"{name} is not configured")
                 row = komga_trash_of(request).delete(PLURAL_OF[it.kind], it.id, group_id=group)
@@ -201,7 +201,7 @@ def _library_roots(request: Request) -> list[str]:
         if app.state.stash is not None:
             st = StashTrash(app.state.settings, store_of(request), app.state.stash)
             roots += [os.path.realpath(st._to_local(p)) for p in app.state.stash.library_paths()]
-        if _book_server_ready(app):
+        if book_server_ready(app):
             roots += komga_trash_of(request)._roots()
     except (StashError, BookServerError) as e:
         raise ApiError(502, "upstream_error", e.message) from None
@@ -295,7 +295,7 @@ def restore(request: Request, token: str) -> RestoreResult:
     if row is None:
         raise ApiError(404, "not_found", "Item not found")
     if row["target"] in BOOK_TARGETS:
-        if not _book_server_ready(request.app):
+        if not book_server_ready(request.app):
             name = _book_server_name(request.app)
             raise ApiError(503, "not_configured", f"{name} is not configured")
         try:
