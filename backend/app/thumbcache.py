@@ -15,7 +15,8 @@ from pathlib import Path
 
 logger = logging.getLogger("pearlie.thumbcache")
 
-SOURCES = ("danbooru", "gelbooru", "rule34", "nhentai")
+PAGE_THUMB_SOURCE = "stump-pages"  # downscaled Stump book pages (T-327), not a web site
+SOURCES = ("danbooru", "gelbooru", "rule34", "nhentai", PAGE_THUMB_SOURCE)
 SUFFIX = ".img"
 PART_SUFFIX = ".part"
 MAX_THUMB_BYTES = 5 * 1024 * 1024
