@@ -70,7 +70,9 @@ def waiting_for_komga_notice(komga_path: str) -> Problem:
 
 def _file_name(post: Post) -> str:
     title = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", post.title or "gallery").strip(" .") or "gallery"
-    return f"{title[:100]} [{post.post_id}].cbz"
+    site, pid = (re.sub(r"[^\w.]", "", str(v)) for v in (post.source, post.post_id))
+    suffix = f" - {site}-{pid}.cbz"
+    return title[:100].rstrip(" .") + suffix
 
 
 class KomgaTarget:
@@ -662,7 +664,8 @@ class KomgaTarget:
     def _book_matches(book: dict, post_id: str) -> bool:
         """True when a Komga book is the saved copy of *post_id* (file name or Web link)."""
         url = str(book.get("url", "")).replace("\\", "/")
-        if f"[{post_id}]" in posixpath.basename(url):
+        base = posixpath.basename(url)
+        if f"[{post_id}]" in base or posixpath.splitext(base)[0].endswith(f"-{post_id}"):
             return True
         links = (book.get("metadata") or {}).get("links") or []
         return any(f"/{post_id}/" in str(ln.get("url", "")).rstrip("/") + "/" for ln in links)
