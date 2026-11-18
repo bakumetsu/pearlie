@@ -25,7 +25,7 @@ from app.jobs.store import JobStore
 from app.models import Tag, WebBook, WebItem
 from app.sources.base import Post, SourceError
 from app.sources.nhentai import CDN_HOST, NHentai
-from app.sources.title import LANGUAGES, parse_title
+from app.sources.title import LANGUAGES, name_lines, parse_title
 
 logger = logging.getLogger("pearlie.media_web_pages")
 
@@ -318,7 +318,10 @@ def _prio(request: Request, default: Prio) -> Prio:
 def build_book(post: Post, target: str) -> WebBook:
     raw = str(post.extra.get("title_english") or post.title or "")
     jp = post.extra.get("title_japanese")
-    parsed = parse_title(raw, jp if isinstance(jp, str) else None)
+    japanese = jp if isinstance(jp, str) else None
+    en = post.extra.get("title_english")
+    english = en if isinstance(en, str) else None
+    parsed = parse_title(raw, japanese)
     language = parsed.language
     if language is None:
         for name in post.tags.get("language", []):
@@ -345,6 +348,7 @@ def build_book(post: Post, target: str) -> WebBook:
         title=post.title,
         title_main=parsed.title_main,
         title_sub=parsed.title_sub,
+        name_lines=name_lines(post.title, english, japanese),
         artist=parsed.artist,
         circle=parsed.circle,
         event=parsed.event,

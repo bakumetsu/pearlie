@@ -2514,6 +2514,11 @@ export interface components {
             title_main: string;
             /** Title Sub */
             title_sub?: string | null;
+            /**
+             * Name Lines
+             * @description Name lines, Latin first, its Latin twin second, kana or Han last (max 3).
+             */
+            name_lines?: string[];
             /** Artist */
             artist?: string | null;
             /** Circle */

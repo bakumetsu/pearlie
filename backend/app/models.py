@@ -156,6 +156,10 @@ class WebBook(BaseModel):
     title: str | None = None
     title_main: str
     title_sub: str | None = None
+    name_lines: list[str] = Field(
+        default_factory=list,
+        description="Name lines, Latin first, its Latin twin second, kana or Han last (max 3).",
+    )
     artist: str | None = None
     circle: str | None = None
     event: str | None = None
