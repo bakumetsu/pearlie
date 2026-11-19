@@ -4,6 +4,7 @@ import { ApiError } from "../api/client";
 import type { Api, LibraryItem, LibraryItemDetail } from "../api/client";
 import type { GridLike, ToastsLike } from "./itemView.svelte";
 import { createItemView } from "./itemView.svelte";
+import { createProgress } from "../reader/progress";
 
 // ─── fakes ───────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,33 @@ describe("createItemView", () => {
 
       expect(view.status).toBe("gone");
       expect(view.detail).toBeNull();
+    });
+  });
+
+  describe("load after the reader closes", () => {
+    it("reads the item only after the reader's last save landed (browser Back)", async () => {
+      const { api, view } = setup();
+      let landed = false;
+      let finish!: () => void;
+      const save = vi.fn(
+        () => new Promise<void>((resolve) => {
+          finish = () => { landed = true; resolve(); };
+        }),
+      );
+      // Reader unmount: onDestroy flushes the pending page without waiting.
+      const progress = createProgress(save);
+      progress.set("5", 7);
+      progress.flush();
+      api.getItem.mockImplementation(async () => ({ ...detailFixture, read_page: landed ? 7 : 1 }));
+
+      const loading = view.load("images", "5");
+      await Promise.resolve();
+      expect(api.getItem).not.toHaveBeenCalled();
+      finish();
+      await loading;
+
+      expect(save).toHaveBeenCalledWith("5", 7, undefined);
+      expect(view.detail?.read_page).toBe(7);
     });
   });
 

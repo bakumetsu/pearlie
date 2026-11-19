@@ -1,5 +1,6 @@
 import { ApiError } from "../api/client";
 import type { Api, Kind, LibraryItem, WebItem, LibraryItemDetail } from "../api/client";
+import { savesPending, settleSaves } from "../reader/progress";
 import { itemKey } from "./kinds";
 import { tagToString, stringToTag, addTags, removeTag } from "./tags";
 
@@ -46,6 +47,11 @@ export function createItemView(deps: ItemDeps) {
       currentId = id;
 
       try {
+        // Coming back from the reader: let its last progress save land before the read.
+        if (savesPending()) {
+          await settleSaves();
+          if (reqId !== requestCounter) return;
+        }
         const result = await deps.api.getItem(kind, id);
         if (reqId !== requestCounter) return;
         state.detail = result;
