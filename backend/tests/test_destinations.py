@@ -323,15 +323,15 @@ def test_danbooru_source() -> None:
     assert "danbooru.donmai.us" in d.file_hosts
 
 
-def test_api_komga_site_validates_against_komga_roots(tmp_path: Path) -> None:
+def test_api_stump_site_validates_against_stump_roots(tmp_path: Path) -> None:
     from fastapi.testclient import TestClient
 
     from app.config import Settings
     from app.main import create_app
 
-    class FakeKomga:
+    class FakeStump:
         def list_libraries(self) -> list[dict]:
-            return [{"id": "L1", "root": "/mnt/komga/doujin", "oneshotsDirectory": "_oneshots"}]
+            return [{"id": "L1", "root": "/mnt/stump/doujin", "oneshotsDirectory": "_oneshots"}]
 
     cfg = Settings(
         mode="real",
@@ -340,18 +340,18 @@ def test_api_komga_site_validates_against_komga_roots(tmp_path: Path) -> None:
         _env_file=None,  # pyright: ignore[reportCallIssue]
     )
     app = create_app(cfg)
-    app.state.komga = FakeKomga()
+    app.state.stump = FakeStump()
     with TestClient(app) as c:
         body = c.get("/api/destinations").json()
-        assert body["komga_oneshots_dir"] == "_oneshots"
-        assert body["komga_sites"] == ["nhentai"]
-        assert body["komga_library_paths"] == ["/mnt/komga/doujin"]
+        assert body["stump_oneshots_dir"] == "_oneshots"
+        assert body["stump_sites"] == ["nhentai"]
+        assert body["stump_library_paths"] == ["/mnt/stump/doujin"]
         bad = c.put("/api/destinations/nhentai", json={"folder": "/mnt/stash/x"})
         assert bad.status_code == 400
-        assert "Komga" in bad.json()["message"]
-        ok = c.put("/api/destinations/nhentai", json={"folder": "/mnt/komga/doujin/in"})
+        assert "Stump" in bad.json()["message"]
+        ok = c.put("/api/destinations/nhentai", json={"folder": "/mnt/stump/doujin/in"})
         assert ok.status_code == 200
-        assert ok.json()["items"] == [{"site": "nhentai", "folder": "/mnt/komga/doujin/in"}]
+        assert ok.json()["items"] == [{"site": "nhentai", "folder": "/mnt/stump/doujin/in"}]
         assert c.delete("/api/destinations/nhentai").status_code == 200
 
 
@@ -374,7 +374,6 @@ def test_api_stump_site_uses_stump_libraries_and_prefixes(
         mode="real",
         db_path=tmp_path / "p.db",
         static_dir=tmp_path / "nostatic",
-        book_server="stump",
         stump_url="http://stump.local:10801",
         stump_path_prefix_pearlie="/mnt/pearlie",
         stump_path_prefix_stump="/data/stump",
@@ -383,8 +382,8 @@ def test_api_stump_site_uses_stump_libraries_and_prefixes(
     app = create_app(cfg)
     with TestClient(app) as c:
         body = c.get("/api/destinations").json()
-        assert body["komga_library_error"] is None
-        assert body["komga_library_paths"] == ["/data/stump/doujin"]
+        assert body["stump_library_error"] is None
+        assert body["stump_library_paths"] == ["/data/stump/doujin"]
         bad = c.put("/api/destinations/nhentai", json={"folder": "/mnt/stash/x"})
         assert bad.status_code == 400
         assert "Stump" in bad.json()["message"]
@@ -393,7 +392,7 @@ def test_api_stump_site_uses_stump_libraries_and_prefixes(
         assert ok.json()["items"] == [{"site": "nhentai", "folder": "/mnt/pearlie/doujin/in"}]
     app.state.stump = None
     with TestClient(app) as c:
-        err = c.get("/api/destinations").json()["komga_library_error"]
+        err = c.get("/api/destinations").json()["stump_library_error"]
         assert err == "Stump is not configured"
 
 

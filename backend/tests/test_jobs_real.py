@@ -300,44 +300,44 @@ def test_worker_wake(tmp_path: Path) -> None:
     assert resp.status_code == 202
 
 
-def test_save_komga_source_without_komga_target(tmp_path: Path) -> None:
+def test_save_stump_source_without_stump_target(tmp_path: Path) -> None:
     client, sources, _ = make_client(tmp_path)
-    sources["danbooru"].target = "komga"
+    sources["danbooru"].target = "stump"
     resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
     assert resp.status_code == 422
     assert resp.json()["code"] == "no_target"
 
 
-def test_save_komga_source_queues_with_title(tmp_path: Path) -> None:
+def test_save_stump_source_queues_with_title(tmp_path: Path) -> None:
     client, sources, _ = make_client(tmp_path)
-    sources["danbooru"].target = "komga"
+    sources["danbooru"].target = "stump"
     sources["danbooru"].posts["1"].title = "Some Gallery"
-    client.app.state.komga = object()  # type: ignore[attr-defined]
+    client.app.state.stump = object()  # type: ignore[attr-defined]
     resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
     assert resp.status_code == 202
     job = client.get(f"/api/jobs/{resp.json()['job_id']}").json()
-    assert job["target"] == "komga"
+    assert job["target"] == "stump"
     assert job["title"] == "Some Gallery"
 
 
-def _komga_client(tmp_path: Path) -> tuple[TestClient, Path]:
+def _stump_client(tmp_path: Path) -> tuple[TestClient, Path]:
     client, sources, db_path = make_client(tmp_path)
-    sources["danbooru"].target = "komga"
-    client.app.state.komga = object()  # type: ignore[attr-defined]
+    sources["danbooru"].target = "stump"
+    client.app.state.stump = object()  # type: ignore[attr-defined]
     return client, db_path
 
 
-def _komga_row(db_path: Path) -> None:
+def _stump_row(db_path: Path) -> None:
     conn = connect(db_path)
     conn.execute(
         "INSERT INTO saved_items (source, post_id, md5, target, image_id) VALUES (?, ?, ?, ?, ?)",
-        ("danbooru", "1", "abc", "komga", ""),
+        ("danbooru", "1", "abc", "stump", ""),
     )
     conn.commit()
     conn.close()
 
 
-class _GoneKomgaTarget:
+class _GoneStumpTarget:
     def __init__(self, gone: bool, db_path: Path) -> None:
         self.gone = gone
         self.db_path = db_path
@@ -354,25 +354,25 @@ class _GoneKomgaTarget:
         return self.gone
 
 
-def test_save_komga_book_deleted_allows_resave(tmp_path: Path) -> None:
-    client, db_path = _komga_client(tmp_path)
-    _komga_row(db_path)
-    client.app.state.komga_target = _GoneKomgaTarget(True, db_path)  # type: ignore[attr-defined]
+def test_save_stump_book_deleted_allows_resave(tmp_path: Path) -> None:
+    client, db_path = _stump_client(tmp_path)
+    _stump_row(db_path)
+    client.app.state.stump_target = _GoneStumpTarget(True, db_path)  # type: ignore[attr-defined]
     resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
     assert resp.status_code == 202
 
 
-def test_save_komga_book_present_is_already_saved(tmp_path: Path) -> None:
-    client, db_path = _komga_client(tmp_path)
-    _komga_row(db_path)
-    client.app.state.komga_target = _GoneKomgaTarget(False, db_path)  # type: ignore[attr-defined]
+def test_save_stump_book_present_is_already_saved(tmp_path: Path) -> None:
+    client, db_path = _stump_client(tmp_path)
+    _stump_row(db_path)
+    client.app.state.stump_target = _GoneStumpTarget(False, db_path)  # type: ignore[attr-defined]
     resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
     assert resp.status_code == 409
     assert resp.json()["code"] == "already_saved"
 
 
 def test_save_placement_stored(tmp_path: Path) -> None:
-    client, db_path = _komga_client(tmp_path)
+    client, db_path = _stump_client(tmp_path)
     resp = client.post(
         "/api/save",
         json={"source": "danbooru", "post_id": "1", "placement": {"kind": "oneshot"}},
@@ -382,19 +382,19 @@ def test_save_placement_stored(tmp_path: Path) -> None:
 
 
 def test_save_without_placement_stores_none(tmp_path: Path) -> None:
-    client, db_path = _komga_client(tmp_path)
+    client, db_path = _stump_client(tmp_path)
     resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1"})
     assert JobStore(db_path).load_placement(resp.json()["job_id"]) is None
 
 
 @pytest.mark.parametrize("bad", [{"kind": "bogus"}, {"kind": None}, "series", {}])
 def test_save_placement_invalid_is_422(tmp_path: Path, bad: object) -> None:
-    client, _ = _komga_client(tmp_path)
+    client, _ = _stump_client(tmp_path)
     resp = client.post("/api/save", json={"source": "danbooru", "post_id": "1", "placement": bad})
     assert resp.status_code == 422
 
 
-class _FakeKomgaTarget:
+class _FakeStumpTarget:
     def trash_token(self, source: str, post_id: str) -> str | None:
         return None
 
@@ -405,8 +405,8 @@ class _FakeKomgaTarget:
 
 
 def test_placement_endpoint(tmp_path: Path) -> None:
-    client, _ = _komga_client(tmp_path)
-    client.app.state.komga_target = _FakeKomgaTarget()  # type: ignore[attr-defined]
+    client, _ = _stump_client(tmp_path)
+    client.app.state.stump_target = _FakeStumpTarget()  # type: ignore[attr-defined]
     resp = client.get("/api/save/placement", params={"source": "danbooru", "post_id": "1"})
     assert resp.status_code == 200
     assert resp.json() == {
@@ -420,12 +420,12 @@ def test_placement_endpoint(tmp_path: Path) -> None:
 
 
 def _nhentai_client(tmp_path: Path) -> tuple[TestClient, FakeSource]:
-    client, _ = _komga_client(tmp_path)
+    client, _ = _stump_client(tmp_path)
     fake = FakeSource("nhentai")
-    fake.target = "komga"
+    fake.target = "stump"
     fake.posts["7"] = _make_post("nhentai", "7")
     client.app.state.sources = {"nhentai": fake}  # type: ignore[attr-defined]
-    client.app.state.komga_target = _FakeKomgaTarget()  # type: ignore[attr-defined]
+    client.app.state.stump_target = _FakeStumpTarget()  # type: ignore[attr-defined]
     return client, fake
 
 
@@ -473,7 +473,7 @@ def test_parallel_book_loads_share_one_get_post(tmp_path: Path) -> None:
     assert fake.calls == ["7"]
 
 
-def test_placement_endpoint_not_komga(tmp_path: Path) -> None:
+def test_placement_endpoint_not_stump(tmp_path: Path) -> None:
     client, _, _ = make_client(tmp_path)
     resp = client.get("/api/save/placement", params={"source": "danbooru", "post_id": "1"})
     assert resp.status_code == 422
@@ -481,8 +481,8 @@ def test_placement_endpoint_not_komga(tmp_path: Path) -> None:
 
 
 def test_placement_endpoint_unknown_post(tmp_path: Path) -> None:
-    client, _ = _komga_client(tmp_path)
-    client.app.state.komga_target = _FakeKomgaTarget()  # type: ignore[attr-defined]
+    client, _ = _stump_client(tmp_path)
+    client.app.state.stump_target = _FakeStumpTarget()  # type: ignore[attr-defined]
     resp = client.get("/api/save/placement", params={"source": "danbooru", "post_id": "99"})
     assert resp.status_code == 404
 

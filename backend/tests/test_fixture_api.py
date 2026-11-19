@@ -31,7 +31,7 @@ def test_search_all_sections(client):
     assert [s.id for s in sr.sections] == [
         "stash_images",
         "stash_videos",
-        "komga_books",
+        "stump_books",
         "danbooru",
         "gelbooru",
         "nhentai",
@@ -73,8 +73,8 @@ def test_library_list_each_kind(client):
     paths = [
         "/api/library/stash/images",
         "/api/library/stash/videos",
-        "/api/library/komga/books",
-        "/api/library/komga/series",
+        "/api/library/stump/books",
+        "/api/library/stump/series",
     ]
     for p in paths:
         r = client.get(p, params={"page_size": 5})
@@ -227,29 +227,29 @@ def test_real_mode_every_page_route_answers(tmp_path, real):
         "/api/trash",
         "/api/rules",
         "/api/library/stash/images",
-        "/api/library/komga/books",
+        "/api/library/stump/books",
     ):
         r = c.get(path)
         assert r.status_code != 404, f"{path} → {r.status_code}"
     assert c.get("/api/trash").status_code == 200
-    r = c.get("/api/library/komga/books")
+    r = c.get("/api/library/stump/books")
     assert r.status_code == 503
     assert r.json()["code"] == "not_configured"
     assert c.get("/api/rules").status_code == 200
-    r2 = c.get("/api/media/komga/books/x/pages/1/thumb")
+    r2 = c.get("/api/media/stump/books/x/pages/1/thumb")
     assert r2.status_code == 503
     assert r2.json()["code"] == "not_configured"
 
 
-def test_real_mode_stash_only_starts_komga_503(tmp_path):
+def test_real_mode_stash_only_starts_stump_503(tmp_path):
     from fastapi.testclient import TestClient
 
     app = _real_app(tmp_path, stash_url="http://stash.invalid", stash_api_key="SECRET-STASH-KEY")
-    assert app.state.komga is None
-    r = TestClient(app).get("/api/library/komga/books")
+    assert app.state.stump is None
+    r = TestClient(app).get("/api/library/stump/books")
     assert r.status_code == 503
     assert r.json()["code"] == "not_configured"
-    assert r.json()["message"] == "library_komga is not configured"
+    assert r.json()["message"] == "library_stump is not configured"
     assert "SECRET" not in r.text
 
 
@@ -270,32 +270,32 @@ def test_real_mode_nothing_configured_starts(tmp_path):
 
 def test_progress(client):
     """Page 99 on a 100-page book marks completed."""
-    r = client.post("/api/library/komga/books/0/progress", json={"page": 99})
+    r = client.post("/api/library/stump/books/0/progress", json={"page": 99})
     assert r.status_code == 200
     assert r.json()["completed"] is True
 
 
 def test_page_thumb_fixture(client):
     """Fixture page thumbnail returns a small JPEG with cache headers."""
-    book_id = client.get("/api/library/komga/books").json()["items"][0]["id"]
-    r = client.get(f"/api/media/komga/books/{book_id}/pages/1/thumb")
+    book_id = client.get("/api/library/stump/books").json()["items"][0]["id"]
+    r = client.get(f"/api/media/stump/books/{book_id}/pages/1/thumb")
     assert r.status_code == 200
     assert r.headers["content-type"] == "image/jpeg"
     assert r.headers["cache-control"] == "no-store"
     img = Image.open(BytesIO(r.content))
     assert max(img.size) <= 200
 
-    assert client.get(f"/api/media/komga/books/{book_id}/pages/0/thumb").status_code == 404
-    assert client.get(f"/api/media/komga/books/{book_id}/pages/9999/thumb").status_code == 404
-    assert client.get("/api/media/komga/books/nonexistent/pages/1/thumb").status_code == 404
+    assert client.get(f"/api/media/stump/books/{book_id}/pages/0/thumb").status_code == 404
+    assert client.get(f"/api/media/stump/books/{book_id}/pages/9999/thumb").status_code == 404
+    assert client.get("/api/media/stump/books/nonexistent/pages/1/thumb").status_code == 404
 
 
 def test_book_detail_page_thumb_url(client):
     """Fixture book detail exposes page_thumb_url with {n} and unchanged page_url."""
-    book_id = client.get("/api/library/komga/books").json()["items"][0]["id"]
+    book_id = client.get("/api/library/stump/books").json()["items"][0]["id"]
     d = client.get(f"/api/library/books/{book_id}").json()
     assert "{n}" in d["page_thumb_url"]
-    assert d["page_url"] == f"/api/media/komga/books/{book_id}/pages/{{n}}?src=fixture"
+    assert d["page_url"] == f"/api/media/stump/books/{book_id}/pages/{{n}}?src=fixture"
 
 
 def test_media_range(client):

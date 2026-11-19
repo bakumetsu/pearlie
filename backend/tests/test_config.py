@@ -191,7 +191,7 @@ def test_stash_scan_timeout_s_bounds() -> None:
     assert s.stash_scan_timeout_s == 0.5
 
 
-@pytest.mark.parametrize("name", ["stash_url", "stash_public_url", "komga_url"])
+@pytest.mark.parametrize("name", ["stash_url", "stash_public_url", "stump_url"])
 def test_url_with_credentials_refused_and_not_echoed(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
@@ -211,7 +211,7 @@ def test_url_without_credentials_accepted() -> None:
     s = Settings(
         mode="fixture",
         stash_url="http://stash.local:9999",
-        komga_url="https://komga.example/",
+        stump_url="https://stump.example/",
         _env_file=None,  # pyright: ignore[reportCallIssue]
     )
     assert s.stash_url == "http://stash.local:9999"

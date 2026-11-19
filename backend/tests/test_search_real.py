@@ -138,10 +138,10 @@ def test_search_empty_tags_page_one_in_request_order(tmp_path):
         return httpx.Response(200, json=load("search"))
 
     client = make_client(tmp_path, handler)
-    r = client.get("/api/search?sources=danbooru,stash_images,komga_books")
+    r = client.get("/api/search?sources=danbooru,stash_images,stump_books")
     assert r.status_code == 200
     body = r.json()
-    assert [s["id"] for s in body["sections"]] == ["danbooru", "stash_images", "komga_books"]
+    assert [s["id"] for s in body["sections"]] == ["danbooru", "stash_images", "stump_books"]
     assert len(calls) == 1
     assert calls[0].params["tags"] == ""
     assert calls[0].params["page"] == "1"
@@ -264,13 +264,13 @@ def test_search_rating_filter_has_no_error(tmp_path):
 
 STASH_URL = "http://stash.test"
 STASH_KEY = "s-secret-456"
-KOMGA_URL = "http://komga.test"
-KOMGA_KEY = "k-secret-123"
+STUMP_URL = "http://stump.test"
+STUMP_KEY = "k-secret-123"
 
 
-def make_library_client(tmp_path, stash_handler=None, komga_handler=None):
-    """Build a real-mode client with mock-backed Stash and/or Komga (None = not configured)."""
-    from app.komga import Komga
+def make_library_client(tmp_path, stash_handler=None, stump_handler=None):
+    """Build a real-mode client with mock-backed Stash and/or Stump (None = not configured)."""
+    from app.stump import Stump
     from app.targets.stash_client import StashClient
 
     app = create_app(
@@ -293,15 +293,15 @@ def make_library_client(tmp_path, stash_handler=None, komga_handler=None):
         if stash_handler
         else None
     )
-    app.state.komga = (
-        Komga(
-            KOMGA_URL,
-            KOMGA_KEY,
+    app.state.stump = (
+        Stump(
+            STUMP_URL,
+            STUMP_KEY,
             client=httpx.Client(
-                base_url=KOMGA_URL, transport=httpx.MockTransport(komga_handler)
+                base_url=STUMP_URL, transport=httpx.MockTransport(stump_handler)
             ),
         )
-        if komga_handler
+        if stump_handler
         else None
     )
     return TestClient(app)
@@ -341,7 +341,7 @@ def _stash_ok(request: httpx.Request) -> httpx.Response:
     )
 
 
-def _komga_ok(request: httpx.Request) -> httpx.Response:
+def _stump_ok(request: httpx.Request) -> httpx.Response:
     book = {
         "id": "b1",
         "name": "Book",
@@ -367,26 +367,26 @@ def test_search_stash_images_and_videos(tmp_path):
     assert sections["stash_videos"]["total"] == 1
 
 
-def test_search_komga_books(tmp_path):
-    """Configured Komga answers the books section with a single page."""
-    client = make_library_client(tmp_path, komga_handler=_komga_ok)
-    r = client.get("/api/search", params={"q": "x", "sources": "komga_books"})
+def test_search_stump_books(tmp_path):
+    """Configured Stump answers the books section with a single page."""
+    client = make_library_client(tmp_path, stump_handler=_stump_ok)
+    r = client.get("/api/search", params={"q": "x", "sources": "stump_books"})
     assert r.status_code == 200
     section = r.json()["sections"][0]
-    assert section["id"] == "komga_books"
+    assert section["id"] == "stump_books"
     assert section["error"] is None
     assert section["total"] == 1
     assert section["next_page"] is None
     assert section["page_size"] == 60
     assert section["items"][0]["id"] == "b1"
-    assert section["items"][0]["thumb_url"] == "/api/media/komga/books/b1/thumb"
+    assert section["items"][0]["thumb_url"] == "/api/media/stump/books/b1/thumb"
 
 
 def test_search_library_not_configured(tmp_path):
-    """Without Stash or Komga the old not_configured answer stays."""
+    """Without Stash or Stump the old not_configured answer stays."""
     client = make_library_client(tmp_path)
     r = client.get(
-        "/api/search", params={"q": "x", "sources": "stash_images,stash_videos,komga_books"}
+        "/api/search", params={"q": "x", "sources": "stash_images,stash_videos,stump_books"}
     )
     assert r.status_code == 200
     for section in r.json()["sections"]:
@@ -396,16 +396,16 @@ def test_search_library_not_configured(tmp_path):
 
 
 def test_search_library_unreachable_keeps_other_sections(tmp_path):
-    """Unreachable Stash and Komga give a safe error section; no URL or key leaks."""
+    """Unreachable Stash and Stump give a safe error section; no URL or key leaks."""
 
     def stash_down(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError(f"cannot connect to {STASH_URL} key {STASH_KEY}")
 
-    def komga_down(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError(f"cannot connect to {KOMGA_URL} key {KOMGA_KEY}")
+    def stump_down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError(f"cannot connect to {STUMP_URL} key {STUMP_KEY}")
 
-    client = make_library_client(tmp_path, stash_handler=stash_down, komga_handler=komga_down)
-    r = client.get("/api/search", params={"sources": "stash_images,komga_books"})
+    client = make_library_client(tmp_path, stash_handler=stash_down, stump_handler=stump_down)
+    r = client.get("/api/search", params={"sources": "stash_images,stump_books"})
     assert r.status_code == 200
     sections = {s["id"]: s for s in r.json()["sections"]}
     assert sections["stash_images"]["items"] == []
@@ -413,18 +413,18 @@ def test_search_library_unreachable_keeps_other_sections(tmp_path):
         "code": "upstream_error",
         "message": "Stash is not reachable",
     }
-    assert sections["komga_books"]["error"]["code"] == "upstream_error"
-    assert sections["komga_books"]["error"]["message"] == "Komga is not reachable"
-    for secret in (STASH_URL, STASH_KEY, KOMGA_URL, KOMGA_KEY):
+    assert sections["stump_books"]["error"]["code"] == "upstream_error"
+    assert sections["stump_books"]["error"]["message"] == "Stump is not reachable"
+    for secret in (STASH_URL, STASH_KEY, STUMP_URL, STUMP_KEY):
         assert secret not in r.text
 
 
 def test_search_library_body_has_no_service_url_or_key(tmp_path):
-    """Successful library sections never carry a Stash or Komga URL or key."""
-    client = make_library_client(tmp_path, stash_handler=_stash_ok, komga_handler=_komga_ok)
+    """Successful library sections never carry a Stash or Stump URL or key."""
+    client = make_library_client(tmp_path, stash_handler=_stash_ok, stump_handler=_stump_ok)
     r = client.get("/api/search", params={"q": "t"})
     assert r.status_code == 200
-    for secret in (STASH_URL, STASH_KEY, KOMGA_URL, KOMGA_KEY):
+    for secret in (STASH_URL, STASH_KEY, STUMP_URL, STUMP_KEY):
         assert secret not in r.text
 
 

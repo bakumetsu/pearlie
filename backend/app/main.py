@@ -56,6 +56,7 @@ from app.config import ConfigError, Settings, load_settings
 from app.connections_store import ConnectionStore
 from app.db import connect, init_db
 from app.jobs.worker import JobWorker
+from app.legacy import migrate_komga
 from app.library.stash_trash import StashTrash
 from app.library.trash import TrashStore
 from app.logs import install_http_hooks
@@ -222,6 +223,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         keep_days=settings.log_keep_days,
     )
     logger.info(settings.safe_summary())
+    migrate_komga(settings.db_path)
     worker_enabled = settings.worker_enabled
 
     @asynccontextmanager

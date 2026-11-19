@@ -39,13 +39,13 @@ def test_fixture_search_library_pages(client):
     assert section["pages"] >= 1
 
 
-def test_komga_books_total_counts_hidden(client):
-    """Komga books total includes hidden items; visible count is total minus hidden."""
-    r = client.get("/api/search?sources=komga_books,stash_images")
+def test_stump_books_total_counts_hidden(client):
+    """Stump books total includes hidden items; visible count is total minus hidden."""
+    r = client.get("/api/search?sources=stump_books,stash_images")
     assert r.status_code == 200
     sections = {s["id"]: s for s in r.json()["sections"]}
-    komga = sections["komga_books"]
-    assert komga["total"] == 120
-    assert komga["hidden"] == 2
-    assert komga["total"] - komga["hidden"] == 118
+    stump = sections["stump_books"]
+    assert stump["total"] == 120
+    assert stump["hidden"] == 2
+    assert stump["total"] - stump["hidden"] == 118
     assert sections["stash_images"]["total"] == 195

@@ -367,8 +367,8 @@ def test_dto_mapping() -> None:
 
 
 def _app(url: str) -> SimpleNamespace:
-    st = SimpleNamespace(book_server="stump", stump_url=url, stump_api_key=SecretStr(KEY))
-    return SimpleNamespace(state=SimpleNamespace(settings=st, komga=None, books=None))
+    st = SimpleNamespace(stump_url=url, stump_api_key=SecretStr(KEY))
+    return SimpleNamespace(state=SimpleNamespace(settings=st, stump=None, books=None))
 
 
 def test_factory_picks_stump_and_caches() -> None:

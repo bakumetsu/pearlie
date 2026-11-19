@@ -65,8 +65,7 @@ def make(tmp_path, mock, wait=0.0):
     app = create_app(
         Settings(
             mode="real",
-            real="library_komga",
-            book_server="stump",
+            real="library_stump",
             stump_url=URL,
             stump_api_key=KEY,  # pyright: ignore[reportArgumentType]
             db_path=tmp_path / "p.db",
@@ -80,7 +79,7 @@ def make(tmp_path, mock, wait=0.0):
     state: Any = app.state
     state.books = adapter
     state.stump_conn = (URL, KEY)
-    state.komga_trash = StumpTrash(
+    state.stump_trash = StumpTrash(
         state.settings,
         state.trash,
         adapter,
@@ -194,7 +193,7 @@ def test_startup_repair_has_a_stump_destroyer(tmp_path):
     conn.commit()
     conn.close()
     called: list[str] = []
-    state.komga_trash.destroy_row = lambda row: called.append(row["token"])
+    state.stump_trash.destroy_row = lambda row: called.append(row["token"])
 
     async def run() -> None:
         task = asyncio.create_task(_trash_purge_loop(c.app))  # pyright: ignore[reportArgumentType]
@@ -204,3 +203,34 @@ def test_startup_repair_has_a_stump_destroyer(tmp_path):
     asyncio.run(run())
     assert called == [token]
     assert state.trash.get(token)["state"] == "trashed"
+
+
+def test_restore_of_a_komga_era_row_moves_the_file_back_and_scans(tmp_path):
+    """A row written under Komga (unknown book and library ids) restores as a file."""
+    import json
+
+    from app.db import connect
+    from app.legacy import migrate_komga
+
+    _, f1, _, m = setup_lib(tmp_path)
+    c = make(tmp_path, m, wait=60.0)
+    tok = c.delete("/api/library/books/B1").json()["token"]
+    state: Any = c.app.state  # pyright: ignore[reportAttributeAccessIssue]
+    db = state.settings.db_path
+    conn = connect(db)
+    row = conn.execute("SELECT meta FROM trash_items WHERE token=?", (tok,)).fetchone()
+    meta = json.loads(row["meta"])
+    meta["library_id"] = "komga-lib-7"
+    conn.execute(
+        "UPDATE trash_items SET target='komga', entity_id='komga-book-9', meta=? WHERE token=?",
+        (json.dumps(meta), tok),
+    )
+    conn.commit()
+    conn.close()
+    migrate_komga(db)
+    m.scanned.clear()
+    r = c.post(f"/api/trash/{tok}/restore")
+    assert r.status_code == 200, r.text
+    assert f1.exists()
+    assert m.scanned == ["L1"]
+    assert c.get("/api/trash").json()["items"] == []

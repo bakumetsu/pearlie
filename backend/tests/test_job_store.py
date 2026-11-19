@@ -229,7 +229,7 @@ def test_saved_refs_batch_and_md5(tmp_path: Path) -> None:
     conn = connect(tmp_path / "p.db")
     rows = [
         ("danbooru", "1", "a" * 32, "stash", "42"),
-        ("danbooru", "2", "b" * 32, "komga", ""),
+        ("danbooru", "2", "b" * 32, "stump", ""),
         ("gelbooru", "9", "c" * 32, "stash", "7"),
     ]
     conn.executemany(
@@ -252,7 +252,7 @@ def test_saved_refs_video_kind(tmp_path: Path) -> None:
     rows = [
         ("danbooru", "30", "a" * 32, "stash", "30", "video"),
         ("danbooru", "31", "b" * 32, "stash", "31", "image"),
-        ("danbooru", "32", "c" * 32, "komga", "", "image"),
+        ("danbooru", "32", "c" * 32, "stump", "", "image"),
     ]
     conn.executemany(
         "INSERT INTO saved_items (source, post_id, md5, target, image_id, kind) "
@@ -338,7 +338,7 @@ def test_saved_refs_null_image_id(tmp_path: Path) -> None:
     conn = connect(tmp_path / "p.db")
     rows = [
         ("danbooru", "1", "a" * 32, "stash", None, "image"),
-        ("danbooru", "2", "b" * 32, "komga", None, "book"),
+        ("danbooru", "2", "b" * 32, "stump", None, "book"),
         ("danbooru", "3", "c" * 32, "stash", None, "video"),
     ]
     conn.executemany(

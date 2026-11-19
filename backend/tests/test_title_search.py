@@ -1,4 +1,4 @@
-"""Title chip: nhentai query, Komga q, skip notes, capability flags, rules guards (mocked)."""
+"""Title chip: nhentai query, Stump q, skip notes, capability flags, rules guards (mocked)."""
 
 from __future__ import annotations
 
@@ -50,8 +50,8 @@ def _row(i: int) -> dict:
     }
 
 
-def _app(tmp_path: Path, nh_handler=None, komga_handler=None, real="search") -> TestClient:
-    from app.komga import Komga
+def _app(tmp_path: Path, nh_handler=None, stump_handler=None, real="search") -> TestClient:
+    from app.stump import Stump
 
     db_path = tmp_path / "p.db"
     init_db(db_path)
@@ -72,15 +72,15 @@ def _app(tmp_path: Path, nh_handler=None, komga_handler=None, real="search") -> 
             credentials=lambda: CREDS,
         )
     app.state.stash = None
-    app.state.komga = (
-        Komga(
-            "http://komga.test",
+    app.state.stump = (
+        Stump(
+            "http://stump.test",
             "k",
             client=httpx.Client(
-                base_url="http://komga.test", transport=httpx.MockTransport(komga_handler)
+                base_url="http://stump.test", transport=httpx.MockTransport(stump_handler)
             ),
         )
-        if komga_handler
+        if stump_handler
         else None
     )
     return TestClient(app)
@@ -94,7 +94,7 @@ def _nh_ok(seen: list):
     return handler
 
 
-def _komga_ok(seen: list):
+def _stump_ok(seen: list):
     def handler(req: httpx.Request) -> httpx.Response:
         seen.append(req)
         return httpx.Response(200, json={"content": [], "last": True, "totalElements": 0})
@@ -144,38 +144,38 @@ def test_unsupported_source_skipped_without_request(tmp_path) -> None:
     assert len(seen) == 1
 
 
-def test_komga_title_sends_only_title_text(tmp_path) -> None:
+def test_stump_title_sends_only_title_text(tmp_path) -> None:
     seen: list = []
-    client = _app(tmp_path, komga_handler=_komga_ok(seen))
+    client = _app(tmp_path, stump_handler=_stump_ok(seen))
     r = client.get(
         "/api/search",
-        params={"q": 'cat title:"big dragon" "two"', "sources": "komga_books"},
+        params={"q": 'cat title:"big dragon" "two"', "sources": "stump_books"},
     )
     assert len(seen) == 1
     assert json.loads(seen[0].content)["fullTextSearch"] == "big dragon two"
     notice = r.json()["sections"][0]["notice"]
-    assert notice["message"] == "Tag chips do not narrow Komga results"
+    assert notice["message"] == "Tag chips do not narrow Stump results"
 
 
-def test_komga_title_without_tags_has_no_notice(tmp_path) -> None:
+def test_stump_title_without_tags_has_no_notice(tmp_path) -> None:
     seen: list = []
-    client = _app(tmp_path, komga_handler=_komga_ok(seen))
-    r = client.get("/api/search", params={"q": 'title:"a"', "sources": "komga_books"})
+    client = _app(tmp_path, stump_handler=_stump_ok(seen))
+    r = client.get("/api/search", params={"q": 'title:"a"', "sources": "stump_books"})
     assert json.loads(seen[0].content)["fullTextSearch"] == "a"
     assert r.json()["sections"][0]["notice"] is None
 
 
-def test_komga_without_title_keeps_q(tmp_path) -> None:
+def test_stump_without_title_keeps_q(tmp_path) -> None:
     seen: list = []
-    client = _app(tmp_path, komga_handler=_komga_ok(seen))
-    client.get("/api/search", params={"q": "cat dog", "sources": "komga_books"})
+    client = _app(tmp_path, stump_handler=_stump_ok(seen))
+    client.get("/api/search", params={"q": "cat dog", "sources": "stump_books"})
     assert json.loads(seen[0].content)["fullTextSearch"] == "cat dog"
 
 
-def test_komga_excluded_title_skipped(tmp_path) -> None:
+def test_stump_excluded_title_skipped(tmp_path) -> None:
     seen: list = []
-    client = _app(tmp_path, komga_handler=_komga_ok(seen))
-    r = client.get("/api/search", params={"q": '-title:"x"', "sources": "komga_books"})
+    client = _app(tmp_path, stump_handler=_stump_ok(seen))
+    r = client.get("/api/search", params={"q": '-title:"x"', "sources": "stump_books"})
     assert seen == []
     sec = r.json()["sections"][0]
     assert sec["notice"]["message"] == "Title exclusion not available on this site"
@@ -186,7 +186,7 @@ def test_filters_flags(tmp_path) -> None:
     client = _app(tmp_path)
     srcs = client.get("/api/search/filters").json()["sources"]
     assert srcs["nhentai"]["title_search"] and srcs["nhentai"]["title_exclude"]
-    assert srcs["komga_books"]["title_search"] and not srcs["komga_books"]["title_exclude"]
+    assert srcs["stump_books"]["title_search"] and not srcs["stump_books"]["title_exclude"]
     for sid in ("stash_images", "stash_videos", "danbooru", "gelbooru", "rule34"):
         assert not srcs[sid]["title_search"]
         assert not srcs[sid]["title_exclude"]

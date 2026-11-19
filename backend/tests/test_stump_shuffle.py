@@ -1,10 +1,10 @@
-"""Tests for app.komga_shuffle."""
+"""Tests for app.stump_shuffle."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
-from app.komga_shuffle import ShuffleCache, fetch_all, page_slice, shuffled
+from app.stump_shuffle import ShuffleCache, fetch_all, page_slice, shuffled
 
 
 def _make_items(n: int) -> list[dict]:

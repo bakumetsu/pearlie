@@ -254,8 +254,8 @@ class StumpTrash:
         meta = _loads(row["meta"])
         kind = row["kind"]
         plural = PLURAL_OF[kind]
-        library_id = str(meta["library_id"])
         server_path = self._to_server(new_path)
+        library_id = self._library_for(str(meta.get("library_id") or ""), server_path)
         self._c.scan_library(library_id)
         dto = self._wait_found(plural, row["entity_id"], library_id, server_path, new_path.name)
         new_id = dto.id
@@ -272,6 +272,18 @@ class StumpTrash:
             item = series_item(self._c.get_series(new_id))
         self._relink_saved(row["entity_id"], new_id)
         return new_id, item
+
+    def _library_for(self, library_id: str, server_path: str) -> str:
+        """The saved library id, or for a row from the Komga era the library that holds the path."""
+        libs = self._c.list_libraries()
+        if any(lib.id == library_id for lib in libs):
+            return library_id
+        want = posixpath.normpath(server_path.replace("\\", "/"))
+        for lib in libs:
+            root = posixpath.normpath(lib.root.replace("\\", "/"))
+            if want == root or want.startswith(root.rstrip("/") + "/"):
+                return lib.id
+        raise RuntimeError("library not found")
 
     @staticmethod
     def _metadata_patch(meta: dict, dto: BookDTO | SeriesDTO) -> MetadataPatch | None:

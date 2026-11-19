@@ -1,12 +1,10 @@
-"""Stream edges: slot heartbeat, video idle limit, 429, Komga type, Stash manifest cap."""
+"""Stream edges: slot heartbeat, video idle limit, 429, Stump type, Stash manifest cap."""
 
 import asyncio
 
-import httpx
 from fastapi.testclient import TestClient
 
 from app.api.image_slots import STALE_GRANT_S, Limiter, SlotBody
-from tests.test_komga_media_ids import make_client as komga_client
 from tests.test_media_stash_real import make_client as stash_client
 from tests.test_media_stash_real import stream_response
 from tests.test_media_web_real import _app, _handler
@@ -88,15 +86,6 @@ def test_web_429_is_429_with_retry_after(tmp_path):
     assert r.status_code == 429
     assert r.json()["code"] == "rate_limited"
     assert r.headers["retry-after"].isdigit()
-
-
-def test_komga_non_image_is_502(tmp_path):
-    def h(request):
-        return httpx.Response(200, content=b"<html>", headers={"content-type": "text/html"})
-
-    r = komga_client(tmp_path, h).get("/api/media/komga/books/abc/pages/1")
-    assert r.status_code == 502
-    assert r.json()["code"] == "upstream_error"
 
 
 def test_stash_manifest_over_cap_is_502(tmp_path):

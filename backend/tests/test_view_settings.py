@@ -39,8 +39,8 @@ def test_get_defaults(any_client):
     assert set(sources) == {
         "stash_images",
         "stash_videos",
-        "komga_series",
-        "komga_books",
+        "stump_series",
+        "stump_books",
         "danbooru",
         "gelbooru",
         "rule34",
@@ -56,9 +56,9 @@ def test_get_defaults(any_client):
     }
     assert sources["stash_videos"]["mode"] == "wall"
     assert sources["stash_videos"]["modes"] == ["wall", "list"]
-    assert sources["komga_series"]["mode"] == "grid"
-    assert sources["komga_series"]["modes"] == ["grid", "list"]
-    assert sources["komga_books"]["modes"] == ["grid", "list"]
+    assert sources["stump_series"]["mode"] == "grid"
+    assert sources["stump_series"]["modes"] == ["grid", "list"]
+    assert sources["stump_books"]["modes"] == ["grid", "list"]
     assert sources["danbooru"]["modes"] == ["grid", "wall", "masonry", "list"]
     assert sources["gelbooru"]["per_page_options"] == [20, 40, 60, 100]
     assert sources["gelbooru"]["per_page_max"] == 100
@@ -135,7 +135,7 @@ def test_put_invalid(any_client, source, body, field, message):
         ("gelbooru", 100),
         ("rule34", 100),
         ("nhentai", 25),
-        ("komga_books", 200),
+        ("stump_books", 200),
     ],
 )
 def test_cap_accepted(any_client, source, cap):
