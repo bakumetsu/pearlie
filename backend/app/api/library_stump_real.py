@@ -35,7 +35,7 @@ from app.stump_shuffle import ShuffleCache, fetch_all, page_slice, shuffled
 
 router = APIRouter(prefix="/api")
 
-_ID_RE = re.compile(r"[A-Za-z0-9]{1,64}")
+_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
 def _check_id(request: Request, id: str) -> None:

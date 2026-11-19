@@ -74,7 +74,7 @@ def err(e: TrashError) -> ApiError:
     return ApiError(e.status, e.code, e.message)
 
 
-STUMP_ID = re.compile(r"[A-Za-z0-9]{1,64}")
+STUMP_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 PLURAL_OF = {"image": "images", "video": "videos", "series": "series", "book": "books"}
 
 

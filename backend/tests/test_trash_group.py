@@ -80,3 +80,20 @@ def test_fixture_batch_and_group_restore(tmp_path):
     r = c.post(f"/api/trash/group/{body['group']}/restore")
     assert r.status_code == 200 and len(r.json()["restored"]) == len(ids)
     assert c.post(f"/api/trash/group/{body['group']}/restore").status_code == 404
+
+
+def test_uuid_ids_trash_and_undo(tmp_path):
+    """Stump ids are UUIDs with dashes; the live delete was refused as not_found (T-350)."""
+    uid = "46d7fdf9-81aa-4dbe-b25c-8ad21ea4868f"
+    _, f1, _, k = setup_lib(tmp_path)
+    k.books[0]["id"] = uid
+    c = make(tmp_path, k)
+    r = c.post("/api/library/trash", json={"items": [{"kind": "book", "id": uid}]})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["failed"] == [] and len(body["results"]) == 1
+    assert not f1.exists()
+    r = c.post(f"/api/trash/group/{body['group']}/restore")
+    assert r.status_code == 200, r.text
+    assert len(r.json()["restored"]) == 1 and r.json()["failed"] == []
+    assert f1.exists()
