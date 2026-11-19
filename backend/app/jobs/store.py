@@ -103,10 +103,18 @@ def _ref(
     return SavedRef(kind="image", id=image_id or "")
 
 
+# A done book job saved before the ref was stored takes the book id from the saved index row.
+_REF_COL = (
+    "COALESCE(library_ref_id, (SELECT s.library_id FROM saved_items s "
+    "WHERE jobs.status = 'done' AND jobs.target <> 'stash' AND s.target = jobs.target "
+    "AND s.source = jobs.source AND s.post_id = jobs.post_id "
+    "AND s.library_id IS NOT NULL AND s.library_id <> '')) AS library_ref_id"
+)
+
 # Every column _to_job reads; the list view skips post_json (a large blob it never uses).
 _JOB_COLS = (
     "id, source, post_id, status, error, error_code, target, title, thumb_url, notices, "
-    "library_ref_id, dest_path, pages_done, pages_total, eta_s, scan_due_at, "
+    f"{_REF_COL}, dest_path, pages_done, pages_total, eta_s, scan_due_at, "
     "created_at, finished_at"
 )
 
@@ -254,7 +262,7 @@ class JobStore:
             return None
         conn = connect(self._path)
         try:
-            row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            row = conn.execute(f"SELECT {_JOB_COLS} FROM jobs WHERE id = ?", (job_id,)).fetchone()
             if row is None:
                 return None
             return _to_job(row)
