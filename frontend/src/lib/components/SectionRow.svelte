@@ -169,18 +169,37 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--r-md);
-    color: var(--text);
+    padding: 0;
+    background: rgba(0, 0, 0, 0.55);
+    border: none;
+    border-radius: 50%;
+    color: #fff;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+  .arrow :global(svg) {
+    stroke-width: 1.5;
+  }
+  .strip-wrap:hover .arrow {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .arrow:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
   }
   .arrow-left {
-    left: 0;
+    left: var(--s-1);
   }
   .arrow-right {
-    right: 0;
+    right: var(--s-1);
+  }
+  @media (hover: none) {
+    .arrow {
+      display: none;
+    }
   }
   .hidden {
     display: none;
