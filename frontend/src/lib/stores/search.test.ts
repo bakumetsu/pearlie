@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
-import { createSearch } from "./search.svelte";
+import { createSearch, clearSearchAnswers } from "./search.svelte";
 import { ApiError } from "../api/client";
 import { parseChip, type Chip, type SearchState } from "../query";
 import type { Api, Section } from "../api/client";
@@ -25,7 +25,7 @@ const state = (over: Partial<{ chips: string | Chip[] | false; pill: string; sit
 });
 
 describe("createSearch", () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => { vi.useFakeTimers(); clearSearchAnswers(); });
   afterEach(() => vi.useRealTimers());
 
   it("a reorder of the sites moves the rows and runs no search", async () => {

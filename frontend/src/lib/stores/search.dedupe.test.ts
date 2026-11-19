@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
-import { createSearch } from "./search.svelte";
+import { createSearch, clearSearchAnswers } from "./search.svelte";
 import { parseChip, type SearchState } from "../query";
 import type { Api } from "../api/client";
 
@@ -14,7 +14,7 @@ function state(raw: string): SearchState {
 }
 
 describe("createSearch identical query", () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => { vi.useFakeTimers(); clearSearchAnswers(); });
   afterEach(() => vi.useRealTimers());
 
   it("does not re-send an identical query, but retryAll forces it", () => {

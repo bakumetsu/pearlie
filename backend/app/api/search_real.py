@@ -38,6 +38,7 @@ from app.models import (
     WebSource,
 )
 from app.paging import PAGE_SIZE_CAPS, clamp_page_size, pages_for
+from app.search_cache import SearchCache
 from app.sources.base import Post, Source, SourceError
 from app.sources.filters import NOTICE_CODE
 from app.sources.nhentai import reject_terms
@@ -70,6 +71,15 @@ _LIBRARY = {"stash_images", "stash_videos", "stump_books"}
 
 # Targets a save job can reach today; T-131b adds "stump".
 _SAVE_TARGETS = {"stash", "stump"}
+
+
+def _cache_of(request: Request) -> SearchCache:
+    """The app's site-search cache (library sources never use it)."""
+    state = request.app.state
+    cache = getattr(state, "search_cache", None)
+    if cache is None:
+        cache = state.search_cache = SearchCache()
+    return cache
 
 
 def _web_thumb(post: Post) -> str:
@@ -186,10 +196,14 @@ def search(
             if sid == "nhentai":
                 tags += [t for t in reject_terms(rules.reject) if t not in tags]
             pg = page if not multi else 1
+            size_v = page_size if not multi else None
+            cache = _cache_of(request)
+            ckey = (sid, tuple(tags), pg, size_v, order_v, tuple(rating_v))
             try:
-                page_result = src.search(
-                    tags, pg, page_size if not multi else None, order_v, rating_v
-                )
+                page_result = cache.get(ckey)
+                if page_result is None:
+                    page_result = src.search(tags, pg, size_v, order_v, rating_v)
+                    cache.put(ckey, page_result)
             except SourceError as e:
                 sections.append(
                     Section(

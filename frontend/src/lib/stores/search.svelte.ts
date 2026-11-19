@@ -13,6 +13,40 @@ export function getLastDiscoverQuery(): string {
   return discoverQuery;
 }
 
+// Last answers per search, kept for the page session so Back/Forward shows them without a new request.
+// Same 5 min as the backend cache; library sources are never kept (new saves must show at once).
+const ANSWER_TTL_MS = 5 * 60 * 1000;
+const ANSWER_MAX = 50;
+const LIBRARY_IDS = new Set(["stash_images", "stash_videos", "stump_books"]);
+// Plain Map on purpose: nothing renders from it, so it needs no reactivity.
+// eslint-disable-next-line svelte/prefer-svelte-reactivity
+const answers = new Map<string, { at: number; res: SearchResult }>();
+type SearchParams = Parameters<Api["search"]>[0];
+type SearchResult = Awaited<ReturnType<Api["search"]>>;
+
+export function clearSearchAnswers(): void {
+  answers.clear();
+}
+
+/** api.search with a 5 min memory of good answers. Errors are never kept. */
+export async function cachedSearch(api: Api, params: SearchParams, signal?: AbortSignal, now: () => number = Date.now): Promise<SearchResult> {
+  const ids = params.sources ?? [];
+  const keep = ids.length > 0 && !ids.some((id) => LIBRARY_IDS.has(id));
+  const key = JSON.stringify([params.q, [...ids].sort(), params.page ?? 1, params.page_size ?? null, params.order ?? null, params.rating ?? null]);
+  if (keep) {
+    const hit = answers.get(key);
+    if (hit && now() - hit.at <= ANSWER_TTL_MS) return hit.res;
+    answers.delete(key);
+  }
+  const res = await api.search(params, signal);
+  const bad = (res.sections ?? []).some((s: Section) => (s as { error?: { code?: string } }).error);
+  if (keep && !bad) {
+    answers.set(key, { at: now(), res });
+    while (answers.size > ANSWER_MAX) answers.delete(answers.keys().next().value as string);
+  }
+  return res;
+}
+
 export function createSearch(api: Api, opts?: { debounceMs?: number; remember?: boolean }) {
   const debounceMs = opts?.debounceMs ?? 300;
 
@@ -86,8 +120,7 @@ export function createSearch(api: Api, opts?: { debounceMs?: number; remember?: 
       const myToken = token;
       controller = new AbortController();
 
-      api
-        .search({ q: lastQuery, sources: ids }, controller.signal)
+      cachedSearch(api, { q: lastQuery, sources: ids }, controller.signal)
         .then((res) => {
           if (myToken !== token) return;
           loading = false;
@@ -164,6 +197,7 @@ export function createSearch(api: Api, opts?: { debounceMs?: number; remember?: 
   async function save(item: WebItem, placement?: { kind: "series" | "oneshot" }) {
     const key = `${item.source}:${item.post_id}`;
     saves[key] = { state: "queued" };
+    clearSearchAnswers(); // a kept answer would show this tile as not saved
     try {
       await api.save({ source: item.source, post_id: item.post_id, ...(placement ? { placement } : {}) });
       return { result: "queued" as const };

@@ -28,7 +28,7 @@
   import Lightbox from "../lib/components/Lightbox.svelte";
   import Toolbar from "../lib/browse/Toolbar.svelte";
   import SeeAllSearch from "../lib/browse/SeeAllSearch.svelte";
-  import { getLastDiscoverQuery } from "../lib/stores/search.svelte";
+  import { getLastDiscoverQuery, cachedSearch, clearSearchAnswers } from "../lib/stores/search.svelte";
   import { nextAutohide } from "../lib/browse/autohide";
   import { parseOrder, parseRating } from "../lib/browse/filters";
   import type { SourceFilters } from "../lib/api/client";
@@ -240,7 +240,7 @@
     } else {
       notice = null;
       const loader = async (p: number, signal: AbortSignal) => {
-        const r = await api.search({ q: qq, sources: [src], page: p, page_size: pp, order: ord || undefined, rating: rat.length ? rat : undefined }, signal);
+        const r = await cachedSearch(api, { q: qq, sources: [src], page: p, page_size: pp, order: ord || undefined, rating: rat.length ? rat : undefined }, signal);
         const s = r.sections?.find((x: { id: string }) => x.id === src);
         const err = s?.error;
         // A source failure has no usable page: let the grid show its error and Retry. filter_dropped
@@ -380,6 +380,7 @@
     const answer = await placement.ask(item);
     if (answer === null) return;
     saveStates[key] = "queued";
+    clearSearchAnswers();
     try {
       await api.save({ source: item.source, post_id: item.post_id, ...answer });
       toasts.push({ kind: "info", message: "Added to queue", actionLabel: "View", href: "/queue" });

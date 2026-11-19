@@ -1,4 +1,5 @@
 import { ApiError } from "../api/client";
+import { clearSearchAnswers } from "./search.svelte";
 import type { Api, RulesBody, RulesTestResult } from "../api/client";
 import {
   draftFrom,
@@ -125,6 +126,7 @@ export function createRules(api: Api, opts?: { debounceMs?: number }) {
     saving = true;
     try {
       const result = await api.putRules(toPut(body.version, draft));
+      clearSearchAnswers(); // rules decide which items a search answer hides
       body = result;
       draft = draftFrom(result);
       conflict = false;
