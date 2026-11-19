@@ -18,6 +18,8 @@ export function createJobs(api: Api, opts?: { visible?: () => boolean }) {
   let controller: AbortController | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let started = false;
+  // Each loop run owns one generation; a newer start, visibility change or stop() retires older runs.
+  let generation = 0;
 
   async function refresh(): Promise<void> {
     controller?.abort();
@@ -36,9 +38,10 @@ export function createJobs(api: Api, opts?: { visible?: () => boolean }) {
     }
   }
 
-  async function loop(): Promise<void> {
+  async function loop(gen: number): Promise<void> {
     await refresh();
-    timer = setTimeout(loop, pollDelayMs(items, visible()));
+    if (gen !== generation || !started) return;
+    timer = setTimeout(() => loop(gen), pollDelayMs(items, visible()));
   }
 
   function onVisibilityChange(): void {
@@ -47,7 +50,7 @@ export function createJobs(api: Api, opts?: { visible?: () => boolean }) {
       clearTimeout(timer);
       timer = null;
     }
-    loop();
+    loop(++generation);
   }
 
   function start(): void {
@@ -56,11 +59,12 @@ export function createJobs(api: Api, opts?: { visible?: () => boolean }) {
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", onVisibilityChange);
     }
-    loop();
+    loop(++generation);
   }
 
   function stop(): void {
     started = false;
+    generation++;
     if (timer !== null) {
       clearTimeout(timer);
       timer = null;
