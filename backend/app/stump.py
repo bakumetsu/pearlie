@@ -122,13 +122,24 @@ class StumpError(BookServerError):
     """Error raised by the Stump client."""
 
 
+class _DbLocked(StumpError):
+    """Stump answered with a SQLite "database is locked" GraphQL error."""
+
+
+_PROGRESS_BACKOFF = (0.2, 0.5)  # waits before retry 1 and 2
+
+
 def _unreachable() -> StumpError:
     return StumpError("upstream_error", "Stump is not reachable", 502)
 
 
+def _error_text(errors: list) -> str:
+    return " ".join(str(e.get("message", "")) if isinstance(e, dict) else str(e) for e in errors)
+
+
 def _map_gql_errors(errors: list) -> StumpError:
     """One Pearlie error for a GraphQL `errors` array. Never echoes the server text."""
-    text = " ".join(str(e.get("message", "")) if isinstance(e, dict) else str(e) for e in errors)
+    text = _error_text(errors)
     if any(w in text.lower() for w in _NOT_FOUND_WORDS):
         return StumpError("not_found", "Not found", 404)
     return StumpError("upstream_error", "Stump returned an error", 502)
@@ -177,8 +188,17 @@ class Stump:
         if resp.status_code >= 400:
             raise StumpError("upstream_error", f"Stump returned {resp.status_code}", 502)
 
-    def gql(self, operation: str, query: str, variables: dict | None = None) -> dict:
-        """Run one GraphQL operation; return its `data` object."""
+    def gql(
+        self,
+        operation: str,
+        query: str,
+        variables: dict | None = None,
+        quiet_locked: bool = False,
+    ) -> dict:
+        """Run one GraphQL operation; return its `data` object.
+
+        A "database is locked" error raises `_DbLocked`; with *quiet_locked* the caller logs it.
+        """
         body = {"operationName": operation, "query": query, "variables": variables or {}}
         try:
             resp = self._client.post("/api/graphql", json=body)
@@ -192,8 +212,13 @@ class Stump:
         if not isinstance(reply, dict):
             raise StumpError("upstream_error", "Stump sent an invalid answer", 502)
         if reply.get("errors"):
-            _log_gql_errors(operation, reply["errors"])
-            raise _map_gql_errors(reply["errors"])
+            errors = reply["errors"]
+            if "database is locked" in _error_text(errors).lower():
+                if not quiet_locked:
+                    _log_gql_errors(operation, errors)
+                raise _DbLocked("upstream_error", "Stump returned an error", 502)
+            _log_gql_errors(operation, errors)
+            raise _map_gql_errors(errors)
         data = reply.get("data")
         if not isinstance(data, dict):
             raise StumpError("upstream_error", "Stump sent an invalid answer", 502)
@@ -299,7 +324,19 @@ class Stump:
 
     def update_progress(self, media_id: str, page: int) -> None:
         variables = {"id": media_id, "input": {"paged": {"page": page}}}
-        self.gql("UpdateMediaProgress", M_UPDATE_PROGRESS, variables)
+        # Only this save retries: Stump's SQLite is sometimes busy (T-347).
+        tries = len(_PROGRESS_BACKOFF) + 1
+        for attempt in range(tries):
+            try:
+                self.gql("UpdateMediaProgress", M_UPDATE_PROGRESS, variables, quiet_locked=True)
+                return
+            except _DbLocked:
+                if attempt == tries - 1:
+                    log.warning(
+                        "Stump UpdateMediaProgress failed: database is locked (%d tries)", tries
+                    )
+                    raise
+                self._sleep(_PROGRESS_BACKOFF[attempt])
 
     def finish_progress(self, media_id: str) -> None:
         self.gql("FinishMediaProgress", M_FINISH_PROGRESS, {"id": media_id})

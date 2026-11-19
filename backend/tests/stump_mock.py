@@ -91,6 +91,7 @@ class MockStump:
         self.last_job: str | None = "job1"
         self.cleaned: list[str] = []
         self.locks: list[tuple[str, str, list[str]]] = []  # (operation, id, fields)
+        self.progress_errors: list[str] = []  # messages answered before a progress save works
 
     def __call__(self, req: httpx.Request) -> httpx.Response:
         body = json.loads(req.content) if req.content else {}
@@ -167,6 +168,9 @@ class MockStump:
             self.locks.append((m[1], v["id"], m[2].split(", ")))
             return self._ok({m[1]: {"__typename": "X"}})
         if op == "UpdateMediaProgress":
+            if self.progress_errors:
+                msg = self.progress_errors.pop(0)
+                return httpx.Response(200, json={"errors": [{"message": msg}]})
             page = v["input"]["paged"]["page"]
             self._find(self.books, v["id"])["readProgress"] = {"page": page}
             return done
