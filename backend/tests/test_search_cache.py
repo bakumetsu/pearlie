@@ -91,5 +91,5 @@ def test_library_sources_are_not_cached(tmp_path):
     """Stash and Stump are not sites: nothing of them goes in the cache."""
     client, _calls = _counting(tmp_path)
     client.get("/api/search?q=x&sources=stash_images")
-    cache = getattr(client.app.state, "search_cache", None)
-    assert cache is None or cache._rows == {}
+    cache = getattr(client.app.state, "search_cache", None)  # pyright: ignore[reportAttributeAccessIssue]
+    assert cache is None or cache._rows == {}  # pyright: ignore[reportPrivateUsage]
