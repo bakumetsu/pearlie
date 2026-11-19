@@ -10,7 +10,7 @@
   import ImageStage from "../item/ImageStage.svelte";
   import { createZoom, zoomKey } from "../item/zoomModel.svelte";
   import Icon from "../components/Icon.svelte";
-  import { rangeText } from "./pager";
+  import { rangeText, queueText } from "./pager";
   import { swipeDir } from "./swipe";
   import RatingStars from "../item/RatingStars.svelte";
   import { itemHref } from "../item/kinds";
@@ -124,7 +124,16 @@
     })
   );
 
-  const zoomLocked = $derived(view.status === "loading");
+  const queue = $derived(
+    queueText({
+      page: grid.page,
+      perPage,
+      index: grid.items.findIndex((t) => keyOf(t) === key),
+      total: grid.total,
+    })
+  );
+
+  const zoomLocked =$derived(view.status === "loading");
 
   function toggleZoom() {
     if (deleting || zoomLocked) return;
@@ -402,7 +411,9 @@
       <Icon name="x" size={24} />
     </button>
     <div class="page-area">
-      {#if grid.pages !== null}
+      {#if queue}
+        <span class="page-text queue-pos">{queue}</span>
+      {:else if grid.pages !== null}
         <span class="page-text">{grid.page} / {grid.pages}</span>
       {:else}
         <span class="page-text">Page {grid.page}</span>

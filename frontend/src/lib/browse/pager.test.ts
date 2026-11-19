@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   rangeText,
+  queueText,
   pagerForm,
   pageOptions,
   pagerState,
@@ -118,6 +119,14 @@ describe("rangeText", () => {
       stats: { megapixels: null, size_bytes: 2147483648 },
     });
     expect(result).toBe("1-10 (2.0 GiB)");
+  });
+});
+
+describe("queueText", () => {
+  it("adds page offset and index; total optional; empty when not loaded", () => {
+    expect(queueText({ page: 1, perPage: 100, index: 236, total: 785 })).toBe("237 / 785");
+    expect(queueText({ page: 3, perPage: 10, index: 0, total: null })).toBe("21");
+    expect(queueText({ page: 1, perPage: 10, index: -1, total: 5 })).toBe("");
   });
 });
 

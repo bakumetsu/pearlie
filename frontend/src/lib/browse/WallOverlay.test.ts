@@ -100,9 +100,17 @@ describe("WallOverlay", () => {
     expect(document.activeElement).toBe(closeBtn);
   });
 
-  it("page label: plain text '1 / 3', no select or textbox; range text '1-3 of 7' visible; no First/Previous/Next/Last page buttons", () => {
+  it("queue position: page offset + index over grid total; position only when total unknown", () => {
+    const a = mount({ id: "b", grid: { page: 2 } });
+    expect(a.getByText("5 / 7")).toBeTruthy();
+    a.unmount();
+    const b = mount({ id: "c", grid: { page: 2, total: null } });
+    expect(b.container.querySelector(".queue-pos")?.textContent).toBe("6");
+  });
+
+  it("queue label: plain text '1 / 7', no select or textbox; range text '1-3 of 7' visible; no First/Previous/Next/Last page buttons", () => {
     const { getByRole, getByText, queryByRole } = mount();
-    expect(getByText("1 / 3")).toBeTruthy();
+    expect(getByText("1 / 7")).toBeTruthy();
     expect(queryByRole("combobox")).toBeNull();
     expect(queryByRole("textbox")).toBeNull();
     expect((getByRole("dialog") as HTMLElement).textContent).toContain("1-3 of 7");
