@@ -107,7 +107,7 @@
     switch (source) {
       case "stash_images": return "Images";
       case "stash_videos": return "Videos";
-      case "stump_series": return "Series";
+      case "stump_series": return "Books";
       case "stump_books": return "Books";
       default: return source || "Results";
     }
