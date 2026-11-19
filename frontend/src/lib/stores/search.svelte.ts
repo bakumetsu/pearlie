@@ -195,6 +195,7 @@ export function createSearch(api: Api, opts?: { debounceMs?: number; remember?: 
   async function save(item: WebItem, placement?: { kind: "series" | "oneshot" }) {
     const key = `${item.source}:${item.post_id}`;
     saves[key] = { state: "queued" };
+    clearSearchAnswers(); // a kept answer would show this tile as not saved
     try {
       await api.save({ source: item.source, post_id: item.post_id, ...(placement ? { placement } : {}) });
       return { result: "queued" as const };

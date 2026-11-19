@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { cachedSearch, clearSearchAnswers } from "./search.svelte";
+import { cachedSearch, clearSearchAnswers, createSearch } from "./search.svelte";
 import type { Api } from "../api/client";
 
 function makeApi(res: unknown): Api & { search: Mock } {
@@ -41,5 +41,20 @@ describe("cachedSearch", () => {
     await cachedSearch(lib, { q: "a", sources: ["stash_images"] });
     await cachedSearch(lib, { q: "a", sources: ["stash_images"] });
     expect(lib.search).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("cachedSearch invalidation", () => {
+  beforeEach(() => clearSearchAnswers());
+
+  it("a save makes the next identical search ask again", async () => {
+    const api = { ...makeApi(good), save: vi.fn().mockResolvedValue({}) } as unknown as Api & { search: Mock };
+    const p = { q: "a", sources: ["nhentai"] };
+    await cachedSearch(api, p);
+    await cachedSearch(api, p);
+    expect(api.search).toHaveBeenCalledTimes(1);
+    await createSearch(api).save({ source: "nhentai", post_id: "1" } as never);
+    await cachedSearch(api, p);
+    expect(api.search).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,6 +1,7 @@
 import type { Api, Options, OptionsUpdate } from "../api/client";
 import { toasts } from "./toasts.svelte";
 import { sfw } from "./sfw.svelte";
+import { clearSearchAnswers } from "./search.svelte";
 import { player } from "../player/player.svelte";
 
 const VALID_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -140,6 +141,7 @@ export function createOptions(deps: {
     (async () => {
       try {
         const res = await _api!.putOptions(toSend);
+        clearSearchAnswers(); // safe mode and blur change what a search answer shows
         lastConfirmed = res;
         values = applyPatch(res, pendingPatch);
         deps.sfw.set(values.sfw);
@@ -203,7 +205,7 @@ export const options = createOptions({
   player: { loadRate: (r: number) => player?.loadRate(r) },
 });
 
-if (sfw) sfw.onChange = (on: boolean) => options.set({ sfw: on });
+if (sfw) sfw.onChange = (on: boolean) => { clearSearchAnswers(); options.set({ sfw: on }); };
 if (player) player.onRateChange = (r: number) => options.set({ player_rate: r });
 
 export type OptionsStore = ReturnType<typeof createOptions>;

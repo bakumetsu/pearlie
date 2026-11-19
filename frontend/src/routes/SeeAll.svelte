@@ -28,7 +28,7 @@
   import Lightbox from "../lib/components/Lightbox.svelte";
   import Toolbar from "../lib/browse/Toolbar.svelte";
   import SeeAllSearch from "../lib/browse/SeeAllSearch.svelte";
-  import { getLastDiscoverQuery, cachedSearch } from "../lib/stores/search.svelte";
+  import { getLastDiscoverQuery, cachedSearch, clearSearchAnswers } from "../lib/stores/search.svelte";
   import { nextAutohide } from "../lib/browse/autohide";
   import { parseOrder, parseRating } from "../lib/browse/filters";
   import type { SourceFilters } from "../lib/api/client";
@@ -380,6 +380,7 @@
     const answer = await placement.ask(item);
     if (answer === null) return;
     saveStates[key] = "queued";
+    clearSearchAnswers();
     try {
       await api.save({ source: item.source, post_id: item.post_id, ...answer });
       toasts.push({ kind: "info", message: "Added to queue", actionLabel: "View", href: "/queue" });
