@@ -111,9 +111,9 @@ def test_put_inside_stump_root(tmp_path):
     inner.mkdir(parents=True)
     fake = FakeStump(kroot)
     c.app.state.stump = fake  # pyright: ignore[reportAttributeAccessIssue]
-    c.app.state.settings.stump_url = "http://stump.test"
+    c.app.state.settings.stump_url = "http://stump.test"  # pyright: ignore[reportAttributeAccessIssue]
     c.app.state.books = StumpBookServer(fake, None)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
-    c.app.state.stump_conn = ("http://stump.test", "")
+    c.app.state.stump_conn = ("http://stump.test", "")  # pyright: ignore[reportAttributeAccessIssue]
     c.app.state.stump_trash = StumpTrash(  # pyright: ignore[reportAttributeAccessIssue]
         c.app.state.settings, c.app.state.trash, fake, wait_s=lambda: 0.0  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
     )

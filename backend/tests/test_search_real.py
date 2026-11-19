@@ -310,7 +310,7 @@ def make_library_client(tmp_path, stash_handler=None, stump_handler=None):
     )
     if stump_handler:
         app.state.settings.stump_url = STUMP_URL
-        app.state.books = StumpBookServer(app.state.stump, None)
+        app.state.books = StumpBookServer(app.state.stump, None)  # pyright: ignore[reportArgumentType]
         app.state.stump_conn = (STUMP_URL, "")
     return TestClient(app)
 

@@ -89,7 +89,7 @@ def _app(tmp_path: Path, nh_handler=None, stump_handler=None, real="search") -> 
     )
     if stump_handler:
         app.state.settings.stump_url = "http://stump.test"
-        app.state.books = StumpBookServer(app.state.stump, None)
+        app.state.books = StumpBookServer(app.state.stump, None)  # pyright: ignore[reportArgumentType]
         app.state.stump_conn = ("http://stump.test", "")
     return TestClient(app)
 
