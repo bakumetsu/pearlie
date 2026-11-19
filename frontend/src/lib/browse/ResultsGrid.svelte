@@ -78,6 +78,8 @@
   let total = $state(0);
   let count = $state(0);
   let placed = $state.raw<Cell[]>([]);
+  // Built, rows exist, the viewport overlaps the grid box, yet the window holds no cell: never show nothing.
+  let blank = $state(false);
   let layoutSig = "";
   let lastKey: string | undefined;
   let firstKey: string | undefined;
@@ -235,6 +237,9 @@
       if (item && rect) cells.push({ index, key: layout.keyAt(index) ?? keyOf(item), item, ...rect });
     }
     placed = cells;
+    const isBlank = cells.length === 0 && layout.count > 0 && top < layout.total && top + vh > 0;
+    if (isBlank) console.warn("results grid: no cell in the window", { count: layout.count, total: layout.total, top, vh, mode });
+    blank = isBlank;
   }
 
   // ---- aspect fix-up: a tile on screen never moves; its fix waits until it has left the screen ----
@@ -390,7 +395,7 @@
         {/each}
       </div>
     {/if}
-  {:else if built}
+  {:else if built && !blank}
     <div class="vwin" role="list" style:height="{total}px" onfocusin={onFocusIn} onfocusout={onFocusOut}>
       {#each placed as p (p.key)}
         <div
@@ -407,6 +412,7 @@
       {/each}
     </div>
   {:else if mode === "grid"}
+    <!-- Also the answer when the viewport overlaps the built layout but its window holds no cell (first FLOW_COUNT rows only). -->
     <div class="grid" style:--cell="{size}px">
       {#each flowItems as item (keyOf(item))}
         {@render tile(item, "grid", undefined)}
