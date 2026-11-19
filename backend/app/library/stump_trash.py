@@ -124,6 +124,7 @@ class StumpTrash:
         def forget() -> None:
             # the server is checked reachable; the scan itself runs debounced.
             self._c.list_libraries()
+            self._drop_walks()
             if meta.get("series_gone_id"):
                 self._remove_empty_series_dir(local.parent, self._series_local(dto))
             self._queue(library_id, kind, id)
@@ -134,6 +135,12 @@ class StumpTrash:
             raise TrashError(
                 502, "upstream_error", f"{self.label} did not accept the delete"
             ) from None
+
+    def _drop_walks(self) -> None:
+        """The series and deleted-items walks of the book server are stale after a move."""
+        drop = getattr(self._c, "invalidate_walks", None)
+        if drop is not None:
+            drop()
 
     def _series_local(self, dto: BookDTO | SeriesDTO) -> Path | None:
         """The local folder of the book's series, or None when it cannot be told."""
@@ -276,7 +283,10 @@ class StumpTrash:
             lib = _loads(row.get("meta")).get("library_id")
             if lib:
                 self.cancel(str(lib), row["entity_id"])
-        return self._store.restore(token, self._apply)
+        try:
+            return self._store.restore(token, self._apply)
+        finally:
+            self._drop_walks()
 
     def _apply(self, row: dict, new_path: Path) -> tuple[str, LibraryItem]:
         meta = _loads(row["meta"])

@@ -33,8 +33,7 @@
   const ROWS: { kind: Kind; title: string; seeAll: string }[] = [
     { kind: "images", title: "Images", seeAll: "/library/stash/images" },
     { kind: "videos", title: "Videos", seeAll: "/library/stash/videos" },
-    { kind: "series", title: "Series", seeAll: "/library/stump/series" },
-    { kind: "books", title: "Books", seeAll: "/library/stump/books" },
+    { kind: "series", title: "Books", seeAll: "/library/stump/series" },
   ];
 
   type RowState = {
