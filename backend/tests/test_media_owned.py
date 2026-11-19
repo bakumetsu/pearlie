@@ -9,9 +9,9 @@ from fastapi.testclient import TestClient
 
 from app.api import media_owned
 from app.api.media_owned import is_owned
+from app.bookserver.stump import StumpBookServer
 from app.db import connect, init_db
 from app.models import SavedRef
-from app.bookserver.stump import StumpBookServer
 from app.stump import Stump
 from app.targets.stash_client import StashClient
 from tests.stump_mock import MockStump, book, lib, series

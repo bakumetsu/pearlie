@@ -6,8 +6,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.config import Settings
 from app.bookserver.stump import StumpBookServer
+from app.config import Settings
 from app.library.stump_trash import StumpTrash
 from app.main import create_app
 from app.targets.stash_client import StashClient, StashError
