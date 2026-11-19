@@ -76,6 +76,21 @@ def test_graphql_other_error_hides_server_text() -> None:
     assert err.value.code == "upstream_error" and KEY not in str(err.value)
 
 
+def test_graphql_error_is_logged_scrubbed_and_truncated(caplog: pytest.LogCaptureFixture) -> None:
+    errors = [
+        {"message": "no field x Bearer abcdefgh12345678", "path": ["media", 0, "x"]},
+        {"message": "y" * 2000},
+    ]
+    c = _client(lambda r: httpx.Response(200, json={"errors": errors}))
+    with caplog.at_level("WARNING", logger="app.stump"), pytest.raises(StumpError):
+        c.gql("MediaList", "query MediaList { a }")
+    (rec,) = [r for r in caplog.records if r.name == "app.stump"]
+    text = rec.getMessage()
+    assert text.startswith("Stump MediaList failed: no field x")
+    assert "[media.0.x]" in text and "abcdefgh12345678" not in text
+    assert len(text) < 560
+
+
 def test_http_and_transport_errors() -> None:
     with pytest.raises(StumpError) as err:
         _client(lambda r: httpx.Response(500)).gql("X", "q")
@@ -286,7 +301,8 @@ def test_ids_allow_cuid_chars_only() -> None:
 def test_dto_mapping() -> None:
     d = stump_mock.book(1)
     d["metadata"].update(writers=["W"], links=["http://a"], title=None)
-    d["readProgress"] = {"page": 3, "isCompleted": True}
+    d["readProgress"] = {"page": 3}
+    d["readHistory"] = [{"completedAt": "2026-01-02T00:00:00Z"}]
     b = book_dto(d)
     assert (b.title, b.read_page, b.read_done, b.writers, b.tags) == (
         "Book 1",
