@@ -9,20 +9,30 @@ import pytest
 from app.bookserver.base import BookServerError
 from app.config import Settings
 from app.db import connect, init_db
+from app.sources.base import Post
 from app.sources.nhentai import NHentai
 from app.sources.throttle import Throttle
 from app.stump import Stump
 from app.targets import destinations
-from app.targets.komga import scan_failed_notice
 from app.targets.stash import PendingScan
-from app.targets.stump import StumpTarget
+from app.targets.stump import StumpTarget, scan_failed_notice
 from tests import stump_mock
-from tests.test_komga_target import make_post
+
+
+def make_post(pages: int = 3, media_id: str = "123") -> Post:
+    return Post(
+        source="nhentai",
+        post_id="42",
+        title="Title: A/B?",
+        source_url="https://nhentai.net/g/42/",
+        tags={"general": ["x & y"], "artist": ["bob"], "language": ["english"]},
+        extra={"media_id": media_id, "page_exts": ["jpg"] * pages},
+    )
 
 
 @pytest.fixture
 def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(destinations, "validate_komga_folder", lambda folder, roots, *a: folder)
+    monkeypatch.setattr(destinations, "validate_book_folder", lambda folder, roots, *a: folder)
     dest = tmp_path / "lib" / "incoming"
     settings = Settings(
         mode="real",
@@ -70,8 +80,8 @@ def test_scan_waits_for_job_and_find_books_uses_media_by_path(env) -> None:
     assert any(c[2].get("operationName") == "Job" for c in mock.calls)
     book = stump_mock.book(1)
     mock.books.append(book)
-    pending = PendingScan(library_id="L1", name="book1.cbz", komga_path=book["path"])
-    miss = PendingScan(library_id="L1", name="x.cbz", komga_path="/nope.cbz")
+    pending = PendingScan(library_id="L1", name="book1.cbz", stump_path=book["path"])
+    miss = PendingScan(library_id="L1", name="x.cbz", stump_path="/nope.cbz")
     assert target.find_books("L1", {"1": pending, "2": miss}) == {"1"}
 
 

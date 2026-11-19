@@ -39,7 +39,7 @@ function nhentai(n: number, size: { width?: number; height?: number }): WebItem[
     preview_url: "/p/" + i,
     media_kind: "image",
     title: "Book " + i,
-    target: "komga",
+    target: "stump",
     saveable: true,
     owned: false,
     ...size,

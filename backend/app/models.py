@@ -8,11 +8,11 @@ from pydantic import BaseModel, Field
 
 Kind = Literal["image", "video", "series", "book"]
 WebSource = Literal["danbooru", "gelbooru", "rule34", "nhentai"]
-Target = Literal["stash", "komga"]
+Target = Literal["stash", "stump"]
 SectionId = Literal[
     "stash_images",
     "stash_videos",
-    "komga_books",
+    "stump_books",
     "danbooru",
     "gelbooru",
     "rule34",
@@ -21,8 +21,8 @@ SectionId = Literal[
 ViewSource = Literal[
     "stash_images",
     "stash_videos",
-    "komga_series",
-    "komga_books",
+    "stump_series",
+    "stump_books",
     "danbooru",
     "gelbooru",
     "rule34",
@@ -112,7 +112,7 @@ class LibraryItemDetail(LibraryItem):
         description=(
             "Book detail only. URL template with a "
             "literal {n} placeholder for the 1-based "
-            "page number, e.g. /api/media/komga/books/7/"
+            "page number, e.g. /api/media/stump/books/7/"
             "pages/{n}. Replace {n} to get a page image."
         ),
     )
@@ -121,7 +121,7 @@ class LibraryItemDetail(LibraryItem):
         description=(
             "Book detail only. URL template with a "
             "literal {n} placeholder for the 1-based "
-            "page number, e.g. /api/media/komga/books/7/"
+            "page number, e.g. /api/media/stump/books/7/"
             "pages/{n}/thumb. Replace {n} to get a "
             "small page thumbnail."
         ),
@@ -465,7 +465,7 @@ class StashHealth(BaseModel):
     version: str | None = None
 
 
-class KomgaHealth(BaseModel):
+class StumpHealth(BaseModel):
     state: State
     version: str | None = None
 
@@ -484,7 +484,7 @@ class Health(BaseModel):
     status: Literal["ok", "degraded"]
     version: str = ""
     stash: StashHealth
-    komga: KomgaHealth
+    stump: StumpHealth
     db: Literal["ok", "error"] = "ok"
     mounts: list[Mount] = Field(default_factory=list)
     sites: list[Site] = Field(default_factory=list)
@@ -504,10 +504,10 @@ class Destinations(BaseModel):
     prefix_pearlie: str = ""
     prefix_stash: str = ""
     prefix_from_env: bool = True
-    komga_sites: list[str] = Field(default_factory=list)
-    komga_library_paths: list[str] = Field(default_factory=list)
-    komga_library_error: str | None = None
-    komga_oneshots_dir: str | None = None
+    stump_sites: list[str] = Field(default_factory=list)
+    stump_library_paths: list[str] = Field(default_factory=list)
+    stump_library_error: str | None = None
+    stump_oneshots_dir: str | None = None
 
 
 class MappingBody(BaseModel):

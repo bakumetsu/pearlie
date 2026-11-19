@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent, waitFor } from "@testing-library/svelte";
-import KomgaBook from "./KomgaBook.svelte";
+import StumpBook from "./StumpBook.svelte";
 import type { LibraryItemDetail } from "../api/client";
 
 vi.mock("../ctx", () => ({ getRouter: () => ({ navigate: vi.fn() }) }));
@@ -12,20 +12,20 @@ function setup(over: Partial<LibraryItemDetail> = {}, saveProgress = vi.fn(async
   const detail = {
     kind: "book",
     id: "b1",
-    title: "Komga Book",
+    title: "Stump Book",
     thumb_url: "/cover",
     page_count: 8,
     read_page: 3,
     favorite: false,
     added_at: "2026-01-01T00:00:00Z",
-    page_thumb_url: "/api/media/komga/books/b1/pages/{n}/thumb",
+    page_thumb_url: "/api/media/stump/books/b1/pages/{n}/thumb",
     ...over,
   } as LibraryItemDetail;
   const fns = {
     onback: vi.fn(), onread: vi.fn(), onerror: vi.fn(), onfavorite: vi.fn(), ondelete: vi.fn(),
     onrate: vi.fn(), onaddtag: vi.fn(), onremovetag: vi.fn(),
   };
-  const r = render(KomgaBook, { props: { detail, api: { saveProgress }, tags: ["a"], ...fns, ...extra } });
+  const r = render(StumpBook, { props: { detail, api: { saveProgress }, tags: ["a"], ...fns, ...extra } });
   return { ...r, saveProgress, ...fns };
 }
 
@@ -33,7 +33,7 @@ async function openMenu(r: ReturnType<typeof setup>) {
   await fireEvent.click(r.getByLabelText("More actions"));
 }
 
-describe("KomgaBook", () => {
+describe("StumpBook", () => {
   it("shows Continue, all page thumbnails and the last-read outline", () => {
     const { container, getByText } = setup();
     expect(getByText("Continue")).toBeTruthy();

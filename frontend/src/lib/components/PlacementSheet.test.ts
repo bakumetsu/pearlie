@@ -5,7 +5,7 @@ import PlacementSheet from "./PlacementSheet.svelte";
 import { createPlacement } from "../stores/placement.svelte";
 import type { Api, WebItem } from "../api/client";
 
-const item = { source: "nhentai", post_id: "7", target: "komga" } as WebItem;
+const item = { source: "nhentai", post_id: "7", target: "stump" } as WebItem;
 const sug = { kind: "series", series: "[Foo] My Sister", number: "2", joins_existing: true, moves_first: true, reason: "folder" };
 
 afterEach(() => cleanup());

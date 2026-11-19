@@ -17,10 +17,10 @@
 		invalid_path: "Enter an absolute folder path",
 		folder_missing: "Folder does not exist. Create it, then save",
 		not_writable: "Folder is not writable",
-		inside_library: "Folder is inside a Stash or Komga library",
+		inside_library: "Folder is inside a Stash or Stump library",
 		other_volume: "Folder is not on the same drive as the Stash library",
 		stash_root_unreachable: "A Stash library folder cannot be reached, so the drive check failed",
-		upstream_error: "Stash or Komga could not be reached",
+		upstream_error: "Stash or Stump could not be reached",
 		cannot_create: "Could not create the folder",
 	};
 

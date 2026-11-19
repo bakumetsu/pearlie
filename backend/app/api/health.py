@@ -8,7 +8,7 @@ from app.connection_probe import probe_connection
 from app.connections_store import ConnectionStore
 from app.db import db_reachable
 from app.fixtures.scenarios import active
-from app.models import Health, KomgaHealth, Mount, Site, StashHealth, State
+from app.models import Health, Mount, Site, StashHealth, State, StumpHealth
 from app.sources.auth import build_auth
 from app.update.version import current_version
 
@@ -71,12 +71,12 @@ def health(request: Request) -> Health:
         # Fixture mode has no real connection to probe: report configuration only.
         store: ConnectionStore = app.state.connection_store
         stash_state: State = "ok" if store.address("stash") else "not_configured"
-        book_addr = store.address(settings.book_server or "komga")
-        komga_state: State = "ok" if book_addr else "not_configured"
-        stash_version = komga_version = None
+        book_addr = store.address("stump")
+        stump_state: State = "ok" if book_addr else "not_configured"
+        stash_version = stump_version = None
     else:
         stash_state, stash_version = _service(app, "stash")
-        komga_state, komga_version = _service(app, settings.book_server or "komga")
+        stump_state, stump_version = _service(app, "stump")
     if active("offline"):
         stash_state = "down"
     return Health(
@@ -84,7 +84,7 @@ def health(request: Request) -> Health:
         version=current_version().version,
         db=db,
         stash=StashHealth(state=stash_state, version=stash_version),
-        komga=KomgaHealth(state=komga_state, version=komga_version),
+        stump=StumpHealth(state=stump_state, version=stump_version),
         mounts=[] if fixture else [_trash_mount(app)],
         sites=[Site(id=site, state=_site_state(app, site)) for site in SITES],
     )

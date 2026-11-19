@@ -188,7 +188,7 @@ describe("SeeAll paging", () => {
     }
   });
 
-  it("komga_series with modes [grid,list] shows only Grid and List mode buttons", async () => {
+  it("stump_series with modes [grid,list] shows only Grid and List mode buttons", async () => {
     vi.resetModules();
     const { render: freshRender, screen: freshScreen, cleanup: freshCleanup } = await import("@testing-library/svelte");
     const { default: FreshApp } = await import("../App.svelte");
@@ -196,11 +196,11 @@ describe("SeeAll paging", () => {
       status: 200,
       body: {
         sources: {
-          komga_series: { mode: "grid", modes: ["grid", "list"], per_page: 60, zoom: 3, per_page_options: [60], per_page_max: 200 },
+          stump_series: { mode: "grid", modes: ["grid", "list"], per_page: 60, zoom: 3, per_page_options: [60], per_page_max: 200 },
         },
       },
     };
-    history.replaceState({}, "", "/see-all?source=komga_series");
+    history.replaceState({}, "", "/see-all?source=stump_series");
     freshRender(FreshApp);
     try {
       (await freshScreen.findByRole("button", { name: "View" })).click();

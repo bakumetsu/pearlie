@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { komgaSource, webSource } from "./source";
+import { stumpSource, webSource } from "./source";
 import { getWebPage, setWebPage } from "./webProgress";
 import type { Api } from "../api/client";
 
@@ -90,27 +90,27 @@ describe("webSource", () => {
   });
 });
 
-describe("komgaSource", () => {
-  it("loads book and series, applies the Komga resume rule", async () => {
+describe("stumpSource", () => {
+  it("loads book and series, applies the Stump resume rule", async () => {
     const api = fakeApi();
-    const d = await komgaSource(api, "k1", new URLSearchParams("series=s9")).load();
+    const d = await stumpSource(api, "k1", new URLSearchParams("series=s9")).load();
     expect(d).toMatchObject({ title: "Bk1", count: 30, start: 12, notice: "hi" });
     expect(d.books).toHaveLength(2);
     expect(api.getItem).toHaveBeenCalledWith("series", "s9");
   });
 
   it("opens at the ?p page from a book page thumbnail tap", async () => {
-    const d = await komgaSource(fakeApi(), "k1", new URLSearchParams("p=7")).load();
+    const d = await stumpSource(fakeApi(), "k1", new URLSearchParams("p=7")).load();
     expect(d.start).toBe(7);
   });
 
   it("saves progress through the API and backs to the series", () => {
     const api = fakeApi();
-    const s = komgaSource(api, "k1", new URLSearchParams("series=s9"));
+    const s = stumpSource(api, "k1", new URLSearchParams("series=s9"));
     s.saveProgress(3, 30, { keepalive: true });
     expect(api.saveProgress).toHaveBeenCalledWith("k1", 3, undefined, { keepalive: true });
     expect(s.backTarget()).toBe("/item/series/s9");
-    expect(komgaSource(api, "k1", new URLSearchParams()).backTarget()).toBe("/item/books/k1");
+    expect(stumpSource(api, "k1", new URLSearchParams()).backTarget()).toBe("/item/books/k1");
   });
 
   it("fetches book and series at the same time", async () => {
@@ -122,14 +122,14 @@ describe("komgaSource", () => {
         return kind === "series" ? { books: [] } : { title: "T", page_count: 5, page_url: "/p/{n}" };
       }),
     });
-    const p = komgaSource(api, "k1", new URLSearchParams("series=s")).load();
+    const p = stumpSource(api, "k1", new URLSearchParams("series=s")).load();
     expect(order).toEqual(["books", "series"]);
     await p;
   });
 
   it("a failed book load rejects", async () => {
     const api = fakeApi({ getItem: vi.fn(async () => { throw new Error("x"); }) });
-    await expect(komgaSource(api, "k1", new URLSearchParams()).load()).rejects.toThrow();
+    await expect(stumpSource(api, "k1", new URLSearchParams()).load()).rejects.toThrow();
   });
 
   it("a failed series load keeps the book", async () => {
@@ -139,7 +139,7 @@ describe("komgaSource", () => {
         return { title: "T", page_count: 5, page_url: "/p/{n}" };
       }),
     });
-    const d = await komgaSource(api, "k1", new URLSearchParams("series=s")).load();
+    const d = await stumpSource(api, "k1", new URLSearchParams("series=s")).load();
     expect(d.books).toEqual([]);
     expect(d.start).toBe(1);
   });

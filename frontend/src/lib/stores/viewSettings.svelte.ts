@@ -6,8 +6,8 @@ export type ViewSettings = ViewSettingItem;
 export const VIEW_SOURCES = [
   "stash_images",
   "stash_videos",
-  "komga_series",
-  "komga_books",
+  "stump_series",
+  "stump_books",
   "danbooru",
   "gelbooru",
   "rule34",

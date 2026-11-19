@@ -228,14 +228,14 @@ def test_notices_kept_on_done(tmp_path: Path) -> None:
 
 def test_no_target(tmp_path: Path) -> None:
     worker, store, target, sources, clock = make(tmp_path, sources=("danbooru", "gelbooru"))
-    sources["gelbooru"].target = "komga"
+    sources["gelbooru"].target = "stump"
     post = sources["gelbooru"].posts["1"]
-    jid = store.enqueue(post, "komga", "gelbooru 1", "t")
+    jid = store.enqueue(post, "stump", "gelbooru 1", "t")
     assert worker.run_once() is True
     job = store.get(jid)
     assert job is not None
     assert job.state == "failed"
-    assert job.error == "no save target for komga yet"
+    assert job.error == "no save target for stump yet"
 
 
 def test_unexpected_error_text_has_no_secret(
@@ -492,12 +492,12 @@ def test_failed_finish_does_not_leave_job_running(
     assert calls == ["done", "failed", "failed"]
 
 
-def test_komga_progress_stored_and_cleared(tmp_path: Path) -> None:
-    from app.targets.komga import KomgaTarget
+def test_stump_progress_stored_and_cleared(tmp_path: Path) -> None:
+    from app.targets.stump import StumpTarget
 
     seen: list[tuple[int | None, int | None, float | None, float]] = []
 
-    class FakeKomga(KomgaTarget):
+    class FakeStump(StumpTarget):
         def __init__(self) -> None:  # no real client
             pass
 
@@ -512,7 +512,7 @@ def test_komga_progress_stored_and_cleared(tmp_path: Path) -> None:
             return SaveResult(status="saved", image_id="9")
 
     worker, store, _t, sources, ck = make(tmp_path)
-    worker._targets = {"stash": FakeKomga()}  # type: ignore[assignment]
+    worker._targets = {"stash": FakeStump()}  # type: ignore[assignment]
     jid = enqueue(store, sources, "danbooru", "1")
     worker.run_once()
     assert seen == [(1, 4, 9.0, 0.25), (2, 4, 6.0, 0.5)]

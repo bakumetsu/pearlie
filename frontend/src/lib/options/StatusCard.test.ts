@@ -12,7 +12,7 @@ vi.mock("../api/client", async (orig) => ({
 
 const mockHealth = {
   stash: { state: "ok" },
-  komga: { state: "down" },
+  stump: { state: "down" },
   db: "ok",
   mounts: [{ name: "local", state: "ok" }],
   sites: [{ id: "danbooru", state: "not_configured" }],
@@ -40,8 +40,8 @@ describe("StatusCard", () => {
     const stashRow = screen.getByText("Stash").closest("li");
     expect(stashRow?.textContent).toContain("OK");
 
-    const komgaRow = screen.getByText("Komga").closest("li");
-    expect(komgaRow?.textContent).toContain("Down");
+    const stumpRow = screen.getByText("Stump").closest("li");
+    expect(stumpRow?.textContent).toContain("Down");
 
     const dbRow = screen.getByText("Database").closest("li");
     expect(dbRow?.textContent).toContain("OK");

@@ -74,7 +74,7 @@
 
   // Real cards for a hit: whole cards from the section, companions folded
   // into the card that renders them. Rules is a full page, so it stays a plain card.
-  const COMPANION: Record<string, string> = { Komga: "Stash", "Log viewer": "Logging" };
+  const COMPANION: Record<string, string> = { "Log viewer": "Logging" };
   function resolveCards(hit: SearchHit): OptionCard[] {
     const out: OptionCard[] = [];
     for (const c of hit.cards) {
@@ -206,7 +206,6 @@
 
   const LIBRARY_NAMES = [
     { key: "stash", label: "Stash" },
-    { key: "komga", label: "Komga" },
     { key: "stump", label: "Stump" },
   ];
 </script>
@@ -233,9 +232,7 @@
   {:else if sectionId === "sources" && card.title === "Site access"}
     <ConnectionRows title="Site access" names={SITE_NAMES} />
   {:else if sectionId === "library" && card.title === "Stash"}
-    <ConnectionRows title="Stash, Komga and Stump" names={LIBRARY_NAMES} />
-  {:else if sectionId === "library" && card.title === "Komga"}
-    <!-- shown with Stash -->
+    <ConnectionRows title="Stash and Stump" names={LIBRARY_NAMES} />
   {:else if sectionId === "library" && card.title === "Status"}
     <StatusCard />
   {:else if sectionId === "library" && card.title === "Import older saves"}

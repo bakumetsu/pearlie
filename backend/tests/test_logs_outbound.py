@@ -10,10 +10,10 @@ import httpx
 import pytest
 
 from app import logs
-from app.komga import Komga
 from app.sources.dapi import Rule34
 from app.sources.nhentai import NHentai
 from app.sources.throttle import Throttle
+from app.stump import Stump
 from app.targets.stash_client import StashClient, StashError
 
 SENTINEL = "SENTINEL-KEY-0123456789abcdef"
@@ -90,7 +90,7 @@ def test_connect_error_logs_class_name_only(cap):
     def handler(request):
         raise httpx.ConnectError(f"cannot connect with {SENTINEL}")
 
-    client = hooked(handler, "komga")
+    client = hooked(handler, "stump")
     with pytest.raises(httpx.ConnectError):
         client.get("/api/v1/libraries?api_key=" + SENTINEL)
     (line,) = cap.lines
@@ -147,7 +147,7 @@ def test_stash_streamed_media_body_survives_hooks(cap):
 
 def test_default_clients_are_hooked():
     assert StashClient("http://stash.test", SENTINEL)._client.event_hooks["response"]
-    assert Komga("http://komga.test", SENTINEL)._client.event_hooks["response"]
+    assert Stump("http://stump.test", SENTINEL)._client.event_hooks["response"]
     for src in (Rule34(), NHentai()):
         assert src._client.event_hooks["response"]
 
@@ -162,7 +162,7 @@ def test_sentinel_over_all_hooked_clients(cap):
             json={"errors": [{"message": "no"}]},
         )
 
-    for site in ("danbooru", "gelbooru", "rule34", "nhentai", "stash", "komga", "update", "icon"):
+    for site in ("danbooru", "gelbooru", "rule34", "nhentai", "stash", "stump", "update", "icon"):
         client = hooked(handler, site)
         client.get(
             f"/p?api_key={SENTINEL}&user_id=1",
@@ -201,7 +201,7 @@ def test_no_logger_call_passes_forbidden_objects():
     """Layer 1 (design 5): log calls never take headers, params or settings objects."""
     banned = {"headers", "cookies", "params", "request", "settings"}
     root = Path(__file__).resolve().parents[1] / "app"
-    for rel in ("logs.py", "sources/throttle.py", "targets/komga.py"):
+    for rel in ("logs.py", "sources/throttle.py", "targets/stump.py"):
         tree = ast.parse((root / rel).read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if (

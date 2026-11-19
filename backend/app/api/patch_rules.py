@@ -9,10 +9,6 @@ from app.models import PatchBody
 def check_patch(side: str, body: PatchBody) -> None:
     """Raise ApiError if *body* contains fields unsupported by *side*."""
     if body.favorite is not None:
-        raise ApiError(
-            422, "unsupported_field", f"{side} cannot store favorite", field="favorite"
-        )
-    if side == "Komga" and body.rating is not None:
-        raise ApiError(
-            422, "unsupported_field", f"{side} cannot store rating", field="rating"
-        )
+        raise ApiError(422, "unsupported_field", f"{side} cannot store favorite", field="favorite")
+    if side == "Stump" and body.rating is not None:
+        raise ApiError(422, "unsupported_field", f"{side} cannot store rating", field="rating")

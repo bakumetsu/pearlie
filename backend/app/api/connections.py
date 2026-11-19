@@ -133,7 +133,7 @@ def put_connection(request: Request, name: str, body: ConnectionIn) -> Connectio
         raise ApiError(500, "error", "unexpected store error") from exc
     out = _build_out(name, store)
     clear_health_cache(request.app)
-    if name in ("stash", "komga", "stump"):
+    if name in ("stash", "stump"):
         from app.main import rebuild_client
 
         rebuild_client(request.app, name)

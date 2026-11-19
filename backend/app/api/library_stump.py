@@ -16,8 +16,8 @@ from app.models import (
 router = APIRouter(prefix="/api", dependencies=[Depends(slow_dependency)])
 
 KINDS: dict[str, str] = {
-    "komga/series": "series",
-    "komga/books": "books",
+    "stump/series": "series",
+    "stump/books": "books",
 }
 
 
@@ -82,7 +82,7 @@ for _kind in ("series", "books"):
     _detail_routes(_kind)
 
 
-@router.post("/library/komga/books/{id}/progress")
+@router.post("/library/stump/books/{id}/progress")
 def set_progress(id: str, body: ProgressBody) -> ProgressResult:
     """Update reading progress for a book."""
     result = store.set_progress(id, body.page)

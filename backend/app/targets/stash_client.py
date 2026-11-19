@@ -42,17 +42,11 @@ FIND_TAGS = (
 
 TAG_CREATE = "mutation($n: String!) { tagCreate(input: {name: $n}) { id } }"
 
-IMAGE_UPDATE = (
-    "mutation($i: ImageUpdateInput!) { imageUpdate(input: $i) { id } }"
-)
+IMAGE_UPDATE = "mutation($i: ImageUpdateInput!) { imageUpdate(input: $i) { id } }"
 
-SCENE_UPDATE = (
-    "mutation($i: SceneUpdateInput!) { sceneUpdate(input: $i) { id } }"
-)
+SCENE_UPDATE = "mutation($i: SceneUpdateInput!) { sceneUpdate(input: $i) { id } }"
 
-LIBRARY_PATHS = (
-    "query { configuration { general { stashes { path } } } }"
-)
+LIBRARY_PATHS = "query { configuration { general { stashes { path } } } }"
 
 IMAGE_FIELDS = (
     "id title rating100 created_at urls tags { name } "
@@ -71,18 +65,17 @@ LIST_IMAGES = (
 LIST_FOLDER_IMAGES = (
     "query($v: String!, $page: Int!, $n: Int!) { findImages("
     "image_filter: {path: {value: $v, modifier: INCLUDES}},"
-    " filter: {page: $page, per_page: $n, sort: \"id\", direction: ASC})"
+    ' filter: {page: $page, per_page: $n, sort: "id", direction: ASC})'
     " { count images { id visual_files { ... on ImageFile { path basename } } } } }"
 )
-GET_IMAGE = (
-    "query($id: ID!) { findImage(id: $id) { " + IMAGE_FIELDS + " } }"
-)
+GET_IMAGE = "query($id: ID!) { findImage(id: $id) { " + IMAGE_FIELDS + " } }"
 LIST_SCENES = (
     "query($f: FindFilterType) { findScenes(filter: $f) "
     "{ count filesize scenes { " + SCENE_FIELDS + " } } }"
 )
 GET_SCENE = (
-    "query($id: ID!) { findScene(id: $id) { " + SCENE_FIELDS
+    "query($id: ID!) { findScene(id: $id) { "
+    + SCENE_FIELDS
     + " sceneStreams { url mime_type label } } }"
 )
 _FILE = "path size zip_file { id } fingerprints { type value }"
@@ -97,12 +90,8 @@ TRASH_SCENE = (
     "scene_markers { title seconds primary_tag { name } tags { name } } "
     "stash_ids { endpoint stash_id } } }"
 )
-IMAGE_DESTROY = (
-    "mutation($i: ImageDestroyInput!) { imageDestroy(input: $i) }"
-)
-SCENE_DESTROY = (
-    "mutation($i: SceneDestroyInput!) { sceneDestroy(input: $i) }"
-)
+IMAGE_DESTROY = "mutation($i: ImageDestroyInput!) { imageDestroy(input: $i) }"
+SCENE_DESTROY = "mutation($i: SceneDestroyInput!) { sceneDestroy(input: $i) }"
 FIND_PERFORMER = (
     "query($v: String!) { findPerformers(performer_filter: {name: {value: $v, "
     "modifier: EQUALS}}, filter: {per_page: 5}) { performers { id name } } }"
@@ -114,9 +103,7 @@ FIND_STUDIO = (
 )
 STUDIO_CREATE = "mutation($n: String!) { studioCreate(input: {name: $n}) { id } }"
 FIND_GALLERY = "query($id: ID!) { findGallery(id: $id) { id } }"
-MARKER_CREATE = (
-    "mutation($i: SceneMarkerCreateInput!) { sceneMarkerCreate(input: $i) { id } }"
-)
+MARKER_CREATE = "mutation($i: SceneMarkerCreateInput!) { sceneMarkerCreate(input: $i) { id } }"
 GET_SCENE_PREVIEW = "query($id: ID!) { findScene(id: $id) { paths { preview } } }"
 
 
@@ -421,9 +408,7 @@ class StashClient:
         hops = 0
         while True:
             try:
-                response = self._client.send(
-                    request, stream=True, follow_redirects=False
-                )
+                response = self._client.send(request, stream=True, follow_redirects=False)
             except httpx.HTTPError as exc:
                 raise StashError("upstream_error", "Stash is not reachable") from exc
             if response.status_code not in _REDIRECTS:
@@ -441,9 +426,7 @@ class StashClient:
                 # Never send the ApiKey to another host.
                 raise StashError("upstream_error", "Stash redirect not followed")
             hops += 1
-            request = self._client.build_request(
-                "GET", target, headers=headers, timeout=limit
-            )
+            request = self._client.build_request("GET", target, headers=headers, timeout=limit)
 
         status = response.status_code
         if status == 404:

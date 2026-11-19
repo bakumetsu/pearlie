@@ -1,4 +1,5 @@
 """Per-site rate throttle with exponential back-off and ease-in."""
+
 from __future__ import annotations
 
 import logging

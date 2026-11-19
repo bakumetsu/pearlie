@@ -99,7 +99,7 @@
           <span>{job.title}</span>
         {/if}
       </span>
-      <span class="muted">{job.source} → {job.target === "stash" ? "Stash" : "Komga"}</span>
+      <span class="muted">{job.source} → {job.target === "stash" ? "Stash" : "Stump"}</span>
       <span class="chip {job.state}">
         <Icon name={info.icon} size={14} /> {info.label}
       </span>

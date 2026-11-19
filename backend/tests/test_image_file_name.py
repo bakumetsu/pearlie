@@ -63,8 +63,8 @@ def test_fixture_images_have_extension(client):
 def test_fixture_videos_books_series_no_file_name(client):
     for path in (
         "/api/library/stash/videos",
-        "/api/library/komga/books",
-        "/api/library/komga/series",
+        "/api/library/stump/books",
+        "/api/library/stump/series",
     ):
         for item in client.get(path).json()["items"]:
             assert item.get("file_name") is None

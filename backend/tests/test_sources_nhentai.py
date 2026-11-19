@@ -337,11 +337,11 @@ def test_search_section_and_filters(tmp_path: Path) -> None:
     sec = c.get("/api/search?q=x&sources=nhentai").json()["sections"][0]
     assert sec["id"] == "nhentai" and sec["hidden"] == 2
     item = sec["items"][0]
-    assert item["target"] == "komga" and item["saveable"] is True
+    assert item["target"] == "stump" and item["saveable"] is True
     assert item["title"] == "Pretty 1" and item["page_count"] == 2
 
 
-def test_save_unavailable_until_komga_target(tmp_path: Path) -> None:
+def test_save_unavailable_until_stump_target(tmp_path: Path) -> None:
     c = _client(tmp_path, lambda r: httpx.Response(200, json=gallery(1)))
     r = c.post("/api/save", json={"source": "nhentai", "post_id": "1"})
     assert r.status_code == 422

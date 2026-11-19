@@ -7,8 +7,8 @@ import typing
 from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
-from app.api.library_komga_real import fetch_book_page
 from app.api.library_stash_real import fetch_stash_page
+from app.api.library_stump_real import fetch_book_page
 from app.api.media_owned import is_owned
 from app.api.media_web_real import media_kind, pick_url, proxy_path, remember, tile_url
 from app.api.search_filters import (
@@ -53,12 +53,12 @@ from app.targets.stash_library import (
 
 router = APIRouter(prefix="/api")
 
-_DEFAULT = ["stash_images", "stash_videos", "komga_books", "danbooru", "gelbooru", "nhentai"]
+_DEFAULT = ["stash_images", "stash_videos", "stump_books", "danbooru", "gelbooru", "nhentai"]
 _VALID = {*_DEFAULT, "rule34"}
 _TITLES = {
     "stash_images": "Stash images",
     "stash_videos": "Stash videos",
-    "komga_books": "Komga books",
+    "stump_books": "Stump books",
     "danbooru": "Danbooru",
     "gelbooru": "Gelbooru",
     "rule34": "Rule34",
@@ -66,10 +66,10 @@ _TITLES = {
 }
 
 
-_LIBRARY = {"stash_images", "stash_videos", "komga_books"}
+_LIBRARY = {"stash_images", "stash_videos", "stump_books"}
 
-# Targets a save job can reach today; T-131b adds "komga".
-_SAVE_TARGETS = {"stash", "komga"}
+# Targets a save job can reach today; T-131b adds "stump".
+_SAVE_TARGETS = {"stash", "stump"}
 
 
 def _web_thumb(post: Post) -> str:
@@ -78,9 +78,9 @@ def _web_thumb(post: Post) -> str:
 
 
 def _library_section(request: Request, sid: str, q: str, page: int, page_size: int, multi: bool):
-    """Section for a Stash or Komga library source, or None when it is not configured."""
+    """Section for a Stash or Stump library source, or None when it is not configured."""
     state = request.app.state
-    client = state.komga if sid == "komga_books" else state.stash
+    client = state.stump if sid == "stump_books" else state.stash
     if client is None:
         return None
     title = _TITLES[sid]
@@ -88,7 +88,7 @@ def _library_section(request: Request, sid: str, q: str, page: int, page_size: i
     pg = 1 if multi else page
     size = 18 if multi else clamp_page_size(sid, page_size)
     try:
-        if sid == "komga_books":
+        if sid == "stump_books":
             server = book_server_of(request.app)
             reply, pages, served = fetch_book_page(
                 lambda p, n: server.list_books(p, n, q, SORT_CREATED_DESC), pg, size
@@ -167,10 +167,10 @@ def search(
             sections.append(skipped_section(cast_sid, title, skip))
             continue
         lib_q, lib_note = q, None
-        if sid == "komga_books" and titles:
-            # Komga search is full text: send only the title text, tag chips cannot narrow it.
+        if sid == "stump_books" and titles:
+            # Stump search is full text: send only the title text, tag chips cannot narrow it.
             lib_q = " ".join(t.value for t in titles)
-            lib_note = "Tag chips do not narrow Komga results" if others else None
+            lib_note = "Tag chips do not narrow Stump results" if others else None
         lib = (
             _library_section(request, sid, lib_q, page, page_size, multi)
             if sid in _LIBRARY

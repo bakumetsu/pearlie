@@ -72,8 +72,8 @@
     switch (match.name) {
       case "library_images": return "stash_images";
       case "library_videos": return "stash_videos";
-      case "library_series": return "komga_series";
-      case "library_books": return "komga_books";
+      case "library_series": return "stump_series";
+      case "library_books": return "stump_books";
       default: return match.query.get("source") ?? "";
     }
   });
@@ -95,8 +95,8 @@
   function sourceToKind(s: string): Kind | null {
     if (s === "stash_images") return "images";
     if (s === "stash_videos") return "videos";
-    if (s === "komga_series") return "series";
-    if (s === "komga_books") return "books";
+    if (s === "stump_series") return "series";
+    if (s === "stump_books") return "books";
     return null;
   }
 
@@ -107,8 +107,8 @@
     switch (source) {
       case "stash_images": return "Images";
       case "stash_videos": return "Videos";
-      case "komga_series": return "Series";
-      case "komga_books": return "Books";
+      case "stump_series": return "Series";
+      case "stump_books": return "Books";
       default: return source || "Results";
     }
   });
@@ -192,7 +192,7 @@
   const ratingKey = $derived(rating.join(","));
   // A blocked Order is off for the request and the chip; the URL keeps the pick for when the words shrink.
   const order = $derived(orderBlocked ? "" : rawOrder);
-  // One Sort control: library lists use `sort`, web lists use `order`. komga_series has no caps row yet, so the library falls back to the fixed list.
+  // One Sort control: library lists use `sort`, web lists use `order`. stump_series has no caps row yet, so the library falls back to the fixed list.
   const sortOptions = $derived(isLibrary ? (caps?.sort?.length ? caps.sort : ["newest", "rating", "random"]) : orderOptions);
   const sortValue = $derived(isLibrary ? sort : order);
   const favoritesAvail = $derived(isLibrary && (caps?.favorite ?? true));

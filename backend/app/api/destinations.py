@@ -36,24 +36,17 @@ def _sites(request: Request, target: str = "stash") -> list[str]:
     return [sid for sid, src in request.app.state.sources.items() if src.target == target]
 
 
-def _book_name(request: Request) -> str:
-    """Display name of the configured book server."""
-    return "Stump" if request.app.state.settings.book_server == "stump" else "Komga"
-
-
-def _komga_libraries(request: Request) -> list[LibraryDTO]:
-    state = request.app.state
-    client = state.stump if state.settings.book_server == "stump" else state.komga
-    if client is None:
-        raise ApiError(502, "not_configured", f"{_book_name(request)} is not configured")
+def _stump_libraries(request: Request) -> list[LibraryDTO]:
+    if request.app.state.stump is None:
+        raise ApiError(502, "not_configured", "Stump is not configured")
     try:
         return book_server_of(request.app).list_libraries()
     except BookServerError as err:
         raise ApiError(err.status, err.code, err.message) from None
 
 
-def _komga_roots(request: Request) -> list[str]:
-    return [lib.root for lib in _komga_libraries(request)]
+def _stump_roots(request: Request) -> list[str]:
+    return [lib.root for lib in _stump_libraries(request)]
 
 
 def _oneshots_name(libraries: list[LibraryDTO]) -> str | None:
@@ -93,17 +86,17 @@ def _payload(request: Request) -> Destinations:
     except ApiError as err:
         library, library_error = [], err.message
     pp, ps, from_env = _mapping(request)
-    komga_sites = _sites(request, "komga")
-    komga_roots: list[str] = []
-    komga_oneshots: str | None = None
-    komga_error = None
-    if komga_sites:
+    stump_sites = _sites(request, "stump")
+    stump_roots: list[str] = []
+    stump_oneshots: str | None = None
+    stump_error = None
+    if stump_sites:
         try:
-            libs = _komga_libraries(request)
-            komga_roots = [lib.root for lib in libs]
-            komga_oneshots = _oneshots_name(libs)
+            libs = _stump_libraries(request)
+            stump_roots = [lib.root for lib in libs]
+            stump_oneshots = _oneshots_name(libs)
         except ApiError as err:
-            komga_error = err.message
+            stump_error = err.message
     return Destinations(
         default_folder=default,
         items=items,
@@ -113,10 +106,10 @@ def _payload(request: Request) -> Destinations:
         prefix_pearlie=pp,
         prefix_stash=ps,
         prefix_from_env=from_env,
-        komga_sites=komga_sites,
-        komga_library_paths=komga_roots,
-        komga_library_error=komga_error,
-        komga_oneshots_dir=komga_oneshots,
+        stump_sites=stump_sites,
+        stump_library_paths=stump_roots,
+        stump_library_error=stump_error,
+        stump_oneshots_dir=stump_oneshots,
     )
 
 
@@ -151,19 +144,14 @@ def delete_mapping(request: Request) -> Destinations:
 
 @router.put("/destinations/{site}", response_model=Destinations)
 def put_destination(body: FolderBody, request: Request, site: str) -> Destinations:
-    if site in _sites(request, "komga"):
+    if site in _sites(request, "stump"):
         s = request.app.state.settings
-        prefixes = (
-            (s.stump_path_prefix_pearlie, s.stump_path_prefix_stump)
-            if s.book_server == "stump"
-            else (s.komga_path_prefix_pearlie, s.komga_path_prefix_komga)
-        )
+        prefixes = (s.stump_path_prefix_pearlie, s.stump_path_prefix_stump)
         try:
-            validated = destinations.validate_komga_folder(
+            validated = destinations.validate_book_folder(
                 body.folder,
-                _komga_roots(request),
+                _stump_roots(request),
                 *prefixes,
-                server=_book_name(request),
             )
         except DestinationError as err:
             raise ApiError(err.status, err.code, err.message) from None
@@ -178,7 +166,7 @@ def put_destination(body: FolderBody, request: Request, site: str) -> Destinatio
 
 @router.delete("/destinations/{site}", response_model=Destinations)
 def delete_destination(request: Request, site: str) -> Destinations:
-    if site not in _sites(request) + _sites(request, "komga"):
+    if site not in _sites(request) + _sites(request, "stump"):
         raise ApiError(422, "invalid", f"Unknown site {site}", field="site")
     settings = request.app.state.settings
     if not destinations.delete_destination(settings.db_path, site):

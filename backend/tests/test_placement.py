@@ -15,22 +15,22 @@ from app.targets.placement import (
 from app.targets.placement_name import parse_name
 
 LIBS = [
-    {"id": "1", "root": "/komga/manga", "oneshotsDirectory": "_oneshots"},
-    {"id": "2", "root": "/komga/other"},
+    {"id": "1", "root": "/stump/manga", "oneshotsDirectory": "_oneshots"},
+    {"id": "2", "root": "/stump/other"},
 ]
 
 
 def test_oneshots_dir_name_from_library():
-    assert oneshots_dir_name(LIBS, "/komga/manga/nhentai").name == "_oneshots"
+    assert oneshots_dir_name(LIBS, "/stump/manga/nhentai").name == "_oneshots"
 
 
 def test_oneshots_dir_name_maps_prefix():
-    d = oneshots_dir_name(LIBS, "/data/manga/nh", "/data", "/komga")
+    d = oneshots_dir_name(LIBS, "/data/manga/nh", "/data", "/stump")
     assert d.name == "_oneshots"
 
 
 def test_oneshots_dir_not_set():
-    d = oneshots_dir_name(LIBS, "/komga/other/x")
+    d = oneshots_dir_name(LIBS, "/stump/other/x")
     assert (d.name, d.notice) == (None, "oneshots_not_set")
 
 

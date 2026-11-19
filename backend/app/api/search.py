@@ -25,11 +25,11 @@ from app.sources.query_terms import split_terms, title_terms
 
 router = APIRouter(prefix="/api", dependencies=[Depends(slow_dependency)])
 
-_DEFAULT = "stash_images,stash_videos,komga_books,danbooru,gelbooru,nhentai"
+_DEFAULT = "stash_images,stash_videos,stump_books,danbooru,gelbooru,nhentai"
 _VALID = {
     "stash_images",
     "stash_videos",
-    "komga_books",
+    "stump_books",
     "danbooru",
     "gelbooru",
     "nhentai",
@@ -38,7 +38,7 @@ _VALID = {
 _LIB = {
     "stash_images": ("images", "Stash images"),
     "stash_videos": ("videos", "Stash videos"),
-    "komga_books": ("books", "Komga books"),
+    "stump_books": ("books", "Stump books"),
 }
 _WEB = {"danbooru": "Danbooru", "gelbooru": "Gelbooru", "rule34": "Rule34", "nhentai": "nhentai"}
 
@@ -123,9 +123,9 @@ def search(
                 if res is None:
                     raise ApiError(422, "invalid", "Bad source", field="sources")
                 items: list[LibraryItem | WebItem] = [*res.items]
-                # Komga rows show the library count before rules;
+                # Stump rows show the library count before rules;
                 # the hidden footer keeps the difference.
-                total = res.total + hidden if sid == "komga_books" and not q else res.total
+                total = res.total + hidden if sid == "stump_books" and not q else res.total
                 sections.append(
                     Section(
                         id=cast(SectionId, sid),

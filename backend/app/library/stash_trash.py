@@ -161,10 +161,16 @@ class StashTrash:
             md5 = _fingerprint(file, "md5")
             conn_row = self._saved_row(id)
             spec = TrashSpec(
-                target="stash", kind=kind, entity_id=id,
+                target="stash",
+                kind=kind,
+                entity_id=id,
                 title=dto.get("title") or Path(file["path"]).name,
-                orig_path=local, meta=_meta(dto, kind, file), md5=md5,
-                source=conn_row[0], post_id=conn_row[1], group_id=group_id,
+                orig_path=local,
+                meta=_meta(dto, kind, file),
+                md5=md5,
+                source=conn_row[0],
+                post_id=conn_row[1],
+                group_id=group_id,
             )
 
             def destroy() -> None:

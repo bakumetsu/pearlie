@@ -182,14 +182,14 @@ describe("viewSettings store", () => {
     const api = makeApi({
       getViewSettings: vi.fn().mockResolvedValue({
         sources: {
-          komga_series: { mode: "list", per_page: 60, zoom: 3, per_page_options: [60], per_page_max: 200, modes: ["grid", "list"] },
+          stump_series: { mode: "list", per_page: 60, zoom: 3, per_page_options: [60], per_page_max: 200, modes: ["grid", "list"] },
         },
       }),
     });
     const store = createViewSettings();
     await store.load(api);
 
-    expect(store.sources.komga_series.mode).toBe("list");
+    expect(store.sources.stump_series.mode).toBe("list");
   });
 
   it("set rejects disallowed mode and accepts allowed mode", async () => {

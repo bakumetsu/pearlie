@@ -17,7 +17,7 @@ def test_health_ok(client: TestClient) -> None:
     assert body["status"] == "ok"
     assert body["db"] == "ok"
     assert body["stash"] == {"state": "not_configured", "version": None}
-    assert body["komga"] == {"state": "not_configured", "version": None}
+    assert body["stump"] == {"state": "not_configured", "version": None}
     assert body["mounts"] == []
     assert body["sites"] == [
         {"id": "danbooru", "state": "ok"},
@@ -83,18 +83,18 @@ def test_health_probes_configured_services(tmp_path: Path) -> None:
         httpx.MockTransport(handler),
         stash_url="http://stash.local:9999",
         stash_api_key=SecretStr("TOP-SECRET-KEY"),
-        komga_url="http://komga.local:25600",
-        komga_api_key=SecretStr("KOMGA-SECRET"),
+        stump_url="http://stump.local:25600",
+        stump_api_key=SecretStr("STUMP-SECRET"),
     )
     body = c.get("/api/health").json()
     assert body["stash"] == {"state": "ok", "version": "v0.27.2"}
-    assert body["komga"] == {"state": "down", "version": None}
+    assert body["stump"] == {"state": "down", "version": None}
     assert {s["state"] for s in body["sites"]} == {"ok"}
     assert "stash.local" in calls
     assert all(site_host not in calls for site_host in ("danbooru.donmai.us", "gelbooru.com"))
     raw = c.get("/api/health").text
-    assert "TOP-SECRET-KEY" not in raw and "KOMGA-SECRET" not in raw
-    assert "stash.local" not in raw and "komga.local" not in raw
+    assert "TOP-SECRET-KEY" not in raw and "STUMP-SECRET" not in raw
+    assert "stash.local" not in raw and "stump.local" not in raw
 
 
 def test_health_probe_is_cached(tmp_path: Path) -> None:

@@ -6,19 +6,20 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from app.bookserver.stump import StumpBookServer
 from app.config import Settings
-from app.library.komga_trash import KomgaTrash
+from app.library.stump_trash import StumpTrash
 from app.main import create_app
 from app.targets.stash_client import StashClient, StashError
 from tests.test_trash_stash import FakeStash, lib_file, make, one_file
 
 
-class FakeKomga:
+class FakeStump:
     def __init__(self, root):
         self.root = root
 
     def list_libraries(self):
-        return [{"root": str(self.root)}]
+        return [{"id": "L1", "name": "Lib", "path": str(self.root), "config": {}}]
 
 
 def put(c: TestClient, path: str):
@@ -102,15 +103,18 @@ def test_put_inside_stash_root(tmp_path):
         assert (r.status_code, r.json()["code"]) == (422, "inside_library")
 
 
-def test_put_inside_komga_root(tmp_path):
+def test_put_inside_stump_root(tmp_path):
     lib, _ = lib_file(tmp_path)
     c = make(tmp_path, FakeStash(lib, []))
-    kroot = tmp_path / "komga"
+    kroot = tmp_path / "stump"
     inner = kroot / "x"
     inner.mkdir(parents=True)
-    fake = FakeKomga(kroot)
-    c.app.state.komga = fake  # pyright: ignore[reportAttributeAccessIssue]
-    c.app.state.komga_trash = KomgaTrash(  # pyright: ignore[reportAttributeAccessIssue]
+    fake = FakeStump(kroot)
+    c.app.state.stump = fake  # pyright: ignore[reportAttributeAccessIssue]
+    c.app.state.settings.stump_url = "http://stump.test"  # pyright: ignore[reportAttributeAccessIssue]
+    c.app.state.books = StumpBookServer(fake, None)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
+    c.app.state.stump_conn = ("http://stump.test", "")  # pyright: ignore[reportAttributeAccessIssue]
+    c.app.state.stump_trash = StumpTrash(  # pyright: ignore[reportAttributeAccessIssue]
         c.app.state.settings, c.app.state.trash, fake, wait_s=lambda: 0.0  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
     )
     r = put(c, str(inner))

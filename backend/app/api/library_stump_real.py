@@ -1,4 +1,4 @@
-"""Real Komga library router – delegates to the Komga REST API."""
+"""Real Stump library router – delegates to the Stump REST API."""
 
 import re
 import secrets
@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
 from app.api.patch_rules import check_patch
-from app.api.trash_real import komga_trash_of, result_of
+from app.api.trash_real import result_of, stump_trash_of
 from app.bookserver.base import (
     SORT_CREATED_DESC,
     BookDTO,
@@ -20,7 +20,6 @@ from app.bookserver.base import (
 )
 from app.bookserver.factory import book_server_of
 from app.bookserver.map import book_detail, book_item, series_detail, series_item
-from app.komga_shuffle import ShuffleCache, fetch_all, page_slice, shuffled
 from app.library.trash import TrashError
 from app.models import (
     LibraryItem,
@@ -32,6 +31,7 @@ from app.models import (
     TrashResult,
 )
 from app.paging import clamp_page, clamp_page_size, pages_for
+from app.stump_shuffle import ShuffleCache, fetch_all, page_slice, shuffled
 
 router = APIRouter(prefix="/api")
 
@@ -48,23 +48,23 @@ def _up(err: BookServerError) -> ApiError:
 
 
 def _visible[T: (BookDTO, SeriesDTO)](request: Request, dtos: list[T]) -> list[T]:
-    """Drop items Pearlie trashed that Komga still lists until its scan runs (or forever, if
+    """Drop items Pearlie trashed that Stump still lists until its scan runs (or forever, if
     the scan or empty-trash did not happen): deleted, UNAVAILABLE or not yet scanned. Items
-    Komga marks deleted are hidden for every owner (a purged row can leave a ghost)."""
-    owned = request.app.state.trash.komga_owned_ids()
+    Stump marks deleted are hidden for every owner (a purged row can leave a ghost)."""
+    owned = request.app.state.trash.stump_owned_ids()
     return [d for d in dtos if not d.deleted and d.id not in owned]
 
 
 def _hide_trashed(request: Request, id: str) -> None:
-    if id in request.app.state.trash.komga_owned_ids():
+    if id in request.app.state.trash.stump_owned_ids():
         raise ApiError(404, "not_found", "Item not found")
 
 
 def _cache(request: Request) -> ShuffleCache:
-    cache: ShuffleCache | None = getattr(request.app.state, "komga_shuffle", None)
+    cache: ShuffleCache | None = getattr(request.app.state, "stump_shuffle", None)
     if cache is None:
         cache = ShuffleCache()
-        request.app.state.komga_shuffle = cache
+        request.app.state.stump_shuffle = cache
     return cache
 
 
@@ -132,7 +132,7 @@ def _ignored_notice(sort: str, favorite: bool | None) -> Problem | None:
         return None
     return Problem(
         code="option_ignored",
-        message=f"Ignored: {', '.join(parts)} (Komga has no ratings or favorites)",
+        message=f"Ignored: {', '.join(parts)} (Stump has no ratings or favorites)",
     )
 
 
@@ -150,8 +150,8 @@ def fetch_book_page(
     return (reply, pages, served)
 
 
-@router.get("/library/komga/series", response_model=Page[LibraryItem])
-def list_komga_series(
+@router.get("/library/stump/series", response_model=Page[LibraryItem])
+def list_stump_series(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=200),
@@ -161,7 +161,7 @@ def list_komga_series(
     seed: int | None = Query(None, ge=0, lt=10**8),
 ) -> Page[LibraryItem]:
     server = book_server_of(request.app)
-    page_size = clamp_page_size("komga_series", page_size)
+    page_size = clamp_page_size("stump_series", page_size)
     if sort == "random":
         return _random_page(
             request, "series", server.list_series, series_item, page, page_size, q, seed, favorite
@@ -183,8 +183,8 @@ def list_komga_series(
     )
 
 
-@router.get("/library/komga/books", response_model=Page[LibraryItem])
-def list_komga_books(
+@router.get("/library/stump/books", response_model=Page[LibraryItem])
+def list_stump_books(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=200),
@@ -194,7 +194,7 @@ def list_komga_books(
     seed: int | None = Query(None, ge=0, lt=10**8),
 ) -> Page[LibraryItem]:
     server = book_server_of(request.app)
-    page_size = clamp_page_size("komga_books", page_size)
+    page_size = clamp_page_size("stump_books", page_size)
     if sort == "random":
         return _random_page(
             request, "books", server.list_books, book_item, page, page_size, q, seed, favorite
@@ -257,7 +257,7 @@ def patch_book(request: Request, id: str, body: PatchBody):
 
 def _patch(request: Request, kind: Kind, id: str, body: PatchBody):
     _check_id(request, id)
-    check_patch("Komga", body)
+    check_patch("Stump", body)
     if body.tags is not None:
         for t in body.tags:
             if not t or len(t) > 64:
@@ -281,7 +281,7 @@ def _delete(request: Request, plural: str, id: str) -> TrashResult:
     _check_id(request, id)
     store = request.app.state.trash
     try:
-        row = komga_trash_of(request).delete(plural, id)
+        row = stump_trash_of(request).delete(plural, id)
     except TrashError as e:
         raise ApiError(e.status, e.code, e.message) from None
     return result_of(row, store.retention_days())
@@ -297,7 +297,7 @@ def delete_book(request: Request, id: str) -> TrashResult:
     return _delete(request, "books", id)
 
 
-@router.post("/library/komga/books/{id}/progress", response_model=ProgressResult)
+@router.post("/library/stump/books/{id}/progress", response_model=ProgressResult)
 def set_progress(request: Request, id: str, body: ProgressBody) -> ProgressResult:
     _check_id(request, id)
     server = book_server_of(request.app)

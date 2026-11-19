@@ -150,16 +150,9 @@ export const SECTIONS: Section[] = [
         ],
       },
       {
-        title: 'Komga',
-        rows: [
-          { label: 'Status', hint: 'connection status' },
-          { label: 'Test', hint: 'test connection' },
-        ],
-      },
-      {
         title: 'Status',
         rows: [
-          { label: 'Health', hint: 'Stash, Komga, database, mounts, sites' },
+          { label: 'Health', hint: 'Stash, Stump, database, mounts, sites' },
         ],
       },
       {

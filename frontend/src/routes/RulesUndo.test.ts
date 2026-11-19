@@ -79,7 +79,7 @@ function makeApi() {
       .fn()
       .mockResolvedValue({
         stash: { state: "ok" },
-        komga: { state: "ok" },
+        stump: { state: "ok" },
         db: "ok",
         mounts: [],
         sites: [],

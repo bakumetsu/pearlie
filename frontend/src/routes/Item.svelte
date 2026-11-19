@@ -14,8 +14,8 @@
   import ImageStage from "../lib/item/ImageStage.svelte";
   import { createZoom, zoomKey } from "../lib/item/zoomModel.svelte";
   import ItemPanel from "../lib/item/ItemPanel.svelte";
-  import KomgaSeries from "../lib/item/KomgaSeries.svelte";
-  import KomgaBook from "../lib/item/KomgaBook.svelte";
+  import StumpSeries from "../lib/item/StumpSeries.svelte";
+  import StumpBook from "../lib/item/StumpBook.svelte";
   import { rejectTag } from "../lib/item/reject";
   import { PHONE_MAX, initialOpen, savePanel } from "../lib/item/panelState";
   import Icon from "../lib/components/Icon.svelte";
@@ -225,7 +225,7 @@
 
 {#if bookReady && view.detail}
   <div class="bookpage">
-    <KomgaBook
+    <StumpBook
       detail={view.detail}
       {api}
       tags={view.tagStrings}
@@ -247,7 +247,7 @@
   </div>
 {:else if seriesReady && view.detail && !oneshot}
   <div class="bookpage">
-    <KomgaSeries
+    <StumpSeries
       detail={view.detail}
       tags={view.tagStrings}
       backdropStrength={backdrop}

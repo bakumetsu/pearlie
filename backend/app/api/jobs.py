@@ -45,7 +45,7 @@ def save(body: SaveBody) -> SaveAccepted:
 def save_placement(
     source: Annotated[WebSource, Query()], post_id: Annotated[str, Query()]
 ) -> PlacementSuggestion:
-    """Suggest series or oneshot for a Komga save (fixture: always a oneshot)."""
+    """Suggest series or oneshot for a Stump save (fixture: always a oneshot)."""
     if store.web_raw(source, post_id) is None:
         raise ApiError(404, "not_found", "Post not found")
     return PlacementSuggestion(

@@ -1,4 +1,4 @@
-"""One Komga scan per library after a quiet period, then a check for each saved book."""
+"""One Stump scan per library after a quiet period, then a check for each saved book."""
 
 from __future__ import annotations
 
@@ -13,10 +13,10 @@ from typing import Protocol
 from app.bookserver.base import BookServerError
 from app.jobs.store import JobStore
 from app.models import Problem
-from app.targets.komga import scan_failed_notice, waiting_for_komga_notice
 from app.targets.stash import PendingScan
+from app.targets.stump import scan_failed_notice, waiting_for_stump_notice
 
-logger = logging.getLogger("pearlie.komga")
+logger = logging.getLogger("pearlie.stump")
 
 MAX_HOLD_S = 300.0
 VERIFY_DELAYS_S = (3.0, 5.0, 10.0, 20.0, 30.0, 60.0)
@@ -103,9 +103,9 @@ class ScanWait:
             count = len(ids)
             self._cond.notify_all()
         if capped:
-            logger.info("KOMGA scan wait hold cap reached library=%s", lib)
+            logger.info("STUMP scan wait hold cap reached library=%s", lib)
         logger.info(
-            "KOMGA scan wait %s library=%s due_in=%.0fs jobs=%d",
+            "STUMP scan wait %s library=%s due_in=%.0fs jobs=%d",
             "armed" if armed else "restarted",
             lib,
             due_in,
@@ -115,7 +115,7 @@ class ScanWait:
             due_at = datetime.now(UTC) + timedelta(seconds=due_in)
             self._store.set_scan_due(ids, due_at)
         except Exception as e:
-            logger.warning("KOMGA scan due write failed: %s", type(e).__name__)
+            logger.warning("STUMP scan due write failed: %s", type(e).__name__)
 
     def _pop_due(self) -> list[tuple[str, _Batch]]:
         with self._cond:
@@ -159,10 +159,10 @@ class ScanWait:
         try:
             self._fire(lib, batch)
         except Exception as e:
-            logger.error("KOMGA scan fire failed library=%s: %s", lib, type(e).__name__)
+            logger.error("STUMP scan fire failed library=%s: %s", lib, type(e).__name__)
 
     def _label(self) -> str:
-        return getattr(self._target, "label", "Komga")
+        return getattr(self._target, "label", "Stump")
 
     def _end(self, job_id: str, source_id: str, extra: list[Problem]) -> None:
         """End one job Done through the shared helper; a removed job is skipped."""
@@ -179,14 +179,12 @@ class ScanWait:
         self._store.set_verifying(ids)
         waited = self._clock() - batch.first
         logger.info(
-            "KOMGA scan requested library=%s books=%d waited=%.0fs", library_id, len(ids), waited
+            "STUMP scan requested library=%s books=%d waited=%.0fs", library_id, len(ids), waited
         )
         try:
             self._target.scan(library_id)
         except BookServerError as e:
-            logger.warning(
-                "%s scan failed code=%s status=%s", self._label(), e.code, e.status
-            )
+            logger.warning("%s scan failed code=%s status=%s", self._label(), e.code, e.status)
             for jid, (src, _p) in live.items():
                 self._end(jid, src, [scan_failed_notice(self._label())])
             return
@@ -206,18 +204,18 @@ class ScanWait:
                     library_id, {jid: p for jid, (_s, p) in pending.items()}
                 )
             except BookServerError as e:
-                logger.warning("KOMGA verify failed code=%s status=%s", e.code, e.status)
+                logger.warning("STUMP verify failed code=%s status=%s", e.code, e.status)
                 break
             for jid in found & set(pending):
                 src, p = pending.pop(jid)
-                logger.info("KOMGA source=%s verified path=%s", src, p.komga_path)
+                logger.info("STUMP source=%s verified path=%s", src, p.stump_path)
                 self._end(jid, src, [])
                 any_found = True
             if not pending:
                 return
             if attempt == EXTRA_SCAN_AFTER_TRY and not any_found and not extra_scan:
                 extra_scan = True
-                logger.info("KOMGA scan retry library=%s", library_id)
+                logger.info("STUMP scan retry library=%s", library_id)
                 try:
                     self._target.scan(library_id)
                 except BookServerError as e:
@@ -225,5 +223,5 @@ class ScanWait:
                         "%s scan failed code=%s status=%s", self._label(), e.code, e.status
                     )
         for jid, (src, p) in pending.items():
-            logger.warning("KOMGA source=%s book not found in Komga path=%s", src, p.komga_path)
-            self._end(jid, src, [waiting_for_komga_notice(p.komga_path)])
+            logger.warning("STUMP source=%s book not found in Stump path=%s", src, p.stump_path)
+            self._end(jid, src, [waiting_for_stump_notice(p.stump_path)])

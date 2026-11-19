@@ -182,7 +182,7 @@ def test_nhentai_popular_is_valid_and_other_sites_drop_it(client: TestClient):
 
 def test_filters_search_capability_all_sources(client: TestClient):
     src = client.get("/api/search/filters").json()["sources"]
-    ids = {"stash_images", "stash_videos", "komga_books"}
+    ids = {"stash_images", "stash_videos", "stump_books"}
     ids |= {"danbooru", "gelbooru", "rule34", "nhentai"}
     assert ids <= set(src)
     assert all(src[sid]["search"] is True for sid in ids)

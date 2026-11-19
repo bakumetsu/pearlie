@@ -1,14 +1,14 @@
 """Group trash routes: POST /api/library/trash and POST /api/trash/group/{group}/restore."""
 
 from fastapi.testclient import TestClient
-from test_trash_komga import make, setup_lib, wait_for
+from test_trash_stump import make, setup_lib, wait_for
 
 from app.config import Settings
 from app.main import create_app
 
 
 def test_batch_delete_then_group_restore(tmp_path):
-    _, folder, f1, f2, k = setup_lib(tmp_path)
+    folder, f1, f2, k = setup_lib(tmp_path)
     c = make(tmp_path, k)
     r = c.post(
         "/api/library/trash",
@@ -19,7 +19,7 @@ def test_batch_delete_then_group_restore(tmp_path):
     assert len(body["results"]) == 2 and body["failed"] == []
     assert {x["item"]["group_id"] for x in body["results"]} == {body["group"]}
     assert not f1.exists() and not f2.exists()
-    assert wait_for(lambda: k.empties >= 1)
+    assert wait_for(lambda: len(k.cleaned) >= 1)
     r = c.post(f"/api/trash/group/{body['group']}/restore")
     assert r.status_code == 200, r.text
     assert len(r.json()["restored"]) == 2 and r.json()["failed"] == []
@@ -28,7 +28,7 @@ def test_batch_delete_then_group_restore(tmp_path):
 
 
 def test_batch_lists_failures_and_skips_duplicates(tmp_path):
-    _, _, f1, _, k = setup_lib(tmp_path)
+    _, f1, _, k = setup_lib(tmp_path)
     c = make(tmp_path, k)
     r = c.post(
         "/api/library/trash",
@@ -50,7 +50,7 @@ def test_batch_lists_failures_and_skips_duplicates(tmp_path):
 
 
 def test_batch_size_limits(tmp_path):
-    _, _, _, _, k = setup_lib(tmp_path)
+    _, _, _, k = setup_lib(tmp_path)
     c = make(tmp_path, k)
     assert c.post("/api/library/trash", json={"items": []}).status_code == 422
     many = [{"kind": "book", "id": str(i)} for i in range(51)]
@@ -58,7 +58,7 @@ def test_batch_size_limits(tmp_path):
 
 
 def test_group_restore_unknown_is_404(tmp_path):
-    _, _, _, _, k = setup_lib(tmp_path)
+    _, _, _, k = setup_lib(tmp_path)
     c = make(tmp_path, k)
     assert c.post("/api/trash/group/missing/restore").status_code == 404
 

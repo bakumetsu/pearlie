@@ -1,4 +1,4 @@
-"""Komga media file-serving endpoints."""
+"""Stump media file-serving endpoints."""
 
 from __future__ import annotations
 
@@ -12,24 +12,24 @@ from app.fixtures.mediagen import media_dir, read_cbz_page, read_cbz_page_thumb
 router = APIRouter(prefix="/api/media")
 
 
-@router.get("/komga/series/{id}/thumb")
-def komga_series_thumb(id: str) -> FileResponse:
+@router.get("/stump/series/{id}/thumb")
+def stump_series_thumb(id: str) -> FileResponse:
     """Serve series cover."""
     _ensure()
     _valid("series", id)
     return _file(media_dir() / "books" / f"{(_n(id) * 3) % 5}_thumb.jpg", "image/jpeg")
 
 
-@router.get("/komga/books/{id}/thumb")
-def komga_book_thumb(id: str) -> FileResponse:
+@router.get("/stump/books/{id}/thumb")
+def stump_book_thumb(id: str) -> FileResponse:
     """Serve book cover."""
     _ensure()
     _valid("books", id)
     return _file(media_dir() / "books" / f"{_n(id) % 5}_thumb.jpg", "image/jpeg")
 
 
-@router.get("/komga/books/{id}/pages/{n}")
-def komga_book_page(id: str, n: int) -> Response:
+@router.get("/stump/books/{id}/pages/{n}")
+def stump_book_page(id: str, n: int) -> Response:
     """Serve a CBZ page as JPEG bytes."""
     _ensure()
     raw = _valid("books", id)
@@ -44,8 +44,8 @@ def komga_book_page(id: str, n: int) -> Response:
     )
 
 
-@router.get("/komga/books/{id}/pages/{n}/thumb")
-def komga_book_page_thumb(id: str, n: int) -> Response:
+@router.get("/stump/books/{id}/pages/{n}/thumb")
+def stump_book_page_thumb(id: str, n: int) -> Response:
     """Serve a small CBZ page thumbnail as JPEG bytes."""
     _ensure()
     raw = _valid("books", id)

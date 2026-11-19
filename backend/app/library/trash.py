@@ -1,7 +1,7 @@
 """Pearlie trash core: move a library file into the trash folder, undo, purge.
 
 The store knows files, the ``trash_items`` table and tokens. It never talks to Stash or
-Komga: the caller passes the library calls (destroy, restore) as functions, so a Komga
+Stump: the caller passes the library calls (destroy, restore) as functions, so a Stump
 target can use the same store. Files are only renamed, never copied (product rule 1).
 """
 
@@ -226,8 +226,8 @@ class TrashStore:
         finally:
             conn.close()
 
-    def komga_owned_ids(self) -> set[str]:
-        """Komga ids Pearlie trashed (`moving` or `trashed`), with what Komga drops with them.
+    def stump_owned_ids(self) -> set[str]:
+        """book ids Pearlie trashed (`moving` or `trashed`), with what Stump drops with them.
 
         A `restoring` row is left out on purpose: its item must not be purged under it.
         A trashed series also owns its book ids, and a book that emptied its series owns
@@ -254,8 +254,8 @@ class TrashStore:
                 ids.add(str(meta["series_gone_id"]))
         return ids
 
-    def komga_covering(self, book_id: str) -> dict | None:
-        """A live Komga trash row that holds the book: the book itself or its series."""
+    def stump_covering(self, book_id: str) -> dict | None:
+        """A live Stump trash row that holds the book: the book itself or its series."""
         conn = connect(self._db)
         try:
             rows = conn.execute(
@@ -321,9 +321,21 @@ class TrashStore:
                 "orig_path, trash_path, md5, source, post_id, meta, state, trashed_at, "
                 "expires_at, size_bytes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'moving',?,?,?)",
                 (
-                    token, spec.group_id, spec.target, spec.kind, spec.entity_id, spec.title,
-                    str(src), str(dest), spec.md5.lower() if spec.md5 else None, spec.source,
-                    spec.post_id, json.dumps(spec.meta), _iso(now), _iso(expires), _size(src),
+                    token,
+                    spec.group_id,
+                    spec.target,
+                    spec.kind,
+                    spec.entity_id,
+                    spec.title,
+                    str(src),
+                    str(dest),
+                    spec.md5.lower() if spec.md5 else None,
+                    spec.source,
+                    spec.post_id,
+                    json.dumps(spec.meta),
+                    _iso(now),
+                    _iso(expires),
+                    _size(src),
                 ),
             )
             conn.commit()
@@ -332,9 +344,17 @@ class TrashStore:
         try:
             folder.mkdir()
             (folder / SIDECAR).write_text(
-                json.dumps({"token": token, "target": spec.target, "kind": spec.kind,
-                            "entity_id": spec.entity_id, "title": spec.title,
-                            "orig_path": str(src), "meta": spec.meta}),
+                json.dumps(
+                    {
+                        "token": token,
+                        "target": spec.target,
+                        "kind": spec.kind,
+                        "entity_id": spec.entity_id,
+                        "title": spec.title,
+                        "orig_path": str(src),
+                        "meta": spec.meta,
+                    }
+                ),
                 encoding="utf-8",
             )
             os.rename(src, dest)
@@ -349,8 +369,9 @@ class TrashStore:
         try:
             destroy()
         except Exception as e:
-            logger.warning("trash destroy failed token=%s kind=%s error=%s",
-                           token, spec.kind, type(e).__name__)
+            logger.warning(
+                "trash destroy failed token=%s kind=%s error=%s", token, spec.kind, type(e).__name__
+            )
             self._rollback(token, src, dest, folder)
             raise
         self._run("UPDATE trash_items SET state = 'trashed' WHERE token = ?", (token,))
@@ -373,9 +394,7 @@ class TrashStore:
 
     # -- restore --------------------------------------------------------------
 
-    def restore(
-        self, token: str, apply: Callable[[dict, Path], tuple[str, Any]]
-    ) -> Any:
+    def restore(self, token: str, apply: Callable[[dict, Path], tuple[str, Any]]) -> Any:
         """Move back, then *apply(row, new_path)* -> (new_entity_id, result)."""
         with self._lock:
             row = self._row(token)
@@ -404,8 +423,9 @@ class TrashStore:
         try:
             new_id, result = apply(row, target)
         except Exception as e:
-            logger.warning("restore incomplete token=%s path=%s error=%s",
-                           token, target, type(e).__name__)
+            logger.warning(
+                "restore incomplete token=%s path=%s error=%s", token, target, type(e).__name__
+            )
             self._drop(token, self.dir / token)
             raise TrashError(
                 502,
@@ -428,8 +448,14 @@ class TrashStore:
                 conn.execute(
                     "INSERT OR IGNORE INTO saved_items "
                     "(source, post_id, md5, target, image_id, kind) VALUES (?,?,?,?,?,?)",
-                    (row["source"], row["post_id"], row["md5"] or "", row["target"], new_id,
-                     row["kind"]),
+                    (
+                        row["source"],
+                        row["post_id"],
+                        row["md5"] or "",
+                        row["target"],
+                        new_id,
+                        row["kind"],
+                    ),
                 )
             conn.commit()
         finally:
@@ -490,9 +516,13 @@ class TrashStore:
         now = _iso(datetime.now(UTC))
         conn = connect(self._db)
         try:
-            tokens = [r[0] for r in conn.execute(
-                "SELECT token FROM trash_items WHERE state = 'trashed' AND expires_at <= ?", (now,)
-            )]
+            tokens = [
+                r[0]
+                for r in conn.execute(
+                    "SELECT token FROM trash_items WHERE state = 'trashed' AND expires_at <= ?",
+                    (now,),
+                )
+            ]
         finally:
             conn.close()
         return sum(1 for t in tokens if self.purge_row(t))
@@ -500,9 +530,9 @@ class TrashStore:
     def empty(self) -> int:
         conn = connect(self._db)
         try:
-            tokens = [r[0] for r in conn.execute(
-                "SELECT token FROM trash_items WHERE state = 'trashed'"
-            )]
+            tokens = [
+                r[0] for r in conn.execute("SELECT token FROM trash_items WHERE state = 'trashed'")
+            ]
         finally:
             conn.close()
         return sum(1 for t in tokens if self.purge_row(t))
@@ -543,9 +573,12 @@ class TrashStore:
         """Settle rows left `moving` or `restoring` by a crash."""
         conn = connect(self._db)
         try:
-            rows = [dict(r) for r in conn.execute(
-                "SELECT * FROM trash_items WHERE state IN ('moving','restoring')"
-            )]
+            rows = [
+                dict(r)
+                for r in conn.execute(
+                    "SELECT * FROM trash_items WHERE state IN ('moving','restoring')"
+                )
+            ]
         finally:
             conn.close()
         base = self.dir
@@ -558,8 +591,9 @@ class TrashStore:
                     if os.path.lexists(trash_path):
                         self._run("UPDATE trash_items SET state='trashed' WHERE token=?", (token,))
                     else:
-                        logger.warning("trash repair: restore of token=%s left the file in the "
-                                       "library", token)
+                        logger.warning(
+                            "trash repair: restore of token=%s left the file in the library", token
+                        )
                         self._drop(token, folder)
                     continue
                 if not os.path.lexists(trash_path):

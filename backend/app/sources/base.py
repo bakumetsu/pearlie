@@ -45,7 +45,7 @@ class SourceError(Exception):
 
 class Source(Protocol):
     id: str
-    target: str  # "stash" or "komga": where saves of this source go
+    target: str  # "stash" or "stump": where saves of this source go
     file_hosts: tuple[str, ...]  # hosts a post's file_url may point to
 
     def search(
