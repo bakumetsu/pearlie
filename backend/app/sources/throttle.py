@@ -15,7 +15,8 @@ EASE_AFTER: int = 10
 DEFAULT_PACE: dict[str, float] = {
     "danbooru": 1.0,
     "gelbooru": 1.0,
-    "rule34": 1.0,
+    # Probed 2026-11-20: 120 anonymous calls, 0.1 s to 2 s apart, median 235 ms, no 429/503.
+    "rule34": 0.5,
     "nhentai": 2.0,
 }
 
