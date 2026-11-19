@@ -1,5 +1,6 @@
 """Real-mode trash routes: list, restore, Empty, Delete for good, purge preview."""
 
+import logging
 import os
 import re
 import uuid
@@ -33,6 +34,8 @@ from app.models import (
 )
 from app.targets.stash_client import StashError
 from app.targets.stash_library import valid_id
+
+logger = logging.getLogger("pearlie")
 
 router = APIRouter(prefix="/api")
 
@@ -121,6 +124,9 @@ def trash_batch(request: Request, body: TrashBatchBody) -> TrashBatchResult:
                 )
             results.append(result_of(row, days))
         except TrashError as e:
+            logger.warning(
+                "trash refused kind=%s id=%s code=%s status=%s", it.kind, it.id, e.code, e.status
+            )
             failed.append(TrashBatchFailure(kind=it.kind, id=it.id, code=e.code))
     return TrashBatchResult(group=group, results=results, failed=failed)
 

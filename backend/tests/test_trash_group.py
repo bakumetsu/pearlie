@@ -27,9 +27,10 @@ def test_batch_delete_then_group_restore(tmp_path):
     assert c.get("/api/trash").json()["items"] == []
 
 
-def test_batch_lists_failures_and_skips_duplicates(tmp_path):
+def test_batch_lists_failures_and_skips_duplicates(tmp_path, caplog):
     _, f1, _, k = setup_lib(tmp_path)
     c = make(tmp_path, k)
+    caplog.set_level("WARNING", logger="pearlie")
     r = c.post(
         "/api/library/trash",
         json={
@@ -46,6 +47,7 @@ def test_batch_lists_failures_and_skips_duplicates(tmp_path):
     assert len(body["results"]) == 1
     assert [(f["kind"], f["id"]) for f in body["failed"]] == [("book", "nope"), ("image", "12")]
     assert body["failed"][1]["code"] == "not_configured"
+    assert "trash refused kind=image id=12 code=not_configured" in caplog.text
     assert not f1.exists()
 
 
