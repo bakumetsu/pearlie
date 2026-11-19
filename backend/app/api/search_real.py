@@ -198,7 +198,17 @@ def search(
             pg = page if not multi else 1
             size_v = page_size if not multi else None
             cache = _cache_of(request)
-            ckey = (sid, tuple(tags), pg, size_v, order_v, tuple(rating_v))
+            # order picks which words a capped source sends, so sort only when nothing is cut
+            cap = getattr(src, "tag_limit", None)
+            same_query = cap is None or len(tags) <= cap
+            ckey = (
+                sid,
+                tuple(sorted(tags) if same_query else tags),
+                pg,
+                size_v,
+                order_v,
+                tuple(rating_v),
+            )
             try:
                 page_result = cache.get(ckey)
                 if page_result is None:

@@ -1,7 +1,10 @@
 """Danbooru source adapter."""
 
 import logging
+import math
 from collections.abc import Callable
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse
 
 import httpx
@@ -23,15 +26,29 @@ TAG_TYPES = ("general", "artist", "copyright", "character", "meta")
 _log = logging.getLogger(__name__)
 
 
-def _retry_after(resp: httpx.Response) -> float | None:
-    """Retry-After in seconds, or None when absent or not a number."""
-    raw = resp.headers.get("Retry-After")
+def parse_retry_after(raw: str | None) -> float | None:
+    """Retry-After in seconds: delta-seconds or an HTTP-date; never negative; None if unusable."""
     if raw is None:
         return None
+    raw = raw.strip()
     try:
-        return float(raw)
+        value = float(raw)
     except ValueError:
+        try:
+            when = parsedate_to_datetime(raw)
+        except (TypeError, ValueError):
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        value = (when - datetime.now(UTC)).total_seconds()
+    if not math.isfinite(value):
         return None
+    return max(0.0, value)
+
+
+def _retry_after(resp: httpx.Response) -> float | None:
+    """Retry-After in seconds, or None when absent or not usable."""
+    return parse_retry_after(resp.headers.get("Retry-After"))
 
 
 def rating_filter(tag: str) -> tuple[bool, set[str]] | None:
