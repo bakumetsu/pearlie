@@ -93,7 +93,7 @@ def test_failed_scan_job_raises_and_notice_names_stump(env) -> None:
     assert exc.value.status == 502
     notice = scan_failed_notice(target.label)
     assert notice.code == "scan_failed"
-    assert "Stump" in notice.message and "Stump" not in notice.message
+    assert "Stump" in notice.message and "Komga" not in notice.message
 
 
 def test_unconfigured_client_is_save_error() -> None:
