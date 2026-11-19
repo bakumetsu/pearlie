@@ -293,6 +293,11 @@ def test_list_deleted_reads_missing_and_purge_cleans_library() -> None:
     mock.books.append(stump_mock.book(7, gone=True))
     assert [b.id for b in server.list_deleted("books", "L1") if b.id == "b7"] == ["b7"]
     assert server.list_deleted("series", "L1") == []
+    gone = stump_mock.series()
+    gone.update(id="5b1f0c2e-7a4d-4e1b-9c3a-0d8e6f1a2b34", status="MISSING")
+    mock.series.append(gone)
+    assert [s.id for s in server.list_deleted("series", "L1")] == [gone["id"]]
+    assert not _ops(mock, "SeriesList")[-1]["variables"]["filter"].get("_and")
     server.purge_deleted("L1")
     assert mock.cleaned == ["L1"]
     assert all(b["status"] != "MISSING" for b in mock.books)

@@ -44,7 +44,8 @@ def _eq(filter_: dict | None, field: str) -> str | None:
 # What Stump v0.1.13 accepts (checked against its web client): the oneof order entries and the
 # filter fields Pearlie sends. A media filter has no `libraryId`: it goes through `series`.
 _FILTER_FIELDS = {
-    "SeriesList": {"libraryId", "path", "status", "name", "metadata", "_and", "_or"},
+    # SeriesFilterInput has no `status` (live: unknown field "status")
+    "SeriesList": {"libraryId", "path", "name", "metadata", "_and", "_or"},
     "MediaList": {"seriesId", "series", "path", "status", "name", "metadata", "_and", "_or"},
 }
 _ORDER_KEY = {"SeriesList": "series", "MediaList": "media"}
@@ -115,7 +116,9 @@ class MockStump:
         if op in ("SeriesList", "MediaList"):
             if (err := _shape_error(op, v, body["query"])) is not None:
                 return httpx.Response(200, json={"errors": [{"message": err}]})
-            rows = self._filtered(self.series if op == "SeriesList" else self.books, v["filter"])
+            rows = self._filtered(
+                self.series if op == "SeriesList" else self.books, v["filter"], op == "SeriesList"
+            )
             if _name_asc(v["order"]):
                 rows = sorted(rows, key=lambda r: r["name"])
             key = "series" if op == "SeriesList" else "media"
@@ -196,8 +199,10 @@ class MockStump:
         return httpx.Response(200, json={"data": data})
 
     @staticmethod
-    def _filtered(rows: list, filter_: dict | None) -> list:
-        if _eq(filter_, "status") == "MISSING":
+    def _filtered(rows: list, filter_: dict | None, is_series: bool = False) -> list:
+        if is_series:  # no status filter on series: MISSING ones are listed too (the UI shows them)
+            pass
+        elif _eq(filter_, "status") == "MISSING":
             rows = [r for r in rows if r.get("status") == "MISSING"]
         else:
             rows = [r for r in rows if r.get("status") != "MISSING"]
