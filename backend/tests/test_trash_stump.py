@@ -234,3 +234,61 @@ def test_restore_of_a_komga_era_row_moves_the_file_back_and_scans(tmp_path):
     assert f1.exists()
     assert m.scanned == ["L1"]
     assert c.get("/api/trash").json()["items"] == []
+
+
+BOOK_ID = "3f2b8c1e-5a47-4d9e-9c1a-7e6d2b4f8a10"
+SERIES_ID = "9a1d6e52-0c3b-4f87-b2e4-5d8a7c3f1e69"
+
+
+def one_book_lib(tmp_path, in_root=False):
+    """A library whose only series holds one book (real-shaped dashed UUID ids)."""
+    lib = tmp_path / "lib"
+    folder = lib if in_root else lib / "Series A"
+    folder.mkdir(parents=True)
+    f1 = folder / "one.cbz"
+    f1.write_bytes(b"1")
+    m = FsStump(lib, folder)
+    m.series[0].update(id=SERIES_ID, mediaCount=1)
+    m.add_file(1, f1)
+    m.books[0].update(id=BOOK_ID, seriesId=SERIES_ID)
+    return folder, f1, m
+
+
+def test_last_book_removes_the_empty_series_folder_then_scans(tmp_path):
+    folder, f1, m = one_book_lib(tmp_path)
+    c = make(tmp_path, m)
+    assert c.delete(f"/api/library/books/{BOOK_ID}").status_code == 200
+    assert not folder.exists() and (tmp_path / "lib").is_dir()
+    assert wait_for(lambda: m.scanned == ["L1"])
+
+
+def test_series_with_books_left_keeps_its_folder(tmp_path):
+    folder, _, _, m = setup_lib(tmp_path)
+    c = make(tmp_path, m)
+    assert c.delete("/api/library/books/B1").status_code == 200
+    assert folder.is_dir()
+
+
+def test_folder_with_another_file_is_kept(tmp_path):
+    folder, _, m = one_book_lib(tmp_path)
+    (folder / ".hidden").write_bytes(b"x")
+    c = make(tmp_path, m)
+    assert c.delete(f"/api/library/books/{BOOK_ID}").status_code == 200
+    assert folder.is_dir() and (folder / ".hidden").exists()
+
+
+def test_library_root_is_never_removed(tmp_path):
+    folder, f1, m = one_book_lib(tmp_path, in_root=True)
+    c = make(tmp_path, m)
+    assert c.delete(f"/api/library/books/{BOOK_ID}").status_code == 200
+    assert not f1.exists() and folder.is_dir()
+
+
+def test_restore_recreates_the_series_folder_and_the_book(tmp_path):
+    folder, f1, m = one_book_lib(tmp_path)
+    c = make(tmp_path, m)
+    tok = c.delete(f"/api/library/books/{BOOK_ID}").json()["token"]
+    assert not folder.exists()
+    r = c.post(f"/api/trash/{tok}/restore")
+    assert r.status_code == 200, r.text
+    assert folder.is_dir() and f1.exists()
