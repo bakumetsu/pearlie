@@ -111,7 +111,9 @@
 	onfocusin={() => onfocus(true)}
 	onfocusout={() => onfocus(false)}
 >
-	<BookPill {title} {index} {total} {hasSeries} {onprev} {onnext} {onlist} />
+	{#if hasSeries && total > 1}
+		<BookPill {title} {index} {total} {onprev} {onnext} {onlist} />
+	{/if}
 	<Rail {fit} {mode} {fullscreen} settingsOpen={popover === "settings"} {zoom} {hidden} {onback} {onsettings} {onfit} {onmode} {onfullscreen} {onhelp} {onzoomin} {onzoomout} {onzoomreset} {save} />
 	<BottomCard {count} {shown} {dir} {thumbsOpen} {onjump} {onthumbs} />
 	{#if thumbsOpen}

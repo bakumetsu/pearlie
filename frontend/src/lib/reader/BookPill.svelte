@@ -5,7 +5,6 @@
     title,
     index,
     total,
-    hasSeries,
     onprev,
     onnext,
     onlist,
@@ -13,7 +12,6 @@
     title: string;
     index: number;
     total: number;
-    hasSeries: boolean;
     onprev: () => void;
     onnext: () => void;
     onlist: () => void;
@@ -24,20 +22,16 @@
 </script>
 
 <div class="pill" data-testid="book-pill">
-  {#if !hasSeries}
+  <button class="btn" aria-label="Previous book" disabled={!canPrev} onclick={onprev}>
+    <Icon name="chevron-left" size={20} />
+  </button>
+  <button class="btn center" aria-label="Book list" onclick={onlist}>
     <span class="label">{title}</span>
-  {:else}
-    <button class="btn" aria-label="Previous book" disabled={!canPrev} onclick={onprev}>
-      <Icon name="chevron-left" size={20} />
-    </button>
-    <button class="btn center" aria-label="Book list" onclick={onlist}>
-      <span class="label">{title}</span>
-      <span class="num">{index}/{total}</span>
-    </button>
-    <button class="btn" aria-label="Next book" disabled={!canNext} onclick={onnext}>
-      <Icon name="chevron-right" size={20} />
-    </button>
-  {/if}
+    <span class="num">{index}/{total}</span>
+  </button>
+  <button class="btn" aria-label="Next book" disabled={!canNext} onclick={onnext}>
+    <Icon name="chevron-right" size={20} />
+  </button>
 </div>
 
 <style>
@@ -84,10 +78,6 @@
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
-  }
-
-  .pill > .label {
-    padding: 0 12px;
   }
 
   .label {
