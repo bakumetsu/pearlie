@@ -82,7 +82,7 @@ def test_scan_waits_for_job_and_find_books_uses_media_by_path(env) -> None:
     mock.books.append(book)
     pending = PendingScan(library_id="L1", name="book1.cbz", stump_path=book["path"])
     miss = PendingScan(library_id="L1", name="x.cbz", stump_path="/nope.cbz")
-    assert target.find_books("L1", {"1": pending, "2": miss}) == {"1"}
+    assert target.find_books("L1", {"1": pending, "2": miss}) == {"1": book["id"]}
 
 
 def test_failed_scan_job_raises_and_notice_names_stump(env) -> None:
@@ -100,3 +100,33 @@ def test_unconfigured_client_is_save_error() -> None:
     target = StumpTarget(cast(Settings, Settings(mode="real")), None, httpx.Client(), {})
     with pytest.raises(Exception, match="not configured"):
         _ = target._books
+
+
+def test_sqlite_error_in_insert_after_placement_fails_and_a_retry_heals(
+    env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sqlite3
+
+    target, _mock, settings, dest = env
+    real_insert = target._insert
+
+    def broken(post: Post, md5: str) -> None:
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(target, "_insert", broken)
+    with pytest.raises(sqlite3.OperationalError):
+        target.save(make_post(), [])
+    placed = list(dest.glob("oneshots/*.cbz"))
+    assert len(placed) == 1  # the file stays: no copy is lost or deleted
+    assert not list(settings.stump_temp_dir.glob("pearlie-*"))
+    conn = connect(settings.db_path)
+    assert conn.execute("SELECT COUNT(*) FROM saved_items").fetchone()[0] == 0
+    conn.close()
+
+    monkeypatch.setattr(target, "_insert", real_insert)
+    res = target.save(make_post(), [])
+    assert res.status == "duplicate"  # same file already in the folder
+    assert len(list(dest.glob("oneshots/*.cbz"))) == 1
+    conn = connect(settings.db_path)
+    assert conn.execute("SELECT COUNT(*) FROM saved_items").fetchone()[0] == 1
+    conn.close()

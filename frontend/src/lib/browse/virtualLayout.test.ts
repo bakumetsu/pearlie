@@ -168,10 +168,19 @@ describe("test 13 (layout): grid and list rows use the tallest caption", () => {
     const layout = new VirtualLayout({ lineH: 20, listPad: 16 });
     layout.reset("list", W, 20, [1, 1, 1], { lines: [1, 2, 1] });
     const r = snapshot(layout).map((p) => p.rect.h);
-    expect(r[0]).toBe(Math.max(20, 20 + 16) + 1);
-    expect(r[1]).toBe(Math.max(20, 40 + 16) + 1);
+    expect(r[0]).toBe(56 + 1);
+    expect(r[1]).toBe(Math.max(20, 40) + 16 + 1);
     expect(r[2]).toBe(r[0]);
     expect(layout.total).toBe(r[0] + r[1] + r[2]);
+  });
+
+  it("list: row height holds the thumb plus the tile padding, with no gap or overlap", () => {
+    const layout = new VirtualLayout({ lineH: 20, listPad: 16 });
+    layout.reset("list", W, 120, [1, 1], { lines: [1, 2] });
+    const p = snapshot(layout);
+    expect(p[0].rect.h).toBe(120 + 16 + 1);
+    expect(p[1].rect.h).toBe(120 + 16 + 1);
+    expect(p[1].rect.y).toBe(p[0].rect.y + p[0].rect.h);
   });
 
   it("captionLines follows the tile rules", () => {
