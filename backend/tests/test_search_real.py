@@ -268,8 +268,12 @@ STUMP_URL = "http://stump.test"
 STUMP_KEY = "k-secret-123"
 
 
+from tests.stump_mock import MockStump, book, lib, series  # noqa: E402
+
+
 def make_library_client(tmp_path, stash_handler=None, stump_handler=None):
     """Build a real-mode client with mock-backed Stash and/or Stump (None = not configured)."""
+    from app.bookserver.stump import StumpBookServer
     from app.stump import Stump
     from app.targets.stash_client import StashClient
 
@@ -304,6 +308,10 @@ def make_library_client(tmp_path, stash_handler=None, stump_handler=None):
         if stump_handler
         else None
     )
+    if stump_handler:
+        app.state.settings.stump_url = STUMP_URL
+        app.state.books = StumpBookServer(app.state.stump, None)
+        app.state.stump_conn = (STUMP_URL, "")
     return TestClient(app)
 
 
@@ -341,16 +349,7 @@ def _stash_ok(request: httpx.Request) -> httpx.Response:
     )
 
 
-def _stump_ok(request: httpx.Request) -> httpx.Response:
-    book = {
-        "id": "b1",
-        "name": "Book",
-        "created": "2026-01-01T00:00:00Z",
-        "media": {"pagesCount": 5},
-        "metadata": {"title": "Book One", "tags": ["x"]},
-        "readProgress": None,
-    }
-    return httpx.Response(200, json={"content": [book], "last": True, "totalElements": 1})
+_stump_ok = MockStump([lib()], [series()], [{**book(1), "id": "b1", "name": "Book One"}])
 
 
 def test_search_stash_images_and_videos(tmp_path):
@@ -370,7 +369,7 @@ def test_search_stash_images_and_videos(tmp_path):
 def test_search_stump_books(tmp_path):
     """Configured Stump answers the books section with a single page."""
     client = make_library_client(tmp_path, stump_handler=_stump_ok)
-    r = client.get("/api/search", params={"q": "x", "sources": "stump_books"})
+    r = client.get("/api/search", params={"q": "book", "sources": "stump_books"})
     assert r.status_code == 200
     section = r.json()["sections"][0]
     assert section["id"] == "stump_books"

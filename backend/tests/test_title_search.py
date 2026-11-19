@@ -50,7 +50,11 @@ def _row(i: int) -> dict:
     }
 
 
+from tests.stump_mock import MockStump, _contains, lib  # noqa: E402
+
+
 def _app(tmp_path: Path, nh_handler=None, stump_handler=None, real="search") -> TestClient:
+    from app.bookserver.stump import StumpBookServer
     from app.stump import Stump
 
     db_path = tmp_path / "p.db"
@@ -83,7 +87,16 @@ def _app(tmp_path: Path, nh_handler=None, stump_handler=None, real="search") -> 
         if stump_handler
         else None
     )
+    if stump_handler:
+        app.state.settings.stump_url = "http://stump.test"
+        app.state.books = StumpBookServer(app.state.stump, None)
+        app.state.stump_conn = ("http://stump.test", "")
     return TestClient(app)
+
+
+def _text(req: httpx.Request) -> str:
+    """The search text a Stump request sends (the mock lowercases the `contains` value)."""
+    return _contains(json.loads(req.content)["variables"]["filter"])
 
 
 def _nh_ok(seen: list):
@@ -95,9 +108,11 @@ def _nh_ok(seen: list):
 
 
 def _stump_ok(seen: list):
+    mock = MockStump([lib()], [], [])
+
     def handler(req: httpx.Request) -> httpx.Response:
         seen.append(req)
-        return httpx.Response(200, json={"content": [], "last": True, "totalElements": 0})
+        return mock(req)
 
     return handler
 
@@ -152,7 +167,7 @@ def test_stump_title_sends_only_title_text(tmp_path) -> None:
         params={"q": 'cat title:"big dragon" "two"', "sources": "stump_books"},
     )
     assert len(seen) == 1
-    assert json.loads(seen[0].content)["fullTextSearch"] == "big dragon two"
+    assert _text(seen[0]) == "big dragon two"
     notice = r.json()["sections"][0]["notice"]
     assert notice["message"] == "Tag chips do not narrow Stump results"
 
@@ -161,7 +176,7 @@ def test_stump_title_without_tags_has_no_notice(tmp_path) -> None:
     seen: list = []
     client = _app(tmp_path, stump_handler=_stump_ok(seen))
     r = client.get("/api/search", params={"q": 'title:"a"', "sources": "stump_books"})
-    assert json.loads(seen[0].content)["fullTextSearch"] == "a"
+    assert _text(seen[0]) == "a"
     assert r.json()["sections"][0]["notice"] is None
 
 
@@ -169,7 +184,7 @@ def test_stump_without_title_keeps_q(tmp_path) -> None:
     seen: list = []
     client = _app(tmp_path, stump_handler=_stump_ok(seen))
     client.get("/api/search", params={"q": "cat dog", "sources": "stump_books"})
-    assert json.loads(seen[0].content)["fullTextSearch"] == "cat dog"
+    assert _text(seen[0]) == "cat dog"
 
 
 def test_stump_excluded_title_skipped(tmp_path) -> None:
