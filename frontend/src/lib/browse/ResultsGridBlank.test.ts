@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup } from "@testing-library/svelte";
 import { tick } from "svelte";
 import ResultsGrid from "./ResultsGrid.svelte";
+import { VirtualLayout } from "./virtualLayout";
 import type { Mode } from "./layout";
 import type { WebItem } from "../api/client";
 
@@ -52,14 +53,23 @@ const props = { zoom: 3, loading: false, skeletons: 12, saveStates: {}, onsave: 
 
 describe("grid with rows never draws nothing", () => {
   for (const mode of ["grid", "list", "wall", "masonry"] as Mode[]) {
-    for (const [name, t] of [["far above", -1e7], ["far below", 1e7]] as const) {
-      it(`${mode}, container ${name} the screen`, async () => {
-        top = t;
-        const { container } = render(ResultsGrid, { ...props, mode, items: nhentai(25) });
-        await tick();
-        await new Promise((r) => setTimeout(r, 0));
-        expect(container.querySelectorAll(".tile").length).toBeGreaterThan(0);
-      });
-    }
+    it(`${mode}: viewport over the grid but the window holds no cell falls back to flow`, async () => {
+      vi.spyOn(VirtualLayout.prototype, "range").mockReturnValue([]);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { container } = render(ResultsGrid, { ...props, mode, items: nhentai(25) });
+      await tick();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(container.querySelectorAll(".tile").length).toBeGreaterThan(0);
+      expect(warn).toHaveBeenCalled();
+    });
+
+    it(`${mode}: grid far below the screen keeps the virtual window (no flow rows)`, async () => {
+      top = 1e7;
+      const { container } = render(ResultsGrid, { ...props, mode, items: nhentai(25) });
+      await tick();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(container.querySelector(".vwin")).not.toBeNull();
+      expect(container.querySelectorAll(".tile").length).toBe(0);
+    });
   }
 });
