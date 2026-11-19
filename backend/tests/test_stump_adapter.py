@@ -417,3 +417,18 @@ def test_progress_does_not_retry_other_errors() -> None:
     with pytest.raises(BookServerError):
         server.set_progress("b1", 3, False)
     assert _progress_calls(mock) == 1
+
+
+def test_lock_sends_the_shape_of_stumps_own_client() -> None:
+    server, mock = _server()
+    server.set_tags("books", "b1", ["a"])
+    server.set_tags("series", "s1", ["a"])
+    media, series = _ops(mock, "SetMediaLockedFields")[0], _ops(mock, "SetSeriesLockedFields")[0]
+    assert media["variables"] == {"mediaId": "b1", "lockedFields": ["TAGS"]}
+    assert series["variables"] == {"seriesId": "s1", "lockedFields": ["TAGS"]}
+    assert (
+        "setMediaLockedFields(mediaId: $mediaId, lockedFields: $lockedFields) { id }"
+        in (media["query"])
+    )
+    assert "$lockedFields: [MetadataField!]!" in series["query"]
+    assert "finishMediaProgress(id: $id) }" in stump_mod.M_FINISH_PROGRESS

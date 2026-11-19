@@ -78,9 +78,9 @@ RETURN_SELECTION = {
     "updateMediaMetadata": _SEL,  # guess: MediaMetadata
     "updateSeriesMetadata": _SEL,  # guess: SeriesMetadata
     "updateMediaProgress": _SEL,  # guess: ReadProgress object
-    "finishMediaProgress": _SEL,  # guess: ReadProgress object
-    "setMediaLockedFields": _SEL,  # guess: Media (or Boolean: set "")
-    "setSeriesLockedFields": _SEL,  # guess: Series (or Boolean: set "")
+    "finishMediaProgress": "",  # scalar in the Stump 0.1.13 web bundle: no selection
+    "setMediaLockedFields": " { id }",  # Media; seen in the Stump 0.1.13 web bundle
+    "setSeriesLockedFields": " { id }",  # Series; seen in the Stump 0.1.13 web bundle
 }
 
 M_CLEAN_LIBRARY = (
@@ -111,7 +111,7 @@ M_FINISH_PROGRESS = (
     f"{{ finishMediaProgress(id: $id){RETURN_SELECTION['finishMediaProgress']} }}"
 )
 
-# Locked-field names (enum literals, inlined: the set is fixed and the enum type name is unknown)
+# Locked-field names: sent as the variable `lockedFields: [MetadataField!]!` (enum values by name)
 LOCKABLE = ("TITLE", "SUMMARY", "LINKS", "WRITERS", "TAGS")
 
 _NOT_FOUND_WORDS = ("not found", "notfound", "no such")
@@ -313,14 +313,14 @@ class Stump:
         names = [f for f in fields if f in LOCKABLE]
         if not names:
             return
-        arg, op = ("mediaId", "setMediaLockedFields")
+        arg, op, name = ("mediaId", "setMediaLockedFields", "SetMediaLockedFields")
         if kind == "series":
-            arg, op = ("seriesId", "setSeriesLockedFields")
+            arg, op, name = ("seriesId", "setSeriesLockedFields", "SetSeriesLockedFields")
         query = (
-            f"mutation Lock($id: ID!) {{ {op}({arg}: $id, fields: [{', '.join(names)}])"
-            f"{RETURN_SELECTION[op]} }}"
+            f"mutation {name}(${arg}: ID!, $lockedFields: [MetadataField!]!) "
+            f"{{ {op}({arg}: ${arg}, lockedFields: $lockedFields){RETURN_SELECTION[op]} }}"
         )
-        self.gql("Lock", query, {"id": id})
+        self.gql(name, query, {arg: id, "lockedFields": names})
 
     def update_progress(self, media_id: str, page: int) -> None:
         variables = {"id": media_id, "input": {"paged": {"page": page}}}
