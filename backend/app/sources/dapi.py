@@ -192,12 +192,12 @@ class DapiSource:
                 return False
         return True
 
-    def get_post(self, post_id: str, max_wait: float | None = None) -> Post:
-        """Fetch a single post by its numeric id (`max_wait` caps the throttle wait)."""
+    def get_post(self, post_id: str) -> Post:
+        """Fetch a single post by its numeric id."""
         pid = post_id.strip()
         if not pid.isdigit():
             raise SourceError("not_found", "Post not found", 404)
-        data = self._get({"id": pid}, max_wait)
+        data = self._get({"id": pid})
         if not data:
             raise SourceError("not_found", "Post not found", 404)
         return self._to_post(data[0])
