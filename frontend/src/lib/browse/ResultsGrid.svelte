@@ -484,19 +484,19 @@
     width: 100%;
   }
 
-  .grid {
+  .rg > .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(var(--cell), 1fr));
     gap: 16px;
   }
 
-  .list {
+  .rg > .list {
     display: flex;
     flex-direction: column;
     gap: 0;
   }
 
-  .list > :global(*) {
+  .rg > .list > :global(*) {
     border-bottom: 1px solid var(--border, rgba(127, 127, 127, 0.25));
   }
 
@@ -505,6 +505,7 @@
     overflow-anchor: none;
   }
 
+  /* The flow containers above share class names with .vcell.{mode}: scope them to the direct child. */
   .vcell {
     position: absolute;
     top: 0;
@@ -526,7 +527,7 @@
     min-width: 0;
   }
 
-  .masonry {
+  .rg > .masonry {
     display: flex;
     gap: 8px;
     align-items: flex-start;
