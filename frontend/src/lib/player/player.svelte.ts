@@ -16,6 +16,7 @@ export interface VideoLike {
   src?: string;
   load?(): void;
   addEventListener?(type: string, cb: () => void, opts?: { once?: boolean }): void;
+  removeEventListener?(type: string, cb: () => void): void;
 }
 
 export type PlayerNav = { next(): void; prev(): void; canNext(): boolean; canPrev(): boolean };
@@ -42,6 +43,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
   let fallbackIdx = 0;
   let nav: PlayerNav | null = null;
   let playOnLoad = false;
+  let pendingSeek: (() => void) | null = null;
   let navVersion = $state(0);
   let navigating = false;
   let navFrom: string | null = null;
@@ -158,7 +160,7 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
       state.ended = false;
       state.loop = false;
       state.sourceIdx = -1;
-      playOnLoad = true;
+      playOnLoad = isAutoplay();
       applyRate();
       applyLoop();
     },
@@ -184,6 +186,27 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
       state.slot = null;
       if (navigating) return;
       leaveStage();
+    },
+
+    startPlayback(): void {
+      const v = el;
+      if (v === null) return;
+      v.play().catch((e: unknown) => {
+        if ((e as { name?: string } | null)?.name !== "NotAllowedError") {
+          state.playing = false;
+          return;
+        }
+        // browser blocked autoplay with sound: retry muted, else stay paused
+        const wasMuted = state.muted;
+        v.muted = true;
+        state.muted = true;
+        v.play().catch((e2: unknown) => {
+          console.warn("autoplay blocked, video stays paused", e2);
+          v.muted = wasMuted;
+          state.muted = wasMuted;
+          state.playing = false;
+        });
+      });
     },
 
     play(): void {
@@ -239,16 +262,21 @@ export function createPlayer(isAutoplay: () => boolean = () => playerSettings.au
       const v = el;
       const t = v.currentTime;
       const wasPlaying = state.playing;
+      if (pendingSeek !== null) v.removeEventListener?.("loadedmetadata", pendingSeek);
+      pendingSeek = null;
       v.src = url;
       v.load?.();
       applyRate();
       if (keep) {
-        v.addEventListener?.("loadedmetadata", () => {
+        const onMeta = () => {
+          pendingSeek = null;
           v.currentTime = t;
           if (wasPlaying) v.play().catch(() => { state.playing = false; });
-        }, { once: true });
+        };
+        pendingSeek = onMeta;
+        v.addEventListener?.("loadedmetadata", onMeta, { once: true });
       } else if (wasPlaying) {
-        void v.play();
+        v.play().catch(() => { state.playing = false; });
       }
     },
 
