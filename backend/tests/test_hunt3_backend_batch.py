@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
+from typing import Any
 
 import httpx
 import pytest
@@ -31,7 +32,7 @@ def env(tmp_path):
 def _spec(lib, name, **over):
     f = lib / name
     f.write_bytes(b"x")
-    kw = dict(target="stash", kind="image", entity_id=name, title=name, orig_path=f)
+    kw: dict[str, Any] = dict(target="stash", kind="image", entity_id=name, title=name, orig_path=f)
     kw.update(over)
     return TrashSpec(**kw)
 
