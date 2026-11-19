@@ -317,16 +317,17 @@ class StumpBookServer:
 
     def list_deleted(self, kind: Kind, library_id: str) -> list[BookDTO | SeriesDTO]:
         """Items of the library Stump shows as MISSING (their file is gone)."""
-        in_lib = _in_library(library_id) if kind == "books" else _eq("libraryId", library_id)
-        filt = {"_and": [in_lib, {"status": {"eq": _MISSING}}]}
+        # SeriesFilterInput has no `status` field (Stump rejects it): series are filtered here
+        filt = {"_and": [_in_library(library_id), {"status": {"eq": _MISSING}}]}
+        series_filt = _eq("libraryId", library_id) or {}
         out: list[BookDTO | SeriesDTO] = []
         for page in range(1, SERIES_BOOKS_PAGES + 1):
             if kind == "books":
                 conn = self._c.list_media(page, PAGE_SIZE, filt, _name_asc("media"))
                 out.extend(book_dto(d) for d in conn.get("nodes") or [])
             else:
-                conn = self._c.list_series(page, PAGE_SIZE, filt, _name_asc("series"))
-                out.extend(series_dto(d) for d in conn.get("nodes") or [])
+                conn = self._c.list_series(page, PAGE_SIZE, series_filt, _name_asc("series"))
+                out.extend(s for s in map(series_dto, conn.get("nodes") or []) if s.deleted)
             if _page(conn, page, PAGE_SIZE, []).last:
                 break
         return out
