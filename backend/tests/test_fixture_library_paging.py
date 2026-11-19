@@ -21,8 +21,8 @@ def test_stash_images_page_clamped(client):
     assert len(body["items"]) > 0
 
 
-def test_komga_books_page_clamped(client):
-    resp = client.get("/api/library/komga/books?page_size=20&page=999")
+def test_stump_books_page_clamped(client):
+    resp = client.get("/api/library/stump/books?page_size=20&page=999")
     assert resp.status_code == 200
     body = resp.json()
     assert body["page"] == body["pages"]
@@ -30,8 +30,8 @@ def test_komga_books_page_clamped(client):
     assert len(body["items"]) > 0
 
 
-def test_komga_series_pages(client):
-    resp = client.get("/api/library/komga/series?page_size=20")
+def test_stump_series_pages(client):
+    resp = client.get("/api/library/stump/series?page_size=20")
     assert resp.status_code == 200
     body = resp.json()
     assert body["pages"] >= 1

@@ -40,7 +40,7 @@
 	{#if health}
 		<ul class="statusrows">
 			<li class="row"><span>Stash</span><span class="chip {chipClass(health.stash.state)}">{statusLabel(health.stash.state)}</span></li>
-			<li class="row"><span>Komga</span><span class="chip {chipClass(health.komga.state)}">{statusLabel(health.komga.state)}</span></li>
+			<li class="row"><span>Stump</span><span class="chip {chipClass(health.stump.state)}">{statusLabel(health.stump.state)}</span></li>
 			<li class="row"><span>Database</span><span class="chip {chipClass(health.db === "ok" ? "ok" : "down")}">{statusLabel(health.db === "ok" ? "ok" : "down")}</span></li>
 			{#each health.mounts as mount, i (i)}
 				<li class="row"><span>Mount {mount.name}</span><span class="chip {chipClass(mount.state)}">{statusLabel(mount.state)}</span></li>

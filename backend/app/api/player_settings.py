@@ -17,9 +17,7 @@ class PlayerSettings(BaseModel):
 @router.get("/player-settings", response_model=PlayerSettings)
 def get_player_settings(request: Request) -> PlayerSettings:
     if request.app.state.settings.mode == "fixture":
-        mem: dict[str, str] | None = getattr(
-            request.app.state, "player_settings_mem", None
-        )
+        mem: dict[str, str] | None = getattr(request.app.state, "player_settings_mem", None)
         if mem is None:
             mem = {}
         autoplay = mem.get("player.autoplay", "0") == "1"
@@ -39,9 +37,7 @@ def get_player_settings(request: Request) -> PlayerSettings:
 def put_player_settings(request: Request, body: PlayerSettings) -> PlayerSettings:
     value = "1" if body.autoplay else "0"
     if request.app.state.settings.mode == "fixture":
-        mem: dict[str, str] | None = getattr(
-            request.app.state, "player_settings_mem", None
-        )
+        mem: dict[str, str] | None = getattr(request.app.state, "player_settings_mem", None)
         if mem is None:
             mem = {}
             request.app.state.player_settings_mem = mem

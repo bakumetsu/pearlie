@@ -1,3 +1,4 @@
+import os
 import time
 
 from fastapi import APIRouter, FastAPI, Request
@@ -7,7 +8,7 @@ from app.connection_probe import probe_connection
 from app.connections_store import ConnectionStore
 from app.db import db_reachable
 from app.fixtures.scenarios import active
-from app.models import Health, KomgaHealth, Site, StashHealth, State
+from app.models import Health, Mount, Site, StashHealth, State, StumpHealth
 from app.sources.auth import build_auth
 from app.update.version import current_version
 
@@ -22,7 +23,7 @@ def clear_health_cache(app: FastAPI) -> None:
 
 
 def _service(app: FastAPI, name: str) -> tuple[State, str | None]:
-    """State and version of Stash or Komga; the probe result is cached briefly."""
+    """State and version of Stash or the book server; the probe result is cached briefly."""
     store: ConnectionStore = app.state.connection_store
     address = store.address(name)
     if not address:
@@ -50,6 +51,13 @@ def _site_state(app: FastAPI, name: str) -> State:
     return "ok"
 
 
+def _trash_mount(app: FastAPI) -> Mount:
+    """Ok when the trash folder exists and is writable (created at start and before a move)."""
+    folder = app.state.trash.dir
+    ok = folder.is_dir() and os.access(folder, os.W_OK)
+    return Mount(name="trash", state="ok" if ok else "down")
+
+
 @router.get("/health")
 def health(request: Request) -> Health:
     app = request.app
@@ -63,11 +71,12 @@ def health(request: Request) -> Health:
         # Fixture mode has no real connection to probe: report configuration only.
         store: ConnectionStore = app.state.connection_store
         stash_state: State = "ok" if store.address("stash") else "not_configured"
-        komga_state: State = "ok" if store.address("komga") else "not_configured"
-        stash_version = komga_version = None
+        book_addr = store.address("stump")
+        stump_state: State = "ok" if book_addr else "not_configured"
+        stash_version = stump_version = None
     else:
         stash_state, stash_version = _service(app, "stash")
-        komga_state, komga_version = _service(app, "komga")
+        stump_state, stump_version = _service(app, "stump")
     if active("offline"):
         stash_state = "down"
     return Health(
@@ -75,7 +84,7 @@ def health(request: Request) -> Health:
         version=current_version().version,
         db=db,
         stash=StashHealth(state=stash_state, version=stash_version),
-        komga=KomgaHealth(state=komga_state, version=komga_version),
-        mounts=[],
+        stump=StumpHealth(state=stump_state, version=stump_version),
+        mounts=[] if fixture else [_trash_mount(app)],
         sites=[Site(id=site, state=_site_state(app, site)) for site in SITES],
     )

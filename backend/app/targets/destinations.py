@@ -21,18 +21,18 @@ def to_stash_path(path: str, prefix_pearlie: str = "", prefix_stash: str = "") -
     if path == prefix_pearlie:
         return prefix_stash
     if path.startswith(prefix_pearlie + "/"):
-        return prefix_stash + path[len(prefix_pearlie):]
+        return prefix_stash + path[len(prefix_pearlie) :]
     return path
 
 
 def to_pearlie_path(path: str, prefix_pearlie: str = "", prefix_stash: str = "") -> str:
-    """Map a Stash/Komga path back to its Pearlie equivalent."""
+    """Map a Stash/Stump path back to its Pearlie equivalent."""
     if not prefix_stash:
         return path
     if path == prefix_stash:
         return prefix_pearlie
     if path.startswith(prefix_stash + "/"):
-        return prefix_pearlie + path[len(prefix_stash):]
+        return prefix_pearlie + path[len(prefix_stash) :]
     return path
 
 
@@ -210,18 +210,19 @@ def resolve_site(db_path: Path, site: str, fallback: str) -> str:
     return row["folder"] if row is not None else fallback
 
 
-def validate_komga_folder(
+def validate_book_folder(
     folder: str,
     library_roots: list[str],
     prefix_pearlie: str = "",
-    prefix_komga: str = "",
+    prefix_server: str = "",
+    server: str = "Stump",
 ) -> str:
-    """Like validate_folder, but against Komga library roots."""
+    """Like validate_folder, but against the library roots of a book server."""
     try:
-        return validate_folder(folder, library_roots, prefix_pearlie, prefix_komga)
+        return validate_folder(folder, library_roots, prefix_pearlie, prefix_server)
     except DestinationError as err:
         if err.code == "outside_library":
             raise DestinationError(
-                "outside_library", "folder is not inside a Komga library root", 400
+                "outside_library", f"folder is not inside a {server} library root", 400
             ) from None
         raise

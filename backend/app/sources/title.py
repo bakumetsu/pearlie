@@ -1,4 +1,4 @@
-"""Gallery title parser: splits a Komga-style or nhentai title into display fields."""
+"""Gallery title parser: splits a Stump-style or nhentai title into display fields."""
 
 from __future__ import annotations
 
@@ -83,3 +83,36 @@ def parse_title(raw: str, japanese: str | None = None) -> ParsedTitle:
     main = english or romaji
     sub = jp or (romaji if english else "")
     return ParsedTitle(main, sub or None, artist, circle, event, language, translator)
+
+
+_KANA = re.compile(r"[぀-ヿｦ-ﾟ]")
+_HAN = re.compile(r"[㐀-䶿一-鿿]")
+_LATIN = re.compile(r"[A-Za-zÀ-ɏ]")
+
+
+def script_of(text: str) -> str:
+    """`ja` when the text has kana, `cjk` when it has Han and no Latin letters, else `latin`."""
+    if _KANA.search(text):
+        return "ja"
+    if _HAN.search(text) and not _LATIN.search(text):
+        return "cjk"
+    return "latin"
+
+
+def name_lines(pretty: str | None, english: str | None, japanese: str | None) -> list[str]:
+    """Book name lines, at most 3: Latin name first, its Latin twin second, kana or Han last.
+
+    Without a Latin name, one Japanese or Han name stands alone.
+    """
+    latin: list[str] = []
+    ja: list[str] = []
+    cjk: list[str] = []
+    seen: set[str] = set()
+    for raw in (pretty, english, japanese):
+        s = (raw or "").strip()
+        if not s or s.casefold() in seen:
+            continue
+        seen.add(s.casefold())
+        {"latin": latin, "ja": ja, "cjk": cjk}[script_of(s)].append(s)
+    tail = (ja + cjk)[:1]
+    return (latin[:2] + tail)[:3]

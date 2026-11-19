@@ -1,4 +1,4 @@
-# T-56: fixture mode never builds or calls a real Stash or Komga client
+# T-56: fixture mode never builds or calls a real Stash or Stump client
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,11 +13,11 @@ def _app(tmp_path: Path, mode: str):
 
     settings = Settings(
         mode=mode,
-        real="search,library_komga,media_komga,library_stash,media_stash,jobs",
-        komga_url="http://real-komga.invalid",
+        real="search,library_stump,media_stump,library_stash,media_stash,jobs",
+        stump_url="http://real-stump.invalid",
         stash_url="http://real-stash.invalid",
         stash_api_key="fake",
-        komga_api_key="fake",
+        stump_api_key="fake",
         db_path=tmp_path / "p.db",
         static_dir=tmp_path / "nostatic",
         _env_file=None,  # pyright: ignore
@@ -27,23 +27,23 @@ def _app(tmp_path: Path, mode: str):
 
 def test_fixture_mode_builds_no_clients(tmp_path, monkeypatch):
     stash_cls = MagicMock()
-    komga_cls = MagicMock()
+    stump_cls = MagicMock()
     monkeypatch.setattr("app.main.StashClient", stash_cls)
-    monkeypatch.setattr("app.main.Komga", komga_cls)
+    monkeypatch.setattr("app.main.Stump", stump_cls)
 
     app = _app(tmp_path, "fixture")
 
     stash_cls.assert_not_called()
-    komga_cls.assert_not_called()
+    stump_cls.assert_not_called()
     assert app.state.stash is None
-    assert app.state.komga is None
+    assert app.state.stump is None
 
 
 def test_fixture_routes_never_touch_clients(tmp_path, monkeypatch):
     stash_cls = MagicMock()
-    komga_cls = MagicMock()
+    stump_cls = MagicMock()
     monkeypatch.setattr("app.main.StashClient", stash_cls)
-    monkeypatch.setattr("app.main.Komga", komga_cls)
+    monkeypatch.setattr("app.main.Stump", stump_cls)
 
     app = _app(tmp_path, "fixture")
     client = TestClient(app)
@@ -56,7 +56,7 @@ def test_fixture_routes_never_touch_clients(tmp_path, monkeypatch):
     assert resp.status_code == 200
     videos = resp.json()["items"]
 
-    resp = client.get("/api/library/komga/books")
+    resp = client.get("/api/library/stump/books")
     assert resp.status_code == 200
 
     resp = client.get("/api/search")
@@ -79,16 +79,16 @@ def test_fixture_routes_never_touch_clients(tmp_path, monkeypatch):
     assert resp.status_code == 200
 
     assert stash_cls.return_value.mock_calls == []
-    assert komga_cls.return_value.mock_calls == []
+    assert stump_cls.return_value.mock_calls == []
     stash_cls.assert_not_called()
-    komga_cls.assert_not_called()
+    stump_cls.assert_not_called()
 
 
 def test_fixture_thumb_url_differs_from_real(tmp_path, monkeypatch):
     stash_cls = MagicMock()
-    komga_cls = MagicMock()
+    stump_cls = MagicMock()
     monkeypatch.setattr("app.main.StashClient", stash_cls)
-    monkeypatch.setattr("app.main.Komga", komga_cls)
+    monkeypatch.setattr("app.main.Stump", stump_cls)
 
     app = _app(tmp_path, "fixture")
     client = TestClient(app)

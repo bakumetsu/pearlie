@@ -7,8 +7,8 @@ import typing
 from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
-from app.api.library_komga_real import fetch_komga_page
 from app.api.library_stash_real import fetch_stash_page
+from app.api.library_stump_real import fetch_book_page
 from app.api.media_owned import is_owned
 from app.api.media_web_real import media_kind, pick_url, proxy_path, remember, tile_url
 from app.api.search_filters import (
@@ -18,11 +18,13 @@ from app.api.search_filters import (
     title_notice,
     unsupported_notice,
 )
+from app.bookserver.base import SORT_CREATED_DESC, BookServerError
+from app.bookserver.factory import book_server_of
+from app.bookserver.map import book_item
 from app.filters.rules import evaluate, load_rules
 from app.filters.safe_mode import is_hidden_in_safe_mode, resolve_safe
 from app.gif_grid import grid_gif_ok
 from app.jobs.store import JobStore
-from app.komga import Komga, KomgaError, book_item
 from app.models import (
     Blur,
     LibraryItem,
@@ -36,6 +38,7 @@ from app.models import (
     WebSource,
 )
 from app.paging import PAGE_SIZE_CAPS, clamp_page_size, pages_for
+from app.search_cache import SearchCache
 from app.sources.base import Post, Source, SourceError
 from app.sources.filters import NOTICE_CODE
 from app.sources.nhentai import reject_terms
@@ -51,12 +54,12 @@ from app.targets.stash_library import (
 
 router = APIRouter(prefix="/api")
 
-_DEFAULT = ["stash_images", "stash_videos", "komga_books", "danbooru", "gelbooru", "nhentai"]
+_DEFAULT = ["stash_images", "stash_videos", "stump_books", "danbooru", "gelbooru", "nhentai"]
 _VALID = {*_DEFAULT, "rule34"}
 _TITLES = {
     "stash_images": "Stash images",
     "stash_videos": "Stash videos",
-    "komga_books": "Komga books",
+    "stump_books": "Stump books",
     "danbooru": "Danbooru",
     "gelbooru": "Gelbooru",
     "rule34": "Rule34",
@@ -64,10 +67,19 @@ _TITLES = {
 }
 
 
-_LIBRARY = {"stash_images", "stash_videos", "komga_books"}
+_LIBRARY = {"stash_images", "stash_videos", "stump_books"}
 
-# Targets a save job can reach today; T-131b adds "komga".
-_SAVE_TARGETS = {"stash", "komga"}
+# Targets a save job can reach today; T-131b adds "stump".
+_SAVE_TARGETS = {"stash", "stump"}
+
+
+def _cache_of(request: Request) -> SearchCache:
+    """The app's site-search cache (library sources never use it)."""
+    state = request.app.state
+    cache = getattr(state, "search_cache", None)
+    if cache is None:
+        cache = state.search_cache = SearchCache()
+    return cache
 
 
 def _web_thumb(post: Post) -> str:
@@ -76,9 +88,9 @@ def _web_thumb(post: Post) -> str:
 
 
 def _library_section(request: Request, sid: str, q: str, page: int, page_size: int, multi: bool):
-    """Section for a Stash or Komga library source, or None when it is not configured."""
+    """Section for a Stash or Stump library source, or None when it is not configured."""
     state = request.app.state
-    client = state.komga if sid == "komga_books" else state.stash
+    client = state.stump if sid == "stump_books" else state.stash
     if client is None:
         return None
     title = _TITLES[sid]
@@ -86,17 +98,14 @@ def _library_section(request: Request, sid: str, q: str, page: int, page_size: i
     pg = 1 if multi else page
     size = 18 if multi else clamp_page_size(sid, page_size)
     try:
-        if sid == "komga_books":
-            komga: Komga = client
-            # Pearlie pages are 1-based; fetch_komga_page converts to Komga's 0-based.
-            reply, pages, served = fetch_komga_page(
-                lambda p0, n: komga.list_books(page=p0, size=n, sort="createdDate,desc", q=q),
-                pg,
-                size,
+        if sid == "stump_books":
+            server = book_server_of(request.app)
+            reply, pages, served = fetch_book_page(
+                lambda p, n: server.list_books(p, n, q, SORT_CREATED_DESC), pg, size
             )
-            items = [book_item(r) for r in reply["content"]]
-            total = reply["totalElements"]
-            next_page = served + 1 if not reply["last"] else None
+            items = [book_item(r) for r in reply.items]
+            total = reply.total_items
+            next_page = served + 1 if not reply.last else None
         else:
             stash: StashClient = client
             field, direction = stash_sort("newest", None)
@@ -113,7 +122,7 @@ def _library_section(request: Request, sid: str, q: str, page: int, page_size: i
                 items, _bad = map_items(dtos, video_item)
             pages = pages_for(total, size)
             next_page = served + 1 if served * size < total else None
-    except (StashError, KomgaError) as e:
+    except (StashError, BookServerError) as e:
         return Section(
             id=cast_sid,
             title=title,
@@ -168,10 +177,10 @@ def search(
             sections.append(skipped_section(cast_sid, title, skip))
             continue
         lib_q, lib_note = q, None
-        if sid == "komga_books" and titles:
-            # Komga search is full text: send only the title text, tag chips cannot narrow it.
+        if sid == "stump_books" and titles:
+            # Stump search is full text: send only the title text, tag chips cannot narrow it.
             lib_q = " ".join(t.value for t in titles)
-            lib_note = "Tag chips do not narrow Komga results" if others else None
+            lib_note = "Tag chips do not narrow Stump results" if others else None
         lib = (
             _library_section(request, sid, lib_q, page, page_size, multi)
             if sid in _LIBRARY
@@ -187,10 +196,14 @@ def search(
             if sid == "nhentai":
                 tags += [t for t in reject_terms(rules.reject) if t not in tags]
             pg = page if not multi else 1
+            size_v = page_size if not multi else None
+            cache = _cache_of(request)
+            ckey = (sid, tuple(tags), pg, size_v, order_v, tuple(rating_v))
             try:
-                page_result = src.search(
-                    tags, pg, page_size if not multi else None, order_v, rating_v
-                )
+                page_result = cache.get(ckey)
+                if page_result is None:
+                    page_result = src.search(tags, pg, size_v, order_v, rating_v)
+                    cache.put(ckey, page_result)
             except SourceError as e:
                 sections.append(
                     Section(

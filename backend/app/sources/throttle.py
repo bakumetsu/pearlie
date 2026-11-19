@@ -1,4 +1,5 @@
 """Per-site rate throttle with exponential back-off and ease-in."""
+
 from __future__ import annotations
 
 import logging
@@ -49,6 +50,21 @@ class Throttle:
             start = max(now, self._next_at)
             self._next_at = start + max(self._current, floor)
         return max(0.0, start - now)
+
+    def reserve_within(self, max_wait: float) -> float | None:
+        """Like reserve, but take no slot and return None when the wait exceeds `max_wait`."""
+        with self._lock:
+            now = self._clock()
+            start = max(now, self._next_at)
+            if start - now > max_wait:
+                return None
+            self._next_at = start + self._current
+        return max(0.0, start - now)
+
+    def nap(self, delay: float) -> None:
+        """Sleep `delay` seconds with the throttle's own sleep function."""
+        logger.debug("THROTTLE site=%s wait=%.1fs", self._site, delay)
+        self._sleep(delay)
 
     def wait(self) -> None:
         """Block until the next slot, then advance."""

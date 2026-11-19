@@ -6,7 +6,10 @@ from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
 from app.api.patch_rules import check_patch
-from app.models import LibraryItem, Page, PageStats, PatchBody
+from app.api.trash_real import result_of
+from app.library.stash_trash import StashTrash
+from app.library.trash import TrashError
+from app.models import LibraryItem, Page, PageStats, PatchBody, TrashResult
 from app.paging import clamp_page, clamp_page_size, pages_for
 from app.targets.stash_client import StashClient, StashError
 from app.targets.stash_library import (
@@ -215,9 +218,23 @@ def patch_stash_video(request: Request, id: str, body: PatchBody):
     return _patch(request, "videos", id, body)
 
 
-def _delete_handler(id: str) -> None:
-    raise ApiError(501, "not_supported", "Editing and deleting Stash items is not available yet")
+def _delete(request: Request, plural: str, id: str) -> TrashResult:
+    if not valid_id(id):
+        raise ApiError(404, "not_found", "Item not found")
+    client: StashClient = request.app.state.stash
+    store = request.app.state.trash
+    try:
+        row = StashTrash(request.app.state.settings, store, client).delete(plural, id)
+    except TrashError as e:
+        raise ApiError(e.status, e.code, e.message) from None
+    return result_of(row, store.retention_days())
 
 
-for _p in ("/library/images/{id}", "/library/videos/{id}"):
-    router.delete(_p)(_delete_handler)
+@router.delete("/library/images/{id}")
+def delete_stash_image(request: Request, id: str) -> TrashResult:
+    return _delete(request, "images", id)
+
+
+@router.delete("/library/videos/{id}")
+def delete_stash_video(request: Request, id: str) -> TrashResult:
+    return _delete(request, "videos", id)

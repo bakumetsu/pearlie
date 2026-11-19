@@ -19,15 +19,15 @@ from app.api import (
     destinations,
     jobs,
     jobs_real,
-    library_komga,
-    library_komga_real,
     library_scan,
     library_stash,
     library_stash_real,
-    media_komga,
-    media_komga_real,
+    library_stump,
+    library_stump_real,
     media_stash,
     media_stash_real,
+    media_stump,
+    media_stump_real,
     media_web_pages,
     media_web_pages_fixture,
     media_web_real,
@@ -41,6 +41,7 @@ from app.api import (
     site_icons,
     tabs,
     trash,
+    trash_real,
     update,
     view_settings,
 )
@@ -55,16 +56,19 @@ from app.config import ConfigError, Settings, load_settings
 from app.connections_store import ConnectionStore
 from app.db import connect, init_db
 from app.jobs.worker import JobWorker
-from app.komga import Komga
+from app.legacy import migrate_komga
+from app.library.stash_trash import StashTrash
+from app.library.trash import TrashStore
 from app.logs import install_http_hooks
 from app.sources.base import Source
 from app.sources.danbooru import Danbooru
 from app.sources.dapi import Gelbooru, Rule34
 from app.sources.nhentai import NHentai
 from app.sources.throttle import DEFAULT_PACE, Throttle
-from app.targets.komga import KomgaTarget
+from app.stump import Stump
 from app.targets.stash import StashTarget
 from app.targets.stash_client import StashClient
+from app.targets.stump import StumpTarget
 from app.thumbcache import ThumbCache
 from app.update import runner
 from app.update.changelog import Changelog, FakeChangelog
@@ -73,35 +77,47 @@ from app.update.version import current_version
 
 FIXTURE_ROUTERS = {
     "search": search.router,
-    "library_komga": library_komga.router,
+    "library_stump": library_stump.router,
     "library_stash": library_stash.router,
     "media_stash": media_stash.router,
     "media_web_pages": media_web_pages_fixture.router,
-    "media_komga": media_komga.router,
+    "media_stump": media_stump.router,
     "jobs": jobs.router,
     "rules": rules.router,
     "trash": trash.router,
 }
 REAL_ROUTERS: dict[str, APIRouter] = {
     "search": search_real.router,
-    "library_komga": library_komga_real.router,
+    "library_stump": library_stump_real.router,
     "media_stash": media_stash_real.router,
     "library_stash": library_stash_real.router,
-    "media_komga": media_komga_real.router,
+    "media_stump": media_stump_real.router,
     "media_web_pages": media_web_pages.router,
     "media_web": media_web_real.router,
     "jobs": jobs_real.router,
     "rules": rules_real.router,
+    "trash": trash_real.router,
 }
 
 logger = logging.getLogger("pearlie")
+
+# Root files of the built frontend (frontend/public) that catch_all serves as themselves.
+ROOT_STATIC_FILES: dict[str, str] = {
+    "favicon.svg": "image/svg+xml",
+    "icon.svg": "image/svg+xml",
+    "apple-touch-icon.png": "image/png",
+    "icon-192.png": "image/png",
+    "icon-512.png": "image/png",
+    "icon-maskable-512.png": "image/png",
+    "manifest.webmanifest": "application/manifest+json",
+}
 
 
 def _with_stored_connections(settings: Settings, store: ConnectionStore) -> Settings:
     stash_url = store.address("stash")
     stash_key = store.effective_secret("stash")
-    komga_url = store.address("komga")
-    komga_key = store.effective_secret("komga")
+    stump_url = store.address("stump")
+    stump_key = store.effective_secret("stump")
     updates: dict[str, object] = {}
     if stash_url and stash_url != settings.stash_url:
         updates["stash_url"] = stash_url
@@ -110,15 +126,13 @@ def _with_stored_connections(settings: Settings, store: ConnectionStore) -> Sett
         stash_key != settings.stash_api_key.get_secret_value()
     ):
         updates["stash_api_key"] = SecretStr(stash_key)
-    if komga_url and komga_url != settings.komga_url:
-        updates["komga_url"] = komga_url
-    if (komga_key or "komga_url" in updates) and (
-        komga_key != settings.komga_api_key.get_secret_value()
+    if stump_url and stump_url != settings.stump_url:
+        updates["stump_url"] = stump_url
+    if (stump_key or "stump_url" in updates) and (
+        stump_key != settings.stump_api_key.get_secret_value()
     ):
-        updates["komga_api_key"] = SecretStr(komga_key)
-    if updates:
-        return settings.model_copy(update=updates)
-    return settings
+        updates["stump_api_key"] = SecretStr(stump_key)
+    return settings.model_copy(update=updates) if updates else settings
 
 
 async def _daily_update_check(app_: FastAPI) -> None:
@@ -143,16 +157,37 @@ async def _daily_update_check(app_: FastAPI) -> None:
         await asyncio.sleep(86400)
 
 
+async def _trash_purge_loop(app_: FastAPI) -> None:
+    """Repair rows a crash left half done, then purge expired trash once an hour."""
+    store: TrashStore = app_.state.trash
+    stash = app_.state.stash
+    destroyers = {}
+    if stash is not None:
+        destroyers["stash"] = StashTrash(app_.state.settings, store, stash).destroy_row
+    if trash_real.book_server_ready(app_):
+        destroyers["stump"] = trash_real.stump_trash_of_app(app_).destroy_row
+    try:
+        await asyncio.to_thread(store.repair, destroyers)
+    except Exception:
+        logger.warning("trash repair failed")
+    while True:
+        try:
+            await asyncio.to_thread(store.purge_expired)
+        except Exception:
+            logger.warning("trash purge failed")
+        await asyncio.sleep(3600)
+
+
 def _build_stash(settings: Settings) -> StashClient | None:
     if not settings.stash_url:
         return None
     return StashClient(settings.stash_url, settings.stash_api_key.get_secret_value())
 
 
-def _build_komga(settings: Settings) -> Komga | None:
-    if not settings.komga_url:
+def _build_stump(settings: Settings) -> Stump | None:
+    if not settings.stump_url:
         return None
-    return Komga(settings.komga_url, settings.komga_api_key.get_secret_value())
+    return Stump(settings.stump_url, settings.stump_api_key.get_secret_value())
 
 
 def _require_configured(name: str, clients: tuple[str, ...]):
@@ -171,11 +206,13 @@ def rebuild_client(app: FastAPI, name: str) -> None:
         return
     settings = _with_stored_connections(app.state.settings, app.state.connection_store)
     app.state.settings = settings
-    if name == "komga":
-        app.state.komga = _build_komga(settings)
-        komga_target = getattr(app.state, "komga_target", None)
-        if komga_target is not None:
-            komga_target.set_client(app.state.komga)
+    if name == "stump":
+        app.state.stump = _build_stump(settings)
+        app.state.books = None  # rebuilt by book_server_of from the new settings
+        app.state.stump_conn = None
+        stump_target = getattr(app.state, "stump_target", None)
+        if stump_target is not None:
+            stump_target.set_client(app.state.stump)
     elif name == "stash":
         app.state.stash = _build_stash(settings)
         stash_target = getattr(app.state, "stash_target", None)
@@ -197,6 +234,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         keep_days=settings.log_keep_days,
     )
     logger.info(settings.safe_summary())
+    migrate_komga(settings.db_path)
     worker_enabled = settings.worker_enabled
 
     @asynccontextmanager
@@ -210,9 +248,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         daily: asyncio.Task[None] | None = None
         if app_.state.settings.mode == "real":
             daily = asyncio.create_task(_daily_update_check(app_))
+        purge: asyncio.Task[None] | None = None
+        if app_.state.settings.mode == "real":
+            purge = asyncio.create_task(_trash_purge_loop(app_))
         try:
             yield
         finally:
+            if purge is not None:
+                purge.cancel()
             if daily is not None:
                 daily.cancel()
             if worker is not None and worker_enabled:
@@ -285,7 +328,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.thumb_cache = (
         ThumbCache(
             settings.thumb_cache_root,
-            forbidden=[settings.stash_temp_dir, settings.komga_temp_dir],
+            forbidden=[settings.stash_temp_dir, settings.stump_temp_dir],
         )
         if settings.mode == "real"
         else None
@@ -307,39 +350,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings.mode == "real":
         settings = _with_stored_connections(settings, app.state.connection_store)
         app.state.settings = settings
-    app.state.komga = _build_komga(settings) if settings.mode != "fixture" else None
+    app.state.trash = TrashStore(settings.db_path, settings.trash_dir)
+    if settings.mode == "real":
+        trash_dir = app.state.trash.dir
+        # Only the .env default is guarded; a path saved in Options skips the temp/cache check.
+        trash_root = settings.trash_dir.resolve()
+        guarded = [
+            settings.stash_temp_dir,
+            settings.stump_temp_dir,
+            settings.thumb_cache_root,
+        ]
+        for bad in guarded:
+            bad_root = bad.resolve()
+            if trash_root == bad_root or bad_root in trash_root.parents:
+                raise ConfigError("PEARLIE_TRASH_DIR must not be inside a temp or cache folder")
+        try:
+            trash_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.warning(
+                "cannot create trash folder %s (%s); trash stays unavailable",
+                trash_dir,
+                type(e).__name__,
+            )
+    app.state.stump = _build_stump(settings) if settings.mode != "fixture" else None
     app.state.stash = _build_stash(settings) if settings.mode != "fixture" else None
 
     app.state.worker = None
     app.state.http = None
     app.state.stash_target = None
-    app.state.komga_target = None
+    app.state.stump_target = None
     if "jobs" in real:
         http = install_http_hooks(httpx.Client(), "download", save=True)
         app.state.http = http
         stash_target = StashTarget(
             settings, app.state.stash, http, app.state.sources, throttles=throttles
         )
-        komga_target = KomgaTarget(
-            settings, app.state.komga, http, app.state.sources, throttles=throttles
+        stump_target = StumpTarget(
+            settings, app.state.stump, http, app.state.sources, throttles=throttles
         )
         app.state.stash_target = stash_target
-        app.state.komga_target = komga_target
+        app.state.stump_target = stump_target
         app.state.worker = JobWorker(
             settings.db_path,
             app.state.sources,
-            {"stash": stash_target, "komga": komga_target},
+            {"stash": stash_target, "stump": stump_target},
             interval_s=settings.download_interval_s,
-            scan_wait_s=lambda: options.komga_scan_wait_s(app),
-            startup_hooks=[stash_target.cleanup_temp, komga_target.cleanup_temp],
+            scan_wait_s=lambda: options.stump_scan_wait_s(app),
+            startup_hooks=[stash_target.cleanup_temp, stump_target.cleanup_temp],
         )
 
     needs = {
-        "library_komga": ("komga",),
-        "media_komga": ("komga",),
+        "library_stump": ("stump",),
+        "media_stump": ("stump",),
         "library_stash": ("stash",),
         "media_stash": ("stash",),
-        "jobs": ("stash", "komga"),
+        "jobs": ("stash", "stump"),
     }
     for name in (n for n in REAL_ROUTERS if n in real):  # order: /book before {kind}
         deps = [Depends(_require_configured(name, needs[name]))] if name in needs else []
@@ -388,6 +453,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         def catch_all(path: str) -> FileResponse:
             if path.startswith("api/"):
                 raise HTTPException(status_code=404)
+            if path in ROOT_STATIC_FILES:
+                root_file = static_dir / path
+                if root_file.is_file():
+                    return FileResponse(root_file, media_type=ROOT_STATIC_FILES[path])
             return FileResponse(index_html)
 
     return app

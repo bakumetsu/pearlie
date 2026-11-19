@@ -29,6 +29,7 @@
   import ChangelogCard from "../lib/options/ChangelogCard.svelte";
   import LogsCard from "../lib/options/LogsCard.svelte";
   import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
+  import TrashFolderCard from "../lib/options/TrashFolderCard.svelte";
   import SaveFoldersCard from "../lib/options/SaveFoldersCard.svelte";
   import ConnectionRows from "../lib/options/ConnectionRows.svelte";
   import ContentFilterCard from "../lib/options/ContentFilterCard.svelte";
@@ -73,7 +74,7 @@
 
   // Real cards for a hit: whole cards from the section, companions folded
   // into the card that renders them. Rules is a full page, so it stays a plain card.
-  const COMPANION: Record<string, string> = { Komga: "Stash", "Log viewer": "Logging" };
+  const COMPANION: Record<string, string> = { "Log viewer": "Logging" };
   function resolveCards(hit: SearchHit): OptionCard[] {
     const out: OptionCard[] = [];
     for (const c of hit.cards) {
@@ -205,7 +206,7 @@
 
   const LIBRARY_NAMES = [
     { key: "stash", label: "Stash" },
-    { key: "komga", label: "Komga" },
+    { key: "stump", label: "Stump" },
   ];
 </script>
 
@@ -226,12 +227,12 @@
     <SaveFoldersCard />
   {:else if sectionId === "trash" && card.title === "Retention"}
     <TrashRetentionCard />
+  {:else if sectionId === "trash" && card.title === "Folder"}
+    <TrashFolderCard />
   {:else if sectionId === "sources" && card.title === "Site access"}
     <ConnectionRows title="Site access" names={SITE_NAMES} />
   {:else if sectionId === "library" && card.title === "Stash"}
-    <ConnectionRows title="Stash and Komga" names={LIBRARY_NAMES} />
-  {:else if sectionId === "library" && card.title === "Komga"}
-    <!-- shown with Stash -->
+    <ConnectionRows title="Stash and Stump" names={LIBRARY_NAMES} />
   {:else if sectionId === "library" && card.title === "Status"}
     <StatusCard />
   {:else if sectionId === "library" && card.title === "Import older saves"}

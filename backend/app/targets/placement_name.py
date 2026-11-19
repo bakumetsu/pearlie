@@ -15,20 +15,22 @@ class ParsedName:
     is_series: bool
 
 
-_KW = r"(?:volume|vol|chapter|ch|episode|issue|part|no|v|c|#)"
+_KW = r"(?:volume|vol|chapter|ch|episode|ep|issue|part|no|v|c|#)"
 _VOL_RE = re.compile(
     rf"^(?P<root>.+?)(?:\s|#)\s*(?P<kw>{_KW})?\.?\s*"
     r"(?P<num>\d+(?:\.\d+)?|[IVX]{1,4})(?P<tail>[\s-].*)?$",
     re.IGNORECASE,
 )
+_JA_EP_RE = re.compile(r"^(?P<root>.+?)\s*第\s*(?P<num>\d+)\s*[話巻章](?P<tail>[\s-].*)?$")
 _REST_VOL_RE = re.compile(
     rf"^(?:(?:{_KW})\.?\s*)?(\d+(?:\.\d+)?|[IVX]{{1,4}})$",
     re.IGNORECASE,
 )
 _TRAIL_BRACKET_RE = re.compile(r"(\[[^\]]*\]|\([^()]*\))$")
+_SAVED_SUFFIX_RE = re.compile(r"\s+-\s+[A-Za-z0-9_]+-\d+$")  # Pearlie's " - <site>-<id>"
 _AUTHOR_TAG_RE = re.compile(r"\[[^\]]+\]")
 _ACTUAL_KWS = frozenset(
-    ("volume", "vol", "chapter", "ch", "episode", "issue", "part", "no", "v", "c"),
+    ("volume", "vol", "chapter", "ch", "episode", "ep", "issue", "part", "no", "v", "c"),
 )
 _ROMAN_RE = re.compile(r"^[IVX]{1,4}$")
 
@@ -52,6 +54,9 @@ def _is_bare(kw: str | None) -> bool:
 
 
 def _try_volume(primary: str, hardened: bool) -> tuple[str, str] | None:
+    ja = _JA_EP_RE.match(primary)
+    if ja:  # 第N話 is an explicit keyword form, so hardening does not apply
+        return ja.group("root").strip(), str(int(ja.group("num")))
     m = _VOL_RE.match(primary)
     if not m:
         return None
@@ -77,7 +82,7 @@ def parse_name(
     hardened: bool = True,
 ) -> ParsedName:
     # 1. Clean trailing bracket groups
-    s = title.strip()
+    s = _SAVED_SUFFIX_RE.sub("", title.strip())
     while True:
         m = _TRAIL_BRACKET_RE.search(s)
         if not m:
@@ -98,6 +103,9 @@ def parse_name(
     cuts = [i for i in (title_part.find("~"), title_part.find("〜")) if i != -1]
     if cuts:
         title_part = title_part[: min(cuts)].strip()
+
+    # 3b. Cut at the first " | " (the part after it is the other-language title)
+    title_part = title_part.split(" | ", 1)[0].strip()
 
     # 4. Split at first " - "
     parts = title_part.split(" - ", 1)

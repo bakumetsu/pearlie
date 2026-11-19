@@ -125,7 +125,7 @@ def test_danbooru_search_skips_bad_row(caplog):
 
 def test_short_secret_warns_once_by_name(caplog):
     logs.clear_secrets()
-    settings = SimpleNamespace(stash_api_key="abc", komga_api_key="long-enough-key-123")
+    settings = SimpleNamespace(stash_api_key="abc", stump_api_key="long-enough-key-123")
     with caplog.at_level(logging.WARNING, logger="pearlie.logs"):
         logs.register_settings_secrets(settings)
         logs.register_settings_secrets(settings)
@@ -135,7 +135,7 @@ def test_short_secret_warns_once_by_name(caplog):
     msg = warnings[0].message
     assert "stash_api_key" in msg
     assert "abc" not in msg
-    assert "komga_api_key" not in msg
+    assert "stump_api_key" not in msg
     assert logs.scrub("x abc y") == "x abc y"
 
     logs.clear_secrets()

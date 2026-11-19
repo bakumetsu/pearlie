@@ -6,13 +6,16 @@ import type { PlacementAnswer } from "../stores/placement.svelte";
 export type SaveResult =
   | { result: "queued" }
   | { result: "in_library"; ref?: { kind: string; id: string } }
+  | { result: "in_trash"; token?: string }
   | { result: "blocked" }
   | { result: "error"; message?: string };
 
 export interface SaveFlowDeps {
   ask: (item: WebItem) => Promise<PlacementAnswer>;
   save: (item: WebItem, placement?: { kind: "series" | "oneshot" }) => Promise<SaveResult>;
-  toast: (t: { kind: "info" | "error"; message: string; actionLabel?: string; href?: string }) => void;
+  toast: (t: { kind: "info" | "error"; message: string; actionLabel?: string; href?: string; onAction?: () => void }) => void;
+  // Restores a trashed item by its token (offered when the save finds it in the Trash).
+  restore?: (token: string) => void;
 }
 
 // One save path for the grid, the book page and the reader: D-22 placement, save call, toasts.
@@ -26,6 +29,16 @@ export async function saveWebItem(deps: SaveFlowDeps, item: WebItem): Promise<vo
       break;
     case "in_library":
       break;
+    case "in_trash": {
+      const { token } = r;
+      const restore = deps.restore;
+      deps.toast({
+        kind: "info",
+        message: "Already saved, in the Trash",
+        ...(token && restore ? { actionLabel: "Restore", onAction: () => restore(token) } : {}),
+      });
+      break;
+    }
     case "blocked":
       deps.toast({ kind: "error", message: "Blocked by a rule" });
       break;

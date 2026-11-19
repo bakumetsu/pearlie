@@ -11,9 +11,9 @@ def _app(tmp_path):
     return create_app(
         Settings(
             mode="fixture",
-            real="search,library_komga,media_komga,library_stash,media_stash",
-            komga_url="http://real-komga.invalid",
-            komga_api_key="SECRET-KOMGA-KEY",
+            real="search,library_stump,media_stump,library_stash,media_stash",
+            stump_url="http://real-stump.invalid",
+            stump_api_key="SECRET-STUMP-KEY",
             stash_url="http://real-stash.invalid",
             stash_api_key="SECRET-STASH-KEY",
             db_path=tmp_path / "p.db",
@@ -25,18 +25,18 @@ def _app(tmp_path):
 
 def test_fixture_mode_ignores_real(tmp_path):
     app = _app(tmp_path)
-    assert app.state.komga is None
+    assert app.state.stump is None
 
 
 def test_fixture_mode_serves_fixture_library_and_media(tmp_path):
     app = _app(tmp_path)
     client = TestClient(app)
 
-    r = client.get("/api/library/komga/books")
+    r = client.get("/api/library/stump/books")
     assert r.status_code == 200
     book_id = r.json()["items"][0]["id"]
 
-    r = client.get(f"/api/media/komga/books/{book_id}/pages/1/thumb")
+    r = client.get(f"/api/media/stump/books/{book_id}/pages/1/thumb")
     assert r.status_code == 200
     assert r.headers["content-type"] == "image/jpeg"
 
@@ -54,7 +54,7 @@ def test_fixture_mode_logs_ignored_real(tmp_path, caplog):
 
     ignored = [rec for rec in caplog.records if "PEARLIE_REAL ignored" in rec.message]
     assert any(
-        "library_komga" in rec.message and "media_stash" in rec.message
+        "library_stump" in rec.message and "media_stash" in rec.message
         for rec in ignored
     )
     for rec in caplog.records:

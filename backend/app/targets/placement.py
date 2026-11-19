@@ -1,4 +1,4 @@
-"""Plan where a Komga save goes: existing folders, name index, oneshots dir."""
+"""Plan where a Stump save goes: existing folders, name index, oneshots dir."""
 
 from __future__ import annotations
 
@@ -10,12 +10,13 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app.bookserver.base import LibraryDTO
 from app.targets.destinations import to_stash_path
 from app.targets.placement_name import ParsedName, parse_name
 
 MAX_ENTRIES = 50_000
 CACHE_TTL_S = 30.0
-# Komga libraries JSON field; confirmed from Komga LibraryDto.kt (T-198), keep it in one place.
+# Stump libraries JSON field; confirmed from Stump LibraryDto.kt (T-198), keep it in one place.
 ONESHOTS_FIELD = "oneshotsDirectory"
 # Backslash must go too ("\|" in a raw class only escapes the pipe), plus control chars.
 _BAD_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -42,23 +43,23 @@ def oneshots_dir_name(
     libraries: Iterable[dict],
     series_root: str,
     prefix_pearlie: str = "",
-    prefix_komga: str = "",
+    prefix_stump: str = "",
 ) -> OneshotsDir:
     """Read ``oneshotsDirectory`` (a folder NAME) of the library holding *series_root*.
 
-    *series_root* is a Pearlie path; it is mapped to the Komga path first.
+    *series_root* is a Pearlie path; it is mapped to the Stump path first.
     """
-    komga_path = posixpath.normpath(to_stash_path(series_root, prefix_pearlie, prefix_komga))
+    stump_path = posixpath.normpath(to_stash_path(series_root, prefix_pearlie, prefix_stump))
     best: dict | None = None
     best_len = -1
     for lib in libraries:
         root = posixpath.normpath(str(lib.get("root", "")))
-        if komga_path == root or komga_path.startswith(root.rstrip("/") + "/"):
+        if stump_path == root or stump_path.startswith(root.rstrip("/") + "/"):
             if len(root) > best_len:
                 best, best_len = lib, len(root)
     raw = best.get(ONESHOTS_FIELD) if best else None
     name = raw.strip() if isinstance(raw, str) else ""
-    if name.startswith("/"):  # Komga: a leading "/" only anchors the match
+    if name.startswith("/"):  # Stump: a leading "/" only anchors the match
         name = name[1:]
     if not name or name.startswith(".") or ".." in name or "/" in name or "\\" in name:
         return OneshotsDir(None, "oneshots_not_set")
@@ -101,7 +102,7 @@ def build_index(
     """Scan the series root (folders) and the oneshots folder (files) once each.
 
     A oneshot file name has no [author]; *authors_for* gets those file names and returns
-    file name -> author names (Komga metadata). Called once, and only when needed.
+    file name -> author names (Stump metadata). Called once, and only when needed.
     """
     series: dict[str, dict[str, str]] = {}
     oneshots: dict[str, list[tuple[str, str]]] = {}
@@ -200,3 +201,14 @@ def make_plan(
         moves = tuple(name for r, name in ones if r == rkey)
         return Plan("series", root, parsed.number, folder, via or "new", moves)
     return Plan("oneshot", None, "", None, "oneshot")
+
+
+def oneshots_dir_of(
+    libraries: Iterable[LibraryDTO],
+    series_root: str,
+    prefix_pearlie: str = "",
+    prefix_stump: str = "",
+) -> OneshotsDir:
+    """`oneshots_dir_name` over book-server library DTOs."""
+    libs = [{"root": lib.root, ONESHOTS_FIELD: lib.oneshots_dir} for lib in libraries]
+    return oneshots_dir_name(libs, series_root, prefix_pearlie, prefix_stump)

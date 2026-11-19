@@ -8,11 +8,11 @@ from pydantic import BaseModel, Field
 
 Kind = Literal["image", "video", "series", "book"]
 WebSource = Literal["danbooru", "gelbooru", "rule34", "nhentai"]
-Target = Literal["stash", "komga"]
+Target = Literal["stash", "stump"]
 SectionId = Literal[
     "stash_images",
     "stash_videos",
-    "komga_books",
+    "stump_books",
     "danbooru",
     "gelbooru",
     "rule34",
@@ -21,8 +21,8 @@ SectionId = Literal[
 ViewSource = Literal[
     "stash_images",
     "stash_videos",
-    "komga_series",
-    "komga_books",
+    "stump_series",
+    "stump_books",
     "danbooru",
     "gelbooru",
     "rule34",
@@ -112,7 +112,7 @@ class LibraryItemDetail(LibraryItem):
         description=(
             "Book detail only. URL template with a "
             "literal {n} placeholder for the 1-based "
-            "page number, e.g. /api/media/komga/books/7/"
+            "page number, e.g. /api/media/stump/books/7/"
             "pages/{n}. Replace {n} to get a page image."
         ),
     )
@@ -121,7 +121,7 @@ class LibraryItemDetail(LibraryItem):
         description=(
             "Book detail only. URL template with a "
             "literal {n} placeholder for the 1-based "
-            "page number, e.g. /api/media/komga/books/7/"
+            "page number, e.g. /api/media/stump/books/7/"
             "pages/{n}/thumb. Replace {n} to get a "
             "small page thumbnail."
         ),
@@ -156,6 +156,10 @@ class WebBook(BaseModel):
     title: str | None = None
     title_main: str
     title_sub: str | None = None
+    name_lines: list[str] = Field(
+        default_factory=list,
+        description="Name lines, Latin first, its Latin twin second, kana or Han last (max 3).",
+    )
     artist: str | None = None
     circle: str | None = None
     event: str | None = None
@@ -283,6 +287,8 @@ class TrashItem(BaseModel):
     kind: Kind
     id: str
     title: str
+    size_bytes: int | None = None
+    group_id: str | None = None
 
 
 class TrashResult(BaseModel):
@@ -297,6 +303,41 @@ class TrashList(BaseModel):
     retention_days: int
 
 
+class RestoreResult(BaseModel):
+    item: LibraryItem
+
+
+class TrashBatchItem(BaseModel):
+    kind: Kind
+    id: str = Field(min_length=1, max_length=64)
+
+
+class TrashBatchBody(BaseModel):
+    items: list[TrashBatchItem] = Field(min_length=1, max_length=50)
+
+
+class TrashBatchFailure(BaseModel):
+    kind: Kind
+    id: str
+    code: str
+
+
+class TrashBatchResult(BaseModel):
+    group: str
+    results: list[TrashResult]
+    failed: list[TrashBatchFailure]
+
+
+class TrashRestoreFailure(BaseModel):
+    token: str
+    code: str
+
+
+class GroupRestoreResult(BaseModel):
+    restored: list[RestoreResult]
+    failed: list[TrashRestoreFailure]
+
+
 class TrashEmptied(BaseModel):
     removed: int
 
@@ -305,8 +346,26 @@ class TrashPurgePreview(BaseModel):
     count: int
 
 
-class RestoreResult(BaseModel):
-    item: LibraryItem
+class TrashRoot(BaseModel):
+    index: int
+    stash_path: str
+    state: Literal["ok", "not_reachable", "other_volume"]
+
+
+class TrashStatus(BaseModel):
+    roots: list[TrashRoot]
+
+
+class TrashFolder(BaseModel):
+    path: str
+    source: Literal["env", "stored"]
+    env_path: str
+    state: Literal["ok", "missing", "not_writable"]
+    items: int
+
+
+class TrashFolderBody(BaseModel):
+    path: str = ""
 
 
 class ProgressBody(BaseModel):
@@ -406,7 +465,7 @@ class StashHealth(BaseModel):
     version: str | None = None
 
 
-class KomgaHealth(BaseModel):
+class StumpHealth(BaseModel):
     state: State
     version: str | None = None
 
@@ -425,7 +484,7 @@ class Health(BaseModel):
     status: Literal["ok", "degraded"]
     version: str = ""
     stash: StashHealth
-    komga: KomgaHealth
+    stump: StumpHealth
     db: Literal["ok", "error"] = "ok"
     mounts: list[Mount] = Field(default_factory=list)
     sites: list[Site] = Field(default_factory=list)
@@ -445,10 +504,10 @@ class Destinations(BaseModel):
     prefix_pearlie: str = ""
     prefix_stash: str = ""
     prefix_from_env: bool = True
-    komga_sites: list[str] = Field(default_factory=list)
-    komga_library_paths: list[str] = Field(default_factory=list)
-    komga_library_error: str | None = None
-    komga_oneshots_dir: str | None = None
+    stump_sites: list[str] = Field(default_factory=list)
+    stump_library_paths: list[str] = Field(default_factory=list)
+    stump_library_error: str | None = None
+    stump_oneshots_dir: str | None = None
 
 
 class MappingBody(BaseModel):

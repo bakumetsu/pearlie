@@ -12,6 +12,9 @@
   import Icon from "../lib/components/Icon.svelte";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { onMount } from "svelte";
+  import { restoreSaved } from "../lib/web/restoreSaved";
+  import SelectBar from "../lib/components/SelectBar.svelte";
+  import { selection } from "../lib/library/selection.svelte";
   import { SvelteURLSearchParams } from "svelte/reactivity";
   import { viewSettings } from "../lib/stores/viewSettings.svelte";
   import { options } from "../lib/stores/options.svelte";
@@ -25,7 +28,7 @@
   import Lightbox from "../lib/components/Lightbox.svelte";
   import Toolbar from "../lib/browse/Toolbar.svelte";
   import SeeAllSearch from "../lib/browse/SeeAllSearch.svelte";
-  import { getLastDiscoverQuery } from "../lib/stores/search.svelte";
+  import { getLastDiscoverQuery, cachedSearch, clearSearchAnswers } from "../lib/stores/search.svelte";
   import { nextAutohide } from "../lib/browse/autohide";
   import { parseOrder, parseRating } from "../lib/browse/filters";
   import type { SourceFilters } from "../lib/api/client";
@@ -45,6 +48,8 @@
   const prefillQ = match.query.get("q") ? "" : getLastDiscoverQuery().trim();
   let prefilling = $state(prefillQ !== "");
 
+  $effect(() => () => selection.clear());
+
   onMount(() => {
     if (prefillQ) {
       const qs = new SvelteURLSearchParams(match.query);
@@ -55,6 +60,7 @@
       setTimeout(() => { prefilling = false; }, 1000);
     }
     h1?.focus();
+    selection.clear();
     viewSettings.load(api);
     // Capability list for the toolbar. No answer yet or a failed call: no Order/Rating controls, plain list.
     api.searchFilters().then((f) => { filterCaps = f; }).catch(() => {});
@@ -66,8 +72,8 @@
     switch (match.name) {
       case "library_images": return "stash_images";
       case "library_videos": return "stash_videos";
-      case "library_series": return "komga_series";
-      case "library_books": return "komga_books";
+      case "library_series": return "stump_series";
+      case "library_books": return "stump_books";
       default: return match.query.get("source") ?? "";
     }
   });
@@ -89,8 +95,8 @@
   function sourceToKind(s: string): Kind | null {
     if (s === "stash_images") return "images";
     if (s === "stash_videos") return "videos";
-    if (s === "komga_series") return "series";
-    if (s === "komga_books") return "books";
+    if (s === "stump_series") return "series";
+    if (s === "stump_books") return "books";
     return null;
   }
 
@@ -101,8 +107,8 @@
     switch (source) {
       case "stash_images": return "Images";
       case "stash_videos": return "Videos";
-      case "komga_series": return "Series";
-      case "komga_books": return "Books";
+      case "stump_series": return "Series";
+      case "stump_books": return "Books";
       default: return source || "Results";
     }
   });
@@ -186,7 +192,7 @@
   const ratingKey = $derived(rating.join(","));
   // A blocked Order is off for the request and the chip; the URL keeps the pick for when the words shrink.
   const order = $derived(orderBlocked ? "" : rawOrder);
-  // One Sort control: library lists use `sort`, web lists use `order`. komga_series has no caps row yet, so the library falls back to the fixed list.
+  // One Sort control: library lists use `sort`, web lists use `order`. stump_series has no caps row yet, so the library falls back to the fixed list.
   const sortOptions = $derived(isLibrary ? (caps?.sort?.length ? caps.sort : ["newest", "rating", "random"]) : orderOptions);
   const sortValue = $derived(isLibrary ? sort : order);
   const favoritesAvail = $derived(isLibrary && (caps?.favorite ?? true));
@@ -234,7 +240,7 @@
     } else {
       notice = null;
       const loader = async (p: number, signal: AbortSignal) => {
-        const r = await api.search({ q: qq, sources: [src], page: p, page_size: pp, order: ord || undefined, rating: rat.length ? rat : undefined }, signal);
+        const r = await cachedSearch(api, { q: qq, sources: [src], page: p, page_size: pp, order: ord || undefined, rating: rat.length ? rat : undefined }, signal);
         const s = r.sections?.find((x: { id: string }) => x.id === src);
         const err = s?.error;
         // A source failure has no usable page: let the grid show its error and Retry. filter_dropped
@@ -374,11 +380,20 @@
     const answer = await placement.ask(item);
     if (answer === null) return;
     saveStates[key] = "queued";
+    clearSearchAnswers();
     try {
       await api.save({ source: item.source, post_id: item.post_id, ...answer });
       toasts.push({ kind: "info", message: "Added to queue", actionLabel: "View", href: "/queue" });
     } catch (e) {
-      if (e instanceof ApiErrorClass && e.status === 409) {
+      if (e instanceof ApiErrorClass && e.status === 409 && e.code === "in_trash") {
+        delete saveStates[key];
+        const token = e.trashToken;
+        toasts.push({
+          kind: "info",
+          message: "Already saved, in the Trash",
+          ...(token ? { actionLabel: "Restore", onAction: restoreSaved({ api, navigate: (h) => router.navigate(h), toast: (t) => toasts.push(t) }).bind(null, token) } : {}),
+        });
+      } else if (e instanceof ApiErrorClass && e.status === 409) {
         saveStates[key] = "in_library";
       } else {
         delete saveStates[key];
@@ -595,6 +610,7 @@
     {#if viewSettings.ready}
       <ViewBar modes={vs.modes as Mode[]} mode={vs.mode as Mode} perPage={vs.per_page} zoom={vs.zoom} options={vs.per_page_options} max={vs.per_page_max} onmode={onMode} onperpage={onPerPage} onzoom={onZoom} onzoompreview={onZoomPreview} />
     {/if}
+    {#if isLibrary}<SelectBar onchanged={() => void grid.goTo(grid.page)} />{/if}
     </div>
   </header>
 
@@ -622,13 +638,14 @@
         {:else}
           <p>Nothing here.</p>
         {/if}
+        {#if grid.hidden > 0}<p class="muted" data-testid="hidden-note">{grid.hidden} hidden by rules or Safe mode</p>{/if}
         <div class="empty-actions">
           {#if q.trim()}<button class="clear-btn" type="button" onclick={() => setQuery("")}>Clear search</button>{/if}
           {#if filtersSet}<button class="clear-btn" type="button" onclick={clearFilters}>Clear filters</button>{/if}
         </div>
       </div>
     {:else}
-      <ResultsGrid bind:this={gridEl} onready={onGridReady} items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => { const h = webItemHref(w.source, w.post_id); if (h) router.navigate(h); else openWeb(w); }} webHref={(w) => webTileHref(match.path, match.query, w)} landscape={source === "stash_videos"} />
+      <ResultsGrid bind:this={gridEl} onready={onGridReady} items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => { const h = webItemHref(w.source, w.post_id); if (h) router.navigate(h); else openWeb(w); }} webHref={(w) => webTileHref(match.path, match.query, w)} landscape={source === "stash_videos"} selectable={isLibrary} />
     {/if}
 
     {#if infinite && grid.status === "done"}

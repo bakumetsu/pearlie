@@ -13,10 +13,10 @@ export interface ReaderLoad {
 }
 
 export interface ReaderSource {
-  kind: "komga" | "web";
+  kind: "stump" | "web";
   key: string;
   load(): Promise<ReaderLoad>;
-  saveProgress(page: number, count: number, opts?: { keepalive?: boolean }): void;
+  saveProgress(page: number, count: number, opts?: { keepalive?: boolean }): void | Promise<unknown>;
   backTarget(): string;
 }
 
@@ -25,10 +25,10 @@ function startPage(p: string | null, saved: number | null | undefined, count: nu
   return !saved || saved <= 1 || (count != null && saved >= count) ? 1 : saved;
 }
 
-export function komgaSource(api: Api, bookId: string, query: URLSearchParams): ReaderSource {
+export function stumpSource(api: Api, bookId: string, query: URLSearchParams): ReaderSource {
   const seriesId = query.get("series");
   return {
-    kind: "komga",
+    kind: "stump",
     key: bookId,
     async load() {
       const [d, series] = await Promise.all([
@@ -51,7 +51,7 @@ export function komgaSource(api: Api, bookId: string, query: URLSearchParams): R
       };
     },
     saveProgress(page, _count, opts) {
-      void api.saveProgress(bookId, page, undefined, opts).catch(() => {});
+      return api.saveProgress(bookId, page, undefined, opts);
     },
     backTarget() {
       return seriesId ? "/item/series/" + encodeURIComponent(seriesId) : "/item/books/" + encodeURIComponent(bookId);

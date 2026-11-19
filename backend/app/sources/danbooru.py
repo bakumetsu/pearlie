@@ -14,7 +14,10 @@ from app.sources.filters import danbooru_plan
 from app.sources.throttle import DEFAULT_PACE, Throttle
 
 RATING_MAP: dict[str, Rating] = {
-    "g": "general", "s": "sensitive", "q": "questionable", "e": "explicit"
+    "g": "general",
+    "s": "sensitive",
+    "q": "questionable",
+    "e": "explicit",
 }
 TAG_TYPES = ("general", "artist", "copyright", "character", "meta")
 _log = logging.getLogger(__name__)

@@ -10,7 +10,7 @@ import type { Api, ConnectionsOut, ConnectionOut, ConnectionTest } from "../api/
 
 const names = [
   { key: "stash", label: "Stash" },
-  { key: "komga", label: "Komga" },
+  { key: "stump", label: "Stump" },
   { key: "danbooru", label: "Danbooru" },
 ];
 
@@ -19,7 +19,7 @@ function makeConnections(can_store = true): ConnectionsOut {
     can_store,
     connections: [
       { name: "stash", address: "http://stash.local:9999", key: "missing", address_fixed: false, address_locked: false, key_locked: false, fields: [] },
-      { name: "komga", address: "http://komga.local:8888", key: "set", address_fixed: false, address_locked: false, key_locked: false, fields: [] },
+      { name: "stump", address: "http://stump.local:8888", key: "set", address_fixed: false, address_locked: false, key_locked: false, fields: [] },
       { name: "danbooru", address: "https://danbooru.donmai.us", key: "set", address_fixed: true, address_locked: true, key_locked: false, fields: [] },
     ],
   };
@@ -71,16 +71,16 @@ describe("ConnectionRows", () => {
     await renderRows();
 
     expect(screen.getByText("Stash")).toBeDefined();
-    expect(screen.getByText("Komga")).toBeDefined();
+    expect(screen.getByText("Stump")).toBeDefined();
     expect(screen.getByText("Danbooru")).toBeDefined();
 
-    // stash has key "" → "missing"; komga and danbooru have non-empty keys → "set"
+    // stash has key "" → "missing"; stump and danbooru have non-empty keys → "set"
     const chips = screen.getAllByText(/^(set|missing)$/);
     const stashChip = chips[0];
-    const komgaChip = chips[1];
+    const stumpChip = chips[1];
     const danbooruChip = chips[2];
     expect(stashChip.textContent).toBe("missing");
-    expect(komgaChip.textContent).toBe("set");
+    expect(stumpChip.textContent).toBe("set");
     expect(danbooruChip.textContent).toBe("set");
   });
 
@@ -122,7 +122,7 @@ describe("ConnectionRows", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    fireEvent.click(screen.getByRole("button", { name: "Edit Komga" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Stump" }));
     await screen.findByRole("dialog");
     const set = document.getElementById("conn-key") as HTMLInputElement;
     expect(set.value).toBe("");
@@ -181,7 +181,7 @@ describe("ConnectionRows", () => {
     cleanup();
     const { putConnection: put2 } = await renderRows();
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit Komga" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Stump" }));
     await screen.findByRole("dialog");
 
     const addrInput = document.getElementById("conn-addr") as HTMLInputElement;
@@ -194,7 +194,7 @@ describe("ConnectionRows", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await vi.waitFor(() =>
-      expect(put2).toHaveBeenCalledWith("komga", { address: "http://new-address:1234" }),
+      expect(put2).toHaveBeenCalledWith("stump", { address: "http://new-address:1234" }),
     );
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
@@ -202,7 +202,7 @@ describe("ConnectionRows", () => {
   it("touching a set key and leaving it empty removes it on Save", async () => {
     const { putConnection } = await renderRows();
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit Komga" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Stump" }));
     await screen.findByRole("dialog");
     expect(screen.queryByText("Key will be removed")).toBeNull();
 
@@ -214,7 +214,7 @@ describe("ConnectionRows", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await vi.waitFor(() =>
-      expect(putConnection).toHaveBeenCalledWith("komga", { clear_secret: true }),
+      expect(putConnection).toHaveBeenCalledWith("stump", { clear_secret: true }),
     );
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
@@ -222,7 +222,7 @@ describe("ConnectionRows", () => {
   it("an untouched set key sends nothing and the DOM never holds a key", async () => {
     const { putConnection } = await renderRows();
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit Komga" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Stump" }));
     await screen.findByRole("dialog");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());

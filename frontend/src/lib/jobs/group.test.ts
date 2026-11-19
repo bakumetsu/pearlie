@@ -239,7 +239,7 @@ describe("needsFolderFix", () => {
   });
 });
 
-describe("Komga scan states", () => {
+describe("Stump scan states", () => {
   it("orders Active: running, scan_wait, verifying, queued", () => {
     const jobs = [
       mk({ id: "q", state: "queued", created_at: "2025-01-01T00:00:00Z" }),
@@ -262,8 +262,8 @@ describe("Komga scan states", () => {
   it("labels the countdown and the check", () => {
     expect(etaLabel(mk({ state: "scan_wait", eta_s: 6.2 }))).toBe("scan in 7 s");
     expect(etaLabel(mk({ state: "verifying" }))).toBe("looking for the book");
-    expect(stateInfo("scan_wait").label).toBe("Waiting for Komga");
-    expect(stateInfo("verifying").label).toBe("Checking Komga");
+    expect(stateInfo("scan_wait").label).toBe("Waiting for Stump");
+    expect(stateInfo("verifying").label).toBe("Checking Stump");
   });
 
   it("allows Remove, not Cancel or Retry", () => {

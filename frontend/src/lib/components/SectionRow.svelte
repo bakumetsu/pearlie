@@ -56,7 +56,10 @@
       {/if}
     </div>
     {#if seeAllHref}
-      <a class="see-all" href={seeAllHref} onclick={onnavigate}>See all</a>
+      <a class="see-all" href={seeAllHref}
+        aria-label="See all" onclick={onnavigate}>
+        <Icon name="arrow-right" size={20} />
+      </a>
     {/if}
   </header>
 
@@ -124,13 +127,13 @@
     color: var(--muted);
   }
   .see-all {
+    min-width: 44px;
     min-height: 44px;
     display: flex;
     align-items: center;
-    font-size: var(--t-14);
+    justify-content: center;
     color: var(--accent);
     text-decoration: none;
-    padding: 0 var(--s-1);
   }
   .strip-wrap {
     position: relative;

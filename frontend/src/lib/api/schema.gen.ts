@@ -24,7 +24,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/library/komga/series": {
+    "/api/library/stump/series": {
         parameters: {
             query?: never;
             header?: never;
@@ -35,7 +35,7 @@ export interface paths {
          * Handler
          * @description List library items.
          */
-        get: operations["handler_api_library_komga_series_get"];
+        get: operations["handler_api_library_stump_series_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -44,7 +44,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/library/komga/books": {
+    "/api/library/stump/books": {
         parameters: {
             query?: never;
             header?: never;
@@ -55,7 +55,7 @@ export interface paths {
          * Handler
          * @description List library items.
          */
-        get: operations["handler_api_library_komga_books_get"];
+        get: operations["handler_api_library_stump_books_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -120,7 +120,7 @@ export interface paths {
         patch: operations["patch_item_api_library_books__id__patch"];
         trace?: never;
     };
-    "/api/library/komga/books/{id}/progress": {
+    "/api/library/stump/books/{id}/progress": {
         parameters: {
             query?: never;
             header?: never;
@@ -133,7 +133,7 @@ export interface paths {
          * Set Progress
          * @description Update reading progress for a book.
          */
-        post: operations["set_progress_api_library_komga_books__id__progress_post"];
+        post: operations["set_progress_api_library_stump_books__id__progress_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -419,7 +419,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/media/komga/series/{id}/thumb": {
+    "/api/media/stump/series/{id}/thumb": {
         parameters: {
             query?: never;
             header?: never;
@@ -427,10 +427,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Komga Series Thumb
+         * Stump Series Thumb
          * @description Serve series cover.
          */
-        get: operations["komga_series_thumb_api_media_komga_series__id__thumb_get"];
+        get: operations["stump_series_thumb_api_media_stump_series__id__thumb_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -439,7 +439,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/media/komga/books/{id}/thumb": {
+    "/api/media/stump/books/{id}/thumb": {
         parameters: {
             query?: never;
             header?: never;
@@ -447,10 +447,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Komga Book Thumb
+         * Stump Book Thumb
          * @description Serve book cover.
          */
-        get: operations["komga_book_thumb_api_media_komga_books__id__thumb_get"];
+        get: operations["stump_book_thumb_api_media_stump_books__id__thumb_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -459,7 +459,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/media/komga/books/{id}/pages/{n}": {
+    "/api/media/stump/books/{id}/pages/{n}": {
         parameters: {
             query?: never;
             header?: never;
@@ -467,10 +467,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Komga Book Page
+         * Stump Book Page
          * @description Serve a CBZ page as JPEG bytes.
          */
-        get: operations["komga_book_page_api_media_komga_books__id__pages__n__get"];
+        get: operations["stump_book_page_api_media_stump_books__id__pages__n__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -479,7 +479,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/media/komga/books/{id}/pages/{n}/thumb": {
+    "/api/media/stump/books/{id}/pages/{n}/thumb": {
         parameters: {
             query?: never;
             header?: never;
@@ -487,10 +487,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Komga Book Page Thumb
+         * Stump Book Page Thumb
          * @description Serve a small CBZ page thumbnail as JPEG bytes.
          */
-        get: operations["komga_book_page_thumb_api_media_komga_books__id__pages__n__thumb_get"];
+        get: operations["stump_book_page_thumb_api_media_stump_books__id__pages__n__thumb_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -528,7 +528,7 @@ export interface paths {
         };
         /**
          * Save Placement
-         * @description Suggest series or oneshot for a Komga save (fixture: always a oneshot).
+         * @description Suggest series or oneshot for a Stump save (fixture: always a oneshot).
          */
         get: operations["save_placement_api_save_placement_get"];
         put?: never;
@@ -710,6 +710,46 @@ export interface paths {
          * @description Remove all trash items.
          */
         delete: operations["empty_trash_api_trash_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/library/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trash Batch
+         * @description Move 1-50 demo items to the trash under one group id.
+         */
+        post: operations["trash_batch_api_library_trash_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trash/group/{group}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Group
+         * @description Restore every trashed demo item of one group.
+         */
+        post: operations["restore_group_api_trash_group__group__restore_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1384,14 +1424,14 @@ export interface components {
              * @default true
              */
             prefix_from_env: boolean;
-            /** Komga Sites */
-            komga_sites?: string[];
-            /** Komga Library Paths */
-            komga_library_paths?: string[];
-            /** Komga Library Error */
-            komga_library_error?: string | null;
-            /** Komga Oneshots Dir */
-            komga_oneshots_dir?: string | null;
+            /** Stump Sites */
+            stump_sites?: string[];
+            /** Stump Library Paths */
+            stump_library_paths?: string[];
+            /** Stump Library Error */
+            stump_library_error?: string | null;
+            /** Stump Oneshots Dir */
+            stump_oneshots_dir?: string | null;
         };
         /** FieldOut */
         FieldOut: {
@@ -1421,6 +1461,13 @@ export interface components {
             /** Folder */
             folder: string;
         };
+        /** GroupRestoreResult */
+        GroupRestoreResult: {
+            /** Restored */
+            restored: components["schemas"]["RestoreResult"][];
+            /** Failed */
+            failed: components["schemas"]["TrashRestoreFailure"][];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1439,7 +1486,7 @@ export interface components {
              */
             version: string;
             stash: components["schemas"]["StashHealth"];
-            komga: components["schemas"]["KomgaHealth"];
+            stump: components["schemas"]["StumpHealth"];
             /**
              * Db
              * @default ok
@@ -1479,7 +1526,7 @@ export interface components {
              * Target
              * @enum {string}
              */
-            target: "stash" | "komga";
+            target: "stash" | "stump";
             /**
              * State
              * @enum {string}
@@ -1514,16 +1561,6 @@ export interface components {
         JobList: {
             /** Items */
             items?: components["schemas"]["Job"][];
-        };
-        /** KomgaHealth */
-        KomgaHealth: {
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "ok" | "down" | "not_configured";
-            /** Version */
-            version?: string | null;
         };
         /** LatestOut */
         LatestOut: {
@@ -1662,12 +1699,12 @@ export interface components {
             source_url_text?: string | null;
             /**
              * Page Url
-             * @description Book detail only. URL template with a literal {n} placeholder for the 1-based page number, e.g. /api/media/komga/books/7/pages/{n}. Replace {n} to get a page image.
+             * @description Book detail only. URL template with a literal {n} placeholder for the 1-based page number, e.g. /api/media/stump/books/7/pages/{n}. Replace {n} to get a page image.
              */
             page_url?: string | null;
             /**
              * Page Thumb Url
-             * @description Book detail only. URL template with a literal {n} placeholder for the 1-based page number, e.g. /api/media/komga/books/7/pages/{n}/thumb. Replace {n} to get a small page thumbnail.
+             * @description Book detail only. URL template with a literal {n} placeholder for the 1-based page number, e.g. /api/media/stump/books/7/pages/{n}/thumb. Replace {n} to get a small page thumbnail.
              */
             page_thumb_url?: string | null;
         };
@@ -1758,10 +1795,10 @@ export interface components {
              */
             images_per_site: number;
             /**
-             * Komga Scan Wait S
+             * Stump Scan Wait S
              * @default 10
              */
-            komga_scan_wait_s: number;
+            stump_scan_wait_s: number;
             /**
              * Infinite Scroll
              * @default false
@@ -1835,8 +1872,8 @@ export interface components {
             trash_retention_days?: number | null;
             /** Images Per Site */
             images_per_site?: number | null;
-            /** Komga Scan Wait S */
-            komga_scan_wait_s?: number | null;
+            /** Stump Scan Wait S */
+            stump_scan_wait_s?: number | null;
             /** Confirm Purge */
             confirm_purge?: boolean | null;
             /** Infinite Scroll */
@@ -2120,7 +2157,7 @@ export interface components {
              * Id
              * @enum {string}
              */
-            id: "stash_images" | "stash_videos" | "komga_books" | "danbooru" | "gelbooru" | "rule34" | "nhentai";
+            id: "stash_images" | "stash_videos" | "stump_books" | "danbooru" | "gelbooru" | "rule34" | "nhentai";
             /** Title */
             title: string;
             /** Total */
@@ -2260,6 +2297,16 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** StumpHealth */
+        StumpHealth: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "down" | "not_configured";
+            /** Version */
+            version?: string | null;
+        };
         /** Tab */
         Tab: {
             /** Id */
@@ -2323,6 +2370,42 @@ export interface components {
             /** Available */
             available: boolean;
         };
+        /** TrashBatchBody */
+        TrashBatchBody: {
+            /** Items */
+            items: components["schemas"]["TrashBatchItem"][];
+        };
+        /** TrashBatchFailure */
+        TrashBatchFailure: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "video" | "series" | "book";
+            /** Id */
+            id: string;
+            /** Code */
+            code: string;
+        };
+        /** TrashBatchItem */
+        TrashBatchItem: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "video" | "series" | "book";
+            /** Id */
+            id: string;
+        };
+        /** TrashBatchResult */
+        TrashBatchResult: {
+            /** Group */
+            group: string;
+            /** Results */
+            results: components["schemas"]["TrashResult"][];
+            /** Failed */
+            failed: components["schemas"]["TrashBatchFailure"][];
+        };
         /** TrashEmptied */
         TrashEmptied: {
             /** Removed */
@@ -2339,6 +2422,10 @@ export interface components {
             id: string;
             /** Title */
             title: string;
+            /** Size Bytes */
+            size_bytes?: number | null;
+            /** Group Id */
+            group_id?: string | null;
         };
         /** TrashList */
         TrashList: {
@@ -2351,6 +2438,13 @@ export interface components {
         TrashPurgePreview: {
             /** Count */
             count: number;
+        };
+        /** TrashRestoreFailure */
+        TrashRestoreFailure: {
+            /** Token */
+            token: string;
+            /** Code */
+            code: string;
         };
         /** TrashResult */
         TrashResult: {
@@ -2420,6 +2514,11 @@ export interface components {
             title_main: string;
             /** Title Sub */
             title_sub?: string | null;
+            /**
+             * Name Lines
+             * @description Name lines, Latin first, its Latin twin second, kana or Han last (max 3).
+             */
+            name_lines?: string[];
             /** Artist */
             artist?: string | null;
             /** Circle */
@@ -2481,7 +2580,7 @@ export interface components {
              * Target
              * @enum {string}
              */
-            target: "stash" | "komga";
+            target: "stash" | "stump";
             /**
              * Saveable
              * @default true
@@ -2546,7 +2645,7 @@ export interface operations {
             };
         };
     };
-    handler_api_library_komga_series_get: {
+    handler_api_library_stump_series_get: {
         parameters: {
             query?: {
                 page?: number;
@@ -2581,7 +2680,7 @@ export interface operations {
             };
         };
     };
-    handler_api_library_komga_books_get: {
+    handler_api_library_stump_books_get: {
         parameters: {
             query?: {
                 page?: number;
@@ -2810,7 +2909,7 @@ export interface operations {
             };
         };
     };
-    set_progress_api_library_komga_books__id__progress_post: {
+    set_progress_api_library_stump_books__id__progress_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3369,7 +3468,7 @@ export interface operations {
             };
         };
     };
-    komga_series_thumb_api_media_komga_series__id__thumb_get: {
+    stump_series_thumb_api_media_stump_series__id__thumb_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3400,7 +3499,7 @@ export interface operations {
             };
         };
     };
-    komga_book_thumb_api_media_komga_books__id__thumb_get: {
+    stump_book_thumb_api_media_stump_books__id__thumb_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3431,7 +3530,7 @@ export interface operations {
             };
         };
     };
-    komga_book_page_api_media_komga_books__id__pages__n__get: {
+    stump_book_page_api_media_stump_books__id__pages__n__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3463,7 +3562,7 @@ export interface operations {
             };
         };
     };
-    komga_book_page_thumb_api_media_komga_books__id__pages__n__thumb_get: {
+    stump_book_page_thumb_api_media_stump_books__id__pages__n__thumb_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3901,6 +4000,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrashEmptied"];
+                };
+            };
+        };
+    };
+    trash_batch_api_library_trash_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrashBatchBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashBatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_group_api_trash_group__group__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupRestoreResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

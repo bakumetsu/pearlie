@@ -93,7 +93,7 @@ host_ip=$(hostname -I | awk '{for (j = 1; j <= NF; j++) if ($j ~ /^[0-9]+\.[0-9]
 if [[ -z $host_ip ]]; then
   msg_info "No container IPv4 found now; Pearlie stays on 127.0.0.1 until the container gets one; tailscale serve or a reverse proxy in front."
 fi
-mkdir -p /mnt/media/stash/Temp /mnt/media/stash/Other
+mkdir -p /mnt/media/stash/Temp /mnt/media/stash/Other /mnt/media/pearlie-trash
 
 if [[ ! -f /opt/pearlie/.env ]]; then
   (
@@ -108,6 +108,7 @@ if [[ ! -f /opt/pearlie/.env ]]; then
       echo "PEARLIE_TRUSTED_NETWORK=1"
       echo "PEARLIE_STASH_TEMP_DIR=/mnt/media/stash/Temp"
       echo "PEARLIE_STASH_DEFAULT_DIR=/mnt/media/stash/Other"
+      echo "PEARLIE_TRASH_DIR=/mnt/media/pearlie-trash"
     } > /opt/pearlie/.env
   )
   chmod 600 /opt/pearlie/.env

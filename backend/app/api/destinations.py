@@ -3,11 +3,12 @@
 from fastapi import APIRouter, Request
 
 from app.api.errors import ApiError
-from app.komga import KomgaError
+from app.bookserver.base import BookServerError, LibraryDTO
+from app.bookserver.factory import book_server_of
 from app.models import DestinationItem, Destinations, FolderBody, MappingBody
 from app.targets import destinations
 from app.targets.destinations import DestinationError
-from app.targets.placement import oneshots_dir_name
+from app.targets.placement import oneshots_dir_of
 from app.targets.stash_client import StashError
 
 router = APIRouter(prefix="/api")
@@ -35,24 +36,23 @@ def _sites(request: Request, target: str = "stash") -> list[str]:
     return [sid for sid, src in request.app.state.sources.items() if src.target == target]
 
 
-def _komga_libraries(request: Request) -> list[dict]:
-    client = request.app.state.komga
-    if client is None:
-        raise ApiError(502, "not_configured", "Komga is not configured")
+def _stump_libraries(request: Request) -> list[LibraryDTO]:
+    if request.app.state.stump is None:
+        raise ApiError(502, "not_configured", "Stump is not configured")
     try:
-        return client.list_libraries()
-    except KomgaError as err:
+        return book_server_of(request.app).list_libraries()
+    except BookServerError as err:
         raise ApiError(err.status, err.code, err.message) from None
 
 
-def _komga_roots(request: Request) -> list[str]:
-    return [str(lib.get("root", "")) for lib in _komga_libraries(request)]
+def _stump_roots(request: Request) -> list[str]:
+    return [lib.root for lib in _stump_libraries(request)]
 
 
-def _oneshots_name(libraries: list[dict]) -> str | None:
-    """First usable oneshots folder name set in Komga (read-only display)."""
+def _oneshots_name(libraries: list[LibraryDTO]) -> str | None:
+    """First usable oneshots folder name set in the book server (read-only display)."""
     for lib in libraries:
-        found = oneshots_dir_name([lib], str(lib.get("root", "")))
+        found = oneshots_dir_of([lib], lib.root)
         if found.name:
             return found.name
     return None
@@ -86,17 +86,17 @@ def _payload(request: Request) -> Destinations:
     except ApiError as err:
         library, library_error = [], err.message
     pp, ps, from_env = _mapping(request)
-    komga_sites = _sites(request, "komga")
-    komga_roots: list[str] = []
-    komga_oneshots: str | None = None
-    komga_error = None
-    if komga_sites:
+    stump_sites = _sites(request, "stump")
+    stump_roots: list[str] = []
+    stump_oneshots: str | None = None
+    stump_error = None
+    if stump_sites:
         try:
-            libs = _komga_libraries(request)
-            komga_roots = [str(lib.get("root", "")) for lib in libs]
-            komga_oneshots = _oneshots_name(libs)
+            libs = _stump_libraries(request)
+            stump_roots = [lib.root for lib in libs]
+            stump_oneshots = _oneshots_name(libs)
         except ApiError as err:
-            komga_error = err.message
+            stump_error = err.message
     return Destinations(
         default_folder=default,
         items=items,
@@ -106,10 +106,10 @@ def _payload(request: Request) -> Destinations:
         prefix_pearlie=pp,
         prefix_stash=ps,
         prefix_from_env=from_env,
-        komga_sites=komga_sites,
-        komga_library_paths=komga_roots,
-        komga_library_error=komga_error,
-        komga_oneshots_dir=komga_oneshots,
+        stump_sites=stump_sites,
+        stump_library_paths=stump_roots,
+        stump_library_error=stump_error,
+        stump_oneshots_dir=stump_oneshots,
     )
 
 
@@ -144,14 +144,14 @@ def delete_mapping(request: Request) -> Destinations:
 
 @router.put("/destinations/{site}", response_model=Destinations)
 def put_destination(body: FolderBody, request: Request, site: str) -> Destinations:
-    if site in _sites(request, "komga"):
+    if site in _sites(request, "stump"):
         s = request.app.state.settings
+        prefixes = (s.stump_path_prefix_pearlie, s.stump_path_prefix_stump)
         try:
-            validated = destinations.validate_komga_folder(
+            validated = destinations.validate_book_folder(
                 body.folder,
-                _komga_roots(request),
-                s.komga_path_prefix_pearlie,
-                s.komga_path_prefix_komga,
+                _stump_roots(request),
+                *prefixes,
             )
         except DestinationError as err:
             raise ApiError(err.status, err.code, err.message) from None
@@ -166,7 +166,7 @@ def put_destination(body: FolderBody, request: Request, site: str) -> Destinatio
 
 @router.delete("/destinations/{site}", response_model=Destinations)
 def delete_destination(request: Request, site: str) -> Destinations:
-    if site not in _sites(request) + _sites(request, "komga"):
+    if site not in _sites(request) + _sites(request, "stump"):
         raise ApiError(422, "invalid", f"Unknown site {site}", field="site")
     settings = request.app.state.settings
     if not destinations.delete_destination(settings.db_path, site):

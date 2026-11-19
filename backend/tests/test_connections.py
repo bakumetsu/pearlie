@@ -14,8 +14,8 @@ from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
 from app.config import Settings
-from app.komga import Komga
 from app.main import create_app
+from app.stump import Stump
 from app.targets.stash_client import StashClient
 
 pytestmark = pytest.mark.no_default_origin
@@ -65,7 +65,7 @@ def test_list_names_and_key_state(tmp_path: Path) -> None:
     data = r.json()
     assert data["can_store"] is True
     names = [x["name"] for x in data["connections"]]
-    assert names == ["stash", "komga", "danbooru", "gelbooru", "rule34", "nhentai"]
+    assert names == ["stash", "stump", "danbooru", "gelbooru", "rule34", "nhentai"]
     for conn in data["connections"]:
         assert conn["key"] == "missing"
 
@@ -500,7 +500,7 @@ def test_endpoint_danbooru_fixed_host(tmp_path: Path) -> None:
 
 def test_endpoint_not_configured(tmp_path: Path) -> None:
     c = make_client(tmp_path, secret_key=master_key())
-    r = c.post("/api/connections/komga/test", headers=HDR)
+    r = c.post("/api/connections/stump/test", headers=HDR)
     assert r.json() == {"ok": False, "message": "not configured"}
 
 
@@ -679,21 +679,21 @@ def test_put_stash_swaps_client(tmp_path: Path) -> None:
     assert callable(old.library_paths)
 
 
-def test_put_komga_swaps_client(tmp_path: Path) -> None:
+def test_put_stump_swaps_client(tmp_path: Path) -> None:
     c = make_client(
         tmp_path, mode="real", secret_key=master_key(), env={"real": "search"}
     )
-    _seed(c, "komga")
-    old = c.app.state.komga  # pyright: ignore[reportAttributeAccessIssue]
+    _seed(c, "stump")
+    old = c.app.state.stump  # pyright: ignore[reportAttributeAccessIssue]
     assert old is not None
     r = c.put(
-        "/api/connections/komga",
-        json={"address": "http://komga2.local:8888", "secret": "newkey"},
+        "/api/connections/stump",
+        json={"address": "http://stump2.local:8888", "secret": "newkey"},
         headers=HDR,
     )
     assert r.status_code == 200
-    assert c.app.state.komga is not old  # pyright: ignore[reportAttributeAccessIssue]
-    assert isinstance(c.app.state.komga, Komga)  # pyright: ignore[reportAttributeAccessIssue]
+    assert c.app.state.stump is not old  # pyright: ignore[reportAttributeAccessIssue]
+    assert isinstance(c.app.state.stump, Stump)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_env_key_dropped_when_user_sets_address(tmp_path: Path) -> None:
@@ -786,7 +786,7 @@ def test_fixture_mode_keeps_none_clients(tmp_path: Path) -> None:
         headers=HDR,
     )
     assert c.app.state.stash is None  # pyright: ignore[reportAttributeAccessIssue]
-    assert c.app.state.komga is None  # pyright: ignore[reportAttributeAccessIssue]
+    assert c.app.state.stump is None  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_swap_does_not_log_secret(
@@ -819,8 +819,8 @@ def test_save_then_use_without_restart(tmp_path: Path) -> None:
     assert app.state.stash is None  # pyright: ignore[reportAttributeAccessIssue]
     assert app.state.worker is not None  # pyright: ignore[reportAttributeAccessIssue]
     stash_target = app.state.stash_target  # pyright: ignore[reportAttributeAccessIssue]
-    komga_target = app.state.komga_target  # pyright: ignore[reportAttributeAccessIssue]
-    assert stash_target is not None and komga_target is not None
+    stump_target = app.state.stump_target  # pyright: ignore[reportAttributeAccessIssue]
+    assert stash_target is not None and stump_target is not None
     before = c.get("/api/library/stash/images")
     assert before.status_code == 503
     assert before.json()["code"] == "not_configured"
@@ -832,7 +832,47 @@ def test_save_then_use_without_restart(tmp_path: Path) -> None:
     assert c.get("/api/jobs").status_code != 503
     assert c.get("/api/library/stash/images").status_code != 503
 
-    assert c.get("/api/library/komga/series").status_code == 503
-    _seed(c, "komga")
-    assert komga_target._c is app.state.komga  # pyright: ignore[reportAttributeAccessIssue]
-    assert c.get("/api/library/komga/series").status_code != 503
+    assert c.get("/api/library/stump/series").status_code == 503
+    _seed(c, "stump")
+    assert stump_target._stump is app.state.stump  # pyright: ignore[reportAttributeAccessIssue]
+    assert c.get("/api/library/stump/series").status_code != 503
+
+
+# ---------------------------------------------------------------------------
+# Stump: probe, write-only key
+# ---------------------------------------------------------------------------
+
+
+def test_stump_probe_sends_bearer_to_graphql(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"data": {"libraries": {"nodes": []}}})
+
+    c = make_client(tmp_path, secret_key=master_key(), transport=httpx.MockTransport(handler))
+    r = c.put(
+        "/api/connections/stump",
+        json={"address": "http://stump.local:10801", "secret": "stump-key-xyz"},
+        headers=HDR,
+    )
+    assert r.status_code == 200
+    assert r.json()["key"] == "set"
+    assert "stump-key-xyz" not in r.text
+    assert "stump-key-xyz" not in c.get("/api/connections").text
+    out = c.post("/api/connections/stump/test", headers=HDR)
+    assert out.json() == {"ok": True, "message": "connected"}
+    assert "stump-key-xyz" not in out.text
+    assert seen[0].url.path == "/api/graphql"
+    assert seen[0].headers["Authorization"] == "Bearer stump-key-xyz"
+
+
+def test_stump_probe_key_rejected(tmp_path: Path) -> None:
+    c = make_client(
+        tmp_path,
+        secret_key=master_key(),
+        transport=httpx.MockTransport(lambda request: httpx.Response(401)),
+    )
+    c.put("/api/connections/stump", json={"address": "http://stump.local:10801"}, headers=HDR)
+    r = c.post("/api/connections/stump/test", headers=HDR)
+    assert r.json() == {"ok": False, "message": "key rejected"}

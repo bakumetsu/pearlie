@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from app import logs
 from app.config import Settings
 from app.db import connect
+from app.library.trash import TrashStore
 from app.models import Problem
 from app.sources.base import Post, Source
 from app.sources.throttle import Throttle
@@ -46,11 +47,11 @@ class SaveError(Exception):
 
 
 class PendingScan(BaseModel):
-    """A placed file that waits for a Komga library scan."""
+    """A placed file that waits for a Stump library scan."""
 
     library_id: str
     name: str
-    komga_path: str
+    stump_path: str
     source: str = ""
     post_id: str = ""
 
@@ -256,7 +257,11 @@ class StashTarget:
                 logger.warning(
                     "%sstep=download md5_mismatch_accepted "
                     "post=%s host=%s md5_expected=%s md5_got=%s",
-                    logs.ctx(), post.post_id, host, post.md5.lower(), digest,
+                    logs.ctx(),
+                    post.post_id,
+                    host,
+                    post.md5.lower(),
+                    digest,
                 )
             else:
                 part_path.unlink(missing_ok=True)
@@ -360,8 +365,7 @@ class StashTarget:
                 notices=[
                     Problem(
                         code="duplicate",
-                        message=f"already saved ({via})"
-                        + (f", image {img}" if img else ""),
+                        message=f"already saved ({via})" + (f", image {img}" if img else ""),
                     )
                 ],
             )
@@ -380,9 +384,7 @@ class StashTarget:
             self._settings.stash_default_dir.as_posix(),
         )
         try:
-            folder = destinations.validate_folder(
-                folder, self._client.library_paths(), pp, ps
-            )
+            folder = destinations.validate_folder(folder, self._client.library_paths(), pp, ps)
         except destinations.DestinationError as e:
             raise SaveError(e.code, e.message, e.status) from e
 
@@ -406,8 +408,7 @@ class StashTarget:
                     notices=[
                         Problem(
                             code="duplicate",
-                            message=f"already saved ({via})"
-                            + (f", image {img}" if img else ""),
+                            message=f"already saved ({via})" + (f", image {img}" if img else ""),
                         )
                     ],
                 )
@@ -431,9 +432,7 @@ class StashTarget:
 
         stash_path = destinations.to_stash_path(dest.as_posix(), pp, ps)
         logger.info("%sstep=path_sent disk=%s stash=%s", logs.ctx(), dest.as_posix(), stash_path)
-        logger.debug(
-            "%sstep=path_mapping pearlie_prefix=%s stash_prefix=%s", logs.ctx(), pp, ps
-        )
+        logger.debug("%sstep=path_mapping pearlie_prefix=%s stash_prefix=%s", logs.ctx(), pp, ps)
 
         try:
             try:
@@ -458,7 +457,10 @@ class StashTarget:
                         kind = "video"
             logger.info(
                 "%sstep=lookup path=%s result=%s kind=%s",
-                logs.ctx(), stash_path, image_id or "none", kind,
+                logs.ctx(),
+                stash_path,
+                image_id or "none",
+                kind,
             )
             if image_id is None:
                 self._lookup_miss(dest, stash_path, md5)
@@ -474,7 +476,8 @@ class StashTarget:
             tag_ids, created = self._tag_ids(tags)
             if kind == "video":
                 self._client.update_item(
-                    "scenes", image_id,
+                    "scenes",
+                    image_id,
                     {"tag_ids": tag_ids, "urls": [post.source_url] if post.source_url else []},
                 )
             else:
@@ -533,7 +536,9 @@ class StashTarget:
         except OSError as e:
             logger.warning(
                 "%sstep=cleanup failed path=%s error=%s",
-                logs.ctx(), dest.as_posix(), type(e).__name__,
+                logs.ctx(),
+                dest.as_posix(),
+                type(e).__name__,
             )
 
     def _lookup_miss(self, dest: Path, stash_path: str, md5: str) -> None:
@@ -580,6 +585,10 @@ class StashTarget:
         """
         if not image_id:
             return False
+        if TrashStore(self._settings.db_path, self._settings.trash_dir).active_for_entity(
+            "stash", image_id
+        ):
+            return False
         try:
             entity = (
                 self._client.get_scene(image_id)
@@ -608,16 +617,18 @@ class StashTarget:
         logger.info("%sstep=dedupe stale index row dropped image=%s", logs.ctx(), image_id)
         return True
 
-    def _dedupe(
-        self, source: str, post_id: str, md5: str | None
-    ) -> tuple[str, str] | None:
+    def _dedupe(self, source: str, post_id: str, md5: str | None) -> tuple[str, str] | None:
         md5 = md5.lower() if md5 else md5
+        trashed = TrashStore(self._settings.db_path, self._settings.trash_dir).find_in_trash(
+            source, post_id, md5
+        )
+        if trashed is not None:
+            return (trashed["entity_id"], "in trash")
         conn = connect(self._settings.db_path)
         try:
             hits: list[tuple[str, str, str]] = []
             cur = conn.execute(
-                "SELECT image_id, kind FROM saved_items "
-                "WHERE source = ? AND post_id = ?",
+                "SELECT image_id, kind FROM saved_items WHERE source = ? AND post_id = ?",
                 (source, post_id),
             )
             row = cur.fetchone()
@@ -683,7 +694,11 @@ class StashTarget:
             if status == "FINISHED":
                 logger.info(
                     "%sstep=scan scan_job=%s status=%s polls=%d ms=%d",
-                    logs.ctx(), job_id, status, polls, ms,
+                    logs.ctx(),
+                    job_id,
+                    status,
+                    polls,
+                    ms,
                 )
                 return
             if status == "UNKNOWN":
@@ -691,7 +706,10 @@ class StashTarget:
                 # after the scan decides whether the file was indexed.
                 logger.info(
                     "%sstep=scan scan_job=%s status=gone polls=%d ms=%d",
-                    logs.ctx(), job_id, polls, ms,
+                    logs.ctx(),
+                    job_id,
+                    polls,
+                    ms,
                 )
                 return
             if status in ("FAILED", "CANCELLED"):

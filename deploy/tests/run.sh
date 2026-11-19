@@ -826,7 +826,7 @@ case_installer_defaults() {
 
   expect "installer_defaults: no pearlie_host_setup or read -r -p in ct/pearlie.sh" "$(grep -c 'pearlie_host_setup\|read -r -p' "$REPO/ct/pearlie.sh" || true)" 0
 
-  for pat in PEARLIE_MODE=real PEARLIE_TRUSTED_NETWORK=1 PEARLIE_STASH_TEMP_DIR=/mnt/media/stash/Temp PEARLIE_STASH_DEFAULT_DIR=/mnt/media/stash/Other; do
+  for pat in PEARLIE_MODE=real PEARLIE_TRUSTED_NETWORK=1 PEARLIE_STASH_TEMP_DIR=/mnt/media/stash/Temp PEARLIE_STASH_DEFAULT_DIR=/mnt/media/stash/Other PEARLIE_TRASH_DIR=/mnt/media/pearlie-trash; do
     expect "installer_defaults: $pat appears once in installer" "$(grep -c "$pat" "$REPO/install/pearlie-install.sh" || true)" 1
   done
   expect "installer_defaults: PEARLIE_HOST=auto appears once in installer" "$(grep -c 'PEARLIE_HOST=auto' "$REPO/install/pearlie-install.sh" || true)" 1

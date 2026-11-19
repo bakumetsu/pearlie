@@ -6,8 +6,9 @@
 	import { placement } from "../lib/stores/placement.svelte";
 	import { toasts } from "../lib/stores/toasts.svelte";
 	import { saveWebItem, saveStateFor, savedHrefFor } from "../lib/web/saveFlow";
+	import { restoreSaved } from "../lib/web/restoreSaved";
 	import type { SaveSlot } from "../lib/reader/saveSlot";
-	import { komgaSource, webSource, type ReaderSource } from "../lib/reader/source";
+	import { stumpSource, webSource, type ReaderSource } from "../lib/reader/source";
 	import { getRouter, findJobs } from "../lib/ctx";
 	import type { Match } from "../lib/router";
 	import Stage from "../lib/reader/Stage.svelte";
@@ -38,14 +39,14 @@
 	const router = getRouter();
 
 	const routeKey = $derived(
-		match.name === "read-web" ? "web:" + match.params.source + ":" + match.params.id : "komga:" + match.params.bookId,
+		match.name === "read-web" ? "web:" + match.params.source + ":" + match.params.id : "stump:" + match.params.bookId,
 	);
 	const seriesId = $derived(match.query.get("series"));
 
 	function buildSource(): ReaderSource {
 		return match.name === "read-web"
 			? webSource(api, match.params.source, match.params.id, match.query)
-			: komgaSource(api, match.params.bookId, match.query);
+			: stumpSource(api, match.params.bookId, match.query);
 	}
 
 	// source is rebuilt in load(); bookId is the progress key of the current source
@@ -77,7 +78,7 @@
 						const it = saveItem;
 						if (!it) return;
 						void saveWebItem(
-							{ ask: (i) => placement.ask(i), save: (i, p) => searchStore.save(i, p), toast: (t) => toasts.push(t) },
+							{ ask: (i) => placement.ask(i), save: (i, p) => searchStore.save(i, p), toast: (t) => toasts.push(t), restore: restoreSaved({ api, navigate: (h) => router.navigate(h), toast: (t) => toasts.push(t) }) },
 							it,
 						);
 					},
@@ -228,9 +229,9 @@
 		}
 	}
 
-	function openBook(b: LibraryItem) {
+	async function openBook(b: LibraryItem) {
 		if (b.id === bookId) { popover = null; return; }
-		progress.flush();
+		await progress.flushAsync();
 		const start = bookStart(b);
 		router.navigate("/read/" + encodeURIComponent(b.id) + "?p=" + start + "&series=" + (seriesId ?? ""), { replace: true });
 		show(b.title);
@@ -240,7 +241,9 @@
 		if (nextBook) openBook(nextBook);
 	}
 
-	function back() {
+	// Leave only after the save landed (capped), so the book view reads the new progress.
+	async function back() {
+		await progress.flushAsync();
 		if (router.canGoBack()) {
 			history.back();
 			return;

@@ -25,7 +25,7 @@ from app.jobs.store import JobStore
 from app.models import Tag, WebBook, WebItem
 from app.sources.base import Post, SourceError
 from app.sources.nhentai import CDN_HOST, NHentai
-from app.sources.title import LANGUAGES, parse_title
+from app.sources.title import LANGUAGES, name_lines, parse_title
 
 logger = logging.getLogger("pearlie.media_web_pages")
 
@@ -161,9 +161,7 @@ def _load_meta(request: Request, src: NHentai, gid: str) -> Post:
             v.rule,
             v.tag,
         )
-        raise _Refusal(
-            404, "hidden_by_rule", f"Hidden by your {v.layer} rule: {v.tag or v.rule}"
-        )
+        raise _Refusal(404, "hidden_by_rule", f"Hidden by your {v.layer} rule: {v.tag or v.rule}")
     return meta.post
 
 
@@ -266,7 +264,7 @@ async def _fetch_image(request: Request, gid: str, n: int, thumb: bool, prio: Pr
     src = _nhentai(request)
     owned = await run_in_threadpool(try_book_page, request, gid, n, thumb)
     if owned is not None:
-        return owned  # served from Komga: no site call, no limiter slot
+        return owned  # served from Stump: no site call, no limiter slot
     try:
         post = await run_in_threadpool(_load_meta, request, src, gid)
         media_id, ext = _page_ext(post, n)
@@ -318,7 +316,10 @@ def _prio(request: Request, default: Prio) -> Prio:
 def build_book(post: Post, target: str) -> WebBook:
     raw = str(post.extra.get("title_english") or post.title or "")
     jp = post.extra.get("title_japanese")
-    parsed = parse_title(raw, jp if isinstance(jp, str) else None)
+    japanese = jp if isinstance(jp, str) else None
+    en = post.extra.get("title_english")
+    english = en if isinstance(en, str) else None
+    parsed = parse_title(raw, japanese)
     language = parsed.language
     if language is None:
         for name in post.tags.get("language", []):
@@ -345,6 +346,7 @@ def build_book(post: Post, target: str) -> WebBook:
         title=post.title,
         title_main=parsed.title_main,
         title_sub=parsed.title_sub,
+        name_lines=name_lines(post.title, english, japanese),
         artist=parsed.artist,
         circle=parsed.circle,
         event=parsed.event,
@@ -367,9 +369,11 @@ async def book(request: Request, gid: str) -> Response:
     except _Refusal as r:
         return _refusal_response(r)
     data = build_book(post, src.target)
-    data.item.saved = JobStore(request.app.state.settings.db_path).saved_refs(
-        "nhentai", [post.post_id]
-    ).get(post.post_id)
+    data.item.saved = (
+        JobStore(request.app.state.settings.db_path)
+        .saved_refs("nhentai", [post.post_id])
+        .get(post.post_id)
+    )
     data.item.owned = is_owned(data.item.saved)
     return JSONResponse(data.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
 

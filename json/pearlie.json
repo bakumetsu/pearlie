@@ -11,7 +11,7 @@
   "website": "https://github.com/bakumetsu/pearlie",
   "logo": null,
   "config_path": "/opt/pearlie/.env",
-  "description": "Self-hosted media hub: browse Stash, Komga and booru or nhentai sites, and save into Stash and Komga with tag filters.",
+  "description": "Self-hosted media hub: browse Stash, Stump and booru or nhentai sites, and save into Stash and Stump with tag filters.",
   "install_methods": [
     {
       "type": "default",

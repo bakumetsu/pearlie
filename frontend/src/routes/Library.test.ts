@@ -47,17 +47,17 @@ describe("Library hub chips", () => {
     const group = screen.getByRole("group", { name: "Source" });
     const allBtn = within(group).getByRole("button", { name: "All" });
     const stashBtn = within(group).getByRole("button", { name: "Stash" });
-    const komgaBtn = within(group).getByRole("button", { name: "Komga" });
+    const stumpBtn = within(group).getByRole("button", { name: "Stump" });
 
     expect(allBtn.getAttribute("aria-pressed")).toBe("true");
     expect(stashBtn).toBeTruthy();
-    expect(komgaBtn).toBeTruthy();
+    expect(stumpBtn).toBeTruthy();
 
     await vi.waitFor(() => {
       expect(recordedUrls.some((u) => u.includes("/api/library/stash/images"))).toBe(true);
       expect(recordedUrls.some((u) => u.includes("/api/library/stash/videos"))).toBe(true);
-      expect(recordedUrls.some((u) => u.includes("/api/library/komga/series"))).toBe(true);
-      expect(recordedUrls.some((u) => u.includes("/api/library/komga/books"))).toBe(true);
+      expect(recordedUrls.some((u) => u.includes("/api/library/stump/series"))).toBe(true);
+      expect(recordedUrls.some((u) => u.includes("/api/library/stump/books"))).toBe(true);
     });
   });
 
@@ -71,24 +71,24 @@ describe("Library hub chips", () => {
     });
   });
 
-  it("clicking Komga sets pressed state, persists hub, and swaps fetches", async () => {
+  it("clicking Stump sets pressed state, persists hub, and swaps fetches", async () => {
     render(App);
 
     const group = screen.getByRole("group", { name: "Source" });
-    const komgaBtn = within(group).getByRole("button", { name: "Komga" });
+    const stumpBtn = within(group).getByRole("button", { name: "Stump" });
 
     await vi.waitFor(() => {
       expect(recordedUrls.some((u) => u.includes("/api/library/stash/images"))).toBe(true);
     });
 
     recordedUrls.length = 0;
-    await fireEvent.click(komgaBtn);
+    await fireEvent.click(stumpBtn);
 
-    expect(komgaBtn.getAttribute("aria-pressed")).toBe("true");
-    expect(store["pearlie.library.hub"]).toBe("komga");
+    expect(stumpBtn.getAttribute("aria-pressed")).toBe("true");
+    expect(store["pearlie.library.hub"]).toBe("stump");
 
     await vi.waitFor(() => {
-      expect(recordedUrls.some((u) => u.includes("/komga/series"))).toBe(true);
+      expect(recordedUrls.some((u) => u.includes("/stump/series"))).toBe(true);
     });
     expect(recordedUrls.some((u) => u.includes("/stash/"))).toBe(false);
 
@@ -108,6 +108,6 @@ describe("Library hub chips", () => {
     await vi.waitFor(() => {
       expect(recordedUrls.length).toBeGreaterThan(0);
     });
-    expect(recordedUrls.some((u) => u.includes("/komga/"))).toBe(false);
+    expect(recordedUrls.some((u) => u.includes("/stump/"))).toBe(false);
   });
 });

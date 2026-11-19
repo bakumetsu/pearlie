@@ -9,10 +9,12 @@ from fastapi.testclient import TestClient
 
 from app.api import media_owned
 from app.api.media_owned import is_owned
+from app.bookserver.stump import StumpBookServer
 from app.db import connect, init_db
-from app.komga import Komga
 from app.models import SavedRef
+from app.stump import Stump
 from app.targets.stash_client import StashClient
+from tests.stump_mock import MockStump, book, lib, series
 from tests.test_media_stash_real import KEY, URL, stream_response
 from tests.test_media_web_real import IMG, _app, _handler, _post
 
@@ -140,9 +142,9 @@ def test_thumb_never_calls_stash(tmp_path):
     assert stash == []
 
 
-def test_komga_row_empty_id_and_bad_id_are_site(tmp_path):
+def test_stump_row_empty_id_and_bad_id_are_site(tmp_path):
     for i, save in enumerate(
-        ({"target": "komga", "image_id": ""}, {"image_id": ""}, {"image_id": "../x"})
+        ({"target": "stump", "image_id": ""}, {"image_id": ""}, {"image_id": "../x"})
     ):
         _, client, _, stash = _setup(tmp_path / str(i), _ok, **save)
         assert client.get("/api/media/web/danbooru/7/full").content == IMG
@@ -236,31 +238,35 @@ def test_cold_post_get_post_failure_is_asked_once(tmp_path):
 
 
 BOOK = "0ABC123DEF456"
-KOMGA_URL = "http://komga.test"
+STUMP_URL = "http://stump.test"
 
 
-def _komga(app, handler) -> list[httpx.Request]:
+def _stump(app, handler) -> list[httpx.Request]:
     seen: list[httpx.Request] = []
 
     def wrapped(request: httpx.Request) -> httpx.Response:
         seen.append(request)
         return handler(request)
 
-    app.state.komga = Komga(
-        KOMGA_URL,
+    client = Stump(
+        STUMP_URL,
         "k",
-        client=httpx.Client(base_url=KOMGA_URL, transport=httpx.MockTransport(wrapped)),
+        client=httpx.Client(base_url=STUMP_URL, transport=httpx.MockTransport(wrapped)),
     )
+    app.state.stump = client
+    app.state.settings.stump_url = STUMP_URL
+    app.state.books = StumpBookServer(client, None)
+    app.state.stump_conn = (STUMP_URL, "")
     return seen
 
 
-def _komga_row(app, post_id="7", library_id=BOOK, md5="b" * 32, source="danbooru") -> None:
+def _stump_row(app, post_id="7", library_id=BOOK, md5="b" * 32, source="danbooru") -> None:
     init_db(app.state.settings.db_path)
     conn = connect(app.state.settings.db_path)
     try:
         conn.execute(
             "INSERT INTO saved_items (source, post_id, md5, target, image_id, library_id) "
-            "VALUES (?, ?, ?, 'komga', '', ?)",
+            "VALUES (?, ?, ?, 'stump', '', ?)",
             (source, post_id, md5, library_id),
         )
         conn.commit()
@@ -269,60 +275,61 @@ def _komga_row(app, post_id="7", library_id=BOOK, md5="b" * 32, source="danbooru
 
 
 def _page(request: httpx.Request) -> httpx.Response:
-    return stream_response(200, b"\xff\xd8KOMGA", {"content-type": "image/jpeg"})
+    return stream_response(200, b"\xff\xd8STUMP", {"content-type": "image/jpeg"})
 
 
-def test_owned_komga_post_streams_page_one_from_komga(tmp_path):
+def test_owned_stump_post_streams_page_one_from_stump(tmp_path):
     site: list[httpx.Request] = []
     app = _app(tmp_path, _handler(site))
-    _komga_row(app)
-    seen = _komga(app, _page)
+    _stump_row(app)
+    seen = _stump(app, _page)
     r = TestClient(app).get("/api/media/web/danbooru/7/full")
-    assert r.status_code == 200 and r.content == b"\xff\xd8KOMGA"
-    assert seen[0].url.path == f"/api/v1/books/{BOOK}/pages/1"
+    assert r.status_code == 200 and r.content == b"\xff\xd8STUMP"
+    assert seen[0].url.path == f"/api/v2/media/{BOOK}/page/1"
     assert _cdn(site) == []
-    assert "komga.test" not in str(r.headers)
+    assert "stump.test" not in str(r.headers)
 
 
-def test_komga_failure_falls_back_to_site_once(tmp_path):
+def test_stump_failure_falls_back_to_site_once(tmp_path):
     site: list[httpx.Request] = []
     app = _app(tmp_path, _handler(site))
-    _komga_row(app)
-    seen = _komga(app, lambda r: stream_response(404, b"", {}))
+    _stump_row(app)
+    seen = _stump(app, lambda r: stream_response(404, b"", {}))
     client = TestClient(app)
     assert client.get("/api/media/web/danbooru/7/full").content == IMG
     assert client.get("/api/media/web/danbooru/7/preview").content == IMG
     assert len(seen) == 1  # failure remembered
 
 
-def test_old_komga_row_is_backfilled_with_one_search(tmp_path):
+def test_old_stump_row_is_backfilled_with_one_search(tmp_path):
     app = _app(tmp_path, _handler([]))
-    _komga_row(app, library_id=None)  # type: ignore[arg-type]
+    _stump_row(app, library_id=None)  # type: ignore[arg-type]
+
+    mock = MockStump([lib()], [series()], [{**book(1), "id": BOOK, "path": "/data/x [7].cbz"}])
 
     def handler(request):
-        if request.url.path == "/api/v1/books/list":
-            book = {"id": BOOK, "url": "/data/x [7].cbz", "metadata": {}}
-            return httpx.Response(200, json={"content": [book]})
+        if request.url.path == "/api/graphql":
+            return mock(request)
         return _page(request)
 
-    seen = _komga(app, handler)
+    seen = _stump(app, handler)
     client = TestClient(app)
-    assert client.get("/api/media/web/danbooru/7/full").content == b"\xff\xd8KOMGA"
+    assert client.get("/api/media/web/danbooru/7/full").content == b"\xff\xd8STUMP"
     conn = connect(app.state.settings.db_path)
     try:
         row = conn.execute("SELECT library_id FROM saved_items").fetchone()
     finally:
         conn.close()
     assert row["library_id"] == BOOK
-    searches = [q for q in seen if q.url.path.endswith("/books/list")]
+    searches = [q for q in seen if q.url.path.endswith("/graphql")]
     client.get("/api/media/web/danbooru/7/full")
-    assert len([q for q in seen if q.url.path.endswith("/books/list")]) == len(searches)
+    assert len([q for q in seen if q.url.path.endswith("/graphql")]) == len(searches)
 
 
 def test_bad_book_id_uses_site(tmp_path):
     app = _app(tmp_path, _handler([]))
-    _komga_row(app, library_id="../x")
-    seen = _komga(app, _page)
+    _stump_row(app, library_id="../x")
+    seen = _stump(app, _page)
     assert TestClient(app).get("/api/media/web/danbooru/7/full").content == IMG
     assert seen == []
 
@@ -331,16 +338,16 @@ def test_is_owned_book_needs_an_id():
     assert is_owned(SavedRef(kind="book", id=BOOK))
 
 
-def test_nhentai_reader_page_comes_from_komga(tmp_path):
+def test_nhentai_reader_page_comes_from_stump(tmp_path):
     from tests.test_media_web_pages import Rig
 
     rig = Rig(tmp_path)
-    _komga_row(rig.app, post_id="7", source="nhentai")
-    seen = _komga(rig.app, _page)
+    _stump_row(rig.app, post_id="7", source="nhentai")
+    seen = _stump(rig.app, _page)
     r = rig.client.get("/api/media/web/nhentai/7/pages/2")
-    assert r.content == b"\xff\xd8KOMGA" and rig.cdn() == []
-    assert seen[0].url.path == f"/api/v1/books/{BOOK}/pages/2"
+    assert r.content == b"\xff\xd8STUMP" and rig.cdn() == []
+    assert seen[0].url.path == f"/api/v2/media/{BOOK}/page/2"
     t = rig.client.get("/api/media/web/nhentai/7/pages/3/thumb")
-    assert t.status_code == 200 and seen[1].url.path == f"/api/v1/books/{BOOK}/pages/3/thumbnail"
+    assert t.status_code == 200 and seen[1].url.path == f"/api/v2/media/{BOOK}/page/3"
     book = rig.client.get("/api/media/web/nhentai/7/book").json()
     assert book["item"]["owned"] is True

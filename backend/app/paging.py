@@ -7,8 +7,8 @@ import math
 PAGE_SIZE_CAPS: dict[str, int] = {
     "stash_images": 200,
     "stash_videos": 200,
-    "komga_series": 200,
-    "komga_books": 200,
+    "stump_series": 200,
+    "stump_books": 200,
     "danbooru": 200,
     "gelbooru": 100,
     "rule34": 100,

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
-import { createSearch } from "./search.svelte";
+import { createSearch, clearSearchAnswers } from "./search.svelte";
 import { ApiError } from "../api/client";
 import { parseChip, type Chip, type SearchState } from "../query";
 import type { Api, Section } from "../api/client";
@@ -25,7 +25,7 @@ const state = (over: Partial<{ chips: string | Chip[] | false; pill: string; sit
 });
 
 describe("createSearch", () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => { vi.useFakeTimers(); clearSearchAnswers(); });
   afterEach(() => vi.useRealTimers());
 
   it("a reorder of the sites moves the rows and runs no search", async () => {
@@ -38,7 +38,7 @@ describe("createSearch", () => {
     s.run(state({ sites: ["gelbooru", "danbooru"] }));
     await vi.advanceTimersByTimeAsync(600);
     expect(api.search).toHaveBeenCalledTimes(1);
-    expect(Object.keys(s.sections)).toEqual(["gelbooru", "danbooru", "stash_images", "stash_videos", "komga_books"]);
+    expect(Object.keys(s.sections)).toEqual(["gelbooru", "danbooru", "stash_images", "stash_videos", "stump_books"]);
   });
 
   it("debounces and calls search once", async () => {
@@ -50,7 +50,7 @@ describe("createSearch", () => {
     await vi.advanceTimersByTimeAsync(300);
     expect(api.search).toHaveBeenCalledTimes(1);
     const [p] = api.search.mock.calls[0];
-    expect(p.sources).toEqual(["danbooru", "stash_images", "stash_videos", "komga_books"]);
+    expect(p.sources).toEqual(["danbooru", "stash_images", "stash_videos", "stump_books"]);
     expect(p.q).toBe("test");
   });
 
@@ -90,11 +90,11 @@ describe("createSearch", () => {
     // Stale resolve – should be ignored
     resolvers[0]({ sections: [sec("stash_images")] });
     // Fresh resolve
-    resolvers[1]({ sections: [sec("stash_images"), sec("stash_videos"), sec("komga_books"), sec("danbooru")] });
+    resolvers[1]({ sections: [sec("stash_images"), sec("stash_videos"), sec("stump_books"), sec("danbooru")] });
     await vi.advanceTimersByTimeAsync(0);
 
     expect(s.sections["stash_videos"]?.status).toBe("done");
-    expect(s.sections["komga_books"]?.status).toBe("done");
+    expect(s.sections["stump_books"]?.status).toBe("done");
     expect(s.sections["danbooru"]?.status).toBe("done");
   });
 
@@ -131,10 +131,10 @@ describe("createSearch", () => {
     expect(api.search).toHaveBeenCalledTimes(1);
     expect(api.search.mock.calls[0][0].q).toBe("");
     expect(api.search.mock.calls[0][0].sources).toEqual([
-      "danbooru", "gelbooru", "stash_images", "stash_videos", "komga_books",
+      "danbooru", "gelbooru", "stash_images", "stash_videos", "stump_books",
     ]);
     expect(Object.keys(s.sections)).toEqual([
-      "danbooru", "gelbooru", "stash_images", "stash_videos", "komga_books",
+      "danbooru", "gelbooru", "stash_images", "stash_videos", "stump_books",
     ]);
   });
 
@@ -142,7 +142,7 @@ describe("createSearch", () => {
     const api = makeApi();
     api.search.mockResolvedValue({ sections: [] });
     const s = createSearch(api);
-    const rows = ["nhentai", "stash_images", "stash_videos", "komga_books"];
+    const rows = ["nhentai", "stash_images", "stash_videos", "stump_books"];
     s.run({ chips: [chip("tag:glasses")], pill: "all", sites: ["nhentai"] }, { immediate: true });
     expect(Object.keys(s.sections)).toEqual(rows);
     s.run({ chips: [chip("glasses")], pill: "all", sites: ["nhentai"] }, { immediate: true });

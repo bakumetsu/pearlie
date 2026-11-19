@@ -7,6 +7,7 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app.bookserver.base import BOOK_TARGETS
 from app.db import connect
 from app.models import Job, Problem, SavedRef
 from app.sources.base import Post
@@ -94,8 +95,8 @@ def _chunks(items: list[str], size: int = 500):
 def _ref(
     target: str, image_id: str | None, kind: str = "image", library_id: str | None = None
 ) -> SavedRef:
-    # A Komga row has no image id: its book id (when known) is in `library_id`.
-    if target == "komga":
+    # A Stump row has no image id: its book id (when known) is in `library_id`.
+    if target in BOOK_TARGETS:
         return SavedRef(kind="book", id=library_id or "")
     if kind == "video":
         return SavedRef(kind="video", id=image_id or "")
@@ -428,7 +429,7 @@ class JobStore:
     def scan_pending(self) -> list[tuple[str, str, str, str, str]]:
         """Jobs left waiting or checking at a restart, put back to `scan_wait`.
 
-        Returns (job id, source, library id, name, komga path) rows, oldest first.
+        Returns (job id, source, library id, name, stump path) rows, oldest first.
         """
         conn = connect(self._path)
         try:

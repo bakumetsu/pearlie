@@ -33,16 +33,12 @@ TYPES = {
 }
 
 
-def _fetch(
-    base: str, client: httpx.Client | None
-) -> tuple[int | None, tuple[bytes, str] | None]:
+def _fetch(base: str, client: httpx.Client | None) -> tuple[int | None, tuple[bytes, str] | None]:
     """GET <base>/favicon.ico with no cookies or keys.
 
     Returns (HTTP status or None on a network error, the icon or None unless a small image).
     """
-    http = client or install_http_hooks(
-        httpx.Client(timeout=5.0, follow_redirects=False), "icon"
-    )
+    http = client or install_http_hooks(httpx.Client(timeout=5.0, follow_redirects=False), "icon")
     try:
         with http.stream(
             "GET",

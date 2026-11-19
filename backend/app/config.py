@@ -34,8 +34,8 @@ class Settings(BaseSettings):
     stash_url: str = ""
     stash_api_key: SecretStr = SecretStr("")
     stash_public_url: str = ""
-    komga_url: str = ""
-    komga_api_key: SecretStr = SecretStr("")
+    stump_url: str = ""
+    stump_api_key: SecretStr = SecretStr("")
     gelbooru_user_id: str = ""
     gelbooru_api_key: SecretStr = SecretStr("")
     rule34_user_id: str = ""
@@ -46,22 +46,23 @@ class Settings(BaseSettings):
     stash_path_prefix_pearlie: str = ""
     stash_path_prefix_stash: str = ""
     stash_scan_timeout_s: float = Field(default=120.0, gt=0, allow_inf_nan=False)
-    komga_incoming_dir: str = ""
-    komga_temp_dir: Path = Path("/mnt/media/komga/.pearlie-tmp")
-    komga_path_prefix_pearlie: str = ""
-    komga_path_prefix_komga: str = ""
+    stump_incoming_dir: str = ""
+    stump_temp_dir: Path = Path("/mnt/media/stump/.pearlie-tmp")
+    stump_path_prefix_pearlie: str = ""
+    stump_path_prefix_stump: str = ""
     download_interval_s: float = Field(default=2.0, ge=0, allow_inf_nan=False)
     worker_enabled: bool = True
     log_dir: Path | None = None
     log_keep_days: int = 7
     thumb_cache_dir: Path | None = None
+    trash_dir: Path = Path("/mnt/media/pearlie-trash")
 
     @field_validator("log_dir", "thumb_cache_dir", mode="before")
     @classmethod
     def _blank_log_dir(cls, v: Any) -> Any:
         return None if isinstance(v, str) and not v.strip() else v
 
-    @field_validator("stash_url", "stash_public_url", "komga_url")
+    @field_validator("stash_url", "stash_public_url", "stump_url")
     @classmethod
     def _no_userinfo(cls, v: str) -> str:
         """user:pass@ in a URL would reach logs, repr and links: use the API key instead."""

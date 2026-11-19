@@ -487,7 +487,7 @@ async def _run_miss(
                     lane.lock.release()
         if isinstance(outcome, _Refused):
             logger.warning("site=%s post=%s err status=%d", key[0], key[1], outcome.status)
-            if outcome.status in (404, 502):
+            if outcome.status in (404, 502) or outcome.code == "rate_limited":
                 _note_failure(app, key, outcome)
             return outcome
         stored = False

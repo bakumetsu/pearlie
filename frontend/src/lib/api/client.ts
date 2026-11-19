@@ -20,6 +20,17 @@ export type PatchBody = S["PatchBody"];
 export type TrashResult = S["TrashResult"];
 export type TrashList = S["TrashList"];
 export type TrashEmptied = S["TrashEmptied"];
+export type TrashBatchResult = S["TrashBatchResult"];
+export type GroupRestoreResult = S["GroupRestoreResult"];
+export type TrashRoot = { index: number; stash_path: string; state: "ok" | "not_reachable" | "other_volume" };
+export type TrashStatus = { roots: TrashRoot[] };
+export type TrashFolder = {
+  path: string;
+  source: "env" | "stored";
+  env_path: string;
+  state: "ok" | "missing" | "not_writable";
+  items: number;
+};
 export type ThumbCacheCleared = S["ThumbCacheCleared"];
 export type ScanResult = S["ScanResult"];
 export type TrashPurgePreview = S["TrashPurgePreview"];
@@ -62,6 +73,8 @@ export class ApiError extends Error {
   public status: number;
   public code: string;
   public libraryRef?: { kind: string; id: string };
+  // Set on 409 in_trash: the trash token that restores the saved item.
+  public trashToken?: string;
 
   constructor(
     status: number,
@@ -129,6 +142,13 @@ export interface Api {
   patchItem(kind: Kind, id: string, body: PatchBody, signal?: AbortSignal): Promise<LibraryItemDetail>;
   deleteItem(kind: Kind, id: string, signal?: AbortSignal): Promise<TrashResult>;
   restore(token: string, signal?: AbortSignal): Promise<RestoreResult>;
+  trashItems(items: S["TrashBatchItem"][], signal?: AbortSignal): Promise<TrashBatchResult>;
+  restoreGroup(group: string, signal?: AbortSignal): Promise<GroupRestoreResult>;
+  deleteForGood(token: string, signal?: AbortSignal): Promise<void>;
+  trashStatus(signal?: AbortSignal): Promise<TrashStatus>;
+  trashFolder(signal?: AbortSignal): Promise<TrashFolder>;
+  setTrashFolder(path: string, signal?: AbortSignal): Promise<TrashFolder>;
+  createTrashFolder(path: string, signal?: AbortSignal): Promise<TrashFolder>;
   listTrash(signal?: AbortSignal): Promise<TrashList>;
   emptyTrash(signal?: AbortSignal): Promise<TrashEmptied>;
   purgePreview(days: number, signal?: AbortSignal): Promise<TrashPurgePreview>;
@@ -173,8 +193,8 @@ export interface Api {
 const KIND_PATHS: Record<Kind, string> = {
   images: "/api/library/stash/images",
   videos: "/api/library/stash/videos",
-  series: "/api/library/komga/series",
-  books: "/api/library/komga/books",
+  series: "/api/library/stump/series",
+  books: "/api/library/stump/books",
 };
 
 let _deviceClass: "touch" | "desktop" | null = null;
@@ -204,12 +224,14 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
       let code = "error";
       let message = "Something went wrong";
       let libraryRef: { kind: string; id: string } | undefined;
+      let trashToken: string | undefined;
       try {
         const body: unknown = await res.json();
         if (body !== null && typeof body === "object") {
           const b = body as Record<string, unknown>;
           if (typeof b.code === "string") code = b.code;
           if (typeof b.message === "string") message = b.message;
+          if (typeof b.token === "string") trashToken = b.token;
           if (b.library_ref !== null && typeof b.library_ref === "object") {
             const ref = b.library_ref as Record<string, unknown>;
             if (typeof ref.kind === "string" && typeof ref.id === "string") {
@@ -221,7 +243,9 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         // non-JSON or empty error body – keep defaults
       }
       if (res.status === 403 && code === "host_not_allowed") hostBlock.set(message);
-      throw new ApiError(res.status, code, message, libraryRef);
+      const err = new ApiError(res.status, code, message, libraryRef);
+      if (code === "in_trash") err.trashToken = trashToken;
+      throw err;
     }
 
     if (res.status === 204) return undefined as T;
@@ -331,6 +355,43 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
       return request<RestoreResult>(
         baseUrl + "/api/trash/" + encodeURIComponent(token) + "/restore",
         { method: "POST" },
+        signal,
+      );
+    },
+    trashItems(items, signal) {
+      return request<TrashBatchResult>(
+        baseUrl + "/api/library/trash",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }) },
+        signal,
+      );
+    },
+    restoreGroup(group, signal) {
+      return request<GroupRestoreResult>(
+        baseUrl + "/api/trash/group/" + encodeURIComponent(group) + "/restore",
+        { method: "POST" },
+        signal,
+      );
+    },
+    deleteForGood(token, signal) {
+      return request<void>(baseUrl + "/api/trash/" + encodeURIComponent(token), { method: "DELETE" }, signal);
+    },
+    trashStatus(signal) {
+      return request<TrashStatus>(baseUrl + "/api/trash/status", undefined, signal);
+    },
+    trashFolder(signal) {
+      return request<TrashFolder>(baseUrl + "/api/trash/folder", undefined, signal);
+    },
+    setTrashFolder(path, signal) {
+      return request<TrashFolder>(
+        baseUrl + "/api/trash/folder",
+        { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }) },
+        signal,
+      );
+    },
+    createTrashFolder(path, signal) {
+      return request<TrashFolder>(
+        baseUrl + "/api/trash/folder/create",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }) },
         signal,
       );
     },
@@ -621,7 +682,7 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     },
     saveProgress(bookId, page, signal, opts) {
       return request<ProgressResult>(
-        baseUrl + "/api/library/komga/books/" + encodeURIComponent(bookId) + "/progress",
+        baseUrl + "/api/library/stump/books/" + encodeURIComponent(bookId) + "/progress",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

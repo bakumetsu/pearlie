@@ -4,7 +4,7 @@ export type Pill = "all" | "images" | "videos" | "books" | "web";
 export type SectionId =
   | "stash_images"
   | "stash_videos"
-  | "komga_books"
+  | "stump_books"
   | "danbooru"
   | "gelbooru"
   | "rule34"
@@ -141,7 +141,7 @@ export const DEFAULT_SITES: SiteId[] = ["danbooru"];
 export const LIBRARY_SECTIONS: SectionId[] = [
   "stash_images",
   "stash_videos",
-  "komga_books",
+  "stump_books",
 ];
 
 /** Resolve the active section ids for a pill and site selection. */
@@ -155,7 +155,7 @@ export function sectionsFor(pill: Pill, sites: SiteId[]): SectionId[] {
     case "videos":
       return ["stash_videos"];
     case "books":
-      return ["komga_books"];
+      return ["stump_books"];
     case "web":
       return sites;
   }

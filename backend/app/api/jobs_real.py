@@ -52,16 +52,28 @@ def save(body: SaveBody, request: Request) -> SaveAccepted:
     if getattr(request.app.state, src.target, None) is None:
         raise ApiError(422, "no_target", f"saving from {body.source} is not available")
     store = _store(request)
+    trashed = request.app.state.trash.find_in_trash(body.source, body.post_id)
+    if trashed is not None:
+        raise ApiError(
+            409, "in_trash", "Already saved, in the trash", in_trash=True, token=trashed["token"]
+        )
+    stump_target = getattr(request.app.state, "stump_target", None)
+    if src.target == "stump" and stump_target is not None:
+        token = stump_target.trash_token(body.source, body.post_id)
+        if token is not None:
+            raise ApiError(
+                409, "in_trash", "Already saved, in the trash", in_trash=True, token=token
+            )
     image_id = store.saved_image_id(body.source, body.post_id)
     if image_id and src.target == "stash":
         # The index can outlive the image: one Stash lookup, drop the row if it is gone.
         kind = store.saved_kind(body.source, body.post_id)
         if request.app.state.stash_target.drop_if_gone(image_id, kind):
             image_id = store.saved_image_id(body.source, body.post_id)
-    elif image_id == "" and src.target == "komga":
-        # Same for Komga: one search, drop the row if the book was deleted there.
-        komga_target = getattr(request.app.state, "komga_target", None)
-        if komga_target is not None and komga_target.drop_if_gone(body.source, body.post_id):
+    elif image_id == "" and src.target == "stump":
+        # Same for Stump: one search, drop the row if the book was deleted there.
+        stump_target = getattr(request.app.state, "stump_target", None)
+        if stump_target is not None and stump_target.drop_if_gone(body.source, body.post_id):
             image_id = store.saved_image_id(body.source, body.post_id)
     if image_id is not None:
         kind = store.saved_kind(body.source, body.post_id) if src.target == "stash" else "image"
@@ -109,11 +121,11 @@ def save_placement(
     source: Annotated[WebSource, Query()],
     post_id: Annotated[str, Query()],
 ) -> PlacementSuggestion:
-    """Suggest series or oneshot for a Komga save. Pure: nothing is written."""
+    """Suggest series or oneshot for a Stump save. Pure: nothing is written."""
     src = request.app.state.sources.get(source)
-    target = getattr(request.app.state, "komga_target", None)
-    if src is None or src.target != "komga" or target is None:
-        raise ApiError(422, "no_target", f"{source} does not save to Komga")
+    target = getattr(request.app.state, "stump_target", None)
+    if src is None or src.target != "stump" or target is None:
+        raise ApiError(422, "no_target", f"{source} does not save to Stump")
     try:
         post = _get_post(request, src, post_id)
     except SourceError as e:

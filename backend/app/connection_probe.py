@@ -59,10 +59,15 @@ def probe_connection(app: FastAPI, name: str) -> ProbeResult:
         json_body = {"query": "{ version { version } }"}
         if secret:
             headers["ApiKey"] = secret
-    elif name == "komga":
-        url = address + "/api/v1/libraries"
+    elif name == "stump":
+        method = "POST"
+        url = address + "/api/graphql"
+        json_body = {
+            "query": "{ libraries(pagination: {offset: {page: 1, pageSize: 1, zeroBased: false}}) "
+            "{ nodes { id } } }"
+        }
         if secret:
-            headers["X-API-Key"] = secret
+            headers["Authorization"] = f"Bearer {secret}"
     elif name == "danbooru":
         url = address + "/posts.json?limit=1"
     elif name in ("gelbooru", "rule34"):

@@ -9,11 +9,11 @@
 	let { api = getApi(), store = options }: { api?: Api; store?: OptionsStore } = $props();
 
 	const placeMode = $derived(store.values?.place_mode ?? "suggest");
-	const scanWait = $derived(store.values?.komga_scan_wait_s ?? 10);
+	const scanWait = $derived(store.values?.stump_scan_wait_s ?? 10);
 	const SCAN_STEP = 5;
 	function stepScanWait(dir: 1 | -1) {
 		const n = dir > 0 ? Math.floor(scanWait / SCAN_STEP + 1) : Math.ceil(scanWait / SCAN_STEP - 1);
-		store.set({ komga_scan_wait_s: Math.min(120, Math.max(0, n * SCAN_STEP)) });
+		store.set({ stump_scan_wait_s: Math.min(120, Math.max(0, n * SCAN_STEP)) });
 	}
 
 	let dest = $state<Destinations | null>(null);
@@ -26,13 +26,13 @@
 
 	const sites = $derived(dest?.sites ?? []);
 	const paths = $derived(dest?.library_paths ?? []);
-	const komgaSites = $derived(dest?.komga_sites ?? []);
-	const komgaPaths = $derived(dest?.komga_library_paths ?? []);
+	const stumpSites = $derived(dest?.stump_sites ?? []);
+	const stumpPaths = $derived(dest?.stump_library_paths ?? []);
 
 	function adopt(d: Destinations) {
 		dest = d;
 		const next: Record<string, string> = { [DEFAULT_KEY]: d.default_folder };
-		for (const site of [...(d.sites ?? []), ...(d.komga_sites ?? [])]) {
+		for (const site of [...(d.sites ?? []), ...(d.stump_sites ?? [])]) {
 			next[site] = d.items.find((i) => i.site === site)?.folder ?? "";
 		}
 		drafts = next;
@@ -84,7 +84,7 @@
 	);
 
 	function pathsFor(key: string): string[] {
-		return komgaSites.includes(key) ? komgaPaths : pickable;
+		return stumpSites.includes(key) ? stumpPaths : pickable;
 	}
 
 	function pick(key: string, path: string) {
@@ -121,12 +121,12 @@
 
 <section class="card" id="save-folders" data-testid="save-folders">
 	<h2 class="card-title">Save folders</h2>
-	<p class="hint">Where saved posts go. Folders must be inside a Stash library path (Komga sites: a Komga library root).</p>
+	<p class="hint">Where saved posts go. Folders must be inside a Stash library path (Stump sites: a Stump library root).</p>
 	{#if loadError}
 		<span class="err" role="alert">{loadError}</span>
 	{:else if dest}
-		{#if dest.komga_library_error}
-			<p class="hint" role="status">Could not read Komga libraries: {dest.komga_library_error}</p>
+		{#if dest.stump_library_error}
+			<p class="hint" role="status">Could not read Stump libraries: {dest.stump_library_error}</p>
 		{/if}
 		{#if dest.library_error}
 			<p class="hint" role="status">Could not read Stash library paths: {dest.library_error}</p>
@@ -156,7 +156,7 @@
 			<span class="ok" data-testid="mapping-source">{dest.prefix_from_env ? "From .env" : "Saved here"}</span>
 			{#if mapError}<span class="err" role="alert">{mapError}</span>{/if}
 		</form>
-		{#each [DEFAULT_KEY, ...sites, ...komgaSites] as key (key)}
+		{#each [DEFAULT_KEY, ...sites, ...stumpSites] as key (key)}
 			<form
 				class="row folder-row"
 				onsubmit={(e) => {
@@ -171,8 +171,8 @@
 					data-testid="folder-{key}"
 					placeholder={key === DEFAULT_KEY
 						? ""
-						: komgaSites.includes(key)
-							? "Komga folder"
+						: stumpSites.includes(key)
+							? "Stump folder"
 							: "Uses the default"}
 					autocomplete="off"
 					spellcheck="false"
@@ -201,9 +201,9 @@
 				{#if saved[key]}<span class="ok" role="status">Saved</span>{/if}
 			</form>
 		{/each}
-		{#if komgaSites.length}
+		{#if stumpSites.length}
 			<div class="row place-row" data-testid="place-mode">
-				<span id="place-label">Komga placement</span>
+				<span id="place-label">Stump placement</span>
 				<div class="seg" role="radiogroup" aria-labelledby="place-label">
 					<button
 						type="button"
@@ -232,18 +232,18 @@
 						: "The save dialog shows the pick; one tap changes it."}
 				</span>
 				<span class="ok" data-testid="oneshots-line">
-					{dest.komga_oneshots_dir
-						? `Oneshots: ${dest.komga_oneshots_dir}`
-						: "Oneshots: not set in Komga"}
+					{dest.stump_oneshots_dir
+						? `Oneshots: ${dest.stump_oneshots_dir}`
+						: "Oneshots: not set in Stump"}
 				</span>
-				{#if dest.komga_oneshots_dir}
+				{#if dest.stump_oneshots_dir}
 					<span class="ok" data-testid="oneshots-note">
-						A first book moves into a new series. Komga keeps read progress only if "Hash files" is on.
+						A first book moves into a new series. Stump keeps read progress only if "Hash files" is on.
 					</span>
 				{/if}
 			</div>
 			<div class="row scan-row" data-testid="scan-wait">
-				<span id="scan-wait-label"><Icon name="clock" size={18} /> Komga scan delay</span>
+				<span id="scan-wait-label"><Icon name="clock" size={18} /> Stump scan delay</span>
 				<div class="stepper" role="group" aria-labelledby="scan-wait-label">
 					<button
 						type="button"
@@ -265,7 +265,7 @@
 						<Icon name="plus" size={18} />
 					</button>
 				</div>
-				<span class="ok">Wait this long after the last save before Komga scans.</span>
+				<span class="ok">Wait this long after the last save before Stump scans.</span>
 			</div>
 		{/if}
 	{/if}

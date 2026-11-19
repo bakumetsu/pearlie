@@ -35,6 +35,7 @@
     onopenweb,
     webHref,
     landscape = false,
+    selectable = false,
     onready,
   }: {
     items: Item[];
@@ -48,6 +49,8 @@
     onopenitem?: (item: LibraryItem) => void;
     onopenweb?: (item: WebItem) => void;
     webHref?: (item: WebItem) => string | undefined;
+    // Library tiles get the select circle (only where a SelectBar exists).
+    selectable?: boolean;
     landscape?: boolean;
     onready?: () => void;
   } = $props();
@@ -75,6 +78,8 @@
   let total = $state(0);
   let count = $state(0);
   let placed = $state.raw<Cell[]>([]);
+  // Built, rows exist, the viewport overlaps the grid box, yet the window holds no cell: never show nothing.
+  let blank = $state(false);
   let layoutSig = "";
   let lastKey: string | undefined;
   let firstKey: string | undefined;
@@ -232,6 +237,9 @@
       if (item && rect) cells.push({ index, key: layout.keyAt(index) ?? keyOf(item), item, ...rect });
     }
     placed = cells;
+    const isBlank = cells.length === 0 && layout.count > 0 && top < layout.total && top + vh > 0;
+    if (isBlank) console.warn("results grid: no cell in the window", { count: layout.count, total: layout.total, top, vh, mode });
+    blank = isBlank;
   }
 
   // ---- aspect fix-up: a tile on screen never moves; its fix waits until it has left the screen ----
@@ -280,7 +288,7 @@
   function measureCaption() {
     const node = el?.querySelector(".vcell .title") ?? null;
     if (node !== capNode) {
-      capRo?.unobserve(capNode as Element);
+      if (capNode) capRo?.unobserve(capNode);
       capNode = node;
       if (node) capRo?.observe(node);
     }
@@ -387,7 +395,7 @@
         {/each}
       </div>
     {/if}
-  {:else if built}
+  {:else if built && !blank}
     <div class="vwin" role="list" style:height="{total}px" onfocusin={onFocusIn} onfocusout={onFocusOut}>
       {#each placed as p (p.key)}
         <div
@@ -404,6 +412,7 @@
       {/each}
     </div>
   {:else if mode === "grid"}
+    <!-- Also the answer when the viewport overlaps the built layout but its window holds no cell (first FLOW_COUNT rows only). -->
     <div class="grid" style:--cell="{size}px">
       {#each flowItems as item (keyOf(item))}
         {@render tile(item, "grid", undefined)}
@@ -459,6 +468,7 @@
       aspect={aspect}
       onaspect={key !== undefined && aspect !== undefined ? (a) => reportAspect(key, a) : undefined}
       landscape={landscape}
+      {selectable}
       href={itemHref(item as LibraryItem)}
       onnavigate={onnavigate}
       onopenitem={onopenitem}
@@ -474,19 +484,19 @@
     width: 100%;
   }
 
-  .grid {
+  .rg > .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(var(--cell), 1fr));
     gap: 16px;
   }
 
-  .list {
+  .rg > .list {
     display: flex;
     flex-direction: column;
     gap: 0;
   }
 
-  .list > :global(*) {
+  .rg > .list > :global(*) {
     border-bottom: 1px solid var(--border, rgba(127, 127, 127, 0.25));
   }
 
@@ -495,6 +505,7 @@
     overflow-anchor: none;
   }
 
+  /* The flow containers above share class names with .vcell.{mode}: scope them to the direct child. */
   .vcell {
     position: absolute;
     top: 0;
@@ -516,7 +527,7 @@
     min-width: 0;
   }
 
-  .masonry {
+  .rg > .masonry {
     display: flex;
     gap: 8px;
     align-items: flex-start;

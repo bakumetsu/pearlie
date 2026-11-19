@@ -64,6 +64,17 @@ CASES = [
     ("[Circle (Artist)] Title 2", (), True, "[Circle (Artist)]", "Title", "2", True),
     ("X 1899", (), True, "", "X", "1899", True),
     ("X 2100", (), True, "", "X", "2100", True),
+    ("My Sister Ep 5", (), True, "", "My Sister", "5", True),
+    ("My Sister Ep. 12 [English]", (), True, "", "My Sister", "12", True),
+    ("My Sister Episode 3", (), True, "", "My Sister", "3", True),
+    ("Step 5", (), True, "", "Step", "5", True),
+    ("Deep Epic Tale", (), True, "", "Deep Epic Tale", "", False),
+    ("[Foo] English Title | 日本語タイトル 3", (), True, "[Foo]", "English Title", "", False),
+    ("[Foo] Love 2 | ラブ", (), True, "[Foo]", "Love", "2", True),
+    ("A|B 2", (), True, "", "A|B", "2", True),
+    ("タイトル 第5話", (), True, "", "タイトル", "5", True),
+    ("タイトル第12話 - 副題", (), True, "", "タイトル", "12", True),
+    ("[Foo] タイトル 第 03 話 [English]", (), True, "[Foo]", "タイトル", "3", True),
 ]
 
 
@@ -87,3 +98,4 @@ def test_cut_uses_earliest_separator() -> None:
 def test_year_after_dash_is_not_a_volume() -> None:
     assert not parse_name("Fate - 2025").is_series
     assert parse_name("Fate - 2025", hardened=False).is_series
+

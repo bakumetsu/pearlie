@@ -42,17 +42,11 @@ FIND_TAGS = (
 
 TAG_CREATE = "mutation($n: String!) { tagCreate(input: {name: $n}) { id } }"
 
-IMAGE_UPDATE = (
-    "mutation($i: ImageUpdateInput!) { imageUpdate(input: $i) { id } }"
-)
+IMAGE_UPDATE = "mutation($i: ImageUpdateInput!) { imageUpdate(input: $i) { id } }"
 
-SCENE_UPDATE = (
-    "mutation($i: SceneUpdateInput!) { sceneUpdate(input: $i) { id } }"
-)
+SCENE_UPDATE = "mutation($i: SceneUpdateInput!) { sceneUpdate(input: $i) { id } }"
 
-LIBRARY_PATHS = (
-    "query { configuration { general { stashes { path } } } }"
-)
+LIBRARY_PATHS = "query { configuration { general { stashes { path } } } }"
 
 IMAGE_FIELDS = (
     "id title rating100 created_at urls tags { name } "
@@ -71,20 +65,45 @@ LIST_IMAGES = (
 LIST_FOLDER_IMAGES = (
     "query($v: String!, $page: Int!, $n: Int!) { findImages("
     "image_filter: {path: {value: $v, modifier: INCLUDES}},"
-    " filter: {page: $page, per_page: $n, sort: \"id\", direction: ASC})"
+    ' filter: {page: $page, per_page: $n, sort: "id", direction: ASC})'
     " { count images { id visual_files { ... on ImageFile { path basename } } } } }"
 )
-GET_IMAGE = (
-    "query($id: ID!) { findImage(id: $id) { " + IMAGE_FIELDS + " } }"
-)
+GET_IMAGE = "query($id: ID!) { findImage(id: $id) { " + IMAGE_FIELDS + " } }"
 LIST_SCENES = (
     "query($f: FindFilterType) { findScenes(filter: $f) "
     "{ count filesize scenes { " + SCENE_FIELDS + " } } }"
 )
 GET_SCENE = (
-    "query($id: ID!) { findScene(id: $id) { " + SCENE_FIELDS
+    "query($id: ID!) { findScene(id: $id) { "
+    + SCENE_FIELDS
     + " sceneStreams { url mime_type label } } }"
 )
+_FILE = "path size zip_file { id } fingerprints { type value }"
+TRASH_IMAGE = (
+    "query($id: ID!) { findImage(id: $id) { id title rating100 organized date urls "
+    "tags { name } performers { name } studio { name } galleries { id title } "
+    "visual_files { ... on ImageFile { " + _FILE + " } ... on VideoFile { " + _FILE + " } } } }"
+)
+TRASH_SCENE = (
+    "query($id: ID!) { findScene(id: $id) { id title rating100 organized date details urls "
+    "tags { name } performers { name } studio { name } files { " + _FILE + " } "
+    "scene_markers { title seconds primary_tag { name } tags { name } } "
+    "stash_ids { endpoint stash_id } } }"
+)
+IMAGE_DESTROY = "mutation($i: ImageDestroyInput!) { imageDestroy(input: $i) }"
+SCENE_DESTROY = "mutation($i: SceneDestroyInput!) { sceneDestroy(input: $i) }"
+FIND_PERFORMER = (
+    "query($v: String!) { findPerformers(performer_filter: {name: {value: $v, "
+    "modifier: EQUALS}}, filter: {per_page: 5}) { performers { id name } } }"
+)
+PERFORMER_CREATE = "mutation($n: String!) { performerCreate(input: {name: $n}) { id } }"
+FIND_STUDIO = (
+    "query($v: String!) { findStudios(studio_filter: {name: {value: $v, "
+    "modifier: EQUALS}}, filter: {per_page: 5}) { studios { id name } } }"
+)
+STUDIO_CREATE = "mutation($n: String!) { studioCreate(input: {name: $n}) { id } }"
+FIND_GALLERY = "query($id: ID!) { findGallery(id: $id) { id } }"
+MARKER_CREATE = "mutation($i: SceneMarkerCreateInput!) { sceneMarkerCreate(input: $i) { id } }"
 GET_SCENE_PREVIEW = "query($id: ID!) { findScene(id: $id) { paths { preview } } }"
 
 
@@ -258,6 +277,39 @@ class StashClient:
         query = IMAGE_UPDATE if kind == "images" else SCENE_UPDATE
         self._gql(query, {"i": {"id": id, **fields}})
 
+    def get_trash_entity(self, kind: str, id: str) -> dict | None:
+        """Everything a restore needs from an image or scene, or ``None``."""
+        if kind == "image":
+            return self._gql(TRASH_IMAGE, {"id": id})["findImage"]
+        return self._gql(TRASH_SCENE, {"id": id})["findScene"]
+
+    def destroy_item(self, kind: str, id: str) -> None:
+        """Drop the entry only; the file is already out of the library."""
+        flags = {"id": id, "delete_file": False, "delete_generated": True}
+        if kind == "image":
+            self._gql(IMAGE_DESTROY, {"i": flags})
+        else:
+            self._gql(SCENE_DESTROY, {"i": flags})
+
+    def named_id(self, what: str, name: str) -> str:
+        """Id of the performer or studio called *name*; created when missing."""
+        find, key, create = (
+            (FIND_PERFORMER, "performers", PERFORMER_CREATE)
+            if what == "performer"
+            else (FIND_STUDIO, "studios", STUDIO_CREATE)
+        )
+        data = self._gql(find, {"v": name})
+        for hit in data["find" + key.capitalize()][key]:
+            if hit["name"].casefold() == name.casefold():
+                return hit["id"]
+        return self._gql(create, {"n": name})[what + "Create"]["id"]
+
+    def gallery_exists(self, id: str) -> bool:
+        return self._gql(FIND_GALLERY, {"id": id})["findGallery"] is not None
+
+    def marker_create(self, fields: dict) -> None:
+        self._gql(MARKER_CREATE, {"i": fields})
+
     def library_paths(self) -> list[str]:
         """Return all configured stash paths."""
         data = self._gql(LIBRARY_PATHS)
@@ -356,9 +408,7 @@ class StashClient:
         hops = 0
         while True:
             try:
-                response = self._client.send(
-                    request, stream=True, follow_redirects=False
-                )
+                response = self._client.send(request, stream=True, follow_redirects=False)
             except httpx.HTTPError as exc:
                 raise StashError("upstream_error", "Stash is not reachable") from exc
             if response.status_code not in _REDIRECTS:
@@ -376,9 +426,7 @@ class StashClient:
                 # Never send the ApiKey to another host.
                 raise StashError("upstream_error", "Stash redirect not followed")
             hops += 1
-            request = self._client.build_request(
-                "GET", target, headers=headers, timeout=limit
-            )
+            request = self._client.build_request("GET", target, headers=headers, timeout=limit)
 
         status = response.status_code
         if status == 404:

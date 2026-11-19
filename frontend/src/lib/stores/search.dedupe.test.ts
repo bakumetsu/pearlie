@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
-import { createSearch } from "./search.svelte";
+import { createSearch, clearSearchAnswers } from "./search.svelte";
 import { parseChip, type SearchState } from "../query";
 import type { Api } from "../api/client";
 
@@ -14,7 +14,7 @@ function state(raw: string): SearchState {
 }
 
 describe("createSearch identical query", () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => { vi.useFakeTimers(); clearSearchAnswers(); });
   afterEach(() => vi.useRealTimers());
 
   it("does not re-send an identical query, but retryAll forces it", () => {
@@ -36,7 +36,7 @@ describe("createSearch identical query", () => {
     const s = createSearch(api);
     const chip = parseChip("cat")!;
     s.run({ chips: [chip], pill: "all", sites: ["danbooru"] }, { immediate: true });
-    expect(Object.keys(s.sections).sort()).toEqual(["danbooru", "komga_books", "stash_images", "stash_videos"]);
+    expect(Object.keys(s.sections).sort()).toEqual(["danbooru", "stash_images", "stash_videos", "stump_books"]);
     s.run({ chips: [chip], pill: "videos", sites: ["danbooru"] }, { immediate: true });
     expect(Object.keys(s.sections)).toEqual(["stash_videos"]);
     s.run({ chips: [chip], pill: "all", sites: ["danbooru"] }, { immediate: true });

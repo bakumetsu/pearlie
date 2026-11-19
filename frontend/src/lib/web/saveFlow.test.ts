@@ -65,7 +65,7 @@ describe("settleQueued", () => {
     expect(settleQueued(["danbooru:1"], [job("running")])).toEqual({});
   });
 
-  it("keeps a save spinning while Komga scans (scan_wait, verifying)", () => {
+  it("keeps a save spinning while Stump scans (scan_wait, verifying)", () => {
     expect(settleQueued(["danbooru:1"], [job("scan_wait")])).toEqual({});
     expect(settleQueued(["danbooru:1"], [job("verifying")])).toEqual({});
   });
@@ -78,5 +78,21 @@ describe("settleQueued", () => {
   it("gives no link for a ref without an id", () => {
     const item = { saved: { kind: "book", id: "" } } as unknown as WebItem;
     expect(savedHrefFor(item, undefined)).toBeUndefined();
+  });
+});
+
+describe("saveWebItem in_trash", () => {
+  it("offers Restore with the token and restores on action", async () => {
+    const restore = vi.fn();
+    const toast = vi.fn();
+    const item = { source: "rule34", post_id: "1" } as unknown as WebItem;
+    await saveWebItem(
+      { ask: async () => ({}) as never, save: async () => ({ result: "in_trash", token: "tk" }), toast, restore },
+      item,
+    );
+    const t = toast.mock.calls[0][0];
+    expect(t.actionLabel).toBe("Restore");
+    t.onAction();
+    expect(restore).toHaveBeenCalledWith("tk");
   });
 });

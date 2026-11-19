@@ -50,9 +50,9 @@ export function createToasts(timers?: { set: typeof setTimeout; clear: typeof cl
     get current(): Toast | null { return current; },
     get queued(): number { return queue.length; },
 
-    push(t: { kind: ToastKind; message: string; actionLabel?: string; href?: string; onAction?: () => void }): number {
+    push(t: { kind: ToastKind; message: string; actionLabel?: string; href?: string; onAction?: () => void; durationMs?: number }): number {
       const id = nextId++;
-      const toast: Toast = { id, kind: t.kind, message: t.message, actionLabel: t.actionLabel, href: t.href, onAction: t.onAction, durationMs: DURATIONS[t.kind] };
+      const toast: Toast = { id, kind: t.kind, message: t.message, actionLabel: t.actionLabel, href: t.href, onAction: t.onAction, durationMs: t.durationMs ?? DURATIONS[t.kind] };
       if (current === null) { current = toast; startTimer(toast.durationMs); }
       else { queue.push(toast); }
       return id;

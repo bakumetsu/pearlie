@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="tr" gradientUnits="userSpaceOnUse" x1="0" y1="40" x2="0" y2="470">
+      <stop offset="0" stop-color="#FFB247"/>
+      <stop offset="0.5" stop-color="#FF7A1A"/>
+      <stop offset="1" stop-color="#C74500"/>
+    </linearGradient>
+    <filter id="gl" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="0" fill="#000000"/>
+  <g transform="translate(256 256) scale(0.82) translate(-256 -256)" filter="url(#gl)">
+    <g stroke="url(#tr)" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M150 170 C150 270 200 310 256 310 C312 310 362 270 362 170" fill="none" stroke-width="20"/>
+      <path d="M256 150 V462" fill="none" stroke-width="22"/>
+      <path d="M222 388 H290" fill="none" stroke-width="16"/>
+    </g>
+    <g fill="url(#tr)">
+      <path d="M256 54 C282 100 290 140 256 180 C222 140 230 100 256 54 Z"/>
+      <path d="M150 92 C174 130 182 160 150 192 C118 160 126 130 150 92 Z"/>
+      <path d="M362 92 C386 130 394 160 362 192 C330 160 338 130 362 92 Z"/>
+    </g>
+  </g>
+</svg>

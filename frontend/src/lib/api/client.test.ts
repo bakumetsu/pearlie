@@ -79,8 +79,8 @@ describe("createApi", () => {
     const paths: Record<string, string> = {
       images: "/api/library/stash/images",
       videos: "/api/library/stash/videos",
-      series: "/api/library/komga/series",
-      books: "/api/library/komga/books",
+      series: "/api/library/stump/series",
+      books: "/api/library/stump/books",
     };
 
     for (const [kind, path] of Object.entries(paths)) {
@@ -181,7 +181,7 @@ describe("createApi", () => {
     await api.saveProgress("b1", 3, undefined, { keepalive: true });
 
     expect(fakeFetch).toHaveBeenCalledWith(
-      "/api/library/komga/books/b1/progress",
+      "/api/library/stump/books/b1/progress",
       expect.objectContaining({
         keepalive: true,
         method: "POST",

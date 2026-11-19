@@ -150,16 +150,9 @@ export const SECTIONS: Section[] = [
         ],
       },
       {
-        title: 'Komga',
-        rows: [
-          { label: 'Status', hint: 'connection status' },
-          { label: 'Test', hint: 'test connection' },
-        ],
-      },
-      {
         title: 'Status',
         rows: [
-          { label: 'Health', hint: 'Stash, Komga, database, mounts, sites' },
+          { label: 'Health', hint: 'Stash, Stump, database, mounts, sites' },
         ],
       },
       {
@@ -194,6 +187,10 @@ export const SECTIONS: Section[] = [
       {
         title: 'Retention',
         rows: [{ label: 'Retention days', hint: 'auto-purge after N days' }],
+      },
+      {
+        title: 'Folder',
+        rows: [{ label: 'Trash folder', hint: 'where deleted items wait for undo' }],
       },
     ],
   },

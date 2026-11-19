@@ -337,11 +337,11 @@ def test_search_section_and_filters(tmp_path: Path) -> None:
     sec = c.get("/api/search?q=x&sources=nhentai").json()["sections"][0]
     assert sec["id"] == "nhentai" and sec["hidden"] == 2
     item = sec["items"][0]
-    assert item["target"] == "komga" and item["saveable"] is True
+    assert item["target"] == "stump" and item["saveable"] is True
     assert item["title"] == "Pretty 1" and item["page_count"] == 2
 
 
-def test_save_unavailable_until_komga_target(tmp_path: Path) -> None:
+def test_save_unavailable_until_stump_target(tmp_path: Path) -> None:
     c = _client(tmp_path, lambda r: httpx.Response(200, json=gallery(1)))
     r = c.post("/api/save", json={"source": "nhentai", "post_id": "1"})
     assert r.status_code == 422
@@ -376,6 +376,26 @@ def test_grid_row_tags_come_from_learned_gallery_tags(caplog: pytest.LogCaptureF
     assert after[0].tags == {"general": ["bad"]}
     assert after[1].tags == {}  # unknown ids: row stays, no crash
     assert sum("tag ids not seen" in r.message for r in caplog.records) == 1
+
+
+def test_definition_revised_tag_is_dropped() -> None:
+    g = gallery(
+        5,
+        [
+            {"id": 7, "type": "tag", "name": "bad"},
+            {"id": 9, "type": "tag", "name": "Definition Revised"},
+            {"id": 8, "type": "artist", "name": "x"},
+        ],
+    )
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path.endswith("/galleries/5"):
+            return httpx.Response(200, json=g)
+        return httpx.Response(200, json={"result": [_row_with_ids(1, [7, 9])], "num_pages": 1})
+
+    src = make(handler)
+    assert src.get_post("5").tags == {"general": ["bad"], "artist": ["x"]}
+    assert src.search(["x"]).posts[0].tags == {"general": ["bad"]}
 
 
 def test_reject_terms() -> None:

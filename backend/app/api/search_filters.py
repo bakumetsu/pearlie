@@ -20,7 +20,7 @@ from app.sources.query_terms import Title
 router = APIRouter(prefix="/api")
 
 _LIBRARY_SORTS = ["newest", "rating", "random"]
-_LIBRARY = ("stash_images", "stash_videos", "komga_books")
+_LIBRARY = ("stash_images", "stash_videos", "stump_books")
 _WEB = ("danbooru", "gelbooru", "rule34", "nhentai")
 _DANBOORU_ANON_CAP = 2
 
@@ -56,7 +56,7 @@ def unsupported_notice(source: str, order: str | None, rating: list[str]) -> str
     return f"{' and '.join(dropped)} not available on this site"
 
 
-_TITLE_SEARCH = ("nhentai", "komga_books")
+_TITLE_SEARCH = ("nhentai", "stump_books")
 _TITLE_EXCLUDE = ("nhentai",)
 
 
