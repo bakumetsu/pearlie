@@ -32,7 +32,7 @@ def make_post(pages: int = 3, media_id: str = "123") -> Post:
 
 @pytest.fixture
 def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(destinations, "validate_stump_folder", lambda folder, roots, *a: folder)
+    monkeypatch.setattr(destinations, "validate_book_folder", lambda folder, roots, *a: folder)
     dest = tmp_path / "lib" / "incoming"
     settings = Settings(
         mode="real",
