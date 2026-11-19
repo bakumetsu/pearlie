@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, ValidationError, field_validator
+from pydantic import Field, PrivateAttr, SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,7 +34,8 @@ class Settings(BaseSettings):
     stash_url: str = ""
     stash_api_key: SecretStr = SecretStr("")
     stash_public_url: str = ""
-    book_server: Literal["komga", "stump"] = "komga"
+    # Unset: Stump when a Stump address is saved, else Komga (resolved in main). Env wins.
+    book_server: Literal["komga", "stump"] | None = None
     komga_url: str = ""
     komga_api_key: SecretStr = SecretStr("")
     stump_url: str = ""
@@ -63,6 +64,8 @@ class Settings(BaseSettings):
     log_keep_days: int = 7
     thumb_cache_dir: Path | None = None
     trash_dir: Path = Path("/mnt/media/pearlie-trash")
+    # Not a field: env must not set it. True when book_server was resolved, not given.
+    _book_server_auto: bool = PrivateAttr(default=False)
 
     @field_validator("log_dir", "thumb_cache_dir", mode="before")
     @classmethod

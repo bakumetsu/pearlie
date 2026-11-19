@@ -130,9 +130,21 @@ def _with_stored_connections(settings: Settings, store: ConnectionStore) -> Sett
         stump_key != settings.stump_api_key.get_secret_value()
     ):
         updates["stump_api_key"] = SecretStr(stump_key)
-    if updates:
-        return settings.model_copy(update=updates)
-    return settings
+    merged = settings.model_copy(update=updates) if updates else settings
+    return _with_book_server(merged)
+
+
+def _with_book_server(settings: Settings) -> Settings:
+    """Resolve an unset PEARLIE_BOOK_SERVER: Stump when a Stump address is known, else Komga."""
+    if settings.book_server is not None and not settings._book_server_auto:
+        return settings
+    kind = "stump" if settings.stump_url else "komga"
+    if settings.book_server != kind or not settings._book_server_auto:
+        why = "a Stump address is saved" if kind == "stump" else "no Stump address is saved"
+        logger.info("book server: %s (PEARLIE_BOOK_SERVER unset, %s)", kind, why)
+    resolved = settings.model_copy(update={"book_server": kind})
+    resolved._book_server_auto = True
+    return resolved
 
 
 async def _daily_update_check(app_: FastAPI) -> None:

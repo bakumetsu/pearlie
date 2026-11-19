@@ -71,11 +71,12 @@ def health(request: Request) -> Health:
         # Fixture mode has no real connection to probe: report configuration only.
         store: ConnectionStore = app.state.connection_store
         stash_state: State = "ok" if store.address("stash") else "not_configured"
-        komga_state: State = "ok" if store.address(settings.book_server) else "not_configured"
+        book_addr = store.address(settings.book_server or "komga")
+        komga_state: State = "ok" if book_addr else "not_configured"
         stash_version = komga_version = None
     else:
         stash_state, stash_version = _service(app, "stash")
-        komga_state, komga_version = _service(app, settings.book_server)
+        komga_state, komga_version = _service(app, settings.book_server or "komga")
     if active("offline"):
         stash_state = "down"
     return Health(
