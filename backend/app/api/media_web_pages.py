@@ -24,6 +24,7 @@ from app.filters.rules import Verdict, evaluate, load_rules
 from app.jobs.store import JobStore
 from app.models import Tag, WebBook, WebItem
 from app.sources.base import Post, SourceError
+from app.sources.danbooru import parse_retry_after
 from app.sources.nhentai import CDN_HOST, NHentai
 from app.sources.title import LANGUAGES, name_lines, parse_title
 
@@ -236,10 +237,8 @@ def _open_upstream(src: NHentai, urls: list[str], timeout: float) -> httpx.Respo
 
 
 def _retry_after(resp: httpx.Response) -> float | None:
-    try:
-        return min(60.0, float(resp.headers["Retry-After"]))
-    except (KeyError, ValueError):
-        return None
+    value = parse_retry_after(resp.headers.get("Retry-After"))
+    return None if value is None else min(60.0, value)
 
 
 def _check_response(resp: httpx.Response) -> None:
@@ -248,7 +247,10 @@ def _check_response(resp: httpx.Response) -> None:
         raise _Refusal(404, "not_found", "Page not found")
     if status == 429:
         raise _Refusal(
-            429, "rate_limited", "The site asked to slow down", int(_retry_after(resp) or 5)
+            429,
+            "rate_limited",
+            "The site asked to slow down",
+            int(5 if (wait := _retry_after(resp)) is None else wait),
         )
     if status != 200:
         raise _Refusal(502, "upstream_error", f"The site returned {status}")

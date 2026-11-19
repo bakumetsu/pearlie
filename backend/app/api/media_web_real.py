@@ -28,6 +28,7 @@ from app.db import connect
 from app.filters import rules as rules_mod
 from app.filters.rules import evaluate, load_rules
 from app.sources.base import Post, Source, SourceError
+from app.sources.danbooru import parse_retry_after
 from app.sources.throttle import Throttle
 from app.thumbcache import MAX_THUMB_BYTES, ThumbCache, sniff_image_type
 from app.thumbcache import SOURCES as CACHED_SOURCES
@@ -49,6 +50,8 @@ THUMB_PARALLEL = 4
 MAX_REDIRECTS = 2
 FAILURE_TTL = 60.0
 THUMB_TIMEOUT = 10.0
+THUMB_DEADLINE = 20.0  # total seconds for one thumbnail fetch, however slowly it drips
+MAX_RETRY_AFTER = 60.0
 THUMB_CACHE_CONTROL = "private, max-age=86400"
 _THUMB_ID = re.compile(r"[A-Za-z0-9_-]{1,32}")
 _RELAY_HEADERS = ("content-range", "content-length", "accept-ranges", "etag", "last-modified")
@@ -256,11 +259,9 @@ def _stream_media(request: Request, src: Source, url: str, slot: Slot) -> Respon
 
 
 def _retry_after(resp: httpx.Response) -> float | None:
-    try:
-        value = float(resp.headers["Retry-After"])
-    except (KeyError, ValueError):
-        return None
-    return value if math.isfinite(value) and value >= 0 else None
+    raw = resp.headers.get("Retry-After", "").strip()
+    value = None if raw.startswith("-") else parse_retry_after(raw or None)
+    return None if value is None else min(MAX_RETRY_AFTER, value)
 
 
 # ---- thumbnails: cache, own lane, shared in-flight fetch (D-17) ----
@@ -521,6 +522,7 @@ def _fetch_thumb(src: Source, post_id: str, url: str, lane: Throttle) -> _Thumb 
     headers = {"Referer": referer} if referer else {}
     current = url
     hops = 0
+    deadline = time.monotonic() + THUMB_DEADLINE
     while True:
         try:
             resp = client.send(
@@ -546,7 +548,7 @@ def _fetch_thumb(src: Source, post_id: str, url: str, lane: Throttle) -> _Thumb 
             if reported in (429, 503):
                 if main is not None:
                     main.report(reported, retry_after)
-                wait = int(retry_after or 5)
+                wait = int(5 if retry_after is None else retry_after)
                 return _Refused(503, "rate_limited", "The site asked to slow down", wait)
             if status in (404, 410):
                 return _Refused(404, "not_found", "Media not found")
@@ -559,6 +561,8 @@ def _fetch_thumb(src: Source, post_id: str, url: str, lane: Throttle) -> _Thumb 
                 return _Refused(502, "upstream_error", "The thumbnail is too large")
             buf = bytearray()
             for chunk in resp.iter_bytes():
+                if time.monotonic() > deadline:
+                    return _Refused(504, "upstream_error", "The site took too long")
                 buf += chunk
                 if len(buf) > MAX_THUMB_BYTES:
                     return _Refused(502, "upstream_error", "The thumbnail is too large")
