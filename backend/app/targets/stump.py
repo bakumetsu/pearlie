@@ -598,17 +598,17 @@ class StumpTarget:
         """Ask the book server for one scan of the library; raises BookServerError."""
         self._books.scan_library(library_id)
 
-    def find_books(self, library_id: str, books: dict[str, PendingScan]) -> set[str]:
-        """Job ids whose book Stump lists now: one exact `mediaByPath` call per book.
+    def find_books(self, library_id: str, books: dict[str, PendingScan]) -> dict[str, str]:
+        """Job id -> Stump book id of each book Stump lists now: one `mediaByPath` call per book.
 
         A path that is not known yet is a miss. Raises BookServerError.
         """
-        found: set[str] = set()
+        found: dict[str, str] = {}
         for job_id, pending in books.items():
             hit = self._books.find_by_path("books", library_id, pending.stump_path, "")
             if hit is None:
                 continue
-            found.add(job_id)
+            found[job_id] = hit.id
             self._record_book(pending, hit.id)
         return found
 

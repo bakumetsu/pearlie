@@ -263,11 +263,11 @@ describe("test 13: grid and list row height from data", () => {
     expect(ys[2] - ys[1]).toBeCloseTo(cw + 16, 3);
   });
 
-  it("list: a titled web row is taller than an untitled one", async () => {
+  it("list: 1-line and 2-line rows both hold the thumb plus the tile padding", async () => {
     const web = (i: number, title: string | null) => ({ source: "danbooru", post_id: String(i), thumb_url: "/t", preview_url: "/p", media_kind: "image", title, width: 100, height: 100, target: "stash", saveable: true, owned: false }) as WebItem;
     const { container } = render(ResultsGrid, { ...props, zoom: 1, items: [web(1, "a title"), web(2, null), web(3, null)], mode: "list" });
     await settle();
-    expect(cells(container).map((c) => c.style.height)).toEqual(["53px", "49px", "49px"]);
+    expect(cells(container).map((c) => c.style.height)).toEqual(["65px", "65px", "65px"]);
   });
 });
 

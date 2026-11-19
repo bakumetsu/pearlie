@@ -28,7 +28,7 @@ FinishSaved = Callable[[str, str, list[Problem], str | None, str | None], None]
 class ScanTarget(Protocol):
     def scan(self, library_id: str) -> None: ...
 
-    def find_books(self, library_id: str, books: dict[str, PendingScan]) -> set[str]: ...
+    def find_books(self, library_id: str, books: dict[str, PendingScan]) -> dict[str, str]: ...
 
 
 @dataclass
@@ -164,12 +164,14 @@ class ScanWait:
     def _label(self) -> str:
         return getattr(self._target, "label", "Stump")
 
-    def _end(self, job_id: str, source_id: str, extra: list[Problem]) -> None:
+    def _end(
+        self, job_id: str, source_id: str, extra: list[Problem], book_id: str | None = None
+    ) -> None:
         """End one job Done through the shared helper; a removed job is skipped."""
         job = self._store.get(job_id)
         if job is None:
             return
-        self._finish(job_id, source_id, [*job.notices, *extra], job.dest_path, None)
+        self._finish(job_id, source_id, [*job.notices, *extra], job.dest_path, book_id or None)
 
     def _fire(self, library_id: str, batch: _Batch) -> None:
         live = {jid: v for jid, v in batch.jobs.items() if self._store.get(jid) is not None}
@@ -206,10 +208,10 @@ class ScanWait:
             except BookServerError as e:
                 logger.warning("STUMP verify failed code=%s status=%s", e.code, e.status)
                 break
-            for jid in found & set(pending):
+            for jid in found.keys() & pending.keys():
                 src, p = pending.pop(jid)
                 logger.info("STUMP source=%s verified path=%s", src, p.stump_path)
-                self._end(jid, src, [])
+                self._end(jid, src, [], found[jid])
                 any_found = True
             if not pending:
                 return
