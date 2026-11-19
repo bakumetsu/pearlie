@@ -164,9 +164,21 @@ class NHentai:
         """Headers for page downloads: User-Agent only, the Cookie stays on the API host."""
         return {k: v for k, v in self._auth().headers.items() if k.lower() != "cookie"}
 
-    def _get(self, path: str, params: dict[str, str | int] | None = None) -> dict:
-        """GET one API path (Cookie goes to the API host only) and return the JSON object."""
-        delay = self._throttle.reserve_within(MAX_QUEUE_WAIT)
+    def _get(
+        self,
+        path: str,
+        params: dict[str, str | int] | None = None,
+        max_wait: float | None = None,
+    ) -> dict:
+        """GET one API path (Cookie goes to the API host only) and return the JSON object.
+
+        `max_wait` set (browsing): fail with rate_limited when the slot is further away.
+        None (save jobs): wait for the slot, as the pace rules say.
+        """
+        if max_wait is None:
+            delay = self._throttle.reserve()
+        else:
+            delay = self._throttle.reserve_within(max_wait)
         if delay is None:
             # A pause (429 Retry-After) is running: fail fast so the UI shows Retry,
             # and take no slot so queued calls do not push the wait further out.
@@ -231,12 +243,14 @@ class NHentai:
         if sort:
             # The listing endpoint has no sort; match-all search takes one.
             data = self._get(
-                "/api/v2/search", {"query": query or "pages:>0", "page": page, "sort": sort}
+                "/api/v2/search",
+                {"query": query or "pages:>0", "page": page, "sort": sort},
+                MAX_QUEUE_WAIT,
             )
         elif query:
-            data = self._get("/api/v2/search", {"query": query, "page": page})
+            data = self._get("/api/v2/search", {"query": query, "page": page}, MAX_QUEUE_WAIT)
         else:
-            data = self._get("/api/v2/galleries", {"page": page})
+            data = self._get("/api/v2/galleries", {"page": page}, MAX_QUEUE_WAIT)
         rows = data.get("result")
         if not isinstance(rows, list):
             raise SourceError("upstream_error", "nhentai sent invalid JSON")
