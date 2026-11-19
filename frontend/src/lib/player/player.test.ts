@@ -460,7 +460,7 @@ describe("createPlayer swap", () => {
   });
 
   it("consumePlayOnLoad returns true once then false", () => {
-    const p = createPlayer();
+    const p = createPlayer(() => true);
     toMini(p);
     p.swap(item2);
     expect(p.consumePlayOnLoad()).toBe(true);
@@ -476,10 +476,12 @@ describe("createPlayer swap", () => {
   });
 
   it("open after swap resets playOnLoad", () => {
-    const p = createPlayer();
+    let on = true;
+    const p = createPlayer(() => on);
     toMini(p);
     p.swap(item2);
     expect(p.consumePlayOnLoad()).toBe(true);
+    on = false;
     p.open(item1);
     expect(p.consumePlayOnLoad()).toBe(false);
   });
@@ -573,12 +575,54 @@ describe("autoplay setting", () => {
     expect(p2.consumePlayOnLoad()).toBe(false);
   });
 
-  it("swap in mini plays regardless of autoplay setting", () => {
-    const on = false;
+  it("swap in mini follows the autoplay setting", () => {
+    let on = false;
     const p = createPlayer(() => on);
     toMini(p);
     p.swap(item2);
+    expect(p.consumePlayOnLoad()).toBe(false);
+    on = true;
+    p.swap(item1);
     expect(p.consumePlayOnLoad()).toBe(true);
+  });
+
+  it("startPlayback retries muted when play is blocked", async () => {
+    const p = createPlayer();
+    const f = fake();
+    const blocked = Object.assign(new Error("x"), { name: "NotAllowedError" });
+    (f.play as ReturnType<typeof vi.fn>).mockRejectedValueOnce(blocked);
+    p.attach(f);
+    p.startPlayback();
+    await Promise.resolve(); await Promise.resolve();
+    expect(f.play).toHaveBeenCalledTimes(2);
+    expect(f.muted).toBe(true);
+    expect(p.muted).toBe(true);
+  });
+
+  it("startPlayback stays paused and warns when muted play is blocked too", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const p = createPlayer();
+    const f = fake();
+    const blocked = Object.assign(new Error("x"), { name: "NotAllowedError" });
+    (f.play as ReturnType<typeof vi.fn>).mockRejectedValue(blocked);
+    p.attach(f);
+    p.startPlayback();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(f.muted).toBe(false);
+    expect(p.muted).toBe(false);
+    expect(p.playing).toBe(false);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("playSource removes a stale loadedmetadata listener on a new src", () => {
+    const p = createPlayer();
+    const f = { ...fake(), src: "a", addEventListener: vi.fn(), removeEventListener: vi.fn() };
+    p.attach(f);
+    p.playSource("b", true);
+    p.playSource("c", true);
+    expect(f.removeEventListener).toHaveBeenCalledTimes(1);
+    expect(f.removeEventListener.mock.calls[0][1]).toBe(f.addEventListener.mock.calls[0][1]);
   });
 
   it("createPlayer reads the autoplay callback at call time, not creation time", () => {
