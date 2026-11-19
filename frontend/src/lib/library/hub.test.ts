@@ -29,8 +29,8 @@ describe("loadHub", () => {
   });
 
   it("returns stored value when valid", () => {
-    const storage = fakeStorage({ [HUB_KEY]: "komga" });
-    expect(loadHub(storage)).toBe("komga");
+    const storage = fakeStorage({ [HUB_KEY]: "stump" });
+    expect(loadHub(storage)).toBe("stump");
   });
 });
 

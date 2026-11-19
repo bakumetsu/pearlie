@@ -54,7 +54,7 @@ describe('searchSections', () => {
     expect(sources.count).toBe(1)
 
     const library = results.find((h) => h.section.id === 'library')!
-    expect(library.count).toBe(2) // Stash + Komga
+    expect(library.count).toBe(1) // Stash (also carries Stump)
   })
 
   it('includes all rows when the card title matches', () => {

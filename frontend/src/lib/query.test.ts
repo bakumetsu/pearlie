@@ -91,14 +91,14 @@ describe("serialiseQuery / parseQuery round trip", () => {
 describe("sectionsFor", () => {
   it("resolves each pill", () => {
     expect(sectionsFor("all", ["nhentai"])).toEqual([
-      "nhentai", "stash_images", "stash_videos", "komga_books",
+      "nhentai", "stash_images", "stash_videos", "stump_books",
     ]);
     expect(sectionsFor("all", ["gelbooru", "danbooru"])).toEqual([
-      "gelbooru", "danbooru", "stash_images", "stash_videos", "komga_books",
+      "gelbooru", "danbooru", "stash_images", "stash_videos", "stump_books",
     ]);
     expect(sectionsFor("images", [])).toEqual(["stash_images"]);
     expect(sectionsFor("videos", [])).toEqual(["stash_videos"]);
-    expect(sectionsFor("books", [])).toEqual(["komga_books"]);
+    expect(sectionsFor("books", [])).toEqual(["stump_books"]);
     expect(sectionsFor("web", ["gelbooru", "rule34"])).toEqual(["gelbooru", "rule34"]);
   });
 });

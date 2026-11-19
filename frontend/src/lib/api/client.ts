@@ -193,8 +193,8 @@ export interface Api {
 const KIND_PATHS: Record<Kind, string> = {
   images: "/api/library/stash/images",
   videos: "/api/library/stash/videos",
-  series: "/api/library/komga/series",
-  books: "/api/library/komga/books",
+  series: "/api/library/stump/series",
+  books: "/api/library/stump/books",
 };
 
 let _deviceClass: "touch" | "desktop" | null = null;
@@ -682,7 +682,7 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
     },
     saveProgress(bookId, page, signal, opts) {
       return request<ProgressResult>(
-        baseUrl + "/api/library/komga/books/" + encodeURIComponent(bookId) + "/progress",
+        baseUrl + "/api/library/stump/books/" + encodeURIComponent(bookId) + "/progress",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

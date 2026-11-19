@@ -14,8 +14,8 @@ export function daysLeft(expiresAt: string, now: number = Date.now()): number {
   return Math.ceil(ms / 86_400_000);
 }
 
-export function sideOf(kind: string): "Stash" | "Komga" {
-  return kind === "series" || kind === "book" ? "Komga" : "Stash";
+export function sideOf(kind: string): "Stash" | "Stump" {
+  return kind === "series" || kind === "book" ? "Stump" : "Stash";
 }
 
 export function formatSize(bytes: number): string {

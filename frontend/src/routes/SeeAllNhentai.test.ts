@@ -11,7 +11,7 @@ function post(i: number, size: { width?: number; height?: number }) {
     media_kind: "image",
     title: `Book ${i}`,
     tags: [],
-    target: "komga",
+    target: "stump",
     saveable: true,
     owned: false,
     ...size,

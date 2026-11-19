@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/svelte";
-import KomgaSeries from "./KomgaSeries.svelte";
+import StumpSeries from "./StumpSeries.svelte";
 import type { LibraryItem, LibraryItemDetail } from "../api/client";
 
 afterEach(cleanup);
@@ -28,11 +28,11 @@ function setup(over: Partial<LibraryItemDetail> = {}) {
     onback: vi.fn(), onopen: vi.fn(), onfavorite: vi.fn(), ondelete: vi.fn(),
     onrate: vi.fn(), onaddtag: vi.fn(), onremovetag: vi.fn(),
   };
-  const r = render(KomgaSeries, { props: { detail, tags: ["action"], ...fns } });
+  const r = render(StumpSeries, { props: { detail, tags: ["action"], ...fns } });
   return { ...r, ...fns };
 }
 
-describe("KomgaSeries", () => {
+describe("StumpSeries", () => {
   it("Continue opens the first unfinished book", async () => {
     const { getByText, onopen } = setup();
     await fireEvent.click(getByText("Continue"));

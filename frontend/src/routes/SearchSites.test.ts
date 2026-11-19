@@ -6,7 +6,7 @@ import App from "../App.svelte";
 const OPTIONS = {
   sfw: false, sfw_set: true, player_rate: 1, player_rate_set: true, profile: "desktop",
   backdrop_strength: 60, backdrop_wall: true, backdrop_item: true, backdrop_lightbox: true,
-  allow_blurred_tags: false, trash_retention_days: 7, images_per_site: 10, komga_scan_wait_s: 10,
+  allow_blurred_tags: false, trash_retention_days: 7, images_per_site: 10, stump_scan_wait_s: 10,
   source_pace: {}, tapped_first: true, hidden_sites: [], site_order: ["danbooru", "gelbooru", "rule34", "nhentai"],
 };
 

@@ -1,17 +1,17 @@
 import type { Kind } from "../api/client";
 
-export type Hub = "all" | "stash" | "komga";
+export type Hub = "all" | "stash" | "stump";
 
 export const HUBS: { id: Hub; label: string; kinds: Kind[] | null }[] = [
   { id: "all", label: "All", kinds: null },
   { id: "stash", label: "Stash", kinds: ["images", "videos"] },
-  { id: "komga", label: "Komga", kinds: ["series", "books"] },
+  { id: "stump", label: "Stump", kinds: ["series", "books"] },
 ];
 
 export const HUB_KEY = "pearlie.library.hub";
 
 export function isHub(v: unknown): v is Hub {
-  return v === "all" || v === "stash" || v === "komga";
+  return v === "all" || v === "stash" || v === "stump";
 }
 
 function globalStorage(): Pick<Storage, "getItem" | "setItem"> | undefined {

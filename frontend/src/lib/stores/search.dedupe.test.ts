@@ -36,7 +36,7 @@ describe("createSearch identical query", () => {
     const s = createSearch(api);
     const chip = parseChip("cat")!;
     s.run({ chips: [chip], pill: "all", sites: ["danbooru"] }, { immediate: true });
-    expect(Object.keys(s.sections).sort()).toEqual(["danbooru", "komga_books", "stash_images", "stash_videos"]);
+    expect(Object.keys(s.sections).sort()).toEqual(["danbooru", "stash_images", "stash_videos", "stump_books"]);
     s.run({ chips: [chip], pill: "videos", sites: ["danbooru"] }, { immediate: true });
     expect(Object.keys(s.sections)).toEqual(["stash_videos"]);
     s.run({ chips: [chip], pill: "all", sites: ["danbooru"] }, { immediate: true });

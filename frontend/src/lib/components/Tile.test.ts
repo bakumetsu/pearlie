@@ -136,7 +136,7 @@ describe("Tile web caption", () => {
     const on = render(Tile, { item: webItem });
     expect(on.container.querySelector("button.save-btn")).not.toBeNull();
     cleanup();
-    const off = render(Tile, { item: { ...(webItem as object), source: "nhentai", target: "komga", saveable: false } as never });
+    const off = render(Tile, { item: { ...(webItem as object), source: "nhentai", target: "stump", saveable: false } as never });
     expect(off.container.querySelector("button.save-btn")).toBeNull();
   });
   it("save button is revealed on hover/focus and on touch", () => {

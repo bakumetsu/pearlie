@@ -18,7 +18,7 @@ export function createPlacement(deps: { api: () => Api; mode: () => string | und
   let token = 0;
 
   function needsSheet(it: WebItem): boolean {
-    return it.target === "komga" && deps.mode() === "suggest";
+    return it.target === "stump" && deps.mode() === "suggest";
   }
 
   function finish(a: PlacementAnswer) {
@@ -29,7 +29,7 @@ export function createPlacement(deps: { api: () => Api; mode: () => string | und
     r?.(a);
   }
 
-  // Resolves at once (no sheet) in mode auto or for a non-Komga item.
+  // Resolves at once (no sheet) in mode auto or for a non-Stump item.
   function ask(it: WebItem): Promise<PlacementAnswer> {
     if (!needsSheet(it)) return Promise.resolve({});
     finish(null);

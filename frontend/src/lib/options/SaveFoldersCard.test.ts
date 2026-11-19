@@ -15,9 +15,9 @@ function dest(over: Partial<Destinations> = {}): Destinations {
     prefix_pearlie: "",
     prefix_stash: "",
     prefix_from_env: true,
-    komga_sites: [],
-    komga_library_paths: [],
-    komga_library_error: null,
+    stump_sites: [],
+    stump_library_paths: [],
+    stump_library_error: null,
     ...over,
   };
 }
@@ -145,25 +145,25 @@ describe("SaveFoldersCard", () => {
     expect((screen.getByTestId("folder-default") as HTMLInputElement).value).toBe("/data/rule34");
   });
 
-  it("shows a Komga site row with Komga library roots", async () => {
+  it("shows a Stump site row with Stump library roots", async () => {
     const put = vi.fn().mockResolvedValue(dest());
     const { api } = makeApi({
       getDestinations: vi.fn().mockResolvedValue(
         dest({
-          komga_sites: ["nhentai"],
-          komga_library_paths: ["/mnt/komga/doujin"],
-          items: [{ site: "nhentai", folder: "/mnt/komga/doujin/in" }],
+          stump_sites: ["nhentai"],
+          stump_library_paths: ["/mnt/stump/doujin"],
+          items: [{ site: "nhentai", folder: "/mnt/stump/doujin/in" }],
         }),
       ),
       putSiteFolder: put,
     });
     render(SaveFoldersCard, { api });
     const input = (await screen.findByTestId("folder-nhentai")) as HTMLInputElement;
-    expect(input.value).toBe("/mnt/komga/doujin/in");
-    expect(screen.getByTestId("pick-nhentai").textContent).toContain("/mnt/komga/doujin");
-    expect(screen.getByTestId("pick-danbooru").textContent).not.toContain("/mnt/komga/doujin");
+    expect(input.value).toBe("/mnt/stump/doujin/in");
+    expect(screen.getByTestId("pick-nhentai").textContent).toContain("/mnt/stump/doujin");
+    expect(screen.getByTestId("pick-danbooru").textContent).not.toContain("/mnt/stump/doujin");
     await fireEvent.click(screen.getByTestId("save-nhentai"));
-    await waitFor(() => expect(put).toHaveBeenCalledWith("nhentai", "/mnt/komga/doujin/in"));
+    await waitFor(() => expect(put).toHaveBeenCalledWith("nhentai", "/mnt/stump/doujin/in"));
   });
 
   it("shows the placement switch, writes the mode and shows the oneshots line", async () => {
@@ -171,7 +171,7 @@ describe("SaveFoldersCard", () => {
     const store = { values: { place_mode: "suggest" }, set } as never;
     const { api } = makeApi({
       getDestinations: vi.fn().mockResolvedValue(
-        dest({ komga_sites: ["nhentai"], komga_oneshots_dir: "_oneshots" }),
+        dest({ stump_sites: ["nhentai"], stump_oneshots_dir: "_oneshots" }),
       ),
     });
     render(SaveFoldersCard, { api, store });
@@ -181,23 +181,23 @@ describe("SaveFoldersCard", () => {
     expect(set).toHaveBeenCalledWith({ place_mode: "auto" });
   });
 
-  it("steps the Komga scan delay by 5 s and stops at 0 and 120", async () => {
+  it("steps the Stump scan delay by 5 s and stops at 0 and 120", async () => {
     const set = vi.fn();
-    const store = { values: { place_mode: "suggest", komga_scan_wait_s: 10 }, set } as never;
+    const store = { values: { place_mode: "suggest", stump_scan_wait_s: 10 }, set } as never;
     const { api } = makeApi({
-      getDestinations: vi.fn().mockResolvedValue(dest({ komga_sites: ["nhentai"] })),
+      getDestinations: vi.fn().mockResolvedValue(dest({ stump_sites: ["nhentai"] })),
     });
     render(SaveFoldersCard, { api, store });
     expect((await screen.findByTestId("scan-wait-value")).textContent).toBe("10 s");
     await fireEvent.click(screen.getByTestId("scan-wait-plus"));
-    expect(set).toHaveBeenLastCalledWith({ komga_scan_wait_s: 15 });
+    expect(set).toHaveBeenLastCalledWith({ stump_scan_wait_s: 15 });
     await fireEvent.click(screen.getByTestId("scan-wait-minus"));
-    expect(set).toHaveBeenLastCalledWith({ komga_scan_wait_s: 5 });
+    expect(set).toHaveBeenLastCalledWith({ stump_scan_wait_s: 5 });
   });
 
   it("disables the stepper at its limits", async () => {
-    const mkStore = (n: number) => ({ values: { place_mode: "suggest", komga_scan_wait_s: n }, set: vi.fn() }) as never;
-    const getDestinations = vi.fn().mockResolvedValue(dest({ komga_sites: ["nhentai"] }));
+    const mkStore = (n: number) => ({ values: { place_mode: "suggest", stump_scan_wait_s: n }, set: vi.fn() }) as never;
+    const getDestinations = vi.fn().mockResolvedValue(dest({ stump_sites: ["nhentai"] }));
     const lo = render(SaveFoldersCard, { api: makeApi({ getDestinations }).api, store: mkStore(0) });
     expect(((await lo.findByTestId("scan-wait-minus")) as HTMLButtonElement).disabled).toBe(true);
     lo.unmount();
@@ -205,10 +205,10 @@ describe("SaveFoldersCard", () => {
     expect(((await hi.findByTestId("scan-wait-plus")) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("says when Komga has no oneshots folder and hides the switch without Komga sites", async () => {
+  it("says when Stump has no oneshots folder and hides the switch without Stump sites", async () => {
     const store = { values: { place_mode: "suggest" }, set: vi.fn() } as never;
     const a = makeApi({
-      getDestinations: vi.fn().mockResolvedValue(dest({ komga_sites: ["nhentai"] })),
+      getDestinations: vi.fn().mockResolvedValue(dest({ stump_sites: ["nhentai"] })),
     });
     render(SaveFoldersCard, { api: a.api, store });
     expect((await screen.findByTestId("oneshots-line")).textContent).toContain("not set");

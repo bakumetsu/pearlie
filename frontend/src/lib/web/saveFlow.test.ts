@@ -65,7 +65,7 @@ describe("settleQueued", () => {
     expect(settleQueued(["danbooru:1"], [job("running")])).toEqual({});
   });
 
-  it("keeps a save spinning while Komga scans (scan_wait, verifying)", () => {
+  it("keeps a save spinning while Stump scans (scan_wait, verifying)", () => {
     expect(settleQueued(["danbooru:1"], [job("scan_wait")])).toEqual({});
     expect(settleQueued(["danbooru:1"], [job("verifying")])).toEqual({});
   });

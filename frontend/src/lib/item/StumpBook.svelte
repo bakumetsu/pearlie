@@ -4,7 +4,7 @@
   import BookPage from "../book/BookPage.svelte";
   import PageGrid from "../book/PageGrid.svelte";
   import Icon from "../components/Icon.svelte";
-  import KomgaBookSide from "./KomgaBookSide.svelte";
+  import StumpBookSide from "./StumpBookSide.svelte";
 
   let {
     detail,
@@ -102,7 +102,7 @@
     </button>
   {/snippet}
   {#snippet side()}
-    <KomgaBookSide {detail} {tags} {onrate} {onaddtag} {onremovetag} {onrejecttag} />
+    <StumpBookSide {detail} {tags} {onrate} {onaddtag} {onremovetag} {onrejecttag} />
   {/snippet}
 
   {#if count > 0 && detail.page_thumb_url}

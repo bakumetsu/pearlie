@@ -2,7 +2,7 @@
   import type { LibraryItem, LibraryItemDetail } from "../api/client";
   import BookPage from "../book/BookPage.svelte";
   import Icon from "../components/Icon.svelte";
-  import KomgaBookSide from "./KomgaBookSide.svelte";
+  import StumpBookSide from "./StumpBookSide.svelte";
   import SeriesGrid from "./SeriesGrid.svelte";
   import { pickContinue, seriesRatio } from "./seriesProgress";
 
@@ -66,7 +66,7 @@
     </button>
   {/snippet}
   {#snippet side()}
-    <KomgaBookSide {detail} {tags} {onrate} {onaddtag} {onremovetag} {onrejecttag} />
+    <StumpBookSide {detail} {tags} {onrate} {onaddtag} {onremovetag} {onrejecttag} />
   {/snippet}
 
   {#if detail.notice}<p class="notice" role="status">{detail.notice.message}</p>{/if}

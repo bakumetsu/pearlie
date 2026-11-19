@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createPlacement, CHECK_TIMEOUT_MS } from "./placement.svelte";
 import type { Api, WebItem } from "../api/client";
 
-const item = { source: "nhentai", post_id: "7", target: "komga" } as WebItem;
+const item = { source: "nhentai", post_id: "7", target: "stump" } as WebItem;
 const sug = { kind: "oneshot", series: null, number: null, joins_existing: false, moves_first: false, reason: "new" };
 
 function make(mode: string, getPlacement = vi.fn().mockResolvedValue(sug)) {

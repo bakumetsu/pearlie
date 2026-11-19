@@ -8,7 +8,7 @@
 	import { saveWebItem, saveStateFor, savedHrefFor } from "../lib/web/saveFlow";
 	import { restoreSaved } from "../lib/web/restoreSaved";
 	import type { SaveSlot } from "../lib/reader/saveSlot";
-	import { komgaSource, webSource, type ReaderSource } from "../lib/reader/source";
+	import { stumpSource, webSource, type ReaderSource } from "../lib/reader/source";
 	import { getRouter, findJobs } from "../lib/ctx";
 	import type { Match } from "../lib/router";
 	import Stage from "../lib/reader/Stage.svelte";
@@ -39,14 +39,14 @@
 	const router = getRouter();
 
 	const routeKey = $derived(
-		match.name === "read-web" ? "web:" + match.params.source + ":" + match.params.id : "komga:" + match.params.bookId,
+		match.name === "read-web" ? "web:" + match.params.source + ":" + match.params.id : "stump:" + match.params.bookId,
 	);
 	const seriesId = $derived(match.query.get("series"));
 
 	function buildSource(): ReaderSource {
 		return match.name === "read-web"
 			? webSource(api, match.params.source, match.params.id, match.query)
-			: komgaSource(api, match.params.bookId, match.query);
+			: stumpSource(api, match.params.bookId, match.query);
 	}
 
 	// source is rebuilt in load(); bookId is the progress key of the current source
