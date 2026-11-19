@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS rules (
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_rules_enabled ON rules (enabled);
 CREATE TABLE IF NOT EXISTS destinations (
     site TEXT PRIMARY KEY,
     folder TEXT NOT NULL,
@@ -80,6 +81,9 @@ CREATE TABLE IF NOT EXISTS trash_items (
 );
 CREATE INDEX IF NOT EXISTS idx_trash_entity ON trash_items (target, entity_id);
 CREATE INDEX IF NOT EXISTS idx_trash_md5 ON trash_items (md5);
+CREATE INDEX IF NOT EXISTS idx_trash_state ON trash_items (state);
+CREATE INDEX IF NOT EXISTS idx_trash_source_post ON trash_items (source, post_id);
+CREATE INDEX IF NOT EXISTS idx_trash_expires ON trash_items (expires_at);
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

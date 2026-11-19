@@ -128,8 +128,11 @@ def register_stored_connections(store: object) -> None:
                 if not skip and isinstance(v, str) and v and len(v) < MIN_SECRET_LEN:
                     _warn_short(f"{name}.{fid}")
             register_connection_secrets(values)
-        except Exception:
-            pass
+        except Exception as e:
+            # the class only: a message could carry the value
+            logging.getLogger("pearlie.logs").warning(
+                "secret registration failed for %s: %s", name, type(e).__name__
+            )
 
 
 def register_connection_secrets(values: dict[str, str]) -> None:
