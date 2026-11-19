@@ -15,7 +15,6 @@ from PIL import Image, ImageOps
 
 from app.bookserver.base import (
     SORT_CREATED_DESC,
-    SORT_NUMBER_ASC,
     BookDTO,
     BookServerError,
     ImageStream,
@@ -34,9 +33,9 @@ MIN_THUMB_W, MAX_THUMB_W = 16, 2000
 THUMB_QUALITY = 80
 _MISSING = "MISSING"
 
-# `{field, direction}` entries of Stump's order inputs
-_NAME_ASC = [{"field": "NAME", "direction": "ASC"}]
-_CREATED_DESC = [{"field": "CREATED_AT", "direction": "DESC"}]
+# Stump's order inputs are oneof objects: `{series: {field, direction}}` or `{media: {...}}`
+_NAME_ASC = {"field": "NAME", "direction": "ASC"}
+_CREATED_DESC = {"field": "CREATED_AT", "direction": "DESC"}
 
 
 class _StumpImage:
@@ -136,18 +135,13 @@ def _page[T](conn: dict, page: int, size: int, items: list[T]) -> PageResult[T]:
 
 
 def _search(q: str) -> dict:
-    """name / metadata title / path contains *q* (Stump has no full-text search)."""
-    return {
-        "_or": [
-            {"name": {"contains": q}},
-            {"metadata": {"title": {"contains": q}}},
-            {"path": {"contains": q}},
-        ]
-    }
+    """name / metadata title contains *q* (Stump has no full-text search)."""
+    return {"_or": [{"name": {"contains": q}}, {"metadata": {"title": {"contains": q}}}]}
 
 
-def _filter(q: str, **eq: str | None) -> dict | None:
-    parts: list[dict] = [{k: {"eq": v}} for k, v in eq.items() if v]
+def _filter(q: str, *conds: dict | None) -> dict | None:
+    """*conds* and the search text as one filter (`None` for no condition)."""
+    parts = [c for c in conds if c]
     if q:
         parts.append(_search(q))
     if not parts:
@@ -155,11 +149,23 @@ def _filter(q: str, **eq: str | None) -> dict | None:
     return parts[0] if len(parts) == 1 else {"_and": parts}
 
 
-def _order(q: str, sort: str) -> list[dict]:
+def _eq(field: str, value: str | None) -> dict | None:
+    return {field: {"eq": value}} if value else None
+
+
+def _in_library(library_id: str | None) -> dict | None:
+    """A media filter reaches the library through its series."""
+    return {"series": {"libraryId": {"eq": library_id}}} if library_id else None
+
+
+def _order(entity: str, q: str, sort: str) -> list[dict]:
     """A search lists by name; else newest first, or by name for the book order."""
-    if q or sort == SORT_NUMBER_ASC:
-        return _NAME_ASC
-    return _CREATED_DESC if sort == SORT_CREATED_DESC else _NAME_ASC
+    by = _CREATED_DESC if sort == SORT_CREATED_DESC and not q else _NAME_ASC
+    return [{entity: by}]
+
+
+def _name_asc(entity: str) -> list[dict]:
+    return [{entity: _NAME_ASC}]
 
 
 class StumpBookServer:
@@ -197,7 +203,9 @@ class StumpBookServer:
     def list_series(
         self, page: int, size: int, q: str, sort: str, library_id: str | None = None
     ) -> PageResult[SeriesDTO]:
-        conn = self._c.list_series(page, size, _filter(q, libraryId=library_id), _order(q, sort))
+        conn = self._c.list_series(
+            page, size, _filter(q, _eq("libraryId", library_id)), _order("series", q, sort)
+        )
         return _page(conn, page, size, [series_dto(d) for d in conn.get("nodes") or []])
 
     def list_books(
@@ -210,7 +218,10 @@ class StumpBookServer:
         library_id: str | None = None,
     ) -> PageResult[BookDTO]:
         conn = self._c.list_media(
-            page, size, _filter(q, seriesId=series_id, libraryId=library_id), _order(q, sort)
+            page,
+            size,
+            _filter(q, _eq("seriesId", series_id), _in_library(library_id)),
+            _order("media", q, sort),
         )
         return _page(conn, page, size, [book_dto(d) for d in conn.get("nodes") or []])
 
@@ -223,7 +234,9 @@ class StumpBookServer:
     def series_books(self, series_id: str) -> tuple[list[BookDTO], bool]:
         books: list[BookDTO] = []
         for page in range(1, SERIES_BOOKS_PAGES + 1):
-            conn = self._c.list_media(page, PAGE_SIZE, _filter("", seriesId=series_id), _NAME_ASC)
+            conn = self._c.list_media(
+                page, PAGE_SIZE, _filter("", _eq("seriesId", series_id)), _name_asc("media")
+            )
             books.extend(book_dto(d) for d in conn.get("nodes") or [])
             if _page(conn, page, PAGE_SIZE, []).last:
                 return books, False
@@ -240,7 +253,10 @@ class StumpBookServer:
             book = book_dto(d) if d else None
             return book if book is not None and not book.deleted else None
         conn = self._c.list_series(
-            1, 1, {"_and": [{"libraryId": {"eq": library_id}}, {"path": {"eq": path}}]}, _NAME_ASC
+            1,
+            1,
+            {"_and": [{"libraryId": {"eq": library_id}}, {"path": {"eq": path}}]},
+            _name_asc("series"),
         )
         nodes = conn.get("nodes") or []
         series = series_dto(nodes[0]) if nodes else None
@@ -301,14 +317,15 @@ class StumpBookServer:
 
     def list_deleted(self, kind: Kind, library_id: str) -> list[BookDTO | SeriesDTO]:
         """Items of the library Stump shows as MISSING (their file is gone)."""
-        filt = {"_and": [{"libraryId": {"eq": library_id}}, {"status": {"eq": _MISSING}}]}
+        in_lib = _in_library(library_id) if kind == "books" else _eq("libraryId", library_id)
+        filt = {"_and": [in_lib, {"status": {"eq": _MISSING}}]}
         out: list[BookDTO | SeriesDTO] = []
         for page in range(1, SERIES_BOOKS_PAGES + 1):
             if kind == "books":
-                conn = self._c.list_media(page, PAGE_SIZE, filt, _NAME_ASC)
+                conn = self._c.list_media(page, PAGE_SIZE, filt, _name_asc("media"))
                 out.extend(book_dto(d) for d in conn.get("nodes") or [])
             else:
-                conn = self._c.list_series(page, PAGE_SIZE, filt, _NAME_ASC)
+                conn = self._c.list_series(page, PAGE_SIZE, filt, _name_asc("series"))
                 out.extend(series_dto(d) for d in conn.get("nodes") or [])
             if _page(conn, page, PAGE_SIZE, []).last:
                 break

@@ -120,8 +120,10 @@ def test_search_filter_and_name_order() -> None:
     hit = server.list_books(1, 10, "book 2", "created_desc")
     assert [b.id for b in hit.items] == ["b2"]
     v = _ops(mock, "MediaList")[-1]["variables"]
-    assert [next(iter(x)) for x in v["filter"]["_or"]] == ["name", "metadata", "path"]
-    assert v["order"] == [{"field": "NAME", "direction": "ASC"}]
+    assert v["filter"] == {
+        "_or": [{"name": {"contains": "book 2"}}, {"metadata": {"title": {"contains": "book 2"}}}]
+    }
+    assert v["order"] == [{"media": {"field": "NAME", "direction": "ASC"}}]
     assert (v["page"], v["size"]) == (1, 10)
 
 
@@ -129,8 +131,48 @@ def test_library_and_series_filters_combine() -> None:
     server, mock = _server()
     server.list_books(1, 10, "", "created_desc", series_id="s1", library_id="L1")
     v = _ops(mock, "MediaList")[-1]["variables"]
-    assert v["filter"] == {"_and": [{"seriesId": {"eq": "s1"}}, {"libraryId": {"eq": "L1"}}]}
-    assert v["order"] == [{"field": "CREATED_AT", "direction": "DESC"}]
+    assert v["filter"] == {
+        "_and": [{"seriesId": {"eq": "s1"}}, {"series": {"libraryId": {"eq": "L1"}}}]
+    }
+    assert v["order"] == [{"media": {"field": "CREATED_AT", "direction": "DESC"}}]
+
+
+def test_exact_variables_of_each_list_call() -> None:
+    server, mock = _server()
+    server.list_series(2, 20, "", "created_desc", library_id="L1")
+    server.list_books(1, 20, "", "created_desc", library_id="L1")
+    server.series_books("s1")
+    server.list_series(1, 20, "ab", "created_desc")
+    series_calls = _ops(mock, "SeriesList")
+    media_calls = _ops(mock, "MediaList")
+    assert series_calls[0]["variables"] == {
+        "filter": {"libraryId": {"eq": "L1"}},
+        "order": [{"series": {"field": "CREATED_AT", "direction": "DESC"}}],
+        "page": 2,
+        "size": 20,
+    }
+    assert media_calls[0]["variables"]["filter"] == {"series": {"libraryId": {"eq": "L1"}}}
+    assert media_calls[0]["variables"]["order"] == [
+        {"media": {"field": "CREATED_AT", "direction": "DESC"}}
+    ]
+    assert media_calls[1]["variables"]["filter"] == {"seriesId": {"eq": "s1"}}
+    assert media_calls[1]["variables"]["order"] == [
+        {"media": {"field": "NAME", "direction": "ASC"}}
+    ]
+    assert series_calls[1]["variables"]["filter"] == {
+        "_or": [{"name": {"contains": "ab"}}, {"metadata": {"title": {"contains": "ab"}}}]
+    }
+    assert series_calls[1]["variables"]["order"] == [
+        {"series": {"field": "NAME", "direction": "ASC"}}
+    ]
+
+
+def test_library_listing_passes_the_strict_mock() -> None:
+    server, _ = _server()
+    sl = server.list_series(1, 10, "", "created_desc", library_id="L1")
+    assert [s.id for s in sl.items] == ["s1"]
+    assert server.list_books(1, 10, "", "created_desc", library_id="L1").items
+    assert not server.list_books(1, 10, "", "created_desc", library_id="L2").items
 
 
 def test_series_books_pages_of_100() -> None:
