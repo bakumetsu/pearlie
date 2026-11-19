@@ -13,6 +13,10 @@ function fakeStorage(data: Record<string, string> = {}) {
 }
 
 describe("loadHub", () => {
+  it("reads a hub saved as \"komga\" as \"stump\"", () => {
+    expect(loadHub(fakeStorage({ [HUB_KEY]: "komga" }))).toBe("stump");
+  });
+
   it("defaults to \"all\" when storage is empty", () => {
     const storage = fakeStorage();
     expect(loadHub(storage)).toBe("all");
