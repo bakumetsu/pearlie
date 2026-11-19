@@ -120,10 +120,7 @@
     if (item !== null && video !== null) {
       video.load();
       untrack(() => player.reapplyRate());
-      if (player.consumePlayOnLoad()) {
-        const p = video.play();
-        if (p && typeof p.catch === "function") p.catch(() => {});
-      }
+      if (player.consumePlayOnLoad()) player.startPlayback();
     }
   });
 
