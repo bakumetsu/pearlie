@@ -8,6 +8,14 @@ from app.db import connect
 
 logger = logging.getLogger(__name__)
 
+# Stored settings keys the rename moved to a new name; the value is kept.
+_RENAMED_KEYS = (
+    ("komga.place_mode", "stump.place_mode"),
+    ("options.global.komga_scan_wait_s", "options.global.stump_scan_wait_s"),
+    ("view.komga_series", "view.stump_series"),
+    ("view.komga_books", "view.stump_books"),
+)
+
 
 def migrate_komga(db_path: Path) -> None:
     """Ignore old Komga config, retag stored rows to stump, log one INFO line when any was found."""
@@ -26,6 +34,14 @@ def migrate_komga(db_path: Path) -> None:
             "UPDATE trash_items SET target = 'stump' WHERE target = 'komga'"
         ).rowcount
         jobs = conn.execute("UPDATE jobs SET target = 'stump' WHERE target = 'komga'").rowcount
+        # Copy the old value when the new key is unset, then drop the old row.
+        for old, new in _RENAMED_KEYS:
+            conn.execute(
+                "INSERT OR IGNORE INTO settings (key, value) "
+                "SELECT ?, value FROM settings WHERE key = ?",
+                (new, old),
+            )
+            conn.execute("DELETE FROM settings WHERE key = ?", (old,))
         keys = conn.execute(
             "SELECT COUNT(*) FROM settings "
             "WHERE key LIKE 'komga.%' OR key LIKE 'connections.komga.%'"

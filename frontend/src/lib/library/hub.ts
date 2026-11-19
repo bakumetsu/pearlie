@@ -23,6 +23,7 @@ export function loadHub(storage?: Pick<Storage, "getItem">): Hub {
   if (!store) return "all";
   try {
     const raw = store.getItem(HUB_KEY);
+    if (raw === "komga") return "stump"; // saved before Komga was removed
     return isHub(raw) ? raw : "all";
   } catch {
     return "all";

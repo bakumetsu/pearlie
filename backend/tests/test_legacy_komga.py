@@ -44,3 +44,30 @@ def test_clean_install_logs_nothing(tmp_path, monkeypatch, caplog):
     with caplog.at_level(logging.INFO, logger="app.legacy"):
         migrate_komga(db)
     assert not caplog.records
+
+
+def test_renamed_settings_keys_keep_their_values(tmp_path):
+    db = tmp_path / "p.db"
+    init_db(db)
+    conn = connect(db)
+    conn.executemany(
+        "INSERT INTO settings (key, value) VALUES (?, ?)",
+        [
+            ("komga.place_mode", "auto"),
+            ("options.global.komga_scan_wait_s", "42"),
+            ("view.komga_books", '{"mode": "list", "per_page": 50, "zoom": 2}'),
+            ("view.komga_series", '{"mode": "grid", "per_page": 25, "zoom": 3}'),
+            ("view.stump_series", '{"mode": "list", "per_page": 10, "zoom": 1}'),
+        ],
+    )
+    conn.commit()
+    conn.close()
+    migrate_komga(db)
+    conn = connect(db)
+    got = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM settings")}
+    conn.close()
+    assert got["stump.place_mode"] == "auto"
+    assert got["options.global.stump_scan_wait_s"] == "42"
+    assert '"list"' in got["view.stump_books"]
+    assert '"per_page": 10' in got["view.stump_series"]  # a value already set stays
+    assert not [k for k in got if "komga" in k]
