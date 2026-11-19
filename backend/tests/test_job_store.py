@@ -405,3 +405,27 @@ def test_retry_conflict_rolls_back_failed_job(tmp_path: Path) -> None:
 
     assert store.get(jid) is not None
     assert store.enqueue(post("2"), "stash", "t", "u") == "3"
+
+
+def test_done_book_job_without_ref_takes_the_book_id_from_the_index(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    p1 = post()
+    jid = store.enqueue(p1, "stump", "t", "")
+    assert store.mark_running(jid)
+    store.finish(jid, "done")
+    other = store.enqueue(post("2"), "stump", "t2", "")
+    assert store.mark_running(other)
+    store.finish(other, "done")
+    conn = connect(tmp_path / "p.db")
+    conn.execute(
+        "INSERT INTO saved_items (source, post_id, md5, target, image_id, library_id) "
+        "VALUES (?, ?, 'm', 'stump', '', 'B9')",
+        (p1.source, p1.post_id),
+    )
+    conn.commit()
+    conn.close()
+    for job in (store.get(jid), next(j for j in store.list() if j.id == jid)):
+        assert job is not None and job.library_ref is not None
+        assert (job.library_ref.kind, job.library_ref.id) == ("book", "B9")
+    nolink = store.get(other)
+    assert nolink is not None and nolink.library_ref is None
