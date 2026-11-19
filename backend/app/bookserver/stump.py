@@ -188,8 +188,15 @@ class StumpBookServer:
         if hit is not None and time.monotonic() - hit[0] < WALK_TTL_S:
             return hit[1]  # type: ignore[return-value]
         value = walk()
-        self._walks[key] = (time.monotonic(), value)
+        now = time.monotonic()
+        for k in [k for k, (t, _v) in self._walks.items() if now - t >= WALK_TTL_S]:
+            del self._walks[k]  # sweep, so the dict cannot grow without bound
+        self._walks[key] = (now, value)
         return value
+
+    def invalidate_walks(self) -> None:
+        """Forget every cached walk (the library changed behind the adapter, e.g. a trash move)."""
+        self._walks.clear()
 
     @property
     def client(self) -> Stump:
@@ -330,7 +337,10 @@ class StumpBookServer:
 
     def scan_library(self, library_id: str) -> None:
         self._walks.clear()
-        self._c.scan_library(library_id)
+        try:
+            self._c.scan_library(library_id)
+        finally:
+            self._walks.clear()  # a walk made during the scan saw half-scanned data
 
     # trash / undo (T-329)
 
@@ -359,7 +369,10 @@ class StumpBookServer:
 
     def purge_deleted(self, library_id: str) -> None:
         self._walks.clear()
-        self._c.clean_library(library_id)
+        try:
+            self._c.clean_library(library_id)
+        finally:
+            self._walks.clear()
 
     # tags / metadata / progress (T-329)
 

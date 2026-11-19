@@ -53,3 +53,32 @@ def test_list_deleted_walk_is_cached() -> None:
     server.purge_deleted("L1")
     server.list_deleted("books", "L1")
     assert _media_calls(mock) == 2
+
+
+def test_sweep_drops_expired_walks(monkeypatch: pytest.MonkeyPatch) -> None:
+    server, _ = _server([stump_mock.book(1)])
+    clock = [100.0]
+    monkeypatch.setattr(adapter.time, "monotonic", lambda: clock[0])
+    server.series_books("s1")
+    server.series_books("s2")
+    assert len(server._walks) == 2
+    clock[0] += adapter.WALK_TTL_S + 1
+    server.series_books("s3")
+    assert list(server._walks) == [("books", "s3")]
+
+
+def test_trash_delete_and_restore_clear_the_walk_cache(tmp_path) -> None:  # noqa: ANN001
+    from typing import Any
+
+    from tests.test_trash_stump import make, setup_lib
+
+    _, _, _, m = setup_lib(tmp_path)
+    c = make(tmp_path, m, wait=60.0)  # the debounced scan has not run
+    state: Any = c.app.state  # pyright: ignore[reportAttributeAccessIssue]
+    walks = state.books._walks
+    walks[("books", "S1")] = (adapter.time.monotonic(), ([], False))
+    tok = c.delete("/api/library/books/B1").json()["token"]
+    assert walks == {}
+    walks[("books", "S1")] = (adapter.time.monotonic(), ([], False))
+    assert c.post(f"/api/trash/{tok}/restore").status_code == 200
+    assert walks == {}
