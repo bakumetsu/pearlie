@@ -50,16 +50,19 @@ _FILTER_FIELDS = {
 _ORDER_KEY = {"SeriesList": "series", "MediaList": "media"}
 
 
-def _shape_error(op: str, v: dict) -> str | None:
+def _shape_error(op: str, v: dict, query: str) -> str | None:
     """The message Stump gives for an input it refuses; `None` when the shape is valid."""
     for i, entry in enumerate(v["order"] or []):
         ok = isinstance(entry, dict) and list(entry) == [_ORDER_KEY[op]]
         if not ok or set(entry[_ORDER_KEY[op]]) != {"field", "direction"}:
             return f'Invalid value for argument "orderBy.{i}", Oneof input objects requires'
 
+    # Stump's own queries declare `$filter: <Type>!`: a nullable variable or null is refused.
+    ftype = "SeriesFilterInput" if op == "SeriesList" else "MediaFilterInput"
+    if f"$filter: {ftype}!" not in query or v["filter"] is None:
+        return f'Invalid value for argument "filter", expected type "{ftype}"'
+
     def bad(f: object) -> bool:
-        if f is None:
-            return False
         if not isinstance(f, dict) or not set(f) <= _FILTER_FIELDS[op]:
             return True
         return any(bad(x) for k in ("_and", "_or") for x in f.get(k, []))
@@ -109,7 +112,7 @@ class MockStump:
         if op == "Libraries":
             return self._ok({"libraries": self._conn(self.libs, v["page"], 100)})
         if op in ("SeriesList", "MediaList"):
-            if (err := _shape_error(op, v)) is not None:
+            if (err := _shape_error(op, v, body["query"])) is not None:
                 return httpx.Response(200, json={"errors": [{"message": err}]})
             rows = self._filtered(self.series if op == "SeriesList" else self.books, v["filter"])
             if _name_asc(v["order"]):

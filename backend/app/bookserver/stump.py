@@ -139,13 +139,13 @@ def _search(q: str) -> dict:
     return {"_or": [{"name": {"contains": q}}, {"metadata": {"title": {"contains": q}}}]}
 
 
-def _filter(q: str, *conds: dict | None) -> dict | None:
-    """*conds* and the search text as one filter (`None` for no condition)."""
+def _filter(q: str, *conds: dict | None) -> dict:
+    """*conds* and the search text as one filter (`{}` for no condition: Stump needs a filter)."""
     parts = [c for c in conds if c]
     if q:
         parts.append(_search(q))
     if not parts:
-        return None
+        return {}
     return parts[0] if len(parts) == 1 else {"_and": parts}
 
 
