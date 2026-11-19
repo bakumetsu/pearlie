@@ -12,7 +12,7 @@ SORT_NUMBER_ASC = "number_asc"
 Kind = Literal["series", "books"]
 
 # Every `BookServer.kind`: the `target` of saved_items and trash_items rows of a book server.
-BOOK_TARGETS = ("komga", "stump")
+BOOK_TARGETS = ("stump", "stump")
 
 
 class BookServerError(Exception):
@@ -106,7 +106,7 @@ class ImageStream(Protocol):
 
 
 class BookServer(Protocol):
-    kind: str  # "komga"; later "stump". Stored in saved_items/trash_items.target.
+    kind: str  # "stump"; later "stump". Stored in saved_items/trash_items.target.
 
     def valid_id(self, id: str) -> bool: ...
 

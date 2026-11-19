@@ -53,7 +53,7 @@ class Options(BaseModel):
     allow_blurred_tags: StrictBool = False
     trash_retention_days: StrictInt = Field(default=7, ge=1, le=365)
     images_per_site: StrictInt = Field(default=10, ge=1, le=16)
-    komga_scan_wait_s: StrictInt = Field(default=10, ge=0, le=120)
+    stump_scan_wait_s: StrictInt = Field(default=10, ge=0, le=120)
     infinite_scroll: StrictBool = False
     site_names: StrictBool = True
     gif_grid: StrictBool = True
@@ -84,7 +84,7 @@ class OptionsUpdate(BaseModel):
     allow_blurred_tags: StrictBool | None = None
     trash_retention_days: StrictInt | None = Field(default=None, ge=1, le=365)
     images_per_site: StrictInt | None = Field(default=None, ge=1, le=16)
-    komga_scan_wait_s: StrictInt | None = Field(default=None, ge=0, le=120)
+    stump_scan_wait_s: StrictInt | None = Field(default=None, ge=0, le=120)
     confirm_purge: StrictBool | None = None
     infinite_scroll: StrictBool | None = None
     site_names: StrictBool | None = None
@@ -214,7 +214,7 @@ def _thumb_cache_max_mb(request: Request) -> int:
 
 
 IMAGES_PER_SITE_KEY = "options.global.images_per_site"
-KOMGA_SCAN_WAIT_KEY = "options.global.komga_scan_wait_s"
+STUMP_SCAN_WAIT_KEY = "options.global.stump_scan_wait_s"
 
 
 def images_per_site(app: FastAPI) -> int:
@@ -234,12 +234,12 @@ def images_per_site(app: FastAPI) -> int:
     return min(16, max(1, int(_num(raw, 10))))
 
 
-def komga_scan_wait_s(app: FastAPI) -> float:
-    """Seconds Pearlie waits after the last save before Komga scans (default 10, 0-120)."""
+def stump_scan_wait_s(app: FastAPI) -> float:
+    """Seconds Pearlie waits after the last save before Stump scans (default 10, 0-120)."""
     conn = connect(app.state.settings.db_path)
     try:
         row = conn.execute(
-            "SELECT value FROM settings WHERE key = ?", (KOMGA_SCAN_WAIT_KEY,)
+            "SELECT value FROM settings WHERE key = ?", (STUMP_SCAN_WAIT_KEY,)
         ).fetchone()
     finally:
         conn.close()
@@ -326,7 +326,7 @@ def get_options(request: Request) -> Options:
 
     ips = min(16, max(1, int(_num(read(IMAGES_PER_SITE_KEY), 10))))
 
-    komga_scan_wait_s = min(120, max(0, int(_num(read(KOMGA_SCAN_WAIT_KEY), 10))))
+    stump_scan_wait_s = min(120, max(0, int(_num(read(STUMP_SCAN_WAIT_KEY), 10))))
 
     is_raw = read("options.global.infinite_scroll")
     infinite_scroll: bool = is_raw == "1"
@@ -337,7 +337,7 @@ def get_options(request: Request) -> Options:
     tapped_first: bool = read("options.global.tapped_first") == "1"
 
     place_mode: Literal["auto", "suggest"] = (
-        "auto" if read("komga.place_mode") == "auto" else "suggest"
+        "auto" if read("stump.place_mode") == "auto" else "suggest"
     )
 
     # Source pace
@@ -400,7 +400,7 @@ def get_options(request: Request) -> Options:
         allow_blurred_tags=allow_blurred_tags,
         trash_retention_days=trash_retention_days,
         images_per_site=ips,
-        komga_scan_wait_s=komga_scan_wait_s,
+        stump_scan_wait_s=stump_scan_wait_s,
         infinite_scroll=infinite_scroll,
         site_names=site_names,
         gif_grid=gif_grid,
@@ -449,7 +449,7 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
     if body.tapped_first is not None:
         write("options.global.tapped_first", "1" if body.tapped_first else "0")
     if body.place_mode is not None:
-        write("komga.place_mode", body.place_mode)
+        write("stump.place_mode", body.place_mode)
     if body.trash_retention_days is not None:
         write("options.global.trash_retention_days", str(body.trash_retention_days))
         if fixture:
@@ -461,8 +461,8 @@ def put_options(request: Request, body: OptionsUpdate) -> Options:
 
     if body.images_per_site is not None:
         write(IMAGES_PER_SITE_KEY, str(body.images_per_site))
-    if body.komga_scan_wait_s is not None:
-        write(KOMGA_SCAN_WAIT_KEY, str(body.komga_scan_wait_s))
+    if body.stump_scan_wait_s is not None:
+        write(STUMP_SCAN_WAIT_KEY, str(body.stump_scan_wait_s))
 
     if body.hidden_sites is not None:
         for site in body.hidden_sites:

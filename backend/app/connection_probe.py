@@ -59,10 +59,6 @@ def probe_connection(app: FastAPI, name: str) -> ProbeResult:
         json_body = {"query": "{ version { version } }"}
         if secret:
             headers["ApiKey"] = secret
-    elif name == "komga":
-        url = address + "/api/v1/libraries"
-        if secret:
-            headers["X-API-Key"] = secret
     elif name == "stump":
         method = "POST"
         url = address + "/api/graphql"

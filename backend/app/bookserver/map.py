@@ -1,11 +1,11 @@
-"""Server-neutral mappers: book-server DTOs to API models. Media paths keep the `komga` segment."""
+"""Server-neutral mappers: book-server DTOs to API models. Media paths keep the `stump` segment."""
 
 from __future__ import annotations
 
 from app.bookserver.base import BookDTO, SeriesDTO
 from app.models import LibraryItem, LibraryItemDetail, Problem, Tag
 
-_MEDIA = "/api/media/komga"
+_MEDIA = "/api/media/stump"
 
 
 def book_item(b: BookDTO) -> LibraryItem:

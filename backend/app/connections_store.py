@@ -18,7 +18,7 @@ from app.db import connect
 
 logger = logging.getLogger("pearlie")
 
-NAMES: tuple[str, ...] = ("stash", "komga", "stump", "danbooru", "gelbooru", "rule34", "nhentai")
+NAMES: tuple[str, ...] = ("stash", "stump", "danbooru", "gelbooru", "rule34", "nhentai")
 
 FIXED_HOSTS: dict[str, str] = {
     "danbooru": "https://danbooru.donmai.us",
@@ -29,7 +29,6 @@ FIXED_HOSTS: dict[str, str] = {
 
 ENV_FIELDS: dict[str, tuple[str, str]] = {
     "stash": ("stash_url", "stash_api_key"),
-    "komga": ("komga_url", "komga_api_key"),
     "stump": ("stump_url", "stump_api_key"),
     "danbooru": ("", ""),
     "gelbooru": ("", "gelbooru_api_key"),
@@ -46,7 +45,6 @@ class FieldDef(NamedTuple):
 
 FIELDS: dict[str, tuple[FieldDef, ...]] = {
     "stash": (FieldDef("api_key", "API key", "stash_api_key"),),
-    "komga": (FieldDef("api_key", "API key", "komga_api_key"),),
     "stump": (FieldDef("api_key", "API key", "stump_api_key"),),
     "danbooru": (FieldDef("login", "Login", ""), FieldDef("api_key", "API key", "")),
     "gelbooru": (
@@ -66,7 +64,6 @@ FIELDS: dict[str, tuple[FieldDef, ...]] = {
 # The field kept under the old single-secret storage key, so upgrades keep working.
 PRIMARY: dict[str, str] = {
     "stash": "api_key",
-    "komga": "api_key",
     "stump": "api_key",
     "danbooru": "api_key",
     "gelbooru": "api_key",
@@ -353,7 +350,7 @@ class ConnectionStore:
             if any(ord(c) < 32 or ord(c) == 127 for c in v):
                 raise StoreError("bad_value")
 
-        # Address format validation (only reachable for stash/komga)
+        # Address format validation (only reachable for stash/stump)
         if address is not None:
             addr_stripped: str = address.strip()
             parsed = urlparse(addr_stripped)

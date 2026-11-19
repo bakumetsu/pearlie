@@ -81,7 +81,12 @@ class DapiSource:
         try:
             auth = self._auth()
             query: dict[str, str | int] = {
-                "page": "dapi", "s": "post", "q": "index", "json": 1, **params, **auth.params,
+                "page": "dapi",
+                "s": "post",
+                "q": "index",
+                "json": 1,
+                **params,
+                **auth.params,
             }
             resp = self._client.get(
                 self._base_url + "/index.php", params=query, headers=auth.headers
@@ -127,9 +132,7 @@ class DapiSource:
         filter_tags, notices = dapi_filter_tags(self.id, order, rating or [])
         server_tags += filter_tags
         ratings += [t for t in filter_tags if rating_filter(t) is not None]
-        data = self._get(
-            {"tags": " ".join(server_tags), "pid": max(page, 1) - 1, "limit": size}
-        )
+        data = self._get({"tags": " ".join(server_tags), "pid": max(page, 1) - 1, "limit": size})
         posts: list[Post] = []
         skipped = 0
         first_id = ""
@@ -148,7 +151,10 @@ class DapiSource:
         if skipped:
             _log.warning(
                 "%s search skipped %d bad row(s), first id=%s %s",
-                self.id, skipped, first_id, type(first_exc).__name__,
+                self.id,
+                skipped,
+                first_id,
+                type(first_exc).__name__,
             )
         next_page = page + 1 if len(data) == size else None
         return SearchPage(posts=posts, page=page, next_page=next_page, notices=notices)
@@ -201,7 +207,10 @@ class Rule34(DapiSource):
     name = "Rule34"
     default_base_url = "https://api.rule34.xxx"
     extra_file_hosts = (
-        "rule34.xxx", "img.rule34.xxx", "wimg.rule34.xxx", "api-cdn.rule34.xxx",
+        "rule34.xxx",
+        "img.rule34.xxx",
+        "wimg.rule34.xxx",
+        "api-cdn.rule34.xxx",
         "api-cdn-mp4.rule34.xxx",
     )
     # CDN re-encodes videos; their MD5 differs from the post MD5
@@ -216,7 +225,11 @@ class Gelbooru(DapiSource):
     name = "Gelbooru"
     default_base_url = "https://gelbooru.com"
     extra_file_hosts = (
-        "img1.gelbooru.com", "img2.gelbooru.com", "img3.gelbooru.com", "img4.gelbooru.com",
-        "simg3.gelbooru.com", "simg4.gelbooru.com",
+        "img1.gelbooru.com",
+        "img2.gelbooru.com",
+        "img3.gelbooru.com",
+        "img4.gelbooru.com",
+        "simg3.gelbooru.com",
+        "simg4.gelbooru.com",
     )
     md5_key = "md5"

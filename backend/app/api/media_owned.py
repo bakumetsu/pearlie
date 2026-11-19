@@ -17,8 +17,8 @@ from app.jobs.store import JobStore
 from app.models import SavedRef
 from app.sources.base import Source
 from app.targets import stash_library
-from app.targets.komga import VERIFY_PAGE_SIZE, KomgaTarget
 from app.targets.stash_client import StashError
+from app.targets.stump import VERIFY_PAGE_SIZE, StumpTarget
 
 logger = logging.getLogger("pearlie.media_owned")
 
@@ -30,7 +30,7 @@ _PAGE_THUMB_WIDTH = 300
 
 
 def is_owned(ref: SavedRef | None) -> bool:
-    """A library copy exists (Stash image or video, Komga book); the library is not asked."""
+    """A library copy exists (Stash image or video, Stump book); the library is not asked."""
     return ref is not None and ref.kind in ("image", "video", "book") and bool(ref.id)
 
 
@@ -43,7 +43,7 @@ def lookup(
     )
     ref = refs.get(post_id)
     if ref is not None and ref.kind == "book":
-        if getattr(app.state, "komga", None) is None:
+        if getattr(app.state, "stump", None) is None:
             return None
         book_id = ref.id or _backfill_book(app, source, post_id)
         return ("book", book_id) if book_id and book_server_of(app).valid_id(book_id) else None
@@ -57,15 +57,15 @@ def lookup(
 
 
 def _backfill_book(app, source: str, post_id: str) -> str | None:
-    """Find the Komga book of an old index row with one title search, then keep its id."""
+    """Find the Stump book of an old index row with one title search, then keep its id."""
     key = (source, post_id)
     if _skip(app, key):
         return None
     try:
         page = book_server_of(app).list_books(1, VERIFY_PAGE_SIZE, post_id, SORT_CREATED_DESC)
         books = page.items
-        match = next((b for b in books if KomgaTarget._book_matches(b, post_id)), None)
-    except Exception:  # Komga down or odd answer: the site path stays
+        match = next((b for b in books if StumpTarget._book_matches(b, post_id)), None)
+    except Exception:  # Stump down or odd answer: the site path stays
         match = None
     book_id = match.id if match else ""
     if not book_id:
@@ -74,7 +74,7 @@ def _backfill_book(app, source: str, post_id: str) -> str | None:
     conn = connect(app.state.settings.db_path)
     try:
         conn.execute(
-            "UPDATE saved_items SET library_id = ? WHERE target = 'komga' "
+            "UPDATE saved_items SET library_id = ? WHERE target = 'stump' "
             "AND source = ? AND post_id = ? AND library_id IS NULL",
             (book_id, source, post_id),
         )
@@ -175,8 +175,8 @@ def _open_book(
     n: int,
     thumb: bool,
 ) -> Response | None:
-    """Page *n* of the saved Komga book, or None to use the site."""
-    reason = "komga_error"
+    """Page *n* of the saved Stump book, or None to use the site."""
+    reason = "stump_error"
     try:
         server = book_server_of(app)
         upstream = (
@@ -208,9 +208,9 @@ def _open_book(
 
 
 def try_book_page(request: Request, post_id: str, n: int, thumb: bool) -> Response | None:
-    """A reader page of an owned nhentai book from Komga, or None (sync, run in a thread)."""
+    """A reader page of an owned nhentai book from Stump, or None (sync, run in a thread)."""
     app = request.app
-    if n < 1 or getattr(app.state, "komga", None) is None:
+    if n < 1 or getattr(app.state, "stump", None) is None:
         return None
     key = ("nhentai", post_id)
     if _skip(app, key):

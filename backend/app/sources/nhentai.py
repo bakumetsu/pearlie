@@ -1,4 +1,4 @@
-"""nhentai source adapter (search and gallery metadata; saving to Komga is a later step)."""
+"""nhentai source adapter (search and gallery metadata; saving to Stump is a later step)."""
 
 import logging
 import re
@@ -100,11 +100,11 @@ def build_query(tags: list[str]) -> str:
 
 
 class NHentai:
-    """Adapter for nhentai.net; galleries are saved into Komga."""
+    """Adapter for nhentai.net; galleries are saved into Stump."""
 
     id = "nhentai"
     name = "nhentai"
-    target = "komga"
+    target = "stump"
     default_base_url = "https://nhentai.net"
     file_hosts: tuple[str, ...]
 

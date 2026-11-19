@@ -11,7 +11,6 @@ from app.api import options
 from app.api.errors import ApiError
 from app.bookserver.base import BOOK_TARGETS, BookServerError
 from app.bookserver.factory import book_server_of
-from app.library.komga_trash import KomgaTrash
 from app.library.stash_trash import StashTrash
 from app.library.stump_trash import StumpTrash
 from app.library.trash import TrashError, TrashStore
@@ -42,46 +41,37 @@ def store_of(request: Request) -> TrashStore:
     return request.app.state.trash
 
 
-def komga_trash_of(request: Request) -> KomgaTrash:
-    return komga_trash_of_app(request.app)
+def stump_trash_of(request: Request) -> StumpTrash:
+    return stump_trash_of_app(request.app)
 
 
-def komga_trash_of_app(app) -> KomgaTrash:  # noqa: ANN001
-    """One book-server trash per app (Komga or Stump): it holds the scan debounce timers."""
-    kt = getattr(app.state, "komga_trash", None)
+def stump_trash_of_app(app) -> StumpTrash:  # noqa: ANN001
+    """One book-server trash per app: it holds the scan debounce timers."""
+    kt = getattr(app.state, "stump_trash", None)
     if kt is None:
-        if app.state.settings.book_server == "stump":
-            kt = StumpTrash(
-                app.state.settings,
-                app.state.trash,
-                book_server_of(app),
-                wait_s=lambda: options.komga_scan_wait_s(app),
-            )
-        else:
-            kt = KomgaTrash(
-                app.state.settings,
-                app.state.trash,
-                app.state.komga,
-                wait_s=lambda: options.komga_scan_wait_s(app),
-            )
-        app.state.komga_trash = kt
+        kt = StumpTrash(
+            app.state.settings,
+            app.state.trash,
+            book_server_of(app),
+            wait_s=lambda: options.stump_scan_wait_s(app),
+        )
+        app.state.stump_trash = kt
     return kt
 
 
 def book_server_ready(app) -> bool:  # noqa: ANN001
-    s = app.state.settings
-    return bool(s.stump_url) if s.book_server == "stump" else app.state.komga is not None
+    return bool(app.state.settings.stump_url)
 
 
 def _book_server_name(app) -> str:  # noqa: ANN001
-    return "Stump" if app.state.settings.book_server == "stump" else "Komga"
+    return "Stump"
 
 
 def err(e: TrashError) -> ApiError:
     return ApiError(e.status, e.code, e.message)
 
 
-KOMGA_ID = re.compile(r"[A-Za-z0-9]{1,64}")
+STUMP_ID = re.compile(r"[A-Za-z0-9]{1,64}")
 PLURAL_OF = {"image": "images", "video": "videos", "series": "series", "book": "books"}
 
 
@@ -114,14 +104,14 @@ def trash_batch(request: Request, body: TrashBatchBody) -> TrashBatchResult:
             continue
         seen.add((it.kind, it.id))
         try:
-            ok = KOMGA_ID.fullmatch(it.id) if it.kind in ("series", "book") else valid_id(it.id)
+            ok = STUMP_ID.fullmatch(it.id) if it.kind in ("series", "book") else valid_id(it.id)
             if not ok:
                 raise TrashError(404, "not_found", "Item not found")
             if it.kind in ("series", "book"):
                 if not book_server_ready(request.app):
                     name = _book_server_name(request.app)
                     raise TrashError(503, "not_configured", f"{name} is not configured")
-                row = komga_trash_of(request).delete(PLURAL_OF[it.kind], it.id, group_id=group)
+                row = stump_trash_of(request).delete(PLURAL_OF[it.kind], it.id, group_id=group)
             else:
                 client = request.app.state.stash
                 if client is None:
@@ -194,7 +184,7 @@ def _abs_path(raw: str) -> Path:
 
 
 def _library_roots(request: Request) -> list[str]:
-    """Real paths of every Stash and Komga library root (Pearlie side)."""
+    """Real paths of every Stash and Stump library root (Pearlie side)."""
     app = request.app
     roots: list[str] = []
     try:
@@ -202,7 +192,7 @@ def _library_roots(request: Request) -> list[str]:
             st = StashTrash(app.state.settings, store_of(request), app.state.stash)
             roots += [os.path.realpath(st._to_local(p)) for p in app.state.stash.library_paths()]
         if book_server_ready(app):
-            roots += komga_trash_of(request)._roots()
+            roots += stump_trash_of(request)._roots()
     except (StashError, BookServerError) as e:
         raise ApiError(502, "upstream_error", e.message) from None
     return roots
@@ -299,7 +289,7 @@ def restore(request: Request, token: str) -> RestoreResult:
             name = _book_server_name(request.app)
             raise ApiError(503, "not_configured", f"{name} is not configured")
         try:
-            return RestoreResult(item=komga_trash_of(request).restore(token))
+            return RestoreResult(item=stump_trash_of(request).restore(token))
         except TrashError as e:
             raise err(e) from None
     if row["target"] != "stash":

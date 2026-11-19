@@ -161,9 +161,9 @@ class Store:
                 if b.get("series_id") == int(id) and not b.get("_rejected")
             ]
         elif kinds == "books":
-            kwargs["page_url"] = f"/api/media/komga/books/{id}/pages/{{n}}{data.FIXTURE_SRC}"
+            kwargs["page_url"] = f"/api/media/stump/books/{id}/pages/{{n}}{data.FIXTURE_SRC}"
             kwargs["page_thumb_url"] = (
-                f"/api/media/komga/books/{id}/pages/{{n}}/thumb{data.FIXTURE_SRC}"
+                f"/api/media/stump/books/{id}/pages/{{n}}/thumb{data.FIXTURE_SRC}"
             )
         return LibraryItemDetail(**kwargs)
 

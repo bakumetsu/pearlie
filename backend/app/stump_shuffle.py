@@ -65,7 +65,7 @@ def fetch_all(
     """Fetch every item by paginating through *fetch_page*.
 
     *fetch_page* receives a 0-based page index and a page size, and returns a
-    Komga-style page dict with ``"content"`` (list) and ``"last"`` (bool).
+    Stump-style page dict with ``"content"`` (list) and ``"last"`` (bool).
     Returns the accumulated list and whether the result was truncated
     (*max_pages* exhausted without reaching ``"last"``).
     """

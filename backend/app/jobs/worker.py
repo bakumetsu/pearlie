@@ -18,7 +18,7 @@ from app.targets.stash import PendingScan, SaveError, SaveResult
 from app.targets.stash_client import StashError
 
 if TYPE_CHECKING:
-    from app.targets.komga import KomgaTarget
+    from app.targets.stump import StumpTarget
 
 logger = logging.getLogger("pearlie.jobs")
 
@@ -54,17 +54,17 @@ class JobWorker:
         self._cond = threading.Condition()
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
-        komga = next(
+        stump = next(
             (
-                cast("KomgaTarget", t)
+                cast("StumpTarget", t)
                 for t in targets.values()
                 if getattr(t, "is_book_target", False)
             ),
             None,
         )
         self.scan_wait: ScanWait | None = (
-            ScanWait(komga, self._store, self.finish_saved, wait_s=scan_wait_s, clock=clock)
-            if komga is not None
+            ScanWait(stump, self._store, self.finish_saved, wait_s=scan_wait_s, clock=clock)
+            if stump is not None
             else None
         )
 
@@ -75,14 +75,14 @@ class JobWorker:
             logger.info("JOBS purged old finished jobs=%d", purged)
         if self.scan_wait is not None:
             pending = self._store.scan_pending()
-            for job_id, source_id, library_id, name, komga_path in pending:
+            for job_id, source_id, library_id, name, stump_path in pending:
                 self.scan_wait.add(
                     job_id,
                     source_id,
-                    PendingScan(library_id=library_id, name=name, komga_path=komga_path),
+                    PendingScan(library_id=library_id, name=name, stump_path=stump_path),
                 )
             if pending:
-                logger.info("KOMGA scan wait re-armed after restart jobs=%d", len(pending))
+                logger.info("STUMP scan wait re-armed after restart jobs=%d", len(pending))
         for hook in self._startup_hooks:
             try:
                 hook()
@@ -269,7 +269,7 @@ class JobWorker:
             tags = sorted({tag for group in post.tags.values() for tag in group})
             placement = self._store.load_placement(job_id)
             if getattr(target, "is_book_target", False):
-                result = cast("KomgaTarget", target).save(
+                result = cast("StumpTarget", target).save(
                     post, tags, placement=placement, on_progress=self._progress_cb(job_id)
                 )
             else:
@@ -282,7 +282,7 @@ class JobWorker:
                         job_id, pending.library_id, pending.name, result.dest_path, result.notices
                     )
                     self.scan_wait.add(job_id, source_id, pending)
-                    logger.info("job=%s saved, waiting for Komga scan", job_id)
+                    logger.info("job=%s saved, waiting for Stump scan", job_id)
                 else:
                     self.finish_saved(
                         job_id, source_id, result.notices, result.dest_path, result.image_id

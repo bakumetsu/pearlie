@@ -353,7 +353,7 @@ class StumpBookServer:
             fields["links"] = [url for _label, url in patch.links]  # Stump links have no label
             locks.append("LINKS")
         if patch.writers is not None and kind == "books":
-            fields["writers"] = list(patch.writers)  # Komga authors with role writer
+            fields["writers"] = list(patch.writers)  # Stump authors with role writer
             locks.append("WRITERS")
         if fields:
             self._c.update_metadata(kind, id, fields)

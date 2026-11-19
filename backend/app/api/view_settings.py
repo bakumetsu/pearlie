@@ -20,8 +20,8 @@ MODES = get_args(ViewMode)
 MODES_BY_SOURCE: dict[str, tuple[ViewMode, ...]] = {
     "stash_images": ("grid", "wall", "masonry", "list"),
     "stash_videos": ("wall", "list"),
-    "komga_series": ("grid", "list"),
-    "komga_books": ("grid", "list"),
+    "stump_series": ("grid", "list"),
+    "stump_books": ("grid", "list"),
     "danbooru": ("grid", "wall", "masonry", "list"),
     "gelbooru": ("grid", "wall", "masonry", "list"),
     "rule34": ("grid", "wall", "masonry", "list"),
@@ -45,9 +45,7 @@ def _default(source: str) -> View:
 
 def _stored(request: Request) -> dict[str, View]:
     if request.app.state.settings.mode == "fixture":
-        mem: dict[str, View] | None = getattr(
-            request.app.state, "view_settings_mem", None
-        )
+        mem: dict[str, View] | None = getattr(request.app.state, "view_settings_mem", None)
         if mem is None:
             mem = {}
             request.app.state.view_settings_mem = mem
@@ -75,9 +73,7 @@ def _stored(request: Request) -> dict[str, View]:
 
 def _save(request: Request, source: str, value: View) -> None:
     if request.app.state.settings.mode == "fixture":
-        mem: dict[str, View] | None = getattr(
-            request.app.state, "view_settings_mem", None
-        )
+        mem: dict[str, View] | None = getattr(request.app.state, "view_settings_mem", None)
         if mem is None:
             mem = {}
             request.app.state.view_settings_mem = mem

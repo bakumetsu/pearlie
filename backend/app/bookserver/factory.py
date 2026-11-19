@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from app.bookserver.base import BookServer, BookServerError
-from app.bookserver.komga import KomgaBookServer
 from app.bookserver.stump import StumpBookServer
 from app.stump import Stump
 
@@ -27,16 +26,5 @@ def _stump_of(app: Any) -> StumpBookServer:
 
 
 def book_server_of(app: Any) -> BookServer:
-    """Adapter for `settings.book_server`. Komga: around the current `app.state.komga`, cached
-    per client object, so a swapped client (test injection, Options key change) gets a fresh
-    adapter. Stump: see `_stump_of`."""
-    if getattr(getattr(app.state, "settings", None), "book_server", "komga") == "stump":
-        return _stump_of(app)
-    client = app.state.komga
-    if client is None:
-        raise BookServerError("not_configured", "Komga is not configured", 503)
-    cached: KomgaBookServer | None = getattr(app.state, "books", None)
-    if not isinstance(cached, KomgaBookServer) or cached.client is not client:
-        cached = KomgaBookServer(client)
-        app.state.books = cached
-    return cached
+    """The book server of the running app (Stump)."""
+    return _stump_of(app)

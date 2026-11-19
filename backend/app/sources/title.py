@@ -1,4 +1,4 @@
-"""Gallery title parser: splits a Komga-style or nhentai title into display fields."""
+"""Gallery title parser: splits a Stump-style or nhentai title into display fields."""
 
 from __future__ import annotations
 

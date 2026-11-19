@@ -97,7 +97,7 @@ def register_settings_secrets(settings: object) -> None:
     for name in (
         "secret_key",
         "stash_api_key",
-        "komga_api_key",
+        "stump_api_key",
         "stump_api_key",
         "gelbooru_api_key",
         "rule34_api_key",
@@ -179,9 +179,7 @@ def safe_url(url: str) -> str:
 
 # -- scrubbing ---------------------------------------------------------------
 
-_KEYWORDS = (
-    r"api[_-]?key|apikey|key|token|password|passwd|secret|cookie|session|auth|authorization"
-)
+_KEYWORDS = r"api[_-]?key|apikey|key|token|password|passwd|secret|cookie|session|auth|authorization"
 _KEYWORD_RE = re.compile(
     rf"(?<![A-Za-z0-9])({_KEYWORDS})(?![A-Za-z0-9])[\"']?(\s*[=:]\s*)"
     rf"(?:\"[^\"]*\"|'[^']*'|[^\s&;,\"']+)",

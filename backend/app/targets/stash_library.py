@@ -60,16 +60,10 @@ def _fid(dto: dict) -> str:
 
 def _tag_names(dto: dict) -> list[str]:
     """Return sorted names of dict tags with a non-empty ``name`` field."""
-    return sorted(
-        t["name"]
-        for t in dto.get("tags") or []
-        if isinstance(t, dict) and t.get("name")
-    )
+    return sorted(t["name"] for t in dto.get("tags") or [] if isinstance(t, dict) and t.get("name"))
 
 
-def _stash_common(
-    dto: dict, kind: str, thumb_url: str, files_key: str, fallback: str
-) -> dict:
+def _stash_common(dto: dict, kind: str, thumb_url: str, files_key: str, fallback: str) -> dict:
     """Build the common kwargs shared by item and detail constructors."""
     fid = _fid(dto)
     files = dto.get(files_key) or []
@@ -181,9 +175,7 @@ def log_gif_rejects(dtos: list[dict]) -> None:
 def video_item(dto: dict) -> LibraryItem:
     """Map a Stash video (scene) DTO to a ``LibraryItem``."""
     fid = _fid(dto)
-    kw = _stash_common(
-        dto, "video", f"/api/media/stash/videos/{fid}/poster", "files", "Video"
-    )
+    kw = _stash_common(dto, "video", f"/api/media/stash/videos/{fid}/poster", "files", "Video")
     files = dto.get("files") or []
     kw["tags"] = _tag_names(dto)
     dur = _first_file(files).get("duration")
@@ -213,9 +205,7 @@ def image_detail(dto: dict, link_base: str = "") -> LibraryItemDetail:
 def video_detail(dto: dict, link_base: str = "") -> LibraryItemDetail:
     """Map a Stash video (scene) DTO to a ``LibraryItemDetail``."""
     fid = _fid(dto)
-    kw = _stash_common(
-        dto, "video", f"/api/media/stash/videos/{fid}/poster", "files", "Video"
-    )
+    kw = _stash_common(dto, "video", f"/api/media/stash/videos/{fid}/poster", "files", "Video")
     tags = _tag_names(dto)
     kw["tags"] = [Tag(name=n) for n in tags]
     kw["source_url_text"] = (dto.get("urls") or [None])[0]
@@ -240,14 +230,10 @@ def map_items(dtos: list[dict], fn) -> tuple[list[LibraryItem], list[str]]:
             items.append(fn(dto))
         except (KeyError, TypeError, ValueError, IndexError, AttributeError) as exc:
             item_id = (
-                str(dto["id"])
-                if isinstance(dto, dict) and dto.get("id") is not None
-                else "unknown"
+                str(dto["id"]) if isinstance(dto, dict) and dto.get("id") is not None else "unknown"
             )
             key = exc.args[0] if isinstance(exc, KeyError) else "-"
-            log.warning(
-                "stash item %s unreadable: %s (%s)", item_id, type(exc).__name__, key
-            )
+            log.warning("stash item %s unreadable: %s (%s)", item_id, type(exc).__name__, key)
             bad.append(item_id)
     return items, bad
 

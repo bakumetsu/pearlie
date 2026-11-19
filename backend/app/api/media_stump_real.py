@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
 from app.api.errors import ApiError
-from app.api.library_komga_real import _check_id
+from app.api.library_stump_real import _check_id
 from app.bookserver.base import BookServerError, ImageStream
 from app.bookserver.factory import book_server_of
 
@@ -25,7 +25,7 @@ def _proxy(request: Request, open_stream, max_age: int = 3600) -> StreamingRespo
     media_type = upstream.content_type
     if not media_type.split(";", 1)[0].strip().lower().startswith("image/"):
         upstream.close()
-        raise ApiError(502, "upstream_error", "Komga returned a non-image")
+        raise ApiError(502, "upstream_error", "Stump returned a non-image")
     headers: dict[str, str] = {"Cache-Control": f"private, max-age={max_age}"}
     if upstream.content_length is not None:
         headers["Content-Length"] = upstream.content_length
@@ -38,19 +38,19 @@ def _proxy(request: Request, open_stream, max_age: int = 3600) -> StreamingRespo
     )
 
 
-@router.get("/komga/series/{id}/thumb")
+@router.get("/stump/series/{id}/thumb")
 def series_thumb(request: Request, id: str) -> StreamingResponse:
     _check_id(request, id)
     return _proxy(request, lambda s: s.open_thumb("series", id))
 
 
-@router.get("/komga/books/{id}/thumb")
+@router.get("/stump/books/{id}/thumb")
 def book_thumb(request: Request, id: str) -> StreamingResponse:
     _check_id(request, id)
     return _proxy(request, lambda s: s.open_thumb("books", id))
 
 
-@router.get("/komga/books/{id}/pages/{n}")
+@router.get("/stump/books/{id}/pages/{n}")
 def book_page(request: Request, id: str, n: int) -> StreamingResponse:
     _check_id(request, id)
     if n < 1:
@@ -58,7 +58,7 @@ def book_page(request: Request, id: str, n: int) -> StreamingResponse:
     return _proxy(request, lambda s: s.open_page(id, n))
 
 
-@router.get("/komga/books/{id}/pages/{n}/thumb")
+@router.get("/stump/books/{id}/pages/{n}/thumb")
 def book_page_thumb(request: Request, id: str, n: int) -> StreamingResponse:
     _check_id(request, id)
     if n < 1:
