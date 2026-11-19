@@ -390,7 +390,7 @@
         {/each}
       </div>
     {/if}
-  {:else if built}
+  {:else if built && placed.length > 0}
     <div class="vwin" role="list" style:height="{total}px" onfocusin={onFocusIn} onfocusout={onFocusOut}>
       {#each placed as p (p.key)}
         <div
@@ -407,6 +407,7 @@
       {/each}
     </div>
   {:else if mode === "grid"}
+    <!-- Also the answer when the layout is built but its window holds no cell: rows never draw as nothing. -->
     <div class="grid" style:--cell="{size}px">
       {#each flowItems as item (keyOf(item))}
         {@render tile(item, "grid", undefined)}
