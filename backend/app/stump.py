@@ -43,13 +43,13 @@ Q_LIBRARIES = (
     f"config {{ oneshotsDirectory }} }} {_PAGE_INFO} }} }}"
 )
 Q_SERIES_LIST = (
-    "query SeriesList($filter: SeriesFilterInput, $order: [SeriesOrderBy!], $page: Int!, "
+    "query SeriesList($filter: SeriesFilterInput!, $order: [SeriesOrderBy!], $page: Int!, "
     "$size: Int!) { series(filter: $filter, orderBy: $order, pagination: {offset: "
     f"{{page: $page, pageSize: $size, zeroBased: false}}}}) {{ nodes {{ {_SERIES_FIELDS} }} "
     f"{_PAGE_INFO} }} }}"
 )
 Q_MEDIA_LIST = (
-    "query MediaList($filter: MediaFilterInput, $order: [MediaOrderBy!], $page: Int!, "
+    "query MediaList($filter: MediaFilterInput!, $order: [MediaOrderBy!], $page: Int!, "
     "$size: Int!) { media(filter: $filter, orderBy: $order, pagination: {offset: "
     f"{{page: $page, pageSize: $size, zeroBased: false}}}}) {{ nodes {{ {_BOOK_FIELDS} }} "
     f"{_PAGE_INFO} }} }}"
@@ -212,11 +212,11 @@ class Stump:
 
     # lists (offset pagination, 1-based)
 
-    def list_series(self, page: int, size: int, filter_: dict | None, order: list) -> dict:
+    def list_series(self, page: int, size: int, filter_: dict, order: list) -> dict:
         v = {"filter": filter_, "order": order, "page": page, "size": size}
         return self.gql("SeriesList", Q_SERIES_LIST, v)["series"]
 
-    def list_media(self, page: int, size: int, filter_: dict | None, order: list) -> dict:
+    def list_media(self, page: int, size: int, filter_: dict, order: list) -> dict:
         v = {"filter": filter_, "order": order, "page": page, "size": size}
         return self.gql("MediaList", Q_MEDIA_LIST, v)["media"]
 

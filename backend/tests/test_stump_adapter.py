@@ -167,6 +167,16 @@ def test_exact_variables_of_each_list_call() -> None:
     ]
 
 
+def test_no_condition_sends_an_empty_filter_object() -> None:
+    server, mock = _server()
+    server.list_series(1, 10, "", "created_desc")
+    server.list_books(1, 10, "", "created_desc")
+    assert _ops(mock, "SeriesList")[-1]["variables"]["filter"] == {}
+    assert _ops(mock, "MediaList")[-1]["variables"]["filter"] == {}
+    assert "$filter: SeriesFilterInput!" in _ops(mock, "SeriesList")[-1]["query"]
+    assert "$filter: MediaFilterInput!" in _ops(mock, "MediaList")[-1]["query"]
+
+
 def test_library_listing_passes_the_strict_mock() -> None:
     server, _ = _server()
     sl = server.list_series(1, 10, "", "created_desc", library_id="L1")
