@@ -288,7 +288,7 @@
   function measureCaption() {
     const node = el?.querySelector(".vcell .title") ?? null;
     if (node !== capNode) {
-      capRo?.unobserve(capNode as Element);
+      if (capNode) capRo?.unobserve(capNode);
       capNode = node;
       if (node) capRo?.observe(node);
     }
