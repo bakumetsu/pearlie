@@ -201,4 +201,62 @@ describe("createProgress", () => {
 
     expect(save).toHaveBeenCalledTimes(3);
   });
+  it("flushAsync waits for the save before it resolves", async () => {
+    let done = false;
+    save.mockImplementation(
+      () => new Promise<void>((r) => setTimeout(() => { done = true; r(); }, 500)),
+    );
+    const api = createProgress(save);
+    api.set("book1", 7);
+    const p = api.flushAsync();
+    expect(save).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(499);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await p;
+    expect(done).toBe(true);
+    api.flush();
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it("flushAsync waits for a save that is already in flight", async () => {
+    let done = false;
+    save.mockImplementation(
+      () => new Promise<void>((r) => setTimeout(() => { done = true; r(); }, 300)),
+    );
+    const api = createProgress(save);
+    api.set("book1", 7);
+    vi.advanceTimersByTime(800);
+    const p = api.flushAsync();
+    await vi.advanceTimersByTimeAsync(300);
+    await p;
+    expect(done).toBe(true);
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it("flushAsync gives up after the cap and never rejects", async () => {
+    save.mockImplementation(() => new Promise<void>(() => {}));
+    const api = createProgress(save);
+    api.set("book1", 7);
+    const p = api.flushAsync(2000);
+    await vi.advanceTimersByTimeAsync(2000);
+    await expect(p).resolves.toBeUndefined();
+  });
+
+  it("flushAsync resolves at once when nothing is pending", async () => {
+    const api = createProgress(save);
+    await expect(api.flushAsync()).resolves.toBeUndefined();
+    expect(save).not.toHaveBeenCalled();
+  });
+  it("three rejected saves in a row fire onFailing; flushAsync still never rejects", async () => {
+    save.mockRejectedValue(new Error("down"));
+    const onFailing = vi.fn();
+    const api = createProgress(save, 800, onFailing);
+    for (let n = 1; n <= 3; n++) {
+      api.set("book1", n);
+      await expect(api.flushAsync()).resolves.toBeUndefined();
+    }
+    expect(save).toHaveBeenCalledTimes(3);
+    expect(onFailing).toHaveBeenCalledTimes(1);
+  });
 });

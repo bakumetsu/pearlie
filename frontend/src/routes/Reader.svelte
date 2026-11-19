@@ -229,9 +229,9 @@
 		}
 	}
 
-	function openBook(b: LibraryItem) {
+	async function openBook(b: LibraryItem) {
 		if (b.id === bookId) { popover = null; return; }
-		progress.flush();
+		await progress.flushAsync();
 		const start = bookStart(b);
 		router.navigate("/read/" + encodeURIComponent(b.id) + "?p=" + start + "&series=" + (seriesId ?? ""), { replace: true });
 		show(b.title);
@@ -241,7 +241,9 @@
 		if (nextBook) openBook(nextBook);
 	}
 
-	function back() {
+	// Leave only after the save landed (capped), so the book view reads the new progress.
+	async function back() {
+		await progress.flushAsync();
 		if (router.canGoBack()) {
 			history.back();
 			return;

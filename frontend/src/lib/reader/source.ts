@@ -16,7 +16,7 @@ export interface ReaderSource {
   kind: "komga" | "web";
   key: string;
   load(): Promise<ReaderLoad>;
-  saveProgress(page: number, count: number, opts?: { keepalive?: boolean }): void;
+  saveProgress(page: number, count: number, opts?: { keepalive?: boolean }): void | Promise<unknown>;
   backTarget(): string;
 }
 
@@ -51,7 +51,7 @@ export function komgaSource(api: Api, bookId: string, query: URLSearchParams): R
       };
     },
     saveProgress(page, _count, opts) {
-      void api.saveProgress(bookId, page, undefined, opts).catch(() => {});
+      return api.saveProgress(bookId, page, undefined, opts);
     },
     backTarget() {
       return seriesId ? "/item/series/" + encodeURIComponent(seriesId) : "/item/books/" + encodeURIComponent(bookId);

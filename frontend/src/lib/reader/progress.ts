@@ -7,6 +7,7 @@ export function createProgress(
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let failCount = 0;
 	let failingFired = false;
+	const inflight = new Set<Promise<unknown>>();
 
 	function countFailure(): void {
 		failCount++;
@@ -26,7 +27,7 @@ export function createProgress(
 			countFailure();
 			return;
 		}
-		result
+		const tracked = Promise.resolve(result)
 			.then(
 				() => {
 					failCount = 0;
@@ -36,6 +37,8 @@ export function createProgress(
 				},
 			)
 			.catch(() => {});
+		inflight.add(tracked);
+		void tracked.finally(() => inflight.delete(tracked));
 	}
 
 	function clearTimer(): void {
@@ -72,6 +75,17 @@ export function createProgress(
 		},
 		flush(keepalive = false): void {
 			performFlush(keepalive);
+		},
+		// Send the pending page and wait for every save in flight, at most maxMs; never rejects.
+		async flushAsync(maxMs = 2000): Promise<void> {
+			performFlush();
+			if (inflight.size === 0) return;
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const cap = new Promise<void>((resolve) => {
+				timer = setTimeout(resolve, maxMs);
+			});
+			await Promise.race([Promise.all([...inflight]).then(() => undefined), cap]);
+			clearTimeout(timer);
 		},
 		cancel(): void {
 			clearTimer();
