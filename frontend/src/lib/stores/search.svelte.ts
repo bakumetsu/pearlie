@@ -18,6 +18,8 @@ export function getLastDiscoverQuery(): string {
 const ANSWER_TTL_MS = 5 * 60 * 1000;
 const ANSWER_MAX = 50;
 const LIBRARY_IDS = new Set(["stash_images", "stash_videos", "stump_books"]);
+// Plain Map on purpose: nothing renders from it, so it needs no reactivity.
+// eslint-disable-next-line svelte/prefer-svelte-reactivity
 const answers = new Map<string, { at: number; res: SearchResult }>();
 type SearchParams = Parameters<Api["search"]>[0];
 type SearchResult = Awaited<ReturnType<Api["search"]>>;
