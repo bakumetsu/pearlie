@@ -45,6 +45,18 @@ export function rangeText(opts: {
   return text;
 }
 
+export function queueText(opts: {
+  page: number;
+  perPage: number;
+  index: number;
+  total: number | null;
+}): string {
+  const { page, perPage, index, total } = opts;
+  if (index < 0) return "";
+  const pos = (page - 1) * perPage + index + 1;
+  return total === null ? `${pos}` : `${pos} / ${total}`;
+}
+
 export type PagerForm = "full" | "reduced";
 
 export function pagerForm(pages: number | null): PagerForm {

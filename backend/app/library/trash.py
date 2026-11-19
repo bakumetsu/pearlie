@@ -13,6 +13,7 @@ import logging
 import os
 import shutil
 import threading
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -90,11 +91,15 @@ def _suffixed(path: Path) -> Path:
         n += 1
 
 
+OWNED_TTL = 2.0  # seconds a stump_owned_ids answer stays valid
+
+
 class TrashStore:
     def __init__(self, db_path: Path, trash_dir: Path) -> None:
         self._db = db_path
         self.default_dir = trash_dir
         self._lock = threading.Lock()
+        self._owned_cache: tuple[float, set[str]] | None = None
 
     @property
     def dir(self) -> Path:
@@ -196,6 +201,7 @@ class TrashStore:
             conn.commit()
         finally:
             conn.close()
+        self._owned_cache = None
 
     def get(self, token: str) -> dict | None:
         return self._row(token)
@@ -231,8 +237,11 @@ class TrashStore:
 
         A `restoring` row is left out on purpose: its item must not be purged under it.
         A trashed series also owns its book ids, and a book that emptied its series owns
-        that series id.
+        that series id. The answer is cached for a short time; every trash write drops it.
         """
+        cached = self._owned_cache
+        if cached is not None and time.monotonic() - cached[0] < OWNED_TTL:
+            return set(cached[1])
         conn = connect(self._db)
         try:
             rows = conn.execute(
@@ -252,7 +261,8 @@ class TrashStore:
             ids.update(str(i) for i in meta.get("book_ids") or [])
             if meta.get("series_gone_id"):
                 ids.add(str(meta["series_gone_id"]))
-        return ids
+        self._owned_cache = (time.monotonic(), ids)
+        return set(ids)
 
     def stump_covering(self, book_id: str) -> dict | None:
         """A live Stump trash row that holds the book: the book itself or its series."""
@@ -341,6 +351,7 @@ class TrashStore:
             conn.commit()
         finally:
             conn.close()
+        self._owned_cache = None
         try:
             folder.mkdir()
             (folder / SIDECAR).write_text(
@@ -487,8 +498,8 @@ class TrashStore:
             )
             if row["source"] and row["post_id"]:
                 conn.execute(
-                    "DELETE FROM saved_items WHERE source = ? AND post_id = ?",
-                    (row["source"], row["post_id"]),
+                    "DELETE FROM saved_items WHERE source = ? AND post_id = ? AND target = ?",
+                    (row["source"], row["post_id"], row["target"]),
                 )
             if row["target"] in BOOK_TARGETS:
                 try:
@@ -503,6 +514,7 @@ class TrashStore:
             conn.commit()
         finally:
             conn.close()
+        self._owned_cache = None
         return True
 
     def delete_for_good(self, token: str) -> None:
