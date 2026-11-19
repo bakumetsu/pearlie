@@ -41,6 +41,42 @@ def _eq(filter_: dict | None, field: str) -> str | None:
     return None
 
 
+# What Stump v0.1.13 accepts (checked against its web client): the oneof order entries and the
+# filter fields Pearlie sends. A media filter has no `libraryId`: it goes through `series`.
+_FILTER_FIELDS = {
+    "SeriesList": {"libraryId", "path", "status", "name", "metadata", "_and", "_or"},
+    "MediaList": {"seriesId", "series", "path", "status", "name", "metadata", "_and", "_or"},
+}
+_ORDER_KEY = {"SeriesList": "series", "MediaList": "media"}
+
+
+def _shape_error(op: str, v: dict) -> str | None:
+    """The message Stump gives for an input it refuses; `None` when the shape is valid."""
+    for i, entry in enumerate(v["order"] or []):
+        ok = isinstance(entry, dict) and list(entry) == [_ORDER_KEY[op]]
+        if not ok or set(entry[_ORDER_KEY[op]]) != {"field", "direction"}:
+            return f'Invalid value for argument "orderBy.{i}", Oneof input objects requires'
+
+    def bad(f: object) -> bool:
+        if f is None:
+            return False
+        if not isinstance(f, dict) or not set(f) <= _FILTER_FIELDS[op]:
+            return True
+        return any(bad(x) for k in ("_and", "_or") for x in f.get(k, []))
+
+    if bad(v["filter"]):
+        return 'Invalid value for argument "filter", expected type "FilterInput"'
+    return None
+
+
+def _series_library(filter_: dict | None) -> str | None:
+    """The library of a media filter's `series: {libraryId: {eq}}`."""
+    for p in (filter_ or {}).get("_and") or [filter_ or {}]:
+        if "series" in p:
+            return p["series"]["libraryId"]["eq"]
+    return None
+
+
 class MockStump:
     def __init__(self, libs: list, series: list, books: list, page: bytes | None = None) -> None:
         self.libs, self.series, self.books = libs, series, books
@@ -73,6 +109,8 @@ class MockStump:
         if op == "Libraries":
             return self._ok({"libraries": self._conn(self.libs, v["page"], 100)})
         if op in ("SeriesList", "MediaList"):
+            if (err := _shape_error(op, v)) is not None:
+                return httpx.Response(200, json={"errors": [{"message": err}]})
             rows = self._filtered(self.series if op == "SeriesList" else self.books, v["filter"])
             if _name_asc(v["order"]):
                 rows = sorted(rows, key=lambda r: r["name"])
@@ -146,8 +184,10 @@ class MockStump:
             rows = [r for r in rows if r.get("status") == "MISSING"]
         else:
             rows = [r for r in rows if r.get("status") != "MISSING"]
-        for field in ("libraryId", "seriesId"):
-            want = _eq(filter_, field)
+        for field, want in (
+            ("libraryId", _eq(filter_, "libraryId") or _series_library(filter_)),
+            ("seriesId", _eq(filter_, "seriesId")),
+        ):
             if want:
                 rows = [r for r in rows if r.get(field) == want]
         path = _eq(filter_, "path")
@@ -168,7 +208,7 @@ class MockStump:
 
 
 def _name_asc(order: list) -> bool:
-    return bool(order) and order[0]["field"] == "NAME"
+    return bool(order) and next(iter(order[0].values()))["field"] == "NAME"
 
 
 def lib() -> dict:
