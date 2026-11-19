@@ -319,7 +319,7 @@ class StumpBookServer:
         """Items of the library Stump shows as MISSING (their file is gone)."""
         # SeriesFilterInput has no `status` field (Stump rejects it): series are filtered here
         filt = {"_and": [_in_library(library_id), {"status": {"eq": _MISSING}}]}
-        series_filt = _eq("libraryId", library_id)
+        series_filt = _eq("libraryId", library_id) or {}
         out: list[BookDTO | SeriesDTO] = []
         for page in range(1, SERIES_BOOKS_PAGES + 1):
             if kind == "books":
