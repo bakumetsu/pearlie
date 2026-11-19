@@ -233,7 +233,7 @@
           },
           signal,
         );
-        notice = r.notice?.message ?? null;
+        if (!signal.aborted) notice = r.notice?.message ?? null;
         return { items: r.items, total: r.total ?? null, next_page: r.next_page ?? null, page: r.page ?? null, pages: r.pages ?? null, page_size: r.page_size ?? null, stats: r.stats ?? null };
       };
       untrack(() => { grid.setAccumulate(inf); grid.open(listKey, loader, pg); });
@@ -246,7 +246,7 @@
         // A source failure has no usable page: let the grid show its error and Retry. filter_dropped
         // still comes with results, so it rides along as a notice.
         if (err && err.code !== "filter_dropped") throw new Error(err.message);
-        notice = [err?.message, s?.notice?.message].filter(Boolean).join(". ") || null;
+        if (!signal.aborted) notice = [err?.message, s?.notice?.message].filter(Boolean).join(". ") || null;
         return {
           items: s?.items ?? [],
           total: s?.total ?? null,
