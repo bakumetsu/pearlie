@@ -385,3 +385,35 @@ def test_error_text_holds_no_key() -> None:
     with pytest.raises(BookServerError) as err:
         server.get_book("nope")
     assert KEY not in repr(err.value) and KEY not in err.value.message
+
+
+LOCKED = "Query Error: error returned from database: (code: 5) database is locked"
+
+
+def _progress_calls(mock: stump_mock.MockStump) -> int:
+    return len(_ops(mock, "UpdateMediaProgress"))
+
+
+def test_progress_retries_when_database_is_locked_once() -> None:
+    server, mock = _server()
+    mock.progress_errors = [LOCKED]
+    server.set_progress("b1", 3, False)
+    assert _progress_calls(mock) == 2
+    assert server.get_book("b1").read_page == 3
+
+
+def test_progress_fails_after_three_locked_tries() -> None:
+    server, mock = _server()
+    mock.progress_errors = [LOCKED, LOCKED, LOCKED]
+    with pytest.raises(BookServerError) as err:
+        server.set_progress("b1", 3, False)
+    assert err.value.code == "upstream_error"
+    assert _progress_calls(mock) == 3
+
+
+def test_progress_does_not_retry_other_errors() -> None:
+    server, mock = _server()
+    mock.progress_errors = ["Something else broke"]
+    with pytest.raises(BookServerError):
+        server.set_progress("b1", 3, False)
+    assert _progress_calls(mock) == 1
