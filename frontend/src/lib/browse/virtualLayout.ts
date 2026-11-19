@@ -32,6 +32,8 @@ export interface LayoutExtra {
 export const WALL_GAP = 2;
 export const MASONRY_GAP = 8;
 export const GRID_GAP = 16;
+// Keep equal to min-height of .tile.list in Tile.svelte.
+export const LIST_MIN_H = 56;
 
 const DEFAULTS: LayoutOptions = { lineH: 18, pad: 8, listPad: 16 };
 
@@ -245,10 +247,11 @@ export class VirtualLayout {
     return { x: c * (this.cw + MASONRY_GAP), y: this.itemTop[i], w: this.cw, h: this.itemH(i) };
   }
 
-  // Grid: picture plus caption. List: the larger of thumb and caption, plus the 1 px border.
+  // Grid: picture plus caption. List: the larger of thumb and caption, plus the tile padding
+  // (listPad, Tile.svelte .tile.list) and the 1 px border; never below the tile's min-height.
   private cellH(i: number): number {
     const { lineH, pad, listPad } = this.opts;
-    if (this.mode === "list") return Math.max(this.size, this.lines[i] * lineH + listPad) + 1;
+    if (this.mode === "list") return Math.max(LIST_MIN_H, Math.max(this.size, this.lines[i] * lineH) + listPad) + 1;
     return this.cw / this.aspects[i] + (this.lines[i] > 0 ? this.lines[i] * lineH + pad : 0);
   }
 
