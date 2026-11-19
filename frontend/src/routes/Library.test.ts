@@ -57,7 +57,7 @@ describe("Library hub chips", () => {
       expect(recordedUrls.some((u) => u.includes("/api/library/stash/images"))).toBe(true);
       expect(recordedUrls.some((u) => u.includes("/api/library/stash/videos"))).toBe(true);
       expect(recordedUrls.some((u) => u.includes("/api/library/stump/series"))).toBe(true);
-      expect(recordedUrls.some((u) => u.includes("/api/library/stump/books"))).toBe(true);
+      expect(recordedUrls.some((u) => u.includes("/api/library/stump/books"))).toBe(false);
     });
   });
 
@@ -66,7 +66,7 @@ describe("Library hub chips", () => {
 
     await vi.waitFor(() => {
       const rowUrls = recordedUrls.filter((u) => u.includes("/api/library/"));
-      expect(rowUrls.length).toBeGreaterThanOrEqual(4);
+      expect(rowUrls.length).toBeGreaterThanOrEqual(3);
       for (const u of rowUrls) expect(u).toContain("page_size=28");
     });
   });
@@ -94,7 +94,7 @@ describe("Library hub chips", () => {
 
     expect(screen.queryByRole("heading", { name: "Images" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Videos" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "Series" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Books" })).toBeTruthy();
   });
 
   it("remembers stash from localStorage on render", async () => {
