@@ -25,6 +25,8 @@ IMG_HOST = "https://i.nhentai.net"
 THUMB_HOST = "https://t.nhentai.net"
 # Tag id -> (type, name) lives this long; rows carry ids only, galleries carry both.
 TAG_TTL = 24 * 3600.0
+MAX_QUEUE_WAIT = 8.0  # longest a call waits for its slot before it fails with rate_limited
+SLOW_CALL_MS = 3000
 _log = logging.getLogger(__name__)
 
 
@@ -116,7 +118,9 @@ class NHentai:
         page_size: int = 25,
         credentials: Callable[[], dict[str, str]] | None = None,
     ) -> None:
-        self._client = client or install_http_hooks(httpx.Client(timeout=15.0), self.id)
+        self._client = client or install_http_hooks(
+            httpx.Client(timeout=httpx.Timeout(15.0, connect=5.0)), self.id
+        )
         self._throttle = throttle or Throttle(DEFAULT_PACE[self.id], site=self.id)
         self._base_url = (base_url or self.default_base_url).rstrip("/")
         self.file_hosts = (API_HOST, "i.nhentai.net", "t.nhentai.net")
@@ -162,13 +166,32 @@ class NHentai:
 
     def _get(self, path: str, params: dict[str, str | int] | None = None) -> dict:
         """GET one API path (Cookie goes to the API host only) and return the JSON object."""
-        self._throttle.wait()
+        delay = self._throttle.reserve_within(MAX_QUEUE_WAIT)
+        if delay is None:
+            # A pause (429 Retry-After) is running: fail fast so the UI shows Retry,
+            # and take no slot so queued calls do not push the wait further out.
+            _log.warning(
+                "nhentai: %s refused, back-off pause is longer than %.0fs", path, MAX_QUEUE_WAIT
+            )
+            raise SourceError("rate_limited", "nhentai asked to slow down; retry in a minute", 429)
+        if delay > 0:
+            self._throttle.nap(delay)
+        started = time.monotonic()
         try:
             resp = self._client.get(
                 self._base_url + path, params=params, headers=self._auth().headers
             )
-        except httpx.HTTPError:
+        except httpx.HTTPError as e:
+            _log.warning(
+                "nhentai: %s failed (%s) after %d ms",
+                path,
+                type(e).__name__,
+                (time.monotonic() - started) * 1000,
+            )
             raise SourceError("upstream_error", "nhentai is unreachable") from None
+        elapsed_ms = (time.monotonic() - started) * 1000
+        if elapsed_ms > SLOW_CALL_MS or resp.status_code >= 400:
+            _log.warning("nhentai: %s status=%d in %d ms", path, resp.status_code, elapsed_ms)
         self._throttle.report(resp.status_code, _retry_after(resp))
         status = resp.status_code
         if status == 404:
