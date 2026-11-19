@@ -93,8 +93,10 @@ def book_dto(d: dict) -> BookDTO:
         created_at=d.get("createdAt") or "",
         page_count=int(d.get("pages") or 0),
         read_page=rp.get("page") if rp else None,
-        read_done=bool(rp and rp.get("isCompleted")),
-        deleted=bool(d.get("deletedAt")) or d.get("status") == _MISSING,
+        read_done=any(
+            h.get("completedAt") for h in d.get("readHistory") or [] if isinstance(h, dict)
+        ),
+        deleted=d.get("status") == _MISSING,
         summary=meta.get("summary") or "",
         tags=_tags(d),
         links=_links(meta),
@@ -114,8 +116,8 @@ def series_dto(d: dict) -> SeriesDTO:
         created_at=d.get("createdAt") or "",
         book_count=int(d.get("mediaCount") or 0),
         read_count=int(d.get("readCount") or 0),
-        deleted=bool(d.get("deletedAt")) or d.get("status") == _MISSING,
-        oneshot=bool(d.get("isOneshot")),
+        deleted=d.get("status") == _MISSING,
+        oneshot=bool(d.get("oneshotBook")),
         summary=meta.get("summary") or "",
         tags=_tags(d),
         links=_links(meta),

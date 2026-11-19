@@ -90,8 +90,9 @@ class MockStump:
             return self._ok({"scanLibrary": True})
         if op == "LastScan":
             hit = next((r for r in self.libs if r["id"] == v["id"]), None)
-            last = {"jobId": self.last_job} if self.last_job else None
-            return self._ok({"libraryById": {"lastScan": last} if hit else None})
+            hist = [{"jobId": self.last_job, "timestamp": "2026-01-01T00:00:00Z"}]
+            hist = hist if self.last_job else []
+            return self._ok({"libraryById": {"scanHistory": hist} if hit else None})
         if op == "Job":
             status = self.job_status.pop(0) if len(self.job_status) > 1 else self.job_status[0]
             return self._ok({"jobById": {"id": v["id"], "status": status}})
@@ -126,11 +127,12 @@ class MockStump:
             return self._ok({m[1]: {"__typename": "X"}})
         if op == "UpdateMediaProgress":
             page = v["input"]["paged"]["page"]
-            self._find(self.books, v["id"])["readProgress"] = {"page": page, "isCompleted": False}
+            self._find(self.books, v["id"])["readProgress"] = {"page": page}
             return done
         if op == "FinishMediaProgress":
-            rp = self._find(self.books, v["id"]).get("readProgress") or {"page": 0}
-            self._find(self.books, v["id"])["readProgress"] = {**rp, "isCompleted": True}
+            self._find(self.books, v["id"])["readHistory"] = [
+                {"completedAt": "2026-01-02T00:00:00Z"}
+            ]
             return done
         return None
 
@@ -143,7 +145,7 @@ class MockStump:
         if _eq(filter_, "status") == "MISSING":
             rows = [r for r in rows if r.get("status") == "MISSING"]
         else:
-            rows = [r for r in rows if not r.get("deletedAt") and r.get("status") != "MISSING"]
+            rows = [r for r in rows if r.get("status") != "MISSING"]
         for field in ("libraryId", "seriesId"):
             want = _eq(filter_, field)
             if want:
@@ -183,8 +185,8 @@ def book(i: int, series: str = "s1", gone: bool = False) -> dict:
         "pages": 5,
         "status": "MISSING" if gone else "READY",
         "createdAt": f"2026-01-0{i}T00:00:00Z",
-        "deletedAt": None,
         "readProgress": None,
+        "readHistory": [],
         "metadata": {"title": f"Book {i}", "summary": "", "writers": [], "links": []},
         "tags": [{"name": "x"}],
     }
@@ -198,8 +200,7 @@ def series() -> dict:
         "path": "/data/s",
         "status": "READY",
         "createdAt": "2026-01-01T00:00:00Z",
-        "deletedAt": None,
-        "isOneshot": False,
+        "oneshotBook": None,
         "mediaCount": 3,
         "readCount": 0,
         "metadata": {"title": "Series", "summary": "", "links": []},

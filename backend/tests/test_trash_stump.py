@@ -100,7 +100,7 @@ def setup_lib(tmp_path):
     f1.write_bytes(b"1")
     f2.write_bytes(b"2")
     m = FsStump(lib, folder)
-    m.add_file(1, f1, progress={"page": 4, "isCompleted": False})
+    m.add_file(1, f1, progress={"page": 4})
     m.add_file(2, f2)
     return folder, f1, f2, m
 
@@ -162,7 +162,7 @@ def test_restore_after_clean_remaps_id_and_restores_tags_progress(tmp_path):
     assert f1.exists()
     new = next(b for b in m.books if b["id"] == new_id)
     assert [t["name"] for t in new["tags"]] == ["x"]
-    assert new["readProgress"] == {"page": 4, "isCompleted": False}
+    assert new["readProgress"] == {"page": 4}
     assert [(op, i) for op, i, _f in m.locks] == [("setMediaLockedFields", new_id)]
     assert "TAGS" in m.locks[0][2]
     assert c.get("/api/trash").json()["items"] == []

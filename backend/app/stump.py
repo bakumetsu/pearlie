@@ -6,13 +6,16 @@ Pinned to Stump v0.1.13 (`docs/DESIGN.md`). Stump answers GraphQL errors with HT
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 
 import httpx
 
 from app.bookserver.base import BookServerError
-from app.logs import install_http_hooks
+from app.logs import install_http_hooks, scrub
+
+log = logging.getLogger(__name__)
 
 PAGE_SIZE = 100
 SERIES_BOOKS_PAGES = 100  # 100 x 100 = the 10,000 book cap of the series view
@@ -25,12 +28,12 @@ _JOB_FAILED = ("FAILED", "CANCELLED")
 # Field lists in one place: the schema is "stable but subject to change" upstream.
 _PAGE_INFO = "pageInfo { ... on OffsetPaginationInfo { totalPages totalItems } }"
 _BOOK_FIELDS = (
-    "id name path pages status createdAt deletedAt seriesId libraryId "
+    "id name path pages status createdAt seriesId libraryId "
     "metadata { title summary writers links } tags { name } "
-    "readProgress { page isCompleted }"
+    "readProgress { page } readHistory { completedAt }"
 )
 _SERIES_FIELDS = (
-    "id name path status createdAt deletedAt libraryId isOneshot mediaCount readCount "
+    "id name path status createdAt libraryId mediaCount readCount oneshotBook { id } "
     "metadata { title summary links } tags { name }"
 )
 
@@ -59,7 +62,9 @@ Q_MEDIA_BY_PATH = (
 Q_JOB = "query Job($id: ID!) { jobById(id: $id) { id status } }"
 
 M_SCAN_LIBRARY = "mutation ScanLibrary($id: ID!) { scanLibrary(id: $id) }"
-Q_LAST_SCAN = "query LastScan($id: ID!) { libraryById(id: $id) { lastScan { jobId } } }"
+Q_LAST_SCAN = (
+    "query LastScan($id: ID!) { libraryById(id: $id) { scanHistory { jobId timestamp } } }"
+)
 
 # Write operations. Return type not verified live (T-330): the selection set of each mutation is
 # set here, one line each. "" = scalar return (no selection); `{ __typename }` is valid for any
@@ -110,6 +115,7 @@ M_FINISH_PROGRESS = (
 LOCKABLE = ("TITLE", "SUMMARY", "LINKS", "WRITERS", "TAGS")
 
 _NOT_FOUND_WORDS = ("not found", "notfound", "no such")
+_LOG_MAX = 500  # chars of the error summary in the log line
 
 
 class StumpError(BookServerError):
@@ -126,6 +132,18 @@ def _map_gql_errors(errors: list) -> StumpError:
     if any(w in text.lower() for w in _NOT_FOUND_WORDS):
         return StumpError("not_found", "Not found", 404)
     return StumpError("upstream_error", "Stump returned an error", 502)
+
+
+def _log_gql_errors(operation: str, errors: list) -> None:
+    """One WARNING per failed operation: messages and paths, scrubbed and truncated."""
+    parts: list[str] = []
+    for e in errors:
+        if isinstance(e, dict):
+            path = ".".join(str(p) for p in e.get("path") or [])
+            parts.append(f"{e.get('message', '')} [{path}]" if path else str(e.get("message", "")))
+        else:
+            parts.append(str(e))
+    log.warning("Stump %s failed: %s", operation, scrub(" | ".join(parts))[:_LOG_MAX])
 
 
 class Stump:
@@ -174,6 +192,7 @@ class Stump:
         if not isinstance(reply, dict):
             raise StumpError("upstream_error", "Stump sent an invalid answer", 502)
         if reply.get("errors"):
+            _log_gql_errors(operation, reply["errors"])
             raise _map_gql_errors(reply["errors"])
         data = reply.get("data")
         if not isinstance(data, dict):
@@ -234,12 +253,15 @@ class Stump:
 
     def scan_library(self, library_id: str, timeout: float = JOB_TIMEOUT_S) -> None:
         """Queue one library scan and wait for its job. `scanLibrary` returns only a Boolean,
-        so the job id comes from `libraryById.lastScan`."""
+        so the job id comes from `libraryById.scanHistory` (the newest entry)."""
         self.gql("ScanLibrary", M_SCAN_LIBRARY, {"id": library_id})
         lib = self.gql("LastScan", Q_LAST_SCAN, {"id": library_id}).get("libraryById")
         if not lib:
             raise StumpError("not_found", "Not found", 404)
-        job_id = (lib.get("lastScan") or {}).get("jobId")
+        last = max(
+            lib.get("scanHistory") or [], key=lambda r: str(r.get("timestamp") or ""), default={}
+        )
+        job_id = last.get("jobId")
         if job_id:
             self.wait_job(str(job_id), timeout)
 
