@@ -65,7 +65,7 @@ def test_list_names_and_key_state(tmp_path: Path) -> None:
     data = r.json()
     assert data["can_store"] is True
     names = [x["name"] for x in data["connections"]]
-    assert names == ["stash", "stump", "stump", "danbooru", "gelbooru", "rule34", "nhentai"]
+    assert names == ["stash", "stump", "danbooru", "gelbooru", "rule34", "nhentai"]
     for conn in data["connections"]:
         assert conn["key"] == "missing"
 
@@ -834,7 +834,7 @@ def test_save_then_use_without_restart(tmp_path: Path) -> None:
 
     assert c.get("/api/library/stump/series").status_code == 503
     _seed(c, "stump")
-    assert stump_target._c is app.state.stump  # pyright: ignore[reportAttributeAccessIssue]
+    assert stump_target._stump is app.state.stump  # pyright: ignore[reportAttributeAccessIssue]
     assert c.get("/api/library/stump/series").status_code != 503
 
 

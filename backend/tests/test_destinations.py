@@ -326,21 +326,32 @@ def test_danbooru_source() -> None:
 def test_api_stump_site_validates_against_stump_roots(tmp_path: Path) -> None:
     from fastapi.testclient import TestClient
 
+    from app.bookserver.stump import StumpBookServer
     from app.config import Settings
     from app.main import create_app
 
     class FakeStump:
         def list_libraries(self) -> list[dict]:
-            return [{"id": "L1", "root": "/mnt/stump/doujin", "oneshotsDirectory": "_oneshots"}]
+            return [
+                {
+                    "id": "L1",
+                    "name": "Lib",
+                    "path": "/mnt/stump/doujin",
+                    "config": {"oneshotsDirectory": "_oneshots"},
+                }
+            ]
 
     cfg = Settings(
         mode="real",
         db_path=tmp_path / "p.db",
         static_dir=tmp_path / "nostatic",
+        stump_url="http://stump.local:10801",
         _env_file=None,  # pyright: ignore[reportCallIssue]
     )
     app = create_app(cfg)
     app.state.stump = FakeStump()
+    app.state.books = StumpBookServer(FakeStump(), None)  # pyright: ignore[reportArgumentType]
+    app.state.stump_conn = ("http://stump.local:10801", "")
     with TestClient(app) as c:
         body = c.get("/api/destinations").json()
         assert body["stump_oneshots_dir"] == "_oneshots"
