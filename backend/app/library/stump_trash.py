@@ -124,6 +124,8 @@ class StumpTrash:
         def forget() -> None:
             # the server is checked reachable; the scan itself runs debounced.
             self._c.list_libraries()
+            if meta.get("series_gone_id"):
+                self._remove_empty_series_dir(local.parent, self._series_local(dto))
             self._queue(library_id, kind, id)
 
         try:
@@ -132,6 +134,32 @@ class StumpTrash:
             raise TrashError(
                 502, "upstream_error", f"{self.label} did not accept the delete"
             ) from None
+
+    def _series_local(self, dto: BookDTO | SeriesDTO) -> Path | None:
+        """The local folder of the book's series, or None when it cannot be told."""
+        if not isinstance(dto, BookDTO):
+            return None
+        try:
+            return self._to_local(self._c.get_series(dto.series_id).path)
+        except BookServerError:
+            return None
+
+    def _remove_empty_series_dir(self, folder: Path, series_dir: Path | None) -> None:
+        """The last book left: drop the series folder so the scan drops the series.
+
+        Only the series folder itself, only when truly empty (rmdir, no recursion), never a
+        library root or a folder above it.
+        """
+        if series_dir is None or os.path.realpath(folder) != os.path.realpath(series_dir):
+            return
+        try:
+            real = os.path.realpath(folder)
+            roots = self._roots()
+            if real in roots or not any(real.startswith(r + os.sep) for r in roots):
+                return
+            os.rmdir(folder)
+        except (OSError, BookServerError) as e:
+            logger.info("trash stump series folder kept: %s", type(e).__name__)
 
     def _meta(self, kind: str, dto: BookDTO | SeriesDTO) -> dict:
         meta: dict = {
