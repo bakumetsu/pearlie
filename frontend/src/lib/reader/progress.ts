@@ -1,3 +1,25 @@
+// Saves in flight across every reader instance, so a view that opens after the reader closes
+// (browser Back) can wait for the save before it reads the progress.
+const inflight = new Set<Promise<unknown>>();
+
+export function savesPending(): boolean {
+	return inflight.size > 0;
+}
+
+// Wait for every save in flight, at most maxMs; never rejects.
+export async function settleSaves(maxMs = 2000): Promise<void> {
+	if (inflight.size === 0) return;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const cap = new Promise<void>((resolve) => {
+		timer = setTimeout(resolve, maxMs);
+	});
+	const landed = Promise.all([...inflight]).then(() => true);
+	const done = await Promise.race([landed, cap.then(() => false)]);
+	clearTimeout(timer);
+	// A save that hung past the cap is given up, so it cannot delay every later view.
+	if (!done) inflight.clear();
+}
+
 export function createProgress(
 	save: (bookId: string, page: number, opts?: { keepalive?: boolean }) => Promise<unknown>,
 	delayMs = 800,
@@ -7,7 +29,6 @@ export function createProgress(
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let failCount = 0;
 	let failingFired = false;
-	const inflight = new Set<Promise<unknown>>();
 
 	function countFailure(): void {
 		failCount++;
@@ -79,13 +100,7 @@ export function createProgress(
 		// Send the pending page and wait for every save in flight, at most maxMs; never rejects.
 		async flushAsync(maxMs = 2000): Promise<void> {
 			performFlush();
-			if (inflight.size === 0) return;
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			const cap = new Promise<void>((resolve) => {
-				timer = setTimeout(resolve, maxMs);
-			});
-			await Promise.race([Promise.all([...inflight]).then(() => undefined), cap]);
-			clearTimeout(timer);
+			await settleSaves(maxMs);
 		},
 		cancel(): void {
 			clearTimer();
