@@ -127,6 +127,8 @@ describe("queueText", () => {
     expect(queueText({ page: 1, perPage: 100, index: 236, total: 785 })).toBe("237 / 785");
     expect(queueText({ page: 3, perPage: 10, index: 0, total: null })).toBe("21");
     expect(queueText({ page: 1, perPage: 10, index: -1, total: 5 })).toBe("");
+    // infinite scroll: page stays 1 while items accumulate past perPage, so no double count
+    expect(queueText({ page: 1, perPage: 100, index: 150, total: 785 })).toBe("151 / 785");
   });
 });
 

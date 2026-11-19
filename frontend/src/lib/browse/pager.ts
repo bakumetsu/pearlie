@@ -57,7 +57,7 @@ export function queueText(opts: {
   return total === null ? `${pos}` : `${pos} / ${total}`;
 }
 
-export type PagerForm ="full" | "reduced";
+export type PagerForm = "full" | "reduced";
 
 export function pagerForm(pages: number | null): PagerForm {
   return typeof pages === "number" ? "full" : "reduced";

@@ -133,7 +133,7 @@
     })
   );
 
-  const zoomLocked =$derived(view.status === "loading");
+  const zoomLocked = $derived(view.status === "loading");
 
   function toggleZoom() {
     if (deleting || zoomLocked) return;
