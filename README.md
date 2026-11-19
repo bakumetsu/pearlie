@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/img/logo.svg" alt="Pearlie logo" width="96" height="96"></p>
+
 # Pearlie
 
 A self-hosted media hub. Browse your Stash and Stump libraries and booru/nhentai-style

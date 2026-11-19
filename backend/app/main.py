@@ -101,6 +101,17 @@ REAL_ROUTERS: dict[str, APIRouter] = {
 
 logger = logging.getLogger("pearlie")
 
+# Root files of the built frontend (frontend/public) that catch_all serves as themselves.
+ROOT_STATIC_FILES: dict[str, str] = {
+    "favicon.svg": "image/svg+xml",
+    "icon.svg": "image/svg+xml",
+    "apple-touch-icon.png": "image/png",
+    "icon-192.png": "image/png",
+    "icon-512.png": "image/png",
+    "icon-maskable-512.png": "image/png",
+    "manifest.webmanifest": "application/manifest+json",
+}
+
 
 def _with_stored_connections(settings: Settings, store: ConnectionStore) -> Settings:
     stash_url = store.address("stash")
@@ -442,6 +453,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         def catch_all(path: str) -> FileResponse:
             if path.startswith("api/"):
                 raise HTTPException(status_code=404)
+            if path in ROOT_STATIC_FILES:
+                root_file = static_dir / path
+                if root_file.is_file():
+                    return FileResponse(root_file, media_type=ROOT_STATIC_FILES[path])
             return FileResponse(index_html)
 
     return app
