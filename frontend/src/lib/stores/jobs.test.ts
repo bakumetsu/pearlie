@@ -170,6 +170,38 @@ describe("jobs store", () => {
     expect(api.jobs).toHaveBeenCalledTimes(1);
   });
 
+  it("stop during an in-flight refresh does not re-arm the timer", async () => {
+    const api = makeApi();
+    let resolve!: (v: { items: Job[] }) => void;
+    api.jobs.mockReturnValue(new Promise((r) => { resolve = r; }));
+    const store = createJobs(api, { visible: () => true });
+
+    store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    store.stop();
+    resolve({ items: [mk({ state: "running" })] });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(api.jobs).toHaveBeenCalledTimes(1);
+  });
+
+  it("visibility change leaves a single loop running", async () => {
+    const api = makeApi();
+    api.jobs.mockResolvedValue({ items: [mk({ state: "running" })] });
+    const store = createJobs(api, { visible: () => true });
+
+    store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    document.dispatchEvent(new Event("visibilitychange"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.jobs).toHaveBeenCalledTimes(3);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(api.jobs).toHaveBeenCalledTimes(4);
+    store.stop();
+  });
+
   it("badge counts running + queued", async () => {
     const api = makeApi();
     api.jobs.mockResolvedValue({
