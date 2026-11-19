@@ -161,12 +161,19 @@ class MockStump:
             rows = self.books if op == "UpdateMediaMetadata" else self.series
             self._find(rows, v["id"])["metadata"].update(v["input"])
             return self._ok({"update": {"__typename": "X"}})
-        if op == "Lock":
-            m = re.search(r"(set\w+LockedFields)\(\w+: \$id, fields: \[([A-Z, ]+)\]", query)
-            if m is None:
-                return None
-            self.locks.append((m[1], v["id"], m[2].split(", ")))
-            return self._ok({m[1]: {"__typename": "X"}})
+        if op in ("SetMediaLockedFields", "SetSeriesLockedFields"):
+            # the shape of Stump's own web client (0.1.13): mediaId/seriesId + lockedFields
+            field = (
+                "setMediaLockedFields" if op == "SetMediaLockedFields" else "setSeriesLockedFields"
+            )
+            arg = "mediaId" if op == "SetMediaLockedFields" else "seriesId"
+            want = f"{field}({arg}: ${arg}, lockedFields: $lockedFields) {{ id }}"
+            if want not in query or set(v) != {arg, "lockedFields"}:
+                return httpx.Response(
+                    200, json={"errors": [{"message": 'Unknown argument "fields"'}]}
+                )
+            self.locks.append((field, v[arg], list(v["lockedFields"])))
+            return self._ok({field: {"id": v[arg]}})
         if op == "UpdateMediaProgress":
             if self.progress_errors:
                 msg = self.progress_errors.pop(0)
@@ -175,10 +182,13 @@ class MockStump:
             self._find(self.books, v["id"])["readProgress"] = {"page": page}
             return done
         if op == "FinishMediaProgress":
+            if "{ __typename }" in query:  # Stump returns a scalar: a selection is an error
+                msg = 'Field "finishMediaProgress" must not have a selection'
+                return httpx.Response(200, json={"errors": [{"message": msg}]})
             self._find(self.books, v["id"])["readHistory"] = [
                 {"completedAt": "2026-01-02T00:00:00Z"}
             ]
-            return done
+            return self._ok({"finishMediaProgress": True})
         return None
 
     @staticmethod
