@@ -51,7 +51,7 @@ export function komgaSource(api: Api, bookId: string, query: URLSearchParams): R
       };
     },
     saveProgress(page, _count, opts) {
-      return api.saveProgress(bookId, page, undefined, opts).catch(() => {});
+      return api.saveProgress(bookId, page, undefined, opts);
     },
     backTarget() {
       return seriesId ? "/item/series/" + encodeURIComponent(seriesId) : "/item/books/" + encodeURIComponent(bookId);

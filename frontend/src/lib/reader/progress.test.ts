@@ -248,4 +248,15 @@ describe("createProgress", () => {
     await expect(api.flushAsync()).resolves.toBeUndefined();
     expect(save).not.toHaveBeenCalled();
   });
+  it("three rejected saves in a row fire onFailing; flushAsync still never rejects", async () => {
+    save.mockRejectedValue(new Error("down"));
+    const onFailing = vi.fn();
+    const api = createProgress(save, 800, onFailing);
+    for (let n = 1; n <= 3; n++) {
+      api.set("book1", n);
+      await expect(api.flushAsync()).resolves.toBeUndefined();
+    }
+    expect(save).toHaveBeenCalledTimes(3);
+    expect(onFailing).toHaveBeenCalledTimes(1);
+  });
 });
