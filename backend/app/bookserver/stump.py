@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import io
 import re
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
+from typing import TypeVar
 
 import httpx
 from PIL import Image, ImageOps
@@ -31,7 +33,9 @@ _ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 MAX_PAGE_BYTES = 40 * 1024 * 1024  # a page we downscale; larger is refused
 MIN_THUMB_W, MAX_THUMB_W = 16, 2000
 THUMB_QUALITY = 80
+_T = TypeVar("_T")
 _MISSING = "MISSING"
+WALK_TTL_S = 15.0  # how long a full series or deleted-items walk is reused
 
 # Stump's order inputs are oneof objects: `{series: {field, direction}}` or `{media: {...}}`
 _NAME_ASC = {"field": "NAME", "direction": "ASC"}
@@ -176,6 +180,23 @@ class StumpBookServer:
     def __init__(self, client: Stump, cache: ThumbCache | None = None) -> None:
         self._c = client
         self._cache = cache
+        self._walks: dict[tuple, tuple[float, object]] = {}
+
+    def _walked(self, key: tuple, walk: Callable[[], _T]) -> _T:
+        """Result of *walk*, reused for `WALK_TTL_S`; every write through this adapter clears it."""
+        hit = self._walks.get(key)
+        if hit is not None and time.monotonic() - hit[0] < WALK_TTL_S:
+            return hit[1]  # type: ignore[return-value]
+        value = walk()
+        now = time.monotonic()
+        for k in [k for k, (t, _v) in self._walks.items() if now - t >= WALK_TTL_S]:
+            del self._walks[k]  # sweep, so the dict cannot grow without bound
+        self._walks[key] = (now, value)
+        return value
+
+    def invalidate_walks(self) -> None:
+        """Forget every cached walk (the library changed behind the adapter, e.g. a trash move)."""
+        self._walks.clear()
 
     @property
     def client(self) -> Stump:
@@ -232,6 +253,10 @@ class StumpBookServer:
         return book_dto(self._c.get_media(id))
 
     def series_books(self, series_id: str) -> tuple[list[BookDTO], bool]:
+        books, truncated = self._walked(("books", series_id), lambda: self._walk_series(series_id))
+        return list(books), truncated
+
+    def _walk_series(self, series_id: str) -> tuple[list[BookDTO], bool]:
         books: list[BookDTO] = []
         for page in range(1, SERIES_BOOKS_PAGES + 1):
             conn = self._c.list_media(
@@ -311,12 +336,22 @@ class StumpBookServer:
     # save target + scan (T-328)
 
     def scan_library(self, library_id: str) -> None:
-        self._c.scan_library(library_id)
+        self._walks.clear()
+        try:
+            self._c.scan_library(library_id)
+        finally:
+            self._walks.clear()  # a walk made during the scan saw half-scanned data
 
     # trash / undo (T-329)
 
     def list_deleted(self, kind: Kind, library_id: str) -> list[BookDTO | SeriesDTO]:
         """Items of the library Stump shows as MISSING (their file is gone)."""
+        out = self._walked(
+            ("deleted", kind, library_id), lambda: self._walk_deleted(kind, library_id)
+        )
+        return list(out)
+
+    def _walk_deleted(self, kind: Kind, library_id: str) -> list[BookDTO | SeriesDTO]:
         # SeriesFilterInput has no `status` field (Stump rejects it): series are filtered here
         filt = {"_and": [_in_library(library_id), {"status": {"eq": _MISSING}}]}
         series_filt = _eq("libraryId", library_id) or {}
@@ -333,15 +368,21 @@ class StumpBookServer:
         return out
 
     def purge_deleted(self, library_id: str) -> None:
-        self._c.clean_library(library_id)
+        self._walks.clear()
+        try:
+            self._c.clean_library(library_id)
+        finally:
+            self._walks.clear()
 
     # tags / metadata / progress (T-329)
 
     def set_tags(self, kind: Kind, id: str, tags: list[str]) -> None:
+        self._walks.clear()
         self._c.set_tags(kind, id, tags)
         self._c.lock_fields(kind, id, ["TAGS"])
 
     def set_metadata(self, kind: Kind, id: str, patch: MetadataPatch) -> None:
+        self._walks.clear()
         fields: dict = {}
         locks: list[str] = []
         if patch.title is not None:
@@ -366,6 +407,7 @@ class StumpBookServer:
         self._c.lock_fields(kind, id, locks)
 
     def set_progress(self, book_id: str, page: int, completed: bool) -> None:
+        self._walks.clear()
         if completed:
             self._c.finish_progress(book_id)
             return
