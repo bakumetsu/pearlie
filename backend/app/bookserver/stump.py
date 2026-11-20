@@ -36,6 +36,7 @@ THUMB_QUALITY = 80
 _T = TypeVar("_T")
 _MISSING = "MISSING"
 WALK_TTL_S = 15.0  # how long a full series or deleted-items walk is reused
+SERIES_SEARCH_TTL_S = 60.0  # the series search walk (up to 100 calls) outlives a slow typist
 TAG_WALK_TTL_S = 600.0  # the library tag walk is big (up to 100 calls): reuse it longer
 TAG_WALK_PAGES = SERIES_BOOKS_PAGES  # the cap: 10,000 books, in memory only, never in the DB
 
@@ -145,16 +146,22 @@ def _page[T](conn: dict, page: int, size: int, items: list[T]) -> PageResult[T]:
     )
 
 
-def _search(q: str) -> dict:
-    """name / metadata title contains *q* (Stump has no full-text search)."""
-    return {"_or": [{"name": {"contains": q}}, {"metadata": {"title": {"contains": q}}}]}
+def _search(q: str, tags: bool = False) -> dict:
+    """name / metadata title contains *q* (Stump has no full-text search).
+
+    *tags* adds the book tag filter (`_` as space, like a booru tag); Stump has it on media only.
+    """
+    ors: list[dict] = [{"name": {"contains": q}}, {"metadata": {"title": {"contains": q}}}]
+    if tags:
+        ors.append({"tags": {"contains": q.replace("_", " ")}})
+    return {"_or": ors}
 
 
-def _filter(q: str, *conds: dict | None) -> dict:
+def _filter(q: str, *conds: dict | None, tags: bool = False) -> dict:
     """*conds* and the search text as one filter (`{}` for no condition: Stump needs a filter)."""
     parts = [c for c in conds if c]
     if q:
-        parts.append(_search(q))
+        parts.append(_search(q, tags))
     if not parts:
         return {}
     return parts[0] if len(parts) == 1 else {"_and": parts}
@@ -231,10 +238,56 @@ class StumpBookServer:
     def list_series(
         self, page: int, size: int, q: str, sort: str, library_id: str | None = None
     ) -> PageResult[SeriesDTO]:
+        if q.strip():
+            return self._search_series(page, size, q, library_id)
         conn = self._c.list_series(
-            page, size, _filter(q, _eq("libraryId", library_id)), _order("series", q, sort)
+            page, size, _filter("", _eq("libraryId", library_id)), _order("series", q, sort)
         )
         return _page(conn, page, size, [series_dto(d) for d in conn.get("nodes") or []])
+
+    def _search_series(
+        self, page: int, size: int, q: str, library_id: str | None
+    ) -> PageResult[SeriesDTO]:
+        """Series whose name, title or a tag contains *q*, by name.
+
+        Stump v0.1.13 has no series tag filter, so this reads one cached name-ordered walk (cap
+        10,000 series, in memory only) and matches here, then pages the matches.
+        """
+        walk = self._walked(
+            ("serieswalk", library_id),
+            lambda: self._walk_all_series(library_id),
+            SERIES_SEARCH_TTL_S,
+        )
+        want = q.strip().lower()
+        want_tag = _tag_key(q)
+        hits = [
+            s
+            for s in walk
+            if want in s.name.lower()
+            or want in s.title.lower()
+            or any(want_tag in _tag_key(t) for t in s.tags)
+        ]
+        total = len(hits)
+        pages = max(1, -(-total // size))
+        start = (page - 1) * size
+        return PageResult(
+            items=hits[start : start + size],
+            page=page,
+            size=size,
+            total_pages=pages,
+            total_items=total,
+        )
+
+    def _walk_all_series(self, library_id: str | None) -> list[SeriesDTO]:
+        out: list[SeriesDTO] = []
+        for page in range(1, TAG_WALK_PAGES + 1):
+            conn = self._c.list_series(
+                page, PAGE_SIZE, _filter("", _eq("libraryId", library_id)), _name_asc("series")
+            )
+            out.extend(series_dto(d) for d in conn.get("nodes") or [])
+            if _page(conn, page, PAGE_SIZE, []).last:
+                break
+        return out
 
     def list_books(
         self,
@@ -248,7 +301,7 @@ class StumpBookServer:
         conn = self._c.list_media(
             page,
             size,
-            _filter(q, _eq("seriesId", series_id), _in_library(library_id)),
+            _filter(q, _eq("seriesId", series_id), _in_library(library_id), tags=True),
             _order("media", q, sort),
         )
         return _page(conn, page, size, [book_dto(d) for d in conn.get("nodes") or []])

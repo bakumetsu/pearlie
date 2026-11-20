@@ -121,10 +121,47 @@ def test_search_filter_and_name_order() -> None:
     assert [b.id for b in hit.items] == ["b2"]
     v = _ops(mock, "MediaList")[-1]["variables"]
     assert v["filter"] == {
-        "_or": [{"name": {"contains": "book 2"}}, {"metadata": {"title": {"contains": "book 2"}}}]
+        "_or": [
+            {"name": {"contains": "book 2"}},
+            {"metadata": {"title": {"contains": "book 2"}}},
+            {"tags": {"contains": "book 2"}},
+        ]
     }
     assert v["order"] == [{"media": {"field": "NAME", "direction": "ASC"}}]
     assert (v["page"], v["size"]) == (1, 10)
+
+
+def test_book_search_matches_tags_with_underscore_as_space() -> None:
+    tagged = stump_mock.book(4)
+    tagged["tags"] = [{"name": "Long Hair"}]
+    server, mock = _server([stump_mock.book(1), tagged])
+    hit = server.list_books(1, 10, "long_hair", "created_desc")
+    assert [b.id for b in hit.items] == ["b4"]
+    assert hit.total_items == 1
+    v = _ops(mock, "MediaList")[-1]["variables"]
+    assert {"tags": {"contains": "long hair"}} in v["filter"]["_or"]
+
+
+def test_series_search_matches_name_title_and_tags_and_pages() -> None:
+    def ser(i: int, name: str, tag: str) -> dict:
+        d = stump_mock.series()
+        d.update(id=f"s{i}", name=name, path=f"/data/{name}")
+        d["metadata"] = {"title": name, "summary": "", "links": []}
+        d["tags"] = [{"name": tag}]
+        return d
+
+    rows = [ser(1, "Alpha", "long hair"), ser(2, "Beta", "x"), ser(3, "Gamma", "Long Hair")]
+    mock = stump_mock.MockStump([stump_mock.lib()], rows, [])
+    http = httpx.Client(base_url="http://stump", transport=httpx.MockTransport(mock))
+    server = StumpBookServer(Stump("http://stump", KEY, http, sleep=lambda _s: None))
+    first = server.list_series(1, 1, "long_hair", "created_desc")
+    assert [s.id for s in first.items] == ["s1"]
+    assert (first.total_items, first.total_pages) == (2, 2)
+    second = server.list_series(2, 1, "LONG_HAIR", "created_desc")
+    assert [s.id for s in second.items] == ["s3"]
+    assert [s.id for s in server.list_series(1, 10, "beta", "created_desc").items] == ["s2"]
+    assert server.list_series(1, 10, "nomatch", "created_desc").items == []
+    assert len(_ops(mock, "SeriesList")) == 1  # one cached walk serves every search
 
 
 def test_library_and_series_filters_combine() -> None:
@@ -159,9 +196,7 @@ def test_exact_variables_of_each_list_call() -> None:
     assert media_calls[1]["variables"]["order"] == [
         {"media": {"field": "NAME", "direction": "ASC"}}
     ]
-    assert series_calls[1]["variables"]["filter"] == {
-        "_or": [{"name": {"contains": "ab"}}, {"metadata": {"title": {"contains": "ab"}}}]
-    }
+    assert series_calls[1]["variables"]["filter"] == {}
     assert series_calls[1]["variables"]["order"] == [
         {"series": {"field": "NAME", "direction": "ASC"}}
     ]
