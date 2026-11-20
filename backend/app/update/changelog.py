@@ -62,6 +62,7 @@ def build_block(
 ) -> Block:
     """Group commits (newest first) into Added/Fixed/Reworked, capped at 50 items."""
     items: list[tuple[str, str]] = []
+    plain: list[str] = []
     for c in commits:
         parents = c.get("parents")
         if isinstance(parents, list) and len(parents) > 1:
@@ -73,10 +74,16 @@ def build_block(
         parsed = parse_subject(message)
         if parsed is not None:
             items.append(parsed)
+            continue
+        subject = message.split("\n", 1)[0].strip()
+        if subject and not subject.startswith(("Merge ", "WIP")):
+            plain.append(subject[0].upper() + subject[1:])
+    if not items:
+        items = [("Changed", t) for t in plain]
     shown = items[:_MAX_ITEMS]
     groups = [
         {"kind": kind, "items": [t for k, t in shown if k == kind]}
-        for kind in _ORDER
+        for kind in (*_ORDER, "Changed")
         if any(k == kind for k, _ in shown)
     ]
     return {

@@ -31,4 +31,24 @@ describe("SectionRow", () => {
     expect(r).toContain("min-width: 44px");
     expect(r).toContain("min-height: 44px");
   });
+
+  it("arrows are round translucent discs, 44px, shown on row hover or focus-visible", () => {
+    const r = rule(source, ".arrow");
+    expect(r).toContain("width: 44px");
+    expect(r).toContain("height: 44px");
+    expect(r).toContain("border-radius: 50%");
+    expect(r).toContain("rgba(0, 0, 0,");
+    expect(r).toContain("opacity: 0");
+    expect(r).toContain("top: 50%");
+    expect(source).toContain(".strip-wrap:hover .arrow {");
+    expect(source).toContain(".arrow:focus-visible {");
+    expect(rule(source, ".strip-wrap:hover .arrow")).toContain("opacity: 1");
+  });
+
+  it("arrows are hidden on touch devices", () => {
+    const start = source.indexOf("@media (hover: none)");
+    expect(start).toBeGreaterThan(-1);
+    expect(source.slice(start, start + 80)).toContain(".arrow");
+    expect(source.slice(start, start + 120)).toContain("display: none");
+  });
 });

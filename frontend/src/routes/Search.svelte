@@ -32,7 +32,7 @@
 
   const api = getApi();
   const router = getRouter();
-  const search = createSearch(api, { remember: true });
+  const search = createSearch(api);
   const jobsStore = findJobs();
   $effect(() => {
     if (jobsStore) search.settle(jobsStore.items);
@@ -371,6 +371,7 @@
   <FilterPanel
     pill={query.pill}
     sites={query.sites}
+    {hidden}
     onpill={handlePillChange}
     onsites={handleSitesChange}
     onclear={clearFilters}
@@ -495,9 +496,9 @@
     display: inline-flex;
     flex: none;
     align-items: center;
-    min-height: 36px;
+    min-height: 44px;
     padding: 0 4px 0 12px;
-    border-radius: 18px;
+    border-radius: 22px;
     background: var(--accent-bg);
     color: var(--accent);
     font-size: var(--t-13);

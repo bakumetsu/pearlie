@@ -37,7 +37,7 @@ from app.models import (
     WebItem,
     WebSource,
 )
-from app.paging import PAGE_SIZE_CAPS, clamp_page_size, pages_for
+from app.paging import PAGE_SIZE_CAPS, clamp_page, clamp_page_size, pages_for
 from app.search_cache import SearchCache
 from app.sources.base import Post, Source, SourceError
 from app.sources.filters import NOTICE_CODE
@@ -87,8 +87,19 @@ def _web_thumb(post: Post) -> str:
     return tile_url(post) or ""
 
 
-def _library_section(request: Request, sid: str, q: str, page: int, page_size: int, multi: bool):
-    """Section for a Stash or Stump library source, or None when it is not configured."""
+def _library_section(
+    request: Request,
+    sid: str,
+    q: str,
+    page: int,
+    page_size: int,
+    multi: bool,
+    tags: list[str] | None = None,
+):
+    """Section for a Stash or Stump library source, or None when it is not configured.
+
+    *tags* (Stump only): tag terms read from the cached tag walk (AND), paged here.
+    """
     state = request.app.state
     client = state.stump if sid == "stump_books" else state.stash
     if client is None:
@@ -100,12 +111,24 @@ def _library_section(request: Request, sid: str, q: str, page: int, page_size: i
     try:
         if sid == "stump_books":
             server = book_server_of(request.app)
-            reply, pages, served = fetch_book_page(
-                lambda p, n: server.list_books(p, n, q, SORT_CREATED_DESC), pg, size
-            )
-            items = [book_item(r) for r in reply.items]
-            total = reply.total_items
-            next_page = served + 1 if not reply.last else None
+            trash = getattr(state, "trash", None)
+            owned = trash.stump_owned_ids() if trash is not None else set()
+            if tags:
+                rows = [
+                    r for r in server.tagged_books(q, tags) if not r.deleted and r.id not in owned
+                ]
+                total = len(rows)
+                pages = pages_for(total, size)
+                served = clamp_page(pg, pages)
+                items = [book_item(r) for r in rows[(served - 1) * size : served * size]]
+                next_page = served + 1 if served < pages else None
+            else:
+                reply, pages, served = fetch_book_page(
+                    lambda p, n: server.list_books(p, n, q, SORT_CREATED_DESC), pg, size
+                )
+                items = [book_item(r) for r in reply.items if not r.deleted and r.id not in owned]
+                total = reply.total_items
+                next_page = served + 1 if not reply.last else None
         else:
             stash: StashClient = client
             field, direction = stash_sort("newest", None)
@@ -176,19 +199,17 @@ def search(
         if skip:
             sections.append(skipped_section(cast_sid, title, skip))
             continue
-        lib_q, lib_note = q, None
-        if sid == "stump_books" and titles:
-            # Stump search is full text: send only the title text, tag chips cannot narrow it.
+        lib_q, lib_tags = q, None
+        if sid == "stump_books" and (titles or others):
+            # Stump search is full text: it gets only the title text. Tag terms read the walk.
             lib_q = " ".join(t.value for t in titles)
-            lib_note = "Tag chips do not narrow Stump results" if others else None
+            lib_tags = others or None
         lib = (
-            _library_section(request, sid, lib_q, page, page_size, multi)
+            _library_section(request, sid, lib_q, page, page_size, multi, lib_tags)
             if sid in _LIBRARY
             else None
         )
         if lib is not None:
-            if lib_note and lib.error is None:
-                lib.notice = Problem(code=NOTICE_CODE, message=lib_note)
             sections.append(lib)
         elif sid in source_map:
             src = source_map[sid]
@@ -198,7 +219,17 @@ def search(
             pg = page if not multi else 1
             size_v = page_size if not multi else None
             cache = _cache_of(request)
-            ckey = (sid, tuple(tags), pg, size_v, order_v, tuple(rating_v))
+            # order picks which words a capped source sends, so sort only when nothing is cut
+            cap = getattr(src, "tag_limit", None)
+            same_query = cap is None or len(tags) <= cap
+            ckey = (
+                sid,
+                tuple(sorted(tags) if same_query else tags),
+                pg,
+                size_v,
+                order_v,
+                tuple(rating_v),
+            )
             try:
                 page_result = cache.get(ckey)
                 if page_result is None:

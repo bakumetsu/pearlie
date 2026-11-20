@@ -121,10 +121,47 @@ def test_search_filter_and_name_order() -> None:
     assert [b.id for b in hit.items] == ["b2"]
     v = _ops(mock, "MediaList")[-1]["variables"]
     assert v["filter"] == {
-        "_or": [{"name": {"contains": "book 2"}}, {"metadata": {"title": {"contains": "book 2"}}}]
+        "_or": [
+            {"name": {"contains": "book 2"}},
+            {"metadata": {"title": {"contains": "book 2"}}},
+            {"tags": {"contains": "book 2"}},
+        ]
     }
     assert v["order"] == [{"media": {"field": "NAME", "direction": "ASC"}}]
     assert (v["page"], v["size"]) == (1, 10)
+
+
+def test_book_search_matches_tags_with_underscore_as_space() -> None:
+    tagged = stump_mock.book(4)
+    tagged["tags"] = [{"name": "Long Hair"}]
+    server, mock = _server([stump_mock.book(1), tagged])
+    hit = server.list_books(1, 10, "long_hair", "created_desc")
+    assert [b.id for b in hit.items] == ["b4"]
+    assert hit.total_items == 1
+    v = _ops(mock, "MediaList")[-1]["variables"]
+    assert {"tags": {"contains": "long hair"}} in v["filter"]["_or"]
+
+
+def test_series_search_matches_name_title_and_tags_and_pages() -> None:
+    def ser(i: int, name: str, tag: str) -> dict:
+        d = stump_mock.series()
+        d.update(id=f"s{i}", name=name, path=f"/data/{name}")
+        d["metadata"] = {"title": name, "summary": "", "links": []}
+        d["tags"] = [{"name": tag}]
+        return d
+
+    rows = [ser(1, "Alpha", "long hair"), ser(2, "Beta", "x"), ser(3, "Gamma", "Long Hair")]
+    mock = stump_mock.MockStump([stump_mock.lib()], rows, [])
+    http = httpx.Client(base_url="http://stump", transport=httpx.MockTransport(mock))
+    server = StumpBookServer(Stump("http://stump", KEY, http, sleep=lambda _s: None))
+    first = server.list_series(1, 1, "long_hair", "created_desc")
+    assert [s.id for s in first.items] == ["s1"]
+    assert (first.total_items, first.total_pages) == (2, 2)
+    second = server.list_series(2, 1, "LONG_HAIR", "created_desc")
+    assert [s.id for s in second.items] == ["s3"]
+    assert [s.id for s in server.list_series(1, 10, "beta", "created_desc").items] == ["s2"]
+    assert server.list_series(1, 10, "nomatch", "created_desc").items == []
+    assert len(_ops(mock, "SeriesList")) == 1  # one cached walk serves every search
 
 
 def test_library_and_series_filters_combine() -> None:
@@ -159,9 +196,7 @@ def test_exact_variables_of_each_list_call() -> None:
     assert media_calls[1]["variables"]["order"] == [
         {"media": {"field": "NAME", "direction": "ASC"}}
     ]
-    assert series_calls[1]["variables"]["filter"] == {
-        "_or": [{"name": {"contains": "ab"}}, {"metadata": {"title": {"contains": "ab"}}}]
-    }
+    assert series_calls[1]["variables"]["filter"] == {}
     assert series_calls[1]["variables"]["order"] == [
         {"series": {"field": "NAME", "direction": "ASC"}}
     ]
@@ -296,6 +331,7 @@ def test_list_deleted_reads_missing_and_purge_cleans_library() -> None:
     gone = stump_mock.series()
     gone.update(id="5b1f0c2e-7a4d-4e1b-9c3a-0d8e6f1a2b34", status="MISSING")
     mock.series.append(gone)
+    server._walks.clear()  # the mock changed behind the adapter's walk cache
     assert [s.id for s in server.list_deleted("series", "L1")] == [gone["id"]]
     assert not _ops(mock, "SeriesList")[-1]["variables"]["filter"].get("_and")
     server.purge_deleted("L1")
@@ -347,7 +383,45 @@ def test_progress_update_and_finish() -> None:
     assert _ops(mock, "FinishMediaProgress")[0]["variables"] == {"id": "b1"}
     assert server.get_book("b1").read_done is True
     with pytest.raises(BookServerError):
+        server.set_progress("b1", -1, False)
+
+
+def test_progress_page_zero_resets_to_not_started() -> None:
+    server, mock = _server()
+    server.set_progress("b1", 3, False)
+    server.set_progress("b1", 0, False)
+    assert [o["variables"] for o in _ops(mock, "ClearMediaProgress")] == [{"id": "b1"}]
+    assert [o["variables"] for o in _ops(mock, "DeleteMediaReadingHistory")] == [{"id": "b1"}]
+    assert len(_ops(mock, "UpdateMediaProgress")) == 1  # only the page-3 save
+    assert server.get_book("b1").read_page is None
+
+
+def test_mark_unread_after_finish_drops_finished_state() -> None:
+    server, _ = _server()
+    server.set_progress("b1", 5, True)
+    assert server.get_book("b1").read_done is True
+    server.set_progress("b1", 0, False)
+    book = server.get_book("b1")
+    assert book.read_page is None and book.read_done is False
+
+
+def test_mark_unread_fails_loudly_when_history_delete_fails() -> None:
+    server, mock = _server()
+    server.set_progress("b1", 5, True)
+    mock.fail_ops["DeleteMediaReadingHistory"] = "boom"
+    with pytest.raises(BookServerError):
         server.set_progress("b1", 0, False)
+    assert len(_ops(mock, "ClearMediaProgress")) == 1
+    assert server.get_book("b1").read_done is True  # no silent half reset
+
+
+def test_mark_unread_clears_cached_walks() -> None:
+    server, mock = _server()
+    server.set_progress("b1", 5, True)
+    server.get_book("b1")
+    server._walks[("k",)] = (1e18, "stale", 60.0)
+    server.set_progress("b1", 0, False)
+    assert not server._walks
 
 
 def test_ids_allow_cuid_chars_only() -> None:

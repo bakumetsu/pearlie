@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/svelte";
 import { createRawSnippet } from "svelte";
+import css from "./BookPage.svelte?raw";
 import BookPage from "./BookPage.svelte";
 
 afterEach(cleanup);
@@ -16,7 +17,7 @@ describe("BookPage", () => {
     });
     expect(getByText("Big")).toBeTruthy();
     expect(container.querySelectorAll(".sub")).toHaveLength(2);
-    expect(getByText("by Someone")).toBeTruthy();
+    expect(getByText("Someone")).toBeTruthy();
     expect(container.querySelector(".backdrop")).toBeTruthy();
     await fireEvent.click(getByLabelText("Back"));
     expect(onback).toHaveBeenCalled();
@@ -68,5 +69,17 @@ describe("BookPage", () => {
     });
     expect(getByText("Loading…")).toBeTruthy();
     expect(container.querySelector(".hero")).toBeNull();
+  });
+  it("keeps the tools at the right end of the hero row, with the More button at the left", () => {
+    const { container } = render(BookPage, {
+      props: { cover: "/c", title: "T", onback: () => {}, actions: snip('<button class="mi" role="menuitem">Go</button>'), tools: snip('<button class="tg">v</button>') },
+    });
+    const acts = container.querySelector(".acts")!;
+    const tl = container.querySelector(".tl")!;
+    expect(acts.children[0].getAttribute("aria-label")).toBe("More actions");
+    expect(acts.lastElementChild).toBe(tl);
+    // jsdom does not inject component CSS: assert on the source rules
+    expect(css).toMatch(/\.acts[^{]*\{[^}]*align-self:\s*stretch/);
+    expect(css).toMatch(/\.tl[^{]*\{[^}]*margin-left:\s*auto/);
   });
 });

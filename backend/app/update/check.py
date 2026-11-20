@@ -22,9 +22,10 @@ from app.update.repo import (
     SHA_RE,
     TAG_RE,
     TAGS_URL,
+    compare_url,
     release_page_url,
 )
-from app.update.version import parse_semver
+from app.update.version import dev_version, parse_semver
 
 _TIMEOUT = 5.0
 _SETTINGS_KEY = "update.last"
@@ -280,8 +281,24 @@ class UpdateChecker:
             return CheckResult(None, "unreachable", None, _iso_now()), etag
 
         new_etag = resp.headers.get("ETag") or etag
-        latest = Latest(version=sha[:7], commit=sha, url=DEV_TREE_URL)
+        n = self._dev_count(sha)
+        version = dev_version(n) if n is not None else sha[:7]
+        latest = Latest(version=version, commit=sha, url=DEV_TREE_URL)
         return CheckResult(latest, None, None, _iso_now()), new_etag
+
+    def _dev_count(self, sha: str) -> int | None:
+        """Commits from the newest release tag to sha, as the installed counter; None on failure."""
+        tag_res, _ = self._fetch_tags(None)
+        if tag_res.latest is None:
+            return None
+        url = compare_url("v" + tag_res.latest.version, sha) + "?per_page=1"
+        try:
+            resp = self._client.get(url, headers=self._hdrs(None), timeout=_TIMEOUT)
+            data: object = resp.json() if resp.status_code == 200 else None
+        except (httpx.HTTPError, ValueError):
+            return None
+        total = data.get("total_commits") if isinstance(data, dict) else None
+        return total if isinstance(total, int) and not isinstance(total, bool) else None
 
     def _persist(self, channel: str, result: CheckResult) -> None:
         try:

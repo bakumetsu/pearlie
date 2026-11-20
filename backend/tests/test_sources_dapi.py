@@ -163,3 +163,37 @@ def test_registered_and_save_queues_rule34_post(tmp_path: Path) -> None:
     assert resp.status_code == 202
     job = JobStore(db_path).list(None)[0]
     assert job.source == "rule34" and job.target == "stash"
+
+
+def test_search_refuses_when_backoff_pause_is_long():
+    calls = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(req)
+        return httpx.Response(200, json=[])
+
+    th = Throttle(1.0)
+    th.report(429, 120.0)
+    src = Rule34(client=httpx.Client(transport=httpx.MockTransport(handler)), throttle=th)
+    with pytest.raises(SourceError) as ei:
+        src.search(["a"])
+    assert ei.value.code == "rate_limited"
+    assert calls == []
+
+
+def test_search_waits_for_a_short_slot():
+    naps: list[float] = []
+    th = Throttle(1.0, sleep=naps.append)
+    th.reserve()
+    src = Rule34(
+        client=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=[]))),
+        throttle=th,
+    )
+    src.search(["a"])
+    assert len(naps) == 1 and 0 < naps[0] <= 1.0
+
+
+def test_rule34_default_pace_is_half_a_second():
+    from app.sources.throttle import DEFAULT_PACE
+
+    assert DEFAULT_PACE["rule34"] == 0.5

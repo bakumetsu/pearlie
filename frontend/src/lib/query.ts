@@ -209,6 +209,13 @@ export function buildSearchParams(s: SearchState): string {
   return str ? `?${str}` : "";
 }
 
+/** Search URL for one tapped tag, on the same source (pill) the tag came from. */
+export function tagSearchHref(name: string, pill: Pill = "all"): string {
+  const chip = parseChip(name.trim().replace(/\s+/g, "_"));
+  const chips = chip ? [chip] : [];
+  return "/" + buildSearchParams({ chips, pill, sites: DEFAULT_SITES });
+}
+
 /** True when the web pill has no query chips. */
 export function webNeedsQuery(s: SearchState): boolean {
   return s.chips.length === 0;

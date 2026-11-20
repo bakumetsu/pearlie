@@ -38,11 +38,11 @@ class FakeStump:
             raise StumpError("upstream_error", "down", 502)
         self.scans.append(library_id)
 
-    def find_books(self, library_id: str, books: dict[str, PendingScan]) -> set[str]:
+    def find_books(self, library_id: str, books: dict[str, PendingScan]) -> dict[str, str]:
         self.list_calls += 1
         if self.fail_list:
             raise StumpError("upstream_error", "down", 502)
-        return {j for j, b in books.items() if b.stump_path in self.visible}
+        return {j: f"book-{j}" for j, b in books.items() if b.stump_path in self.visible}
 
 
 class Env:
@@ -161,6 +161,8 @@ def test_found_book_ends_done_with_its_saved_notices(env: Env) -> None:
     job = env.store.get(jid)
     assert job is not None and job.state == "done"
     assert job.dest_path == path
+    assert job.library_ref is not None
+    assert (job.library_ref.kind, job.library_ref.id) == ("book", f"book-{jid}")
     assert [n.code for n in job.notices] == ["oneshots_not_set"]
     assert job.finished_at is not None
 

@@ -20,14 +20,19 @@ from app.bookserver.base import (
 )
 from app.bookserver.factory import book_server_of
 from app.bookserver.map import book_detail, book_item, series_detail, series_item
+from app.db import connect
+from app.filters.rules import load_rules
+from app.filters.safe_mode import resolve_safe, visible_tags
 from app.library.trash import TrashError
 from app.models import (
     LibraryItem,
+    LibraryItemDetail,
     Page,
     PatchBody,
     Problem,
     ProgressBody,
     ProgressResult,
+    Tag,
     TrashResult,
 )
 from app.paging import clamp_page, clamp_page_size, pages_for
@@ -68,6 +73,49 @@ def _cache(request: Request) -> ShuffleCache:
     return cache
 
 
+def _rating_of(request: Request, kind: str, id: str) -> int | None:
+    return _ratings(request, kind, [id]).get(id)
+
+
+def _ratings(request: Request, kind: str, ids: list[str]) -> dict[str, int]:
+    """Ratings Pearlie keeps for Stump items (Stump has no rating field)."""
+    if not ids:
+        return {}
+    conn = connect(request.app.state.settings.db_path)
+    try:
+        marks = ",".join("?" * len(ids))
+        rows = conn.execute(
+            f"SELECT item_id, rating FROM stump_ratings WHERE kind = ? AND item_id IN ({marks})",
+            [kind, *ids],
+        ).fetchall()
+    finally:
+        conn.close()
+    return {r["item_id"]: r["rating"] for r in rows}
+
+
+def _store_rating(request: Request, kind: str, id: str, rating: int | None) -> None:
+    conn = connect(request.app.state.settings.db_path)
+    try:
+        if rating is None:
+            conn.execute("DELETE FROM stump_ratings WHERE kind = ? AND item_id = ?", (kind, id))
+        else:
+            conn.execute(
+                "INSERT INTO stump_ratings (kind, item_id, rating) VALUES (?, ?, ?) "
+                "ON CONFLICT (kind, item_id) DO UPDATE SET rating = excluded.rating",
+                (kind, id, rating),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _rated(request: Request, kind: str, items: list[LibraryItem]) -> list[LibraryItem]:
+    ratings = _ratings(request, kind, [i.id for i in items])
+    for item in items:
+        item.rating = ratings.get(item.id)
+    return items
+
+
 def _random_page(
     request: Request,
     kind: str,
@@ -106,7 +154,7 @@ def _random_page(
     else:
         notice = _ignored_notice("newest", favorite)
     return Page[LibraryItem](
-        items=[mapper(r) for r in _visible(request, chunk)],
+        items=_rated(request, kind, [mapper(r) for r in _visible(request, chunk)]),
         page=page,
         page_size=page_size,
         pages=pages,
@@ -132,7 +180,7 @@ def _ignored_notice(sort: str, favorite: bool | None) -> Problem | None:
         return None
     return Problem(
         code="option_ignored",
-        message=f"Ignored: {', '.join(parts)} (Stump has no ratings or favorites)",
+        message=f"Ignored: {', '.join(parts)} (not supported for Stump)",
     )
 
 
@@ -173,7 +221,7 @@ def list_stump_series(
     except BookServerError as e:
         raise _up(e) from None
     return Page[LibraryItem](
-        items=[series_item(r) for r in _visible(request, reply.items)],
+        items=_rated(request, "series", [series_item(r) for r in _visible(request, reply.items)]),
         page=served,
         page_size=page_size,
         pages=pages,
@@ -206,7 +254,7 @@ def list_stump_books(
     except BookServerError as e:
         raise _up(e) from None
     return Page[LibraryItem](
-        items=[book_item(r) for r in _visible(request, reply.items)],
+        items=_rated(request, "books", [book_item(r) for r in _visible(request, reply.items)]),
         page=served,
         page_size=page_size,
         pages=pages,
@@ -214,6 +262,15 @@ def list_stump_books(
         next_page=served + 1 if not reply.last else None,
         notice=_ignored_notice(sort, favorite),
     )
+
+
+def _apply_safe_tags(request: Request, detail: LibraryItemDetail) -> None:
+    safe, allow_blurred = resolve_safe(request, None)
+    if not safe or allow_blurred:
+        return
+    rules = load_rules(request.app.state.settings.db_path)
+    detail.tags = visible_tags(detail.tags, rules, safe, allow_blurred)
+    detail.inherited_tags = visible_tags(detail.inherited_tags, rules, safe, allow_blurred)
 
 
 @router.get("/library/series/{id}")
@@ -228,7 +285,10 @@ def get_series(request: Request, id: str):
         raise _up(e) from None
     if series.deleted:
         raise ApiError(404, "not_found", "Item not found")
-    return series_detail(series, books, truncated)
+    detail = series_detail(series, books, truncated)
+    detail.rating = _rating_of(request, "series", id)
+    _apply_safe_tags(request, detail)
+    return detail
 
 
 @router.get("/library/books/{id}")
@@ -242,7 +302,10 @@ def get_book(request: Request, id: str):
         raise _up(e) from None
     if book.deleted:
         raise ApiError(404, "not_found", "Item not found")
-    return book_detail(book)
+    detail = book_detail(book)
+    detail.rating = _rating_of(request, "books", id)
+    _apply_safe_tags(request, detail)
+    return detail
 
 
 @router.patch("/library/series/{id}")
@@ -255,23 +318,33 @@ def patch_book(request: Request, id: str, body: PatchBody):
     return _patch(request, "books", id, body)
 
 
+def _with_hidden_tags(request: Request, current: list[str], sent: list[str]) -> list[str]:
+    """Add back the tags that safe mode hid from the client, so a tag edit keeps them."""
+    safe, allow_blurred = resolve_safe(request, None)
+    if not safe or allow_blurred:
+        return sent
+    rules = load_rules(request.app.state.settings.db_path)
+    shown = {t.name for t in visible_tags([Tag(name=t) for t in current], rules, safe, False)}
+    return sent + [t for t in current if t not in shown and t not in sent]
+
+
 def _patch(request: Request, kind: Kind, id: str, body: PatchBody):
     _check_id(request, id)
-    check_patch("Stump", body)
+    # Pearlie stores the rating itself, so only the favorite check applies here.
+    check_patch("Stump", body.model_copy(update={"rating": None}))
     if body.tags is not None:
         for t in body.tags:
             if not t or len(t) > 64:
                 raise ApiError(422, "invalid_tag", "Bad tag", field="tags")
     server = book_server_of(request.app)
     try:
-        if kind == "series":
-            server.get_series(id)
-        else:
-            server.get_book(id)
+        current = server.get_series(id) if kind == "series" else server.get_book(id)
         if body.tags is not None:
-            server.set_tags(kind, id, body.tags)
+            server.set_tags(kind, id, _with_hidden_tags(request, current.tags, body.tags))
     except BookServerError as e:
         raise _up(e) from None
+    if "rating" in body.model_fields_set:
+        _store_rating(request, kind, id, body.rating)
     if kind == "series":
         return get_series(request, id)
     return get_book(request, id)
@@ -307,9 +380,9 @@ def set_progress(request: Request, id: str, body: ProgressBody) -> ProgressResul
         raise _up(e) from None
     pages_count = book.page_count
     page = body.page
-    if not (1 <= page <= pages_count):
+    if not (0 <= page <= pages_count):  # page 0 marks the book unread
         raise ApiError(422, "invalid", "Page out of range", field="page")
-    completed = page >= pages_count
+    completed = page >= pages_count > 0
     try:
         server.set_progress(id, page, completed)
     except BookServerError as e:

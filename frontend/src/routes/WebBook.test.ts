@@ -42,6 +42,8 @@ function setup(pages = 8, extra: Record<string, unknown> = {}) {
     putRules: vi.fn(async () => ({})),
     rejectTag: vi.fn(async () => ({ added: true, version: 2 })),
     unrejectTag: vi.fn(async () => ({ removed: true, version: 3 })),
+    recommend: vi.fn(async () => ({ items: [] })),
+    recommendRandom: vi.fn(async () => ({ items: [] })),
   } as unknown as Api;
   const router = {
     current: () => matchRoute("/web/nhentai/123", ""),
@@ -105,14 +107,37 @@ describe("WebBook", () => {
     expect(srcs[0]).toBe("/api/media/web/nhentai/123/pages/1/thumb");
   });
 
-  it("rejects a tag from the ban icon", async () => {
+  it("has no Reject a tag menu item; the chip x rejects, a second x undoes", async () => {
     const { api, ctx, match } = setup();
-    const { getByLabelText, getByRole, getByText } = render(WebBook, { props: { match }, context: ctx });
+    const { getByLabelText, queryByText } = render(WebBook, { props: { match }, context: ctx });
     await waitFor(() => getByLabelText("More actions"));
     await fireEvent.click(getByLabelText("More actions"));
-    await fireEvent.click(getByText("Reject a tag"));
-    await fireEvent.click(getByRole("group", { name: "Reject a tag" }).querySelectorAll("button")[1]);
+    expect(queryByText("Reject a tag")).toBeNull();
+    await fireEvent.click(getByLabelText("Reject b"));
     await waitFor(() => expect(api.rejectTag).toHaveBeenCalledWith("b"));
+    await fireEvent.click(getByLabelText("Undo reject b"));
+    await waitFor(() => expect(api.unrejectTag).toHaveBeenCalledWith("b"));
+  });
+
+  it("a chip tap searches that tag on the web pill", async () => {
+    const { router, ctx, match } = setup();
+    const { getByText } = render(WebBook, { props: { match }, context: ctx });
+    await waitFor(() => getByText("a"));
+    await fireEvent.click(getByText("a"));
+    expect(router.navigate).toHaveBeenCalledWith("/?q=a&src=web");
+  });
+
+  it("shows recommendations and random rows; a row opens its book", async () => {
+    const { api, router, ctx, match } = setup();
+    const row = (i: number) => ({ id: String(900 + i), source: "nhentai", title: "Row " + i, author: "Au", thumb_url: "/t" + i });
+    (api as unknown as Record<string, unknown>).recommend = vi.fn(async () => ({ items: [row(1), row(2)] }));
+    (api as unknown as Record<string, unknown>).recommendRandom = vi.fn(async () => ({ items: [row(3)] }));
+    const { getByText } = render(WebBook, { props: { match }, context: ctx });
+    await waitFor(() => getByText("Row 1"));
+    expect(api.recommend).toHaveBeenCalledWith({ source: "nhentai", id: "123", kind: "book", limit: 6 });
+    expect(api.recommendRandom).toHaveBeenCalledWith({ source: "nhentai", limit: 5, exclude: "123" });
+    await fireEvent.click(getByText("Row 3"));
+    expect(router.navigate).toHaveBeenCalledWith("/web/nhentai/903");
   });
 
   it("loads the new book when the route id changes", async () => {

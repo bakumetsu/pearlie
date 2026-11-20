@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import io
 import re
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
+from typing import TypeVar
 
 import httpx
 from PIL import Image, ImageOps
@@ -31,7 +33,12 @@ _ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 MAX_PAGE_BYTES = 40 * 1024 * 1024  # a page we downscale; larger is refused
 MIN_THUMB_W, MAX_THUMB_W = 16, 2000
 THUMB_QUALITY = 80
+_T = TypeVar("_T")
 _MISSING = "MISSING"
+WALK_TTL_S = 15.0  # how long a full series or deleted-items walk is reused
+SERIES_SEARCH_TTL_S = 60.0  # the series search walk (up to 100 calls) outlives a slow typist
+TAG_WALK_TTL_S = 600.0  # the library tag walk is big (up to 100 calls): reuse it longer
+TAG_WALK_PAGES = SERIES_BOOKS_PAGES  # the cap: 10,000 books, in memory only, never in the DB
 
 # Stump's order inputs are oneof objects: `{series: {field, direction}}` or `{media: {...}}`
 _NAME_ASC = {"field": "NAME", "direction": "ASC"}
@@ -76,6 +83,11 @@ def _links(meta: dict) -> list[tuple[str, str]]:
 
 def _tags(d: dict) -> list[str]:
     return sorted(str(t.get("name", "")) for t in d.get("tags") or [] if isinstance(t, dict))
+
+
+def _tag_key(tag: str) -> str:
+    """A tag as compared in a tag search: no quotes, `_` as space, lower case."""
+    return tag.strip().replace('"', "").replace("_", " ").lower()
 
 
 def book_dto(d: dict) -> BookDTO:
@@ -134,16 +146,22 @@ def _page[T](conn: dict, page: int, size: int, items: list[T]) -> PageResult[T]:
     )
 
 
-def _search(q: str) -> dict:
-    """name / metadata title contains *q* (Stump has no full-text search)."""
-    return {"_or": [{"name": {"contains": q}}, {"metadata": {"title": {"contains": q}}}]}
+def _search(q: str, tags: bool = False) -> dict:
+    """name / metadata title contains *q* (Stump has no full-text search).
+
+    *tags* adds the book tag filter (`_` as space, like a booru tag); Stump has it on media only.
+    """
+    ors: list[dict] = [{"name": {"contains": q}}, {"metadata": {"title": {"contains": q}}}]
+    if tags:
+        ors.append({"tags": {"contains": q.replace("_", " ")}})
+    return {"_or": ors}
 
 
-def _filter(q: str, *conds: dict | None) -> dict:
+def _filter(q: str, *conds: dict | None, tags: bool = False) -> dict:
     """*conds* and the search text as one filter (`{}` for no condition: Stump needs a filter)."""
     parts = [c for c in conds if c]
     if q:
-        parts.append(_search(q))
+        parts.append(_search(q, tags))
     if not parts:
         return {}
     return parts[0] if len(parts) == 1 else {"_and": parts}
@@ -176,6 +194,23 @@ class StumpBookServer:
     def __init__(self, client: Stump, cache: ThumbCache | None = None) -> None:
         self._c = client
         self._cache = cache
+        self._walks: dict[tuple, tuple[float, object, float]] = {}
+
+    def _walked(self, key: tuple, walk: Callable[[], _T], ttl: float = WALK_TTL_S) -> _T:
+        """Result of *walk*, reused for *ttl*; every write through this adapter clears it."""
+        hit = self._walks.get(key)
+        if hit is not None and time.monotonic() - hit[0] < hit[2]:
+            return hit[1]  # type: ignore[return-value]
+        value = walk()
+        now = time.monotonic()
+        for k in [k for k, (t, _v, ttl_k) in self._walks.items() if now - t >= ttl_k]:
+            del self._walks[k]  # sweep, so the dict cannot grow without bound
+        self._walks[key] = (now, value, ttl)
+        return value
+
+    def invalidate_walks(self) -> None:
+        """Forget every cached walk (the library changed behind the adapter, e.g. a trash move)."""
+        self._walks.clear()
 
     @property
     def client(self) -> Stump:
@@ -203,10 +238,56 @@ class StumpBookServer:
     def list_series(
         self, page: int, size: int, q: str, sort: str, library_id: str | None = None
     ) -> PageResult[SeriesDTO]:
+        if q.strip():
+            return self._search_series(page, size, q, library_id)
         conn = self._c.list_series(
-            page, size, _filter(q, _eq("libraryId", library_id)), _order("series", q, sort)
+            page, size, _filter("", _eq("libraryId", library_id)), _order("series", q, sort)
         )
         return _page(conn, page, size, [series_dto(d) for d in conn.get("nodes") or []])
+
+    def _search_series(
+        self, page: int, size: int, q: str, library_id: str | None
+    ) -> PageResult[SeriesDTO]:
+        """Series whose name, title or a tag contains *q*, by name.
+
+        Stump v0.1.13 has no series tag filter, so this reads one cached name-ordered walk (cap
+        10,000 series, in memory only) and matches here, then pages the matches.
+        """
+        walk = self._walked(
+            ("serieswalk", library_id),
+            lambda: self._walk_all_series(library_id),
+            SERIES_SEARCH_TTL_S,
+        )
+        want = q.strip().lower()
+        want_tag = _tag_key(q)
+        hits = [
+            s
+            for s in walk
+            if want in s.name.lower()
+            or want in s.title.lower()
+            or any(want_tag in _tag_key(t) for t in s.tags)
+        ]
+        total = len(hits)
+        pages = max(1, -(-total // size))
+        start = (page - 1) * size
+        return PageResult(
+            items=hits[start : start + size],
+            page=page,
+            size=size,
+            total_pages=pages,
+            total_items=total,
+        )
+
+    def _walk_all_series(self, library_id: str | None) -> list[SeriesDTO]:
+        out: list[SeriesDTO] = []
+        for page in range(1, TAG_WALK_PAGES + 1):
+            conn = self._c.list_series(
+                page, PAGE_SIZE, _filter("", _eq("libraryId", library_id)), _name_asc("series")
+            )
+            out.extend(series_dto(d) for d in conn.get("nodes") or [])
+            if _page(conn, page, PAGE_SIZE, []).last:
+                break
+        return out
 
     def list_books(
         self,
@@ -220,7 +301,7 @@ class StumpBookServer:
         conn = self._c.list_media(
             page,
             size,
-            _filter(q, _eq("seriesId", series_id), _in_library(library_id)),
+            _filter(q, _eq("seriesId", series_id), _in_library(library_id), tags=True),
             _order("media", q, sort),
         )
         return _page(conn, page, size, [book_dto(d) for d in conn.get("nodes") or []])
@@ -232,6 +313,10 @@ class StumpBookServer:
         return book_dto(self._c.get_media(id))
 
     def series_books(self, series_id: str) -> tuple[list[BookDTO], bool]:
+        books, truncated = self._walked(("books", series_id), lambda: self._walk_series(series_id))
+        return list(books), truncated
+
+    def _walk_series(self, series_id: str) -> tuple[list[BookDTO], bool]:
         books: list[BookDTO] = []
         for page in range(1, SERIES_BOOKS_PAGES + 1):
             conn = self._c.list_media(
@@ -241,6 +326,33 @@ class StumpBookServer:
             if _page(conn, page, PAGE_SIZE, []).last:
                 return books, False
         return books, True
+
+    def tagged_books(self, q: str, tags: list[str]) -> list[BookDTO]:
+        """Books matching the title text *q* that carry every tag (AND); `-tag` must be absent.
+
+        Reads one cached walk of the title search (cap 10,000 books, newest first): the tag lists
+        come with the books, so a tag tap costs no extra Stump call.
+        """
+        books = self._walked(("tagwalk", q), lambda: self._walk_books(q), TAG_WALK_TTL_S)
+        want = {t for t in map(_tag_key, tags) if t and not t.startswith("-")}
+        drop = {t[1:] for t in map(_tag_key, tags) if t.startswith("-") and len(t) > 1}
+        out = []
+        for b in books:
+            have = {_tag_key(t) for t in b.tags}
+            if want <= have and not drop & have:
+                out.append(b)
+        return out
+
+    def _walk_books(self, q: str) -> list[BookDTO]:
+        books: list[BookDTO] = []
+        for page in range(1, TAG_WALK_PAGES + 1):
+            conn = self._c.list_media(
+                page, PAGE_SIZE, _filter(q, None), _order("media", q, SORT_CREATED_DESC)
+            )
+            books.extend(book_dto(d) for d in conn.get("nodes") or [])
+            if _page(conn, page, PAGE_SIZE, []).last:
+                break
+        return books
 
     # search / lookup
 
@@ -311,12 +423,22 @@ class StumpBookServer:
     # save target + scan (T-328)
 
     def scan_library(self, library_id: str) -> None:
-        self._c.scan_library(library_id)
+        self._walks.clear()
+        try:
+            self._c.scan_library(library_id)
+        finally:
+            self._walks.clear()  # a walk made during the scan saw half-scanned data
 
     # trash / undo (T-329)
 
     def list_deleted(self, kind: Kind, library_id: str) -> list[BookDTO | SeriesDTO]:
         """Items of the library Stump shows as MISSING (their file is gone)."""
+        out = self._walked(
+            ("deleted", kind, library_id), lambda: self._walk_deleted(kind, library_id)
+        )
+        return list(out)
+
+    def _walk_deleted(self, kind: Kind, library_id: str) -> list[BookDTO | SeriesDTO]:
         # SeriesFilterInput has no `status` field (Stump rejects it): series are filtered here
         filt = {"_and": [_in_library(library_id), {"status": {"eq": _MISSING}}]}
         series_filt = _eq("libraryId", library_id) or {}
@@ -333,15 +455,21 @@ class StumpBookServer:
         return out
 
     def purge_deleted(self, library_id: str) -> None:
-        self._c.clean_library(library_id)
+        self._walks.clear()
+        try:
+            self._c.clean_library(library_id)
+        finally:
+            self._walks.clear()
 
     # tags / metadata / progress (T-329)
 
     def set_tags(self, kind: Kind, id: str, tags: list[str]) -> None:
+        self._walks.clear()
         self._c.set_tags(kind, id, tags)
         self._c.lock_fields(kind, id, ["TAGS"])
 
     def set_metadata(self, kind: Kind, id: str, patch: MetadataPatch) -> None:
+        self._walks.clear()
         fields: dict = {}
         locks: list[str] = []
         if patch.title is not None:
@@ -366,8 +494,15 @@ class StumpBookServer:
         self._c.lock_fields(kind, id, locks)
 
     def set_progress(self, book_id: str, page: int, completed: bool) -> None:
+        self._walks.clear()
         if completed:
             self._c.finish_progress(book_id)
+            return
+        if page == 0:  # not started: Stump keeps the finished state unless it is deleted
+            try:
+                self._c.reset_progress(book_id)
+            finally:
+                self._walks.clear()  # tiles and series readCount read fresh data
             return
         self._check_page(page)
         self._c.update_progress(book_id, page)

@@ -75,6 +75,20 @@ def _git_dev_count(root: Path) -> tuple[int | None, str | None]:
     return int(count), commit
 
 
+def base_version() -> str:
+    """Version in pyproject.toml: the next release, the base of every dev build."""
+    try:
+        with open(Path(__file__).parents[2] / "pyproject.toml", "rb") as f:
+            v = tomllib.load(f)["project"]["version"]
+    except (OSError, tomllib.TOMLDecodeError, KeyError, TypeError):
+        return "0.0.0"
+    return v if isinstance(v, str) else "0.0.0"
+
+
+def dev_version(n: int) -> str:
+    return f"{base_version()}-dev.{n}"
+
+
 def current_version(roots: tuple[Path, ...] | None = None) -> Installed:
     if roots is None:
         roots = (Path(__file__).parents[3], Path("/opt/pearlie/current/app"))
@@ -95,19 +109,10 @@ def current_version(roots: tuple[Path, ...] | None = None) -> Installed:
         if not isinstance(commit, str):
             commit = None
         return Installed(version=version.split("+", 1)[0], channel=channel, commit=commit)
-    base = "0.0.0"
-    try:
-        with open(Path(__file__).parents[2] / "pyproject.toml", "rb") as f:
-            toml_data = tomllib.load(f)
-        v = toml_data["project"]["version"]
-        if isinstance(v, str):
-            base = v
-    except (OSError, tomllib.TOMLDecodeError, KeyError, TypeError):
-        pass
     n, commit = _git_dev_count(Path(__file__).parents[3])
     if n is None:
-        return Installed(f"{base}-dev", "dev", None)
-    return Installed(f"{base}-dev.{n}", "dev", commit)
+        return Installed(f"{base_version()}-dev", "dev", None)
+    return Installed(dev_version(n), "dev", commit)
 
 
 def short_label(installed: Installed) -> str:

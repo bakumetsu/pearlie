@@ -187,9 +187,10 @@ def test_update_settings_writes_conf_only_when_supported(
 
 
 class _FakeRun:
-    def __init__(self, systemd_returncode: int = 0) -> None:
+    def __init__(self, systemd_returncode: int = 0, active: bool = False) -> None:
         self.calls: list[list[str]] = []
         self.systemd_returncode = systemd_returncode
+        self.active = active
 
     def __call__(self, argv: list[str], *args: object, **kwargs: object) -> CompletedProcess[str]:
         self.calls.append(list(argv))
@@ -198,7 +199,7 @@ class _FakeRun:
 
         first = str(argv[0])
         if "is-active" in first or "is-active" in " ".join(str(x) for x in argv):
-            return CompletedProcess(str(argv), 3, "", "")
+            return CompletedProcess(str(argv), 0 if self.active else 3, "", "")
         if "systemd-run" in first or "systemd-run" in " ".join(str(x) for x in argv):
             return CompletedProcess(str(argv), self.systemd_returncode, "", "")
 
@@ -256,7 +257,7 @@ def test_apply_real_mode_up_to_date(client: TestClient, tmp_path: Path) -> None:
 
 
 def test_apply_real_mode_already_running(client: TestClient, tmp_path: Path) -> None:
-    fake_run = _FakeRun(systemd_returncode=0)
+    fake_run = _FakeRun(systemd_returncode=0, active=True)
     _enable_real_mode(client, tmp_path, fake_run)
     app = cast(FastAPI, client.app)
     app.state.update_checker = _FakeChecker("available")
@@ -408,7 +409,7 @@ def test_restart_blocked_by_running_jobs_unless_forced(client: TestClient, tmp_p
 
 
 def test_restart_blocked_while_update_runs(client: TestClient, tmp_path: Path) -> None:
-    _enable_real_mode(client, tmp_path, _FakeRun())
+    _enable_real_mode(client, tmp_path, _FakeRun(active=True))
     (tmp_path / "update-status.json").write_text(json.dumps({"state": "running"}), encoding="utf-8")
     resp = client.post("/api/update/restart", json={})
     assert resp.status_code == 409
@@ -471,6 +472,7 @@ def test_rollback_blocked_by_jobs_and_running_update(client: TestClient, tmp_pat
     assert _error_code(resp.json()) == "jobs_running"
     assert client.post("/api/update/rollback", json={"force": True}).status_code == 202
 
+    cast(FastAPI, client.app).state.update_run = _FakeRun(active=True)
     (tmp_path / "update-status.json").write_text(json.dumps({"state": "running"}), encoding="utf-8")
     resp = client.post("/api/update/rollback", json={"force": True})
     assert _error_code(resp.json()) == "already_running"
@@ -485,3 +487,35 @@ def test_read_previous_reads_version_schema_backup(tmp_path: Path) -> None:
     )
     assert (version, schema) == ("0.9.2", 3)
     assert backup_at is not None
+
+
+def test_status_running_with_active_unit_stays_running(client: TestClient, tmp_path: Path) -> None:
+    _enable_real_mode(client, tmp_path, _FakeRun(active=True))
+    (tmp_path / "update-status.json").write_text(
+        json.dumps({"state": "running", "step": "build"}), encoding="utf-8"
+    )
+    body = cast(dict[str, Any], client.get("/api/update/status").json())
+    assert body["state"] == "running"
+    assert body["step"] == "build"
+
+
+def test_status_stale_running_reports_interrupted_and_allows_apply(
+    client: TestClient, tmp_path: Path
+) -> None:
+    fake_run = _FakeRun()
+    _enable_real_mode(client, tmp_path, fake_run)
+    cast(FastAPI, client.app).state.update_checker = _FakeChecker("available")
+    status_file = tmp_path / "update-status.json"
+    original = json.dumps({"state": "running", "step": "build"})
+    status_file.write_text(original, encoding="utf-8")
+
+    body = cast(dict[str, Any], client.get("/api/update/status").json())
+    assert body["state"] == "failed"
+    assert body["step"] == "build"
+    assert "interrupted" in body["error"]
+    # the backend never writes the status file
+    assert status_file.read_text(encoding="utf-8") == original
+
+    resp = client.post("/api/update/apply")
+    assert resp.status_code == 202
+    assert any("systemd-run" in str(argv[0]) for argv in fake_run.calls if argv)

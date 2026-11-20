@@ -67,6 +67,9 @@ export type LogFiles = { debug: boolean; keep_days: number; dir_name: string; fi
 export type LogLine = { ts: string; level: LogLevel; logger: string; text: string };
 export type LogPage = { date: string; level: LogLevel; lines: LogLine[]; next_cursor: string | null };
 
+export type RecommendResponse = S["RecommendResponse"];
+export type RecommendItem = S["RecommendItem"];
+
 export type Kind = "images" | "videos" | "series" | "books";
 
 export class ApiError extends Error {
@@ -75,6 +78,8 @@ export class ApiError extends Error {
   public libraryRef?: { kind: string; id: string };
   // Set on 409 in_trash: the trash token that restores the saved item.
   public trashToken?: string;
+  // Set on 429/503 when the server says how long to wait (seconds).
+  public retryAfter?: number;
 
   constructor(
     status: number,
@@ -156,6 +161,8 @@ export interface Api {
   scanRule34(signal?: AbortSignal): Promise<ScanResult>;
   getRules(signal?: AbortSignal): Promise<RulesBody>;
   putRules(body: RulesPut, signal?: AbortSignal): Promise<RulesBody>;
+  recommend(p: { source: string; id: string; kind?: "book" | "series"; limit?: number }, signal?: AbortSignal): Promise<RecommendResponse>;
+  recommendRandom(p: { source: string; limit?: number; exclude?: string }, signal?: AbortSignal): Promise<RecommendResponse>;
   rejectTag(tag: string, signal?: AbortSignal): Promise<{ added: boolean; version: number }>;
   unrejectTag(tag: string, signal?: AbortSignal): Promise<{ removed: boolean; version: number }>;
   jobs(p: { state?: string[] }, signal?: AbortSignal): Promise<JobList>;
@@ -225,6 +232,9 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
       let message = "Something went wrong";
       let libraryRef: { kind: string; id: string } | undefined;
       let trashToken: string | undefined;
+      let retryAfter: number | undefined;
+      const header = Number(res.headers?.get?.("Retry-After"));
+      if (Number.isFinite(header) && header > 0) retryAfter = header;
       try {
         const body: unknown = await res.json();
         if (body !== null && typeof body === "object") {
@@ -232,6 +242,7 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
           if (typeof b.code === "string") code = b.code;
           if (typeof b.message === "string") message = b.message;
           if (typeof b.token === "string") trashToken = b.token;
+          if (typeof b.retry_after === "number" && b.retry_after > 0) retryAfter = b.retry_after;
           if (b.library_ref !== null && typeof b.library_ref === "object") {
             const ref = b.library_ref as Record<string, unknown>;
             if (typeof ref.kind === "string" && typeof ref.id === "string") {
@@ -245,6 +256,7 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
       if (res.status === 403 && code === "host_not_allowed") hostBlock.set(message);
       const err = new ApiError(res.status, code, message, libraryRef);
       if (code === "in_trash") err.trashToken = trashToken;
+      if (retryAfter !== undefined) err.retryAfter = retryAfter;
       throw err;
     }
 
@@ -423,6 +435,18 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         },
         signal,
       );
+    },
+    recommend(p, signal) {
+      const q = new URLSearchParams({ source: p.source, id: p.id });
+      if (p.kind) q.set("kind", p.kind);
+      if (p.limit !== undefined) q.set("limit", String(p.limit));
+      return request<RecommendResponse>(baseUrl + "/api/recommend?" + q.toString(), undefined, signal);
+    },
+    recommendRandom(p, signal) {
+      const q = new URLSearchParams({ source: p.source });
+      if (p.limit !== undefined) q.set("limit", String(p.limit));
+      if (p.exclude) q.set("exclude", p.exclude);
+      return request<RecommendResponse>(baseUrl + "/api/recommend/random?" + q.toString(), undefined, signal);
     },
     rejectTag(tag, signal) {
       return request<{ added: boolean; version: number }>(

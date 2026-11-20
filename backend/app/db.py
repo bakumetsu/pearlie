@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 # Bump on every new column or table (test_db.py snapshot guard fails otherwise).
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 11
 
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS jobs (
@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS rules (
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_rules_enabled ON rules (enabled);
 CREATE TABLE IF NOT EXISTS destinations (
     site TEXT PRIMARY KEY,
     folder TEXT NOT NULL,
@@ -78,8 +79,23 @@ CREATE TABLE IF NOT EXISTS trash_items (
     expires_at TEXT NOT NULL,
     size_bytes INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS stump_purged (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    library_id TEXT NOT NULL DEFAULT '',
+    purged_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_trash_entity ON trash_items (target, entity_id);
 CREATE INDEX IF NOT EXISTS idx_trash_md5 ON trash_items (md5);
+CREATE INDEX IF NOT EXISTS idx_trash_state ON trash_items (state);
+CREATE INDEX IF NOT EXISTS idx_trash_source_post ON trash_items (source, post_id);
+CREATE INDEX IF NOT EXISTS idx_trash_expires ON trash_items (expires_at);
+CREATE TABLE IF NOT EXISTS stump_ratings (
+    kind TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    rating INTEGER NOT NULL,
+    PRIMARY KEY (kind, item_id)
+);
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

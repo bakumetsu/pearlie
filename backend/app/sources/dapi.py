@@ -18,6 +18,8 @@ from app.sources.throttle import DEFAULT_PACE, Throttle
 logging.getLogger("httpx").setLevel(logging.WARNING)
 _log = logging.getLogger(__name__)
 
+MAX_QUEUE_WAIT = 8.0  # longest a browse call waits for its slot before it fails with rate_limited
+
 RATING_MAP: dict[str, Rating] = {
     "safe": "general",
     "general": "general",
@@ -75,9 +77,25 @@ class DapiSource:
         """User id + API key when both are stored; anonymous otherwise."""
         return build_auth(self.id, self._credentials() if self._credentials else {})
 
-    def _get(self, params: dict[str, str | int]) -> list[dict]:
-        """Query dapi and return the raw post dicts (empty list when none)."""
-        self._throttle.wait()
+    def _get(self, params: dict[str, str | int], max_wait: float | None = None) -> list[dict]:
+        """Query dapi and return the raw post dicts (empty list when none).
+
+        `max_wait` set (browsing): fail with rate_limited when the slot is further away.
+        None (save jobs): wait for the slot, as the pace rules say.
+        """
+        if max_wait is None:
+            self._throttle.wait()
+        else:
+            delay = self._throttle.reserve_within(max_wait)
+            if delay is None:
+                _log.warning(
+                    "%s: call refused, back-off pause is longer than %.0fs", self.id, max_wait
+                )
+                raise SourceError(
+                    "rate_limited", f"{self.name} asked to slow down; retry in a minute", 429
+                )
+            if delay > 0:
+                self._throttle.nap(delay)
         try:
             auth = self._auth()
             query: dict[str, str | int] = {
@@ -132,7 +150,10 @@ class DapiSource:
         filter_tags, notices = dapi_filter_tags(self.id, order, rating or [])
         server_tags += filter_tags
         ratings += [t for t in filter_tags if rating_filter(t) is not None]
-        data = self._get({"tags": " ".join(server_tags), "pid": max(page, 1) - 1, "limit": size})
+        data = self._get(
+            {"tags": " ".join(server_tags), "pid": max(page, 1) - 1, "limit": size},
+            MAX_QUEUE_WAIT,
+        )
         posts: list[Post] = []
         skipped = 0
         first_id = ""

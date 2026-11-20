@@ -13,6 +13,7 @@ import logging
 import os
 import shutil
 import threading
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -90,11 +91,17 @@ def _suffixed(path: Path) -> Path:
         n += 1
 
 
+OWNED_TTL = 2.0  # seconds a stump_owned_ids answer stays valid
+
+
 class TrashStore:
     def __init__(self, db_path: Path, trash_dir: Path) -> None:
         self._db = db_path
         self.default_dir = trash_dir
         self._lock = threading.Lock()
+        self._owned_cache: tuple[float, set[str]] | None = None
+        # called with a library id after a Stump record was purged (the StumpTrash sets it)
+        self.on_stump_purge: Callable[[str], None] | None = None
 
     @property
     def dir(self) -> Path:
@@ -196,6 +203,7 @@ class TrashStore:
             conn.commit()
         finally:
             conn.close()
+        self._owned_cache = None
 
     def get(self, token: str) -> dict | None:
         return self._row(token)
@@ -231,8 +239,11 @@ class TrashStore:
 
         A `restoring` row is left out on purpose: its item must not be purged under it.
         A trashed series also owns its book ids, and a book that emptied its series owns
-        that series id.
+        that series id. The answer is cached for a short time; every trash write drops it.
         """
+        cached = self._owned_cache
+        if cached is not None and time.monotonic() - cached[0] < OWNED_TTL:
+            return set(cached[1])
         conn = connect(self._db)
         try:
             rows = conn.execute(
@@ -252,7 +263,52 @@ class TrashStore:
             ids.update(str(i) for i in meta.get("book_ids") or [])
             if meta.get("series_gone_id"):
                 ids.add(str(meta["series_gone_id"]))
-        return ids
+        ids.update(r["id"] for r in self._purged_rows())
+        self._owned_cache = (time.monotonic(), ids)
+        return set(ids)
+
+    def _purged_rows(self) -> list[dict]:
+        conn = connect(self._db)
+        try:
+            return [dict(r) for r in conn.execute("SELECT id, kind, library_id FROM stump_purged")]
+        finally:
+            conn.close()
+
+    def clear_purged(self, ids: list[str]) -> None:
+        """Forget purged Stump ids that Stump no longer lists (or lists as deleted)."""
+        if not ids:
+            return
+        conn = connect(self._db)
+        try:
+            conn.executemany("DELETE FROM stump_purged WHERE id = ?", [(i,) for i in ids])
+            conn.commit()
+        finally:
+            conn.close()
+        self._owned_cache = None
+
+    def stump_pending(self) -> list[tuple[str, str, str]]:
+        """(library id, kind, id) of Stump items that may still show: purged ones awaiting
+        Stump, and trashed ones whose scan may have been lost in a restart."""
+        out = [
+            (r["library_id"], r["kind"], r["id"]) for r in self._purged_rows() if r["library_id"]
+        ]
+        conn = connect(self._db)
+        try:
+            rows = conn.execute(
+                f"SELECT kind, entity_id, meta FROM trash_items WHERE {_BOOK_TARGET_SQL} "
+                "AND state = 'trashed'",
+                BOOK_TARGETS,
+            ).fetchall()
+        finally:
+            conn.close()
+        for r in rows:
+            try:
+                lib = json.loads(r["meta"] or "{}").get("library_id")
+            except ValueError:
+                continue
+            if lib:
+                out.append((str(lib), r["kind"], r["entity_id"]))
+        return out
 
     def stump_covering(self, book_id: str) -> dict | None:
         """A live Stump trash row that holds the book: the book itself or its series."""
@@ -341,6 +397,7 @@ class TrashStore:
             conn.commit()
         finally:
             conn.close()
+        self._owned_cache = None
         try:
             folder.mkdir()
             (folder / SIDECAR).write_text(
@@ -487,14 +544,27 @@ class TrashStore:
             )
             if row["source"] and row["post_id"]:
                 conn.execute(
-                    "DELETE FROM saved_items WHERE source = ? AND post_id = ?",
-                    (row["source"], row["post_id"]),
+                    "DELETE FROM saved_items WHERE source = ? AND post_id = ? AND target = ?",
+                    (row["source"], row["post_id"], row["target"]),
                 )
+            purged_lib = ""
             if row["target"] in BOOK_TARGETS:
                 try:
-                    book_ids = json.loads(row["meta"] or "{}").get("book_ids") or []
+                    meta = json.loads(row["meta"] or "{}")
                 except ValueError:
-                    book_ids = []
+                    meta = {}
+                book_ids = meta.get("book_ids") or []
+                purged_lib = str(meta.get("library_id") or "")
+                # Stump may not have seen the file go: keep the ids hidden until it drops them
+                stamp = _iso(datetime.now(UTC))
+                gone = [(row["entity_id"], row["kind"])] + [(str(b), "book") for b in book_ids]
+                if meta.get("series_gone_id"):
+                    gone.append((str(meta["series_gone_id"]), "series"))
+                conn.executemany(
+                    "INSERT OR REPLACE INTO stump_purged (id, kind, library_id, purged_at) "
+                    "VALUES (?,?,?,?)",
+                    [(str(i), k, purged_lib, stamp) for i, k in gone],
+                )
                 for book_id in [row["entity_id"], *book_ids]:
                     conn.execute(
                         f"DELETE FROM saved_items WHERE {_BOOK_TARGET_SQL} AND library_id = ?",
@@ -503,6 +573,10 @@ class TrashStore:
             conn.commit()
         finally:
             conn.close()
+        self._owned_cache = None
+        hook = self.on_stump_purge
+        if hook is not None and purged_lib:
+            hook(purged_lib)
         return True
 
     def delete_for_good(self, token: str) -> None:

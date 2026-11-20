@@ -2,9 +2,11 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent, waitFor } from "@testing-library/svelte";
 import StumpBook from "./StumpBook.svelte";
-import type { LibraryItemDetail } from "../api/client";
+import { API_CONTEXT_KEY } from "../api/client";
+import type { Api, LibraryItemDetail } from "../api/client";
 
-vi.mock("../ctx", () => ({ getRouter: () => ({ navigate: vi.fn() }) }));
+const navigate = vi.hoisted(() => vi.fn());
+vi.mock("../ctx", () => ({ getRouter: () => ({ navigate }) }));
 
 afterEach(cleanup);
 
@@ -25,8 +27,13 @@ function setup(over: Partial<LibraryItemDetail> = {}, saveProgress = vi.fn(async
     onback: vi.fn(), onread: vi.fn(), onerror: vi.fn(), onfavorite: vi.fn(), ondelete: vi.fn(),
     onrate: vi.fn(), onaddtag: vi.fn(), onremovetag: vi.fn(),
   };
-  const r = render(StumpBook, { props: { detail, api: { saveProgress }, tags: ["a"], ...fns, ...extra } });
-  return { ...r, saveProgress, ...fns };
+  const panelApi = {
+    recommend: vi.fn(async () => ({ items: [{ kind: "book", id: "r1", title: "Rec One", thumb_url: "/r1" }] })),
+    recommendRandom: vi.fn(async () => ({ items: [] })),
+  };
+  const context = new Map<unknown, unknown>([[API_CONTEXT_KEY, panelApi as unknown as Api]]);
+  const r = render(StumpBook, { props: { detail, api: { saveProgress }, tags: ["a"], ...fns, ...extra }, context });
+  return { ...r, saveProgress, panelApi, ...fns };
 }
 
 async function openMenu(r: ReturnType<typeof setup>) {
@@ -61,6 +68,50 @@ describe("StumpBook", () => {
     await waitFor(() => expect(r.container.querySelector("button.thumb.last")).toBeNull());
   });
 
+  it("marks the book unread: saves page 0 and drops the outline", async () => {
+    const r = setup();
+    await openMenu(r);
+    await fireEvent.click(r.getByText("Mark unread"));
+    expect(r.saveProgress).toHaveBeenCalledWith("b1", 0);
+    await waitFor(() => expect(r.container.querySelector("button.thumb.last")).toBeNull());
+    expect(r.getByText("Read")).toBeTruthy();
+  });
+
+  it("offers Mark unread on every book, also one with no read page", async () => {
+    const done = setup({ read_page: 8 });
+    await openMenu(done);
+    expect((done.getByText("Mark unread").closest("button") as HTMLButtonElement).disabled).toBe(false);
+    cleanup();
+    const fresh = setup({ read_page: null });
+    await openMenu(fresh);
+    expect((fresh.getByText("Mark unread").closest("button") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("marks a book with no read page unread: saves page 0, no error", async () => {
+    const r = setup({ read_page: null });
+    await openMenu(r);
+    await fireEvent.click(r.getByText("Mark unread"));
+    expect(r.saveProgress).toHaveBeenCalledWith("b1", 0);
+    await waitFor(() => expect(r.saveProgress).toHaveBeenCalledTimes(1));
+    expect(r.onerror).not.toHaveBeenCalled();
+  });
+
+  it("reports an error when mark unread fails", async () => {
+    const r = setup({}, vi.fn(async () => { throw new Error("x"); }));
+    await openMenu(r);
+    await fireEvent.click(r.getByText("Mark unread"));
+    await waitFor(() => expect(r.onerror).toHaveBeenCalled());
+  });
+
+  it("newer server progress replaces a stale mark read", async () => {
+    const r = setup({ read_page: 3 });
+    await openMenu(r);
+    await fireEvent.click(r.getByText("Mark read"));
+    await waitFor(() => expect(r.container.querySelector("button.thumb.last")).toBeNull());
+    await r.rerender({ detail: { kind: "book", id: "b1", title: "Stump Book", thumb_url: "/cover", page_count: 8, read_page: 2, page_thumb_url: "/api/media/stump/books/b1/pages/{n}/thumb", favorite: false, added_at: "2026-01-01T00:00:00Z" } as LibraryItemDetail });
+    await waitFor(() => expect(r.container.querySelector("button.thumb.last")?.getAttribute("aria-label")).toBe("Page 2"));
+  });
+
   it("reports an error when mark read fails", async () => {
     const r = setup({}, vi.fn(async () => { throw new Error("x"); }));
     await openMenu(r);
@@ -91,12 +142,42 @@ describe("StumpBook", () => {
     expect(onprev).toHaveBeenCalled();
   });
 
-  it("has the 260 px column with rating and tags, and no panel handle", () => {
-    const { getByText, queryByLabelText, container } = setup();
-    expect(getByText("Rating")).toBeTruthy();
+  it("shows the rating under the author, tag chips and no Rating or Details section", () => {
+    const { getByRole, getByText, queryByText, queryByLabelText } = setup({ author: "Some Author" });
+    expect(getByText("Some Author")).toBeTruthy();
+    expect(getByRole("radiogroup", { name: "Rating" })).toBeTruthy();
     expect(getByText("Tags")).toBeTruthy();
-    expect(container.querySelector("aside.side")).toBeTruthy();
+    expect(getByText("a")).toBeTruthy();
+    expect(queryByText("Rating")).toBeNull();
+    expect(queryByText("Details")).toBeNull();
     expect(queryByLabelText("Hide panel")).toBeNull();
+  });
+
+  it("asks for Stump recommendations and random with limit 4", async () => {
+    const r = setup();
+    await waitFor(() => expect(r.panelApi.recommend).toHaveBeenCalledWith({ source: "stump", id: "b1", kind: "book", limit: 6 }));
+    expect(r.panelApi.recommendRandom).toHaveBeenCalledWith({ source: "stump", limit: 4, exclude: "b1" });
+  });
+
+  it("opens a recommendation on the Stump page, not /web/", async () => {
+    const r = setup();
+    await fireEvent.click(await r.findByText("Rec One"));
+    expect(navigate).toHaveBeenCalledWith("/item/books/r1");
+  });
+
+  it("rejects a tag from the menu picker", async () => {
+    const onrejecttag = vi.fn();
+    const r = setup({}, undefined, { onrejecttag });
+    await openMenu(r);
+    await fireEvent.click(r.getByText("Reject a tag"));
+    await fireEvent.click(r.getByRole("group", { name: "Reject a tag" }).querySelector("button")!);
+    expect(onrejecttag).toHaveBeenCalledWith("a");
+  });
+
+  it("has no Reject menu item without a handler", async () => {
+    const r = setup();
+    await openMenu(r);
+    expect(r.queryByText("Reject a tag")).toBeNull();
   });
 
   it("shows a note and no Read button for a book without pages", () => {

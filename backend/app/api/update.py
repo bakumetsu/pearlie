@@ -186,7 +186,7 @@ def _status(request: Request, refresh: bool, manual: bool) -> StatusOut:
         installed_ref = installed.version if channel == "main" else (installed.commit or "")
         available = update_version.is_newer(latest_ref, installed_ref, channel)
 
-    status = runner.read_status(root)
+    status = runner.effective_status(root, run)
     state: str = status.get("state") or "idle"
     step: str | None = status.get("step")
     status_error: str | None = status.get("error")
@@ -332,8 +332,7 @@ def apply_update(request: Request) -> ApplyOut:
     if not (mode == "real" and runner.supported(root)):
         raise ApiError(503, "unsupported", "update not supported here")
 
-    status = runner.read_status(root)
-    if status.get("state") == "running" or runner.is_running(run=run):
+    if runner.is_running(run=run):
         raise ApiError(409, "already_running", "update already in progress")
 
     raw_channel = _get(db_path, "update.channel")
@@ -367,7 +366,7 @@ def _guard_action(request: Request, force: bool) -> Path:
     run = app_state.update_run
     if not (app_state.settings.mode == "real" and runner.supported(root)):
         raise ApiError(503, "unsupported", "not supported here")
-    if runner.read_status(root).get("state") == "running" or runner.is_running(run=run):
+    if runner.is_running(run=run):
         raise ApiError(409, "already_running", "update already in progress")
     count = JobStore(app_state.settings.db_path).count_running()
     if count and not force:

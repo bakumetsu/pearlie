@@ -5,7 +5,8 @@ from __future__ import annotations
 from fastapi import Request
 
 from app.api.options import detect_profile, read_option
-from app.models import Blur
+from app.filters.rules import RuleSet, evaluate
+from app.models import Blur, Tag
 
 
 def is_hidden_in_safe_mode(blur: Blur | None, safe: bool, allow_blurred: bool) -> bool:
@@ -29,3 +30,16 @@ def resolve_safe(request: Request, safe_param: bool | None) -> tuple[bool, bool]
         else _stored(request, f"options.{detect_profile(request)}.sfw")
     )
     return safe, _stored(request, "options.global.allow_blurred_tags")
+
+
+def visible_tags(tags: list[Tag], rules: RuleSet, safe: bool, allow_blurred: bool) -> list[Tag]:
+    """Drop the tags that a warn rule hits when safe mode hides blurred items."""
+    if not safe or allow_blurred:
+        return tags
+    kept: list[Tag] = []
+    for tag in tags:
+        verdict = evaluate({tag.scope or "": [tag.name]}, rules)
+        if verdict is not None and verdict.decision == "warn":
+            continue
+        kept.append(tag)
+    return kept
