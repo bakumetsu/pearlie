@@ -145,9 +145,14 @@ def _stump_row(b: BookDTO) -> RecommendItem:
 
 def _stump_walk(request: Request) -> list[BookDTO]:
     try:
-        return book_server_of(request.app).tagged_books("", [])
+        books = book_server_of(request.app).tagged_books("", [])
     except BookServerError as e:
         raise ApiError(e.status, e.code, e.message) from None
+    # Stump lists a trashed book until its debounced scan ran, and a walk in that window is
+    # cached for minutes: the trash records are the truth.
+    trash = getattr(request.app.state, "trash", None)
+    owned = trash.stump_owned_ids() if trash is not None else set()
+    return [b for b in books if b.id not in owned] if owned else books
 
 
 def _stump_seed(request: Request, id: str, kind: str) -> tuple[set[str], set[str], set[str]]:
