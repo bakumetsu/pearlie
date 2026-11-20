@@ -1,5 +1,6 @@
 import type { Mode } from "./layout";
-import { columnCount, safeAspect } from "./layout";
+import { safeAspect } from "./layout";
+import { gridColumns } from "./columns";
 
 // Pure, incremental layout for the windowed results grid (D-31). No DOM: it holds a rect per item
 // index and the total height. All modes share reset / append / applyAspect / range.
@@ -124,7 +125,7 @@ export class VirtualLayout {
     this.itemCol = [];
     this.itemTop = [];
     if (mode === "masonry") {
-      this.cols = columnCount(width, size, MASONRY_GAP);
+      this.cols = gridColumns(width, size, MASONRY_GAP);
       this.cw = (width - MASONRY_GAP * (this.cols - 1)) / this.cols;
       for (let c = 0; c < this.cols; c++) {
         this.colItems.push([]);
@@ -132,7 +133,7 @@ export class VirtualLayout {
         this.colBottom.push(0);
       }
     } else if (mode === "grid") {
-      this.cols = columnCount(width, size, GRID_GAP);
+      this.cols = gridColumns(width, size, GRID_GAP);
       this.cw = (width - GRID_GAP * (this.cols - 1)) / this.cols;
     } else if (mode === "list") {
       this.cols = 1;
