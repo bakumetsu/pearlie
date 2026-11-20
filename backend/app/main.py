@@ -173,6 +173,11 @@ async def _trash_purge_loop(app_: FastAPI) -> None:
         await asyncio.to_thread(store.repair, destroyers)
     except Exception:
         logger.warning("trash repair failed")
+    if trash_real.book_server_ready(app_):
+        try:
+            trash_real.stump_trash_of_app(app_).requeue_pending()
+        except Exception:
+            logger.warning("trash stump requeue failed")
     while True:
         try:
             await asyncio.to_thread(store.purge_expired)

@@ -2,6 +2,7 @@
 
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -60,7 +61,7 @@ class FsStump(stump_mock.MockStump):
                 self.books[-1].update(id=f"N{self.n}", tags=[], readProgress=None)
 
 
-def make(tmp_path, mock, wait=0.0, **extra):
+def make(tmp_path, mock, wait: float | Callable[[], float] = 0.0, **extra):
     (tmp_path / "trash").mkdir(exist_ok=True)
     app = create_app(
         Settings(
@@ -84,7 +85,7 @@ def make(tmp_path, mock, wait=0.0, **extra):
         state.settings,
         state.trash,
         adapter,
-        wait_s=lambda: wait,
+        wait_s=wait if callable(wait) else (lambda: wait),
         settle_timeout_s=2.0,
         poll_s=0.01,
         restore_timeout_s=2.0,
@@ -313,3 +314,53 @@ def test_restore_recreates_the_series_folder_and_the_book(tmp_path):
     r = c.post(f"/api/trash/{tok}/restore")
     assert r.status_code == 200, r.text
     assert folder.is_dir() and f1.exists()
+
+
+def listed_ids(c):
+    r = c.get("/api/library/stump/books")
+    assert r.status_code == 200, r.text
+    return [i["id"] for i in r.json()["items"]]
+
+
+def test_purge_keeps_book_hidden_then_scans_and_cleans(tmp_path):
+    _, _, _, m = setup_lib(tmp_path)
+    w = [60.0]  # the scan after the trash never ran (a restart lost its timer)
+    c = make(tmp_path, m, wait=lambda: w[0])
+    state: Any = c.app.state  # pyright: ignore[reportAttributeAccessIssue]
+    tok = c.delete("/api/library/books/B1").json()["token"]
+    assert m.scanned == []
+    assert c.delete(f"/api/trash/{tok}").status_code == 204
+    # the record is gone, Stump still lists B1 as READY: it stays hidden
+    assert c.get("/api/trash").json()["items"] == []
+    assert "B1" in state.trash.stump_owned_ids()
+    assert listed_ids(c) == ["B2"]
+    assert state.trash.stump_pending() == [("L1", "book", "B1")]
+    w[0] = 0.0  # the next purge (or start) queues the scan again
+    state.stump_trash.requeue_pending()
+    assert wait_for(lambda: m.cleaned == ["L1"])
+    assert wait_for(lambda: state.trash.stump_pending() == [])
+    assert "B1" not in state.trash.stump_owned_ids()
+    assert listed_ids(c) == ["B2"]
+
+
+def test_purge_queues_scan_for_the_library(tmp_path):
+    _, _, _, m = setup_lib(tmp_path)
+    w = [60.0]
+    c = make(tmp_path, m, wait=lambda: w[0])
+    tok = c.delete("/api/library/books/B1").json()["token"]
+    w[0] = 0.0
+    assert c.delete(f"/api/trash/{tok}").status_code == 204
+    assert wait_for(lambda: m.scanned == ["L1"])
+    assert wait_for(lambda: m.cleaned == ["L1"])
+
+
+def test_start_requeues_scan_for_trashed_records(tmp_path):
+    _, _, _, m = setup_lib(tmp_path)
+    w = [60.0]
+    c = make(tmp_path, m, wait=lambda: w[0])
+    assert c.delete("/api/library/books/B1").status_code == 200
+    assert m.scanned == []
+    w[0] = 0.0
+    state: Any = c.app.state  # pyright: ignore[reportAttributeAccessIssue]
+    state.stump_trash.requeue_pending()
+    assert wait_for(lambda: m.cleaned == ["L1"])
