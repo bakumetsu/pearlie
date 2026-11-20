@@ -61,7 +61,10 @@ export type UpdateRollbackIn = S["RollbackIn"];
 export type UpdateChangelog = S["ChangelogOut"];
 export type ChangeBlock = S["ChangeBlockOut"];
 export type Destinations = S["Destinations"];
-export type LogLevel = "error" | "warning" | "info" | "debug";
+export type DebugKeyStatus = S["DebugKeyStatus"];
+export type CreatedDebugKey = S["CreatedKey"];
+export type DebugKeyTtl = S["CreateBody"]["ttl"];
+export type LogLevel ="error" | "warning" | "info" | "debug";
 export type LogFileInfo = { date: string; size_bytes: number; lines: number };
 export type LogFiles = { debug: boolean; keep_days: number; dir_name: string; files: LogFileInfo[]; cap_bytes: number };
 export type LogLine = { ts: string; level: LogLevel; logger: string; text: string };
@@ -193,6 +196,9 @@ export interface Api {
   getLogLines(date: string, p: { level: LogLevel; cursor?: string | null; limit?: number }, signal?: AbortSignal): Promise<LogPage>;
   putLogDebug(debug: boolean, signal?: AbortSignal): Promise<{ debug: boolean }>;
   logDownloadUrl(date: string, level: LogLevel): string;
+  getDebugKey(signal?: AbortSignal): Promise<DebugKeyStatus>;
+  createDebugKey(ttl: DebugKeyTtl, signal?: AbortSignal): Promise<CreatedDebugKey>;
+  deleteDebugKey(signal?: AbortSignal): Promise<void>;
   testRules(tags: string[], signal?: AbortSignal): Promise<RulesTestResult>;
   saveProgress(bookId: string, page: number, signal?: AbortSignal, opts?: { keepalive?: boolean }): Promise<ProgressResult>;
 }
@@ -578,6 +584,19 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
         { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ debug }) },
         signal,
       );
+    },
+    getDebugKey(signal) {
+      return request<DebugKeyStatus>(baseUrl + "/api/options/debug-key", undefined, signal);
+    },
+    createDebugKey(ttl, signal) {
+      return request<CreatedDebugKey>(
+        baseUrl + "/api/options/debug-key",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ttl }) },
+        signal,
+      );
+    },
+    deleteDebugKey(signal) {
+      return request<void>(baseUrl + "/api/options/debug-key", { method: "DELETE" }, signal);
     },
     logDownloadUrl(date, level) {
       return buildUrl(`/api/logs/${encodeURIComponent(date)}/download`, { level });

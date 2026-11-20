@@ -1,14 +1,11 @@
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
-	import type { components } from "../api/schema.gen";
+	import { getApi } from "../api/client";
+	import type { CreatedDebugKey as Created, DebugKeyStatus as Status, DebugKeyTtl as Ttl } from "../api/client";
 	import Icon from "../components/Icon.svelte";
 	import { toasts } from "../stores/toasts.svelte";
 
-	type Status = components["schemas"]["DebugKeyStatus"];
-	type Created = components["schemas"]["CreatedKey"];
-	type Ttl = components["schemas"]["CreateBody"]["ttl"];
-
-	const KEY_URL = "/api/options/debug-key";
+	const api = getApi();
 	const TTLS: { id: Ttl; label: string }[] = [
 		{ id: "1h", label: "1 hour" },
 		{ id: "24h", label: "24 hours" },
@@ -32,16 +29,10 @@
 		clearTimeout(copiedTimer);
 	});
 
-	async function call<T>(init?: RequestInit): Promise<T> {
-		const res = await fetch(KEY_URL, init);
-		if (!res.ok) throw new Error(`Error ${res.status}`);
-		return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
-	}
-
 	async function load() {
 		phase = "loading";
 		try {
-			const s = await call<Status>();
+			const s = await api.getDebugKey();
 			if (!alive) return;
 			status = s;
 			phase = "ready";
@@ -70,11 +61,7 @@
 		if (busy) return;
 		busy = true;
 		try {
-			const k = await call<Created>({
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ ttl }),
-			});
+			const k = await api.createDebugKey(ttl);
 			if (!alive) return;
 			created = k;
 			confirmNew = false;
@@ -91,7 +78,7 @@
 		if (busy) return;
 		busy = true;
 		try {
-			await call<void>({ method: "DELETE" });
+			await api.deleteDebugKey();
 			if (!alive) return;
 			created = null;
 			confirmNew = false;
