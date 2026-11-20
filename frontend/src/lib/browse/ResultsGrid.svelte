@@ -10,7 +10,7 @@
   import { zoomSize, dealMasonry, wallRows } from "./layout";
   import { gridColumns } from "./columns";
   import { itemAspect, captionLines } from "./sources";
-  import { VirtualLayout, WALL_GAP, MASONRY_GAP } from "./virtualLayout";
+  import { VirtualLayout, WALL_GAP, MASONRY_GAP, GRID_GAP } from "./virtualLayout";
 
   type Item = LibraryItem | WebItem;
   interface Cell {
@@ -414,7 +414,7 @@
     </div>
   {:else if mode === "grid"}
     <!-- Also the answer when the viewport overlaps the built layout but its window holds no cell (first FLOW_COUNT rows only). -->
-    <div class="grid" style:--cell="{size}px">
+    <div class="grid" style:--cell="{size}px" style:grid-template-columns={width > 0 ? `repeat(${gridColumns(width, size, GRID_GAP)}, minmax(0, 1fr))` : undefined}>
       {#each flowItems as item (keyOf(item))}
         {@render tile(item, "grid", undefined)}
       {/each}

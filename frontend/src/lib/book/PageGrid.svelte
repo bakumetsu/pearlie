@@ -21,7 +21,7 @@
 
   const router = getRouter();
   // 5 to 8 columns from 900 px (D-41 3.4); below that the CSS rule stays.
-  const GAP = 8;
+  const GAP = 8; // equals var(--s-2), the CSS gap below
   let cols = $state(0);
   function track(node: HTMLElement) {
     const read = () => {
