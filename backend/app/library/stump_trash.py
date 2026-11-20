@@ -234,6 +234,7 @@ class StumpTrash:
             logger.warning("trash stump scan failed code=%s: items stay hidden", e.code)
             return
         self._settle(items)
+        self._drop_walks()  # a walk taken before the scan still lists the items
         self.empty_if_ours(library_id)
 
     def _settled(self, kind: str, id: str) -> bool:

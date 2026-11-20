@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 from pathlib import Path
+from typing import Any
 
 import httpx
 from fastapi.testclient import TestClient
@@ -189,6 +190,18 @@ def test_stump_random_excludes_and_shuffles(tmp_path) -> None:
         assert len(ids) == 4 and "b1" not in ids
         seen.add(tuple(ids))
     assert len(seen) > 1
+
+
+def test_stump_walk_hides_trashed_books_before_the_scan(tmp_path, monkeypatch) -> None:
+    client = _app(tmp_path, _library())
+    state: Any = client.app.state  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setattr(state.trash, "stump_owned_ids", lambda: {"b2", "b3"})
+    r = client.get("/api/recommend", params={"source": "stump", "id": "b1", "kind": "book"})
+    assert r.status_code == 200, r.text
+    assert not {"b2", "b3"} & {i["id"] for i in r.json()["items"]}
+    for _ in range(12):
+        r = client.get("/api/recommend/random", params={"source": "stump", "limit": 5})
+        assert not {"b2", "b3"} & {i["id"] for i in r.json()["items"]}
 
 
 def test_unknown_source_is_invalid(tmp_path) -> None:
