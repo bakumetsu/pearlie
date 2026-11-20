@@ -33,6 +33,18 @@ def _contains(filter_: object) -> str:
     return ""
 
 
+def _tag_contains(filter_: object) -> str:
+    """The `tags: {contains}` value of a media filter (the mock matches it OR the name)."""
+    if isinstance(filter_, dict):
+        t = filter_.get("tags")
+        if isinstance(t, dict) and "contains" in t:
+            return str(t["contains"]).lower()
+        return next((f for v in filter_.values() if (f := _tag_contains(v))), "")
+    if isinstance(filter_, list):
+        return next((f for v in filter_ if (f := _tag_contains(v))), "")
+    return ""
+
+
 def _eq(filter_: dict | None, field: str) -> str | None:
     parts = (filter_ or {}).get("_and") or [filter_ or {}]
     for p in parts:
@@ -46,7 +58,17 @@ def _eq(filter_: dict | None, field: str) -> str | None:
 _FILTER_FIELDS = {
     # SeriesFilterInput has no `status` (live: unknown field "status")
     "SeriesList": {"libraryId", "path", "name", "metadata", "_and", "_or"},
-    "MediaList": {"seriesId", "series", "path", "status", "name", "metadata", "_and", "_or"},
+    "MediaList": {
+        "seriesId",
+        "series",
+        "path",
+        "status",
+        "name",
+        "metadata",
+        "tags",
+        "_and",
+        "_or",
+    },
 }
 _ORDER_KEY = {"SeriesList": "series", "MediaList": "media"}
 
@@ -231,7 +253,13 @@ class MockStump:
             rows = [r for r in rows if r["path"] == path]
         q = _contains(filter_)
         if q:
-            rows = [r for r in rows if q in (r["name"] + r["path"]).lower()]
+            tag = _tag_contains(filter_)
+            rows = [
+                r
+                for r in rows
+                if q in (r["name"] + r["path"]).lower()
+                or (tag and any(tag in t["name"].lower() for t in r.get("tags") or []))
+            ]
         return rows
 
     @staticmethod
