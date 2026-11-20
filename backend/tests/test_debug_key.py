@@ -131,7 +131,7 @@ def test_header_forms(app_client: TestClient) -> None:
 
 def test_key_ignored_on_other_routes(app_client: TestClient) -> None:
     key = _make_key(app_client)
-    for path in ("/api/options", "/api/jobs", "/api/logs"):
+    for path in ("/api/options", "/api/jobs", "/api/logs", "/api/options/debug-key", "/api/tabs", "/api/rules"):
         plain = app_client.get(path)
         keyed = app_client.get(path, headers=_auth(key))
         assert plain.status_code == keyed.status_code, path
@@ -190,6 +190,11 @@ def _raw_get(app, path: str, key: str) -> tuple[int, bytes]:
         "/api/debug/..\\options",
         "/api/debugx",
         "/api/debug//whoami",
+        "/api/debug/../options/debug-key",
+        "/api//debug/jobs",
+        "/api/debug%2F..%2Foptions",
+        "/API/debug/jobs",
+        "/api/debug",
     ],
 )
 def test_path_confusion_never_reaches_other_route(app_client: TestClient, path: str) -> None:
