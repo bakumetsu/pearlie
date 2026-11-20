@@ -45,6 +45,29 @@ def test_series_walk_cache_expires(monkeypatch: pytest.MonkeyPatch) -> None:
     assert _media_calls(mock) == 2
 
 
+def test_tag_walk_is_cached_ands_tags_and_is_cleared_by_scan() -> None:
+    books = [
+        dict(stump_mock.book(1), tags=[{"name": "Big_Cat"}, {"name": "b"}]),
+        dict(stump_mock.book(2), tags=[{"name": "big cat"}]),
+    ]
+    server, mock = _server(books)
+    assert [b.id for b in server.tagged_books("", ["big cat", "b"])] == ["b1"]
+    assert sorted(b.id for b in server.tagged_books("", ["BIG CAT"])) == ["b1", "b2"]
+    assert [b.id for b in server.tagged_books("", ["big cat", "-b"])] == ["b2"]
+    assert _media_calls(mock) == 1  # one walk, three searches
+    server.scan_library("L1")
+    server.tagged_books("", ["b"])
+    assert _media_calls(mock) == 2
+
+
+def test_tag_walk_is_capped(monkeypatch: pytest.MonkeyPatch) -> None:
+    many = [dict(stump_mock.book(1), id=f"x{i}") for i in range(230)]
+    server, mock = _server(many)
+    monkeypatch.setattr(adapter, "TAG_WALK_PAGES", 2)
+    assert len(server.tagged_books("", ["x"])) == 200
+    assert _media_calls(mock) == 2
+
+
 def test_list_deleted_walk_is_cached() -> None:
     server, mock = _server([stump_mock.book(7, gone=True)])
     server.list_deleted("books", "L1")

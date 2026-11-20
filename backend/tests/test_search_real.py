@@ -369,7 +369,7 @@ def test_search_stash_images_and_videos(tmp_path):
 def test_search_stump_books(tmp_path):
     """Configured Stump answers the books section with a single page."""
     client = make_library_client(tmp_path, stump_handler=_stump_ok)
-    r = client.get("/api/search", params={"q": "book", "sources": "stump_books"})
+    r = client.get("/api/search", params={"q": 'title:"book"', "sources": "stump_books"})
     assert r.status_code == 200
     section = r.json()["sections"][0]
     assert section["id"] == "stump_books"
@@ -379,6 +379,29 @@ def test_search_stump_books(tmp_path):
     assert section["page_size"] == 60
     assert section["items"][0]["id"] == "b1"
     assert section["items"][0]["thumb_url"] == "/api/media/stump/books/b1/thumb"
+
+
+def test_search_stump_tag_terms_read_the_walk(tmp_path):
+    """Tag terms keep the books that carry all of them; title text intersects; no notice."""
+    books = [
+        {**book(1), "tags": [{"name": "a"}, {"name": "b"}]},
+        {**book(2), "tags": [{"name": "a"}]},
+        {**book(3), "tags": [{"name": "a"}, {"name": "b"}]},
+    ]
+    client = make_library_client(tmp_path, stump_handler=MockStump([lib()], [series()], books))
+
+    def ids(q: str) -> tuple[list[str], dict]:
+        r = client.get("/api/search", params={"q": q, "sources": "stump_books"})
+        assert r.status_code == 200
+        sec = r.json()["sections"][0]
+        return sorted(i["id"] for i in sec["items"]), sec
+
+    got, sec = ids("a b")
+    assert got == ["b1", "b3"] and sec["total"] == 2 and sec["notice"] is None
+    assert ids("a")[0] == ["b1", "b2", "b3"]
+    assert ids('a b title:"Book 3"')[0] == ["b3"]
+    assert ids("nope")[0] == []
+    assert ids("-b a")[0] == ["b2"]
 
 
 def test_search_library_not_configured(tmp_path):
