@@ -18,6 +18,12 @@ describe("SectionRow", () => {
     expect(source).toContain("flex: 0 0 max(120px, calc((100% - 6 * var(--s-2)) / 7))");
   });
 
+  it("from 900 px the strip item size comes from railColumns via --cols", () => {
+    expect(source).toContain("railColumns(");
+    expect(source).toContain("style:--cols");
+    expect(source).toContain("flex: 0 0 calc((100% - (var(--cols) - 1) * var(--s-2)) / var(--cols))");
+  });
+
   it("wrappers do not widen the page", () => {
     expect(rule(source, ".row")).toContain("min-width: 0");
     expect(rule(source, ".strip-wrap")).toContain("min-width: 0");
