@@ -75,7 +75,7 @@ def test_fields_listed_per_site(tmp_path: Path) -> None:
     assert [f["id"] for f in conns["danbooru"]["fields"]] == ["login", "api_key"]
     assert [f["id"] for f in conns["gelbooru"]["fields"]] == ["user_id", "api_key"]
     assert [f["id"] for f in conns["rule34"]["fields"]] == ["user_id", "api_key"]
-    assert [f["id"] for f in conns["nhentai"]["fields"]] == ["cookie", "user_agent"]
+    assert [f["id"] for f in conns["nhentai"]["fields"]] == ["api_key", "cookie", "user_agent"]
     assert all(f["state"] == "missing" for f in conns["danbooru"]["fields"])
 
 
@@ -99,7 +99,7 @@ def test_clear_one_field_keeps_the_other(tmp_path: Path) -> None:
     put(c, "nhentai", {"fields": {"cookie": "c=1", "user_agent": "UA/1"}})
     r = put(c, "nhentai", {"clear_fields": ["user_agent"]})
     states = {f["id"]: f["state"] for f in r.json()["fields"]}
-    assert states == {"cookie": "set", "user_agent": "missing"}
+    assert states == {"api_key": "missing", "cookie": "set", "user_agent": "missing"}
 
 
 def test_unknown_field_and_control_chars_rejected(tmp_path: Path) -> None:
@@ -113,7 +113,8 @@ def test_env_locked_field_cannot_be_overwritten(tmp_path: Path) -> None:
     r = put(c, "gelbooru", {"fields": {"user_id": "1"}})
     assert r.status_code == 409
     fields = {
-        f["id"]: f for f in next(
+        f["id"]: f
+        for f in next(
             x for x in c.get("/api/connections").json()["connections"] if x["name"] == "gelbooru"
         )["fields"]
     }
@@ -135,7 +136,7 @@ def test_legacy_secret_maps_to_primary_field(tmp_path: Path) -> None:
     conns = {x["name"]: x for x in c.get("/api/connections").json()["connections"]}
     assert conns["nhentai"]["key"] == "set"
     states = {f["id"]: f["state"] for f in conns["nhentai"]["fields"]}
-    assert states == {"cookie": "set", "user_agent": "missing"}
+    assert states == {"api_key": "missing", "cookie": "set", "user_agent": "missing"}
     assert store.field_values("nhentai") == {"cookie": "legacy-cookie"}
     assert store.field_values("danbooru") == {"api_key": "legacy-key"}
 
@@ -223,9 +224,10 @@ def test_no_credential_value_in_logs(tmp_path: Path, caplog: pytest.LogCaptureFi
     c = make_client(tmp_path, Fernet.generate_key().decode(), handler)
     put(c, "danbooru", {"fields": {"login": "zed-login", "api_key": "zed-secret"}})
     put(c, "nhentai", {"fields": {"cookie": "zed-cookie", "user_agent": "zed-agent"}})
+    put(c, "nhentai", {"secret": "zed-nhkey"})
     c.post("/api/connections/danbooru/test", headers=HDR)
     c.post("/api/connections/nhentai/test", headers=HDR)
-    for word in ("zed-login", "zed-secret", "zed-cookie", "zed-agent"):
+    for word in ("zed-login", "zed-secret", "zed-cookie", "zed-agent", "zed-nhkey"):
         assert word not in caplog.text
 
 
@@ -280,3 +282,93 @@ def test_danbooru_error_message_has_no_credentials() -> None:
     with pytest.raises(SourceError) as exc:
         danbooru_with(handler, {"login": "alice", "api_key": "abc"}).search(["cat"])
     assert "abc" not in exc.value.message and "alice" not in exc.value.message
+
+
+# -- nhentai API key (D-39 card 1) --
+
+
+def _nh(c: TestClient) -> dict[str, Any]:
+    conns = {x["name"]: x for x in c.get("/api/connections").json()["connections"]}
+    return conns["nhentai"]
+
+
+def test_nhentai_key_sent_as_authorization_header() -> None:
+    headers = build_auth("nhentai", {"api_key": "k-123"}).headers
+    assert headers["Authorization"] == "Key k-123"
+    assert "Authorization" not in build_auth("nhentai", {"cookie": "c=1"}).headers
+    assert "Authorization" not in build_auth("nhentai", {}).headers
+
+
+def test_nhentai_page_headers_drop_key_and_cookie() -> None:
+    from app.sources.nhentai import NHentai
+
+    nh = NHentai.__new__(NHentai)
+    nh._auth = lambda: build_auth(  # type: ignore[method-assign]
+        "nhentai", {"api_key": "k-123", "cookie": "c=1", "user_agent": "UA/1"}
+    )
+    assert nh.page_headers() == {"User-Agent": "UA/1"}
+
+
+@pytest.mark.parametrize(
+    ("fields", "key_state", "api_state", "cookie_state"),
+    [
+        ({"api_key": "k"}, "set", "set", "missing"),
+        ({"cookie": "c=1"}, "set", "missing", "set"),
+        ({"api_key": "k", "cookie": "c=1"}, "set", "set", "set"),
+        ({}, "missing", "missing", "missing"),
+    ],
+)
+def test_nhentai_row_state_key_cookie_both_none(
+    tmp_path: Path, fields: dict[str, str], key_state: str, api_state: str, cookie_state: str
+) -> None:
+    c = make_client(tmp_path, Fernet.generate_key().decode())
+    if fields:
+        assert put(c, "nhentai", {"fields": fields}).status_code == 200
+    out = _nh(c)
+    assert out["key"] == key_state
+    states = {f["id"]: f["state"] for f in out["fields"]}
+    assert states["api_key"] == api_state and states["cookie"] == cookie_state
+    assert {f["id"] for f in out["fields"] if f["primary"]} == {"api_key"}
+
+
+def test_nhentai_main_secret_addresses_api_key(tmp_path: Path) -> None:
+    c = make_client(tmp_path, Fernet.generate_key().decode())
+    put(c, "nhentai", {"fields": {"cookie": "c=1"}})
+    r = put(c, "nhentai", {"secret": "k-9"})
+    assert r.status_code == 200
+    store = c.app.state.connection_store  # type: ignore[attr-defined]
+    assert store.field_values("nhentai") == {"api_key": "k-9", "cookie": "c=1"}
+    assert store.effective_secret("nhentai") == "k-9"
+    put(c, "nhentai", {"clear_secret": True})
+    assert store.field_values("nhentai") == {"cookie": "c=1"}
+    assert _nh(c)["key"] == "set"
+
+
+def test_nhentai_env_key_locks_field_and_is_sent(tmp_path: Path) -> None:
+    seen, handler = capture()
+    c = make_client(
+        tmp_path,
+        Fernet.generate_key().decode(),
+        handler,
+        env={"nhentai_api_key": "env-nh-key"},
+    )
+    out = _nh(c)
+    assert out["key"] == "set" and out["key_locked"] is True
+    assert put(c, "nhentai", {"secret": "other"}).status_code == 409
+    c.post("/api/connections/nhentai/test", headers=HDR)
+    assert seen[0].headers["Authorization"] == "Key env-nh-key"
+    assert "env-nh-key" not in c.get("/api/connections").text
+
+
+def test_nhentai_key_never_in_browser_or_logs(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    seen, handler = capture()
+    c = make_client(tmp_path, Fernet.generate_key().decode(), handler)
+    r = put(c, "nhentai", {"secret": "zed-nhkey-777"})
+    assert "zed-nhkey-777" not in r.text
+    assert "zed-nhkey-777" not in c.get("/api/connections").text
+    c.post("/api/connections/nhentai/test", headers=HDR)
+    assert seen[0].headers["Authorization"] == "Key zed-nhkey-777"
+    assert "zed-nhkey-777" not in caplog.text

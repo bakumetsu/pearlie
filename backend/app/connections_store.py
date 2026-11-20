@@ -56,6 +56,7 @@ FIELDS: dict[str, tuple[FieldDef, ...]] = {
         FieldDef("api_key", "API key", "rule34_api_key"),
     ),
     "nhentai": (
+        FieldDef("api_key", "API key", "nhentai_api_key"),
         FieldDef("cookie", "Cookie", "nhentai_cookies"),
         FieldDef("user_agent", "User-Agent", ""),
     ),
@@ -70,6 +71,12 @@ PRIMARY: dict[str, str] = {
     "rule34": "api_key",
     "nhentai": "cookie",
 }
+
+# The field the browser sees as the main secret; storage keys stay as in PRIMARY.
+DISPLAY_PRIMARY: dict[str, str] = {**PRIMARY, "nhentai": "api_key"}
+
+# Fields that also count as "set" for the row chip (older cookie-only setups keep their chip).
+CHIP_FIELDS: dict[str, tuple[str, ...]] = {"nhentai": ("api_key", "cookie")}
 
 
 class StoreError(Exception):
@@ -240,8 +247,8 @@ class ConnectionStore:
                 locked["address"] = bool(val.get_secret_value())
             else:
                 locked["address"] = bool(val)
-        if name in PRIMARY:
-            locked["secret"] = self.field_locked(name, PRIMARY[name])
+        if name in DISPLAY_PRIMARY:
+            locked["secret"] = self.field_locked(name, DISPLAY_PRIMARY[name])
         return locked
 
     # -- fields --
@@ -304,10 +311,11 @@ class ConnectionStore:
         return stored if stored is not None else ""
 
     def secret_state(self, name: str) -> Literal["set", "missing"]:
-        return self.field_state(name, PRIMARY[name])
+        fids = CHIP_FIELDS.get(name, (DISPLAY_PRIMARY[name],))
+        return "set" if any(self.field_state(name, f) == "set" for f in fids) else "missing"
 
     def effective_secret(self, name: str) -> str:
-        return self.field_value(name, PRIMARY[name])
+        return self.field_value(name, DISPLAY_PRIMARY[name])
 
     # -- mutation --
 
@@ -339,9 +347,9 @@ class ConnectionStore:
         sets: dict[str, str] = {k: v for k, v in (fields or {}).items() if v != ""}
         clears: set[str] = set(clear_fields)
         if secret is not None and secret != "":
-            sets[PRIMARY[name]] = secret
+            sets[DISPLAY_PRIMARY[name]] = secret
         if clear_secret:
-            clears.add(PRIMARY[name])
+            clears.add(DISPLAY_PRIMARY[name])
         for fid in [*sets, *clears]:
             self._field_def(name, fid)
             if self.field_locked(name, fid):

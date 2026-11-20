@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     rule34_user_id: str = ""
     rule34_api_key: SecretStr = SecretStr("")
     nhentai_cookies: SecretStr = SecretStr("")
+    nhentai_api_key: SecretStr = SecretStr("")
     stash_temp_dir: Path = Path("/mnt/media/stash/Temp")
     stash_default_dir: Path = Path("/mnt/media/stash/Other")
     stash_path_prefix_pearlie: str = ""
