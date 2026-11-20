@@ -2,9 +2,11 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent, waitFor } from "@testing-library/svelte";
 import StumpBook from "./StumpBook.svelte";
-import type { LibraryItemDetail } from "../api/client";
+import { API_CONTEXT_KEY } from "../api/client";
+import type { Api, LibraryItemDetail } from "../api/client";
 
-vi.mock("../ctx", () => ({ getRouter: () => ({ navigate: vi.fn() }) }));
+const navigate = vi.hoisted(() => vi.fn());
+vi.mock("../ctx", () => ({ getRouter: () => ({ navigate }) }));
 
 afterEach(cleanup);
 
@@ -25,8 +27,13 @@ function setup(over: Partial<LibraryItemDetail> = {}, saveProgress = vi.fn(async
     onback: vi.fn(), onread: vi.fn(), onerror: vi.fn(), onfavorite: vi.fn(), ondelete: vi.fn(),
     onrate: vi.fn(), onaddtag: vi.fn(), onremovetag: vi.fn(),
   };
-  const r = render(StumpBook, { props: { detail, api: { saveProgress }, tags: ["a"], ...fns, ...extra } });
-  return { ...r, saveProgress, ...fns };
+  const panelApi = {
+    recommend: vi.fn(async () => ({ items: [{ kind: "book", id: "r1", title: "Rec One", thumb_url: "/r1" }] })),
+    recommendRandom: vi.fn(async () => ({ items: [] })),
+  };
+  const context = new Map<unknown, unknown>([[API_CONTEXT_KEY, panelApi as unknown as Api]]);
+  const r = render(StumpBook, { props: { detail, api: { saveProgress }, tags: ["a"], ...fns, ...extra }, context });
+  return { ...r, saveProgress, panelApi, ...fns };
 }
 
 async function openMenu(r: ReturnType<typeof setup>) {
@@ -91,12 +98,42 @@ describe("StumpBook", () => {
     expect(onprev).toHaveBeenCalled();
   });
 
-  it("has the 260 px column with rating and tags, and no panel handle", () => {
-    const { getByText, queryByLabelText, container } = setup();
-    expect(getByText("Rating")).toBeTruthy();
+  it("shows the rating under the author, tag chips and no Rating or Details section", () => {
+    const { getByRole, getByText, queryByText, queryByLabelText } = setup({ author: "Some Author" });
+    expect(getByText("by Some Author")).toBeTruthy();
+    expect(getByRole("radiogroup", { name: "Rating" })).toBeTruthy();
     expect(getByText("Tags")).toBeTruthy();
-    expect(container.querySelector("aside.side")).toBeTruthy();
+    expect(getByText("a")).toBeTruthy();
+    expect(queryByText("Rating")).toBeNull();
+    expect(queryByText("Details")).toBeNull();
     expect(queryByLabelText("Hide panel")).toBeNull();
+  });
+
+  it("asks for Stump recommendations and random with limit 4", async () => {
+    const r = setup();
+    await waitFor(() => expect(r.panelApi.recommend).toHaveBeenCalledWith({ source: "stump", id: "b1", kind: "book", limit: 6 }));
+    expect(r.panelApi.recommendRandom).toHaveBeenCalledWith({ source: "stump", limit: 4, exclude: "b1" });
+  });
+
+  it("opens a recommendation on the Stump page, not /web/", async () => {
+    const r = setup();
+    await fireEvent.click(await r.findByText("Rec One"));
+    expect(navigate).toHaveBeenCalledWith("/item/books/r1");
+  });
+
+  it("rejects a tag from the menu picker", async () => {
+    const onrejecttag = vi.fn();
+    const r = setup({}, undefined, { onrejecttag });
+    await openMenu(r);
+    await fireEvent.click(r.getByText("Reject a tag"));
+    await fireEvent.click(r.getByRole("group", { name: "Reject a tag" }).querySelector("button")!);
+    expect(onrejecttag).toHaveBeenCalledWith("a");
+  });
+
+  it("has no Reject menu item without a handler", async () => {
+    const r = setup();
+    await openMenu(r);
+    expect(r.queryByText("Reject a tag")).toBeNull();
   });
 
   it("shows a note and no Read button for a book without pages", () => {

@@ -18,6 +18,7 @@
     onrate,
     onaddtag,
     onremovetag,
+    onrejecttag,
   }: {
     detail: LibraryItemDetail;
     tags: string[];
@@ -29,6 +30,7 @@
     onrate: (n: number) => void;
     onaddtag: (text: string) => void;
     onremovetag: (tag: string) => void;
+    onrejecttag?: (tag: string) => void;
   } = $props();
 
   const books = $derived(detail.books ?? []);
@@ -36,6 +38,12 @@
   // Continue only when something was read (a finished or a partly read book) and an unfinished book is left; otherwise Read opens book 1.
   const resume = $derived(next !== null && books.some((b) => (b.read_page ?? 0) > 0));
   const target = $derived(resume ? next : (books[0] ?? null));
+
+  let banOpen = $state(false);
+  function reject(tag: string) {
+    banOpen = false;
+    onrejecttag?.(tag);
+  }
 
   const VIEW_KEY = "pearlie.series.view";
   function loadView(): "grid" | "list" {
@@ -83,6 +91,9 @@
     <button class="mi" role="menuitem" type="button" onclick={onfavorite}>
       <Icon name={detail.favorite ? "heart-filled" : "heart"} size={20} />{detail.favorite ? "Unfavorite" : "Favorite"}
     </button>
+    {#if onrejecttag}
+      <button class="mi" role="menuitem" type="button" aria-expanded={banOpen} onclick={() => (banOpen = !banOpen)}><Icon name="ban" size={20} />Reject a tag</button>
+    {/if}
     <button class="mi" role="menuitem" type="button" onclick={ondelete}>
       <Icon name="trash" size={20} />Delete
     </button>
@@ -91,10 +102,19 @@
     <StumpBookSide {detail} {tags} {onaddtag} {onremovetag} />
   {/snippet}
 
+  {#if banOpen}
+    <div class="ban" role="group" aria-label="Reject a tag">
+      {#each tags as t (t)}
+        <button type="button" class="chip" onclick={() => reject(t)}>{t}</button>
+      {/each}
+    </div>
+  {/if}
   {#if detail.notice}<p class="notice" role="status">{detail.notice.message}</p>{/if}
   <SeriesGrid {books} {view} continueId={resume && next ? next.id : null} {onopen} />
 </BookPage>
 
 <style>
+  .ban { display: flex; flex-wrap: wrap; gap: var(--s-1); margin-bottom: var(--s-3); }
+  .chip { min-height: 44px; padding: 0 var(--s-3); border: 1px solid var(--line-strong); border-radius: 999px; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
   .notice { margin: var(--s-3) 0 0; font-size: var(--t-14); color: var(--muted); }
 </style>
