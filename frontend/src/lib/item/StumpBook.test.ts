@@ -77,14 +77,23 @@ describe("StumpBook", () => {
     expect(r.getByText("Read")).toBeTruthy();
   });
 
-  it("offers Mark unread on a finished book and disables it on an unread one", async () => {
+  it("offers Mark unread on every book, also one with no read page", async () => {
     const done = setup({ read_page: 8 });
     await openMenu(done);
     expect((done.getByText("Mark unread").closest("button") as HTMLButtonElement).disabled).toBe(false);
     cleanup();
     const fresh = setup({ read_page: null });
     await openMenu(fresh);
-    expect((fresh.getByText("Mark unread").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect((fresh.getByText("Mark unread").closest("button") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("marks a book with no read page unread: saves page 0, no error", async () => {
+    const r = setup({ read_page: null });
+    await openMenu(r);
+    await fireEvent.click(r.getByText("Mark unread"));
+    expect(r.saveProgress).toHaveBeenCalledWith("b1", 0);
+    await waitFor(() => expect(r.saveProgress).toHaveBeenCalledTimes(1));
+    expect(r.onerror).not.toHaveBeenCalled();
   });
 
   it("reports an error when mark unread fails", async () => {
