@@ -28,7 +28,7 @@
       tags={own}
       {inherited}
       mode="remove"
-      onsearch={(name) => router.navigate(tagSearchHref(name, "books"))}
+      onsearch={(name) => router.navigate(tagSearchHref(name))}
       onx={(name) => onremovetag(name)}
       onadd={onaddtag}
     />
