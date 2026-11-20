@@ -86,6 +86,28 @@ exit 2
 NPM
 chmod +x "$WORK/bin/npm"
 
+cat > "$WORK/bin/dfstub" <<'DFS'
+#!/usr/bin/env bash
+if [[ -f "$STUB_STATE/df_avail_kb" ]]; then
+  printf 'Filesystem 1024-blocks Used Available Capacity Mounted on
+fake 4194304 4000000 %s 99%% /
+' "$(cat "$STUB_STATE/df_avail_kb")"
+  exit 0
+fi
+PATH="$STUB_ORIG_PATH" exec df "$@"
+DFS
+chmod +x "$WORK/bin/dfstub"
+
+# fails for the status temp file only, so the build steps keep working
+cat > "$WORK/bin/mktemp_nospace" <<'MKT'
+#!/usr/bin/env bash
+case "$*" in
+  *update-status.json*) echo "mktemp: No space left on device" >&2; exit 1 ;;
+esac
+PATH="$STUB_ORIG_PATH" exec mktemp "$@"
+MKT
+chmod +x "$WORK/bin/mktemp_nospace"
+
 # ---- helpers ----------------------------------------------------------------
 
 ok() {
@@ -198,7 +220,10 @@ new_case() {
   export STUB_STATE="$STATE"
   export STUB_ORIG_PATH="$ORIG_PATH"
 
-  printf 'port=%s\n' "$PORT" > "$ROOT/update.conf"
+  printf 'port=%s
+min_free_mb=1
+' "$PORT" > "$ROOT/update.conf"
+  export PEARLIE_DF="$(mp "$WORK/bin/dfstub")"
 
   if [[ "${MODE_REAL:-0}" == "1" ]]; then
     use_stubs real
@@ -1065,7 +1090,83 @@ case_rollback_none() {
   expect "rollback_nobackup: no systemctl stop" "$(stub_calls 'systemctl stop')" 0
 }
 
-CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_integrity case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_port_range case_unit_sync case_installer_defaults case_previous_and_schema case_rollback_code_only case_rollback_restore case_rollback_fail case_rollback_none case_update_integrity case_installer_fetch)
+case_stale_run() {
+  new_case stale_run
+  seed_install 1.0.0
+  add_main_release 1.0.0 "$SHA_A"
+  # what a killed update leaves behind
+  printf '{"state":"running","step":"build","from":"1.0.0","to":"1.1.0","started_at":"x","error":null}
+' > "$ROOT/update-status.json"
+  : > "$ROOT/update-status.json.fXEBPI"
+  mkdir -p "$ROOT/staging/junk" "$ROOT/releases/20261120125640-8167041/app"
+  mkdir -p "$ROOT/releases/prevrel/app"
+  ln -sfn "$(mp "$ROOT/releases/prevrel")" "$ROOT/previous"
+  run_update
+  expect "stale_run: RC" "$RC" 0
+  expect "stale_run: state" "$(status_get state)" current
+  [ ! -e "$ROOT/update-status.json.fXEBPI" ] && ok "stale_run: temp file gone" || bad "stale_run: temp file gone" "exists"
+  [ ! -e "$ROOT/releases/20261120125640-8167041" ] && ok "stale_run: partial release gone" || bad "stale_run: partial release gone" "exists"
+  [ -d "$ROOT/releases/prevrel" ] && ok "stale_run: previous kept" || bad "stale_run: previous kept" "removed"
+  [ -d "$ROOT/releases/seed" ] && ok "stale_run: current kept" || bad "stale_run: current kept" "removed"
+  [ ! -e "$ROOT/staging" ] && ok "stale_run: staging gone" || bad "stale_run: staging gone" "exists"
+  no_bad_args "stale_run: stub args"
+}
+
+case_low_disk() {
+  new_case low_disk
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  printf 'port=%s
+min_free_mb=2048
+' "$PORT" > "$ROOT/update.conf"
+  printf '102400
+' > "$STATE/df_avail_kb"
+  run_update
+  expect "low_disk: RC" "$RC" 1
+  expect "low_disk: state" "$(status_get state)" failed
+  expect "low_disk: step" "$(status_get step)" preflight
+  expect "low_disk: error" "$(status_get error)" "not enough disk space: need 2048 MB, have 100 MB"
+  expect "low_disk: release_dirs" "$(release_dirs)" 0
+  expect "low_disk: stub_calls systemctl" "$(stub_calls systemctl)" 0
+  expect "low_disk: nothing built" "$(stub_calls 'npm ci')" 0
+
+  new_case enough_disk
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  printf 'port=%s
+min_free_mb=2048
+' "$PORT" > "$ROOT/update.conf"
+  printf '4194304
+' > "$STATE/df_avail_kb"
+  run_update
+  expect "enough_disk: RC" "$RC" 0
+  expect "enough_disk: state" "$(status_get state)" done
+
+  new_case bad_min_free
+  seed_install 1.0.0
+  printf 'port=%s
+min_free_mb=lots
+' "$PORT" > "$ROOT/update.conf"
+  run_update --from-ui
+  expect "bad_min_free: RC" "$RC" 1
+}
+
+case_status_no_tmp() {
+  new_case status_no_tmp
+  seed_install 1.0.0
+  add_main_release 1.1.0 "$SHA_B"
+  cp "$WORK/bin/mktemp_nospace" "$WORK/bin/mktemp"
+  local saved_path="$PATH"
+  PATH="$(pp "$WORK/bin"):$PATH"
+  run_update
+  PATH="$saved_path"
+  rm -f "$WORK/bin/mktemp"
+  expect "status_no_tmp: RC" "$RC" 0
+  expect "status_no_tmp: state" "$(status_get state)" done
+  [ -z "$(ls "$ROOT"/update-status.json.* 2>/dev/null)" ] && ok "status_no_tmp: no temp files" || bad "status_no_tmp: no temp files" "left over"
+}
+
+CASES=(case_nothing_newer case_check case_release_pick case_success case_build_fail case_bad_health case_lock case_malicious case_integrity case_aborted case_dev case_dry_run case_stop_fail case_channel_switch case_bad_conf case_host_auto case_port_range case_unit_sync case_installer_defaults case_previous_and_schema case_rollback_code_only case_rollback_restore case_rollback_fail case_rollback_none case_update_integrity case_installer_fetch case_stale_run case_low_disk case_status_no_tmp)
 
 for c in "${CASES[@]}"; do
   "$c"

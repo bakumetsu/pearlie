@@ -425,6 +425,30 @@ describe("createUpdate", () => {
     expect(store.phase).toBe("idle");
   });
 
+  it("failed: error toast without rolled back wording", async () => {
+    vi.useFakeTimers();
+    try {
+      const applyUpdate = vi.fn().mockResolvedValue({ state: "running" });
+      const health = vi.fn().mockResolvedValue({ status: "ok" });
+      const getUpdateStatus = vi
+        .fn()
+        .mockResolvedValue(makeStatus({ state: "failed", error: "interrupted: try again" }));
+      const api = { applyUpdate, health, getUpdateStatus, putUpdateSettings: vi.fn() } as unknown as Api;
+      const store = createUpdate(api, { intervalMs: 10, timeoutMs: 100, reload: vi.fn() });
+
+      await store.apply();
+      await vi.advanceTimersByTimeAsync(15);
+
+      expect(toasts.push).toHaveBeenCalledWith({
+        kind: "error",
+        message: "Update failed: interrupted: try again",
+      });
+      expect(store.failure).toBe("interrupted: try again");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("rolled_back: error toast, applyError set, no reload, phase idle", async () => {
     vi.useFakeTimers();
     try {

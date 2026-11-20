@@ -64,6 +64,12 @@
 			{/if}
 		</div>
 	{/if}
+	{#if update.failure}
+		<div class="banner" role="alert">
+			<p>Update failed: {update.failure}</p>
+			<p>Use the update button to try again.</p>
+		</div>
+	{/if}
 	<ul class="rows">
 		<!-- Installed -->
 		<li class="row">
