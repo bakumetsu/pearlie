@@ -1,7 +1,9 @@
 """nhentai source adapter (search and gallery metadata; saving to Stump is a later step)."""
 
+import hashlib
 import logging
 import re
+import threading
 import time
 from collections.abc import Callable
 
@@ -14,7 +16,7 @@ from app.sources.base import Post, SearchPage, SourceError
 from app.sources.danbooru import _retry_after
 from app.sources.filters import NHENTAI_SORTS
 from app.sources.query_terms import TITLE_MAX
-from app.sources.throttle import DEFAULT_PACE, Throttle
+from app.sources.throttle import DEFAULT_PACE, MAX_WAIT, Throttle
 
 API_HOST = "nhentai.net"
 # Numbered CDN mirrors (i, i3, t5, ...); the one place that says which hosts hold images.
@@ -27,7 +29,36 @@ THUMB_HOST = "https://t.nhentai.net"
 TAG_TTL = 24 * 3600.0
 MAX_QUEUE_WAIT = 8.0  # longest a call waits for its slot before it fails with rate_limited
 SLOW_CALL_MS = 3000
+CHECK_EVERY = 600.0  # seconds between GET /user key checks while the key is ok or unchecked
+RATE_WINDOW = 60.0  # wait when X-RateLimit-Remaining is 0 and the site names no window
+# Documented per-IP limits with a margin: (guest, key) seconds between calls of a bucket.
+BUCKET_PACE: dict[str, tuple[float, float]] = {
+    "search": (6.5, 3.2),
+    "list": (6.5, 3.2),
+    "detail": (3.2, 1.5),
+    "related": (3.2, 1.5),
+}
+_API_PREFIX = "/api/v2"
+_DETAIL = re.compile(r"^/galleries/\d+$")
+_RELATED = re.compile(r"^/galleries/\d+/related$")
 _log = logging.getLogger(__name__)
+
+
+def bucket_of(path: str) -> str:
+    """Pace bucket of an API path: search, list, detail, related, user or other."""
+    p = path[len(_API_PREFIX) :] if path.startswith(_API_PREFIX) else path
+    p = p.rstrip("/") or "/"
+    if p == "/search" or p.startswith("/search/"):
+        return "search"
+    if p == "/galleries":
+        return "list"
+    if _DETAIL.match(p):
+        return "detail"
+    if _RELATED.match(p):
+        return "related"
+    if p == "/user":
+        return "user"
+    return "other"
 
 
 def _term(token: str) -> str:
@@ -117,6 +148,7 @@ class NHentai:
         base_url: str | None = None,
         page_size: int = 25,
         credentials: Callable[[], dict[str, str]] | None = None,
+        paced: bool = True,
     ) -> None:
         self._client = client or install_http_hooks(
             httpx.Client(timeout=httpx.Timeout(15.0, connect=5.0)), self.id
@@ -126,6 +158,14 @@ class NHentai:
         self.file_hosts = (API_HOST, "i.nhentai.net", "t.nhentai.net")
         self._page_size = page_size
         self._credentials = credentials
+        self._paced = paced  # False: no documented-limit floor (tests with a fake clock)
+        self._key_lock = threading.Lock()
+        self._key_id = ""  # fingerprint of the key the state belongs to; never the key
+        self._key_state = "unset"
+        self._key_reason = ""
+        self._last_check = 0.0
+        self._last_403_check = 0.0
+        self._spawn: Callable[[Callable[[], object]], None] = self._spawn_thread
         self._tag_names: dict[int, tuple[str, str, float]] = {}
         self._warned_unknown = False
 
@@ -151,6 +191,94 @@ class NHentai:
     def _auth(self) -> SiteAuth:
         return build_auth(self.id, self._credentials() if self._credentials else {})
 
+    @staticmethod
+    def _spawn_thread(fn: Callable[[], object]) -> None:
+        threading.Thread(target=fn, name="nhentai-key-check", daemon=True).start()
+
+    def _sync_key(self) -> str:
+        """Compare the stored key with the one the state belongs to; reset on change."""
+        key = (self._credentials() if self._credentials else {}).get("api_key", "")
+        ident = hashlib.sha256(key.encode()).hexdigest() if key else ""
+        with self._key_lock:
+            if ident != self._key_id:
+                self._key_id = ident
+                self._key_state = "unchecked" if key else "unset"
+                self._key_reason = ""
+                self._last_check = 0.0
+                self._last_403_check = 0.0
+            return self._key_state
+
+    @property
+    def key_state(self) -> tuple[str, str]:
+        """(unset|unchecked|ok|failed, reason) for the stored key; reason is invalid|blocked."""
+        state = self._sync_key()
+        with self._key_lock:
+            return state, self._key_reason
+
+    def _headers(self) -> dict[str, str]:
+        """Request headers; the key is dropped while it counts as failed."""
+        headers = dict(self._auth().headers)
+        if self._sync_key() in ("unset", "failed"):
+            headers.pop("Authorization", None)
+        return headers
+
+    def _set_key(self, state: str, reason: str = "") -> None:
+        with self._key_lock:
+            changed = (self._key_state, self._key_reason) != (state, reason)
+            self._key_state, self._key_reason = state, reason
+        if changed:
+            _log.warning("nhentai: key state %s%s", state, f" ({reason})" if reason else "")
+
+    def check_key(self) -> tuple[str, str]:
+        """Ask GET /api/v2/user whether the key works; the body (it holds an email) is dropped.
+
+        401 marks the key failed(invalid), 403 failed(blocked); other answers and network
+        errors leave the state alone. Returns the new (state, reason).
+        """
+        if self._sync_key() == "unset":
+            return "unset", ""
+        headers = self._auth().headers
+        with self._key_lock:
+            self._last_check = time.monotonic()
+        try:
+            resp = self._client.get(self._base_url + f"{_API_PREFIX}/user", headers=headers)
+        except httpx.HTTPError as e:
+            _log.warning("nhentai: key check failed (%s)", type(e).__name__)
+            return self.key_state
+        code = resp.status_code
+        if code == 200:
+            self._set_key("ok")
+        elif code == 401:
+            self._set_key("failed", "invalid")
+        elif code == 403:
+            self._set_key("failed", "blocked")
+        else:
+            _log.warning("nhentai: key check answered %d", code)
+        return self.key_state
+
+    def _maybe_check(self) -> None:
+        """Start the periodic key check aside when it is due (first call, then every 10 min)."""
+        state = self._sync_key()
+        if state == "unset" or (state == "failed" and self._key_reason != "blocked"):
+            return  # an invalid key is re-checked only on save or Test
+        now = time.monotonic()
+        with self._key_lock:
+            if self._last_check and now - self._last_check < CHECK_EVERY:
+                return
+            self._last_check = now  # claim it so one call starts one check
+            if state == "failed":
+                self._key_state = "unchecked"  # a short site block must not keep the key off
+        self._spawn(self.check_key)
+
+    def _recheck_after_403(self) -> bool:
+        """After a 403 that carried the key: True when the key is still good (a site block)."""
+        now = time.monotonic()
+        with self._key_lock:
+            if self._last_403_check and now - self._last_403_check < CHECK_EVERY:
+                return self._key_state == "ok"
+            self._last_403_check = now
+        return self.check_key()[0] == "ok"
+
     def page_urls(self, post: Post) -> list[str]:
         """Image URL of every page, in order (CDN host, never the API host)."""
         media_id = str(post.extra.get("media_id") or "")
@@ -174,15 +302,46 @@ class NHentai:
         params: dict[str, str | int] | None = None,
         max_wait: float | None = None,
     ) -> dict:
-        """GET one API path (Cookie goes to the API host only) and return the JSON object.
+        """GET one API path (Cookie and key go to the API host only) and return the JSON object.
 
         `max_wait` set (browsing): fail with rate_limited when the slot is further away.
         None (save jobs): wait for the slot, as the pace rules say.
+        A key the site rejects (401, or 403 while /user also fails) is dropped and the call
+        runs once more as guest.
         """
-        if max_wait is None:
-            delay = self._throttle.reserve()
+        self._maybe_check()
+        sent_key = "Authorization" in self._headers()
+        try:
+            return self._call(path, params, max_wait)
+        except SourceError as e:
+            if not sent_key or e.status not in (401, 403):
+                raise
+            if e.status == 403 and self._recheck_after_403():
+                raise  # the key is good: a site block, shown by the browse error path
+            if self.key_state[0] != "failed":
+                self._set_key("failed", "invalid" if e.status == 401 else "blocked")
+            return self._call(path, params, max_wait)
+
+    def _floor(self, bucket: str, with_key: bool) -> float:
+        if not self._paced or bucket not in BUCKET_PACE:
+            return 0.0
+        return BUCKET_PACE[bucket][1 if with_key else 0]
+
+    def _call(
+        self,
+        path: str,
+        params: dict[str, str | int] | None,
+        max_wait: float | None,
+    ) -> dict:
+        headers = self._headers()
+        bucket = bucket_of(path)
+        floor = self._floor(bucket, "Authorization" in headers)
+        if bucket == "user":
+            delay: float | None = 0.0  # 45/min limit, never near it: no bucket, no wait
+        elif max_wait is None:
+            delay = self._throttle.reserve(floor, bucket)
         else:
-            delay = self._throttle.reserve_within(max_wait)
+            delay = self._throttle.reserve_within(max_wait, floor, bucket)
         if delay is None:
             # A pause (429 Retry-After) is running: fail fast so the UI shows Retry,
             # and take no slot so queued calls do not push the wait further out.
@@ -194,9 +353,7 @@ class NHentai:
             self._throttle.nap(delay)
         started = time.monotonic()
         try:
-            resp = self._client.get(
-                self._base_url + path, params=params, headers=self._auth().headers
-            )
+            resp = self._client.get(self._base_url + path, params=params, headers=headers)
         except httpx.HTTPError as e:
             _log.warning(
                 "nhentai: %s failed (%s) after %d ms",
@@ -208,12 +365,16 @@ class NHentai:
         elapsed_ms = (time.monotonic() - started) * 1000
         if elapsed_ms > SLOW_CALL_MS or resp.status_code >= 400:
             _log.warning("nhentai: %s status=%d in %d ms", path, resp.status_code, elapsed_ms)
-        self._throttle.report(resp.status_code, _retry_after(resp))
+        self._throttle.report(resp.status_code, _retry_after(resp), floor)
         status = resp.status_code
+        if status < 400 and bucket != "user":
+            self._honour_rate_headers(resp, bucket)
         if status == 404:
             raise SourceError("not_found", "Gallery not found", 404)
         if status == 429:
             raise SourceError("rate_limited", "nhentai rate limit", 429)
+        if status == 401:
+            raise SourceError("upstream_error", "nhentai rejected the request", 401)
         if status in (403, 503):
             raise SourceError(
                 "upstream_error",
@@ -230,6 +391,14 @@ class NHentai:
         if not isinstance(data, dict):
             raise SourceError("upstream_error", "nhentai sent invalid JSON")
         return data
+
+    def _honour_rate_headers(self, resp: httpx.Response, bucket: str) -> None:
+        """X-RateLimit-Remaining 0: hold the bucket until the next window."""
+        if resp.headers.get("X-RateLimit-Remaining", "").strip() != "0":
+            return
+        wait = min(_retry_after(resp) or RATE_WINDOW, MAX_WAIT)
+        self._throttle.hold_until(wait, bucket)
+        _log.info("nhentai: rate limit window used up, bucket %s waits %.0fs", bucket, wait)
 
     def search(
         self,
