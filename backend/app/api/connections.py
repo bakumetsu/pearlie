@@ -12,10 +12,10 @@ from app.api.guard import write_guard
 from app.api.health import clear_health_cache
 from app.connection_probe import probe_connection
 from app.connections_store import (
+    DISPLAY_PRIMARY,
     FIELDS,
     FIXED_HOSTS,
     NAMES,
-    PRIMARY,
     ConnectionStore,
     StoreError,
 )
@@ -84,7 +84,7 @@ def _build_out(name: str, store: ConnectionStore) -> ConnectionOut:
                 label=f.label,
                 state=store.field_state(name, f.id),
                 locked=store.field_locked(name, f.id),
-                primary=PRIMARY[name] == f.id,
+                primary=DISPLAY_PRIMARY[name] == f.id,
             )
             for f in FIELDS[name]
         ],

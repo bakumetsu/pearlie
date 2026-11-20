@@ -161,8 +161,12 @@ class NHentai:
         return [f"{IMG_HOST}/galleries/{media_id}/{n}.{e}" for n, e in enumerate(exts, 1)]
 
     def page_headers(self) -> dict[str, str]:
-        """Headers for page downloads: User-Agent only, the Cookie stays on the API host."""
-        return {k: v for k, v in self._auth().headers.items() if k.lower() != "cookie"}
+        """Headers for page downloads: User-Agent only, Cookie and key stay on the API host."""
+        return {
+            k: v
+            for k, v in self._auth().headers.items()
+            if k.lower() not in ("cookie", "authorization")
+        }
 
     def _get(
         self,
