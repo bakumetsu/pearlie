@@ -237,3 +237,18 @@ describe("key map", () => {
     expect(layout.indexOf("zz")).toBe(-1);
   });
 });
+
+describe("wide grid (D-41 3.3)", () => {
+  it("adds columns past the reference width (tiles grow up to 1.4 x) and keeps the tile within cell to 1.4 x cell", () => {
+    const layout = new VirtualLayout();
+    const width = 2368;
+    layout.reset("grid", width, 160, randomAspects(200, 5));
+    const rects = snapshot(layout);
+    const xs = new Set(rects.map((p) => Math.round(p.rect.x)));
+    const tile = rects[0].rect.w;
+    expect(xs.size).toBe(10);
+    expect(xs.size).toBeGreaterThan(columnCount(1152, 160, 16));
+    expect(tile).toBeGreaterThanOrEqual(160 - 0.001);
+    expect(tile).toBeLessThanOrEqual(160 * 1.4 + 0.001);
+  });
+});
