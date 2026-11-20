@@ -45,5 +45,5 @@
   button.filled {
     color: var(--accent);
   }
-  .big button, .big button.filled { color: #fff; }
+  .big button, .big button.filled { color: var(--text); }
 </style>
