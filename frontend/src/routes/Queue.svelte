@@ -379,7 +379,7 @@
 
   @container (min-width: 1000px) {
     .row {
-      grid-template-columns: 56px minmax(0, 1fr) 200px auto;
+      grid-template-columns: 56px minmax(0, 1fr) 200px 93px;
     }
 
     .source {

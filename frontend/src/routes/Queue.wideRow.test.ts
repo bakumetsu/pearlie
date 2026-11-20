@@ -67,6 +67,6 @@ describe("Queue wide row", () => {
     const css = queueSrc;
     expect(css).toMatch(/container-type:\s*inline-size/);
     expect(css).toMatch(/@container \(min-width: 1000px\)/);
-    expect(css).toMatch(/56px minmax\(0, 1fr\) 200px auto/);
+    expect(css).toMatch(/56px minmax\(0, 1fr\) 200px 93px/);
   });
 });
