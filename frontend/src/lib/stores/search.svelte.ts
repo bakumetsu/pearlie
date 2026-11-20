@@ -6,13 +6,6 @@ import type { SearchState } from "../query";
 import type { Job } from "../jobs/group";
 import { settleQueued } from "../web/saveFlow";
 
-// The last Discover search, kept for the page session so See all can start from it (one way: See all never writes it).
-let discoverQuery = "";
-
-export function getLastDiscoverQuery(): string {
-  return discoverQuery;
-}
-
 // Last answers per search, kept for the page session so Back/Forward shows them without a new request.
 // Same 5 min as the backend cache; library sources are never kept (new saves must show at once).
 const ANSWER_TTL_MS = 5 * 60 * 1000;
@@ -47,7 +40,7 @@ export async function cachedSearch(api: Api, params: SearchParams, signal?: Abor
   return res;
 }
 
-export function createSearch(api: Api, opts?: { debounceMs?: number; remember?: boolean }) {
+export function createSearch(api: Api, opts?: { debounceMs?: number }) {
   const debounceMs = opts?.debounceMs ?? 300;
 
   let sections: Record<string, { status: "loading" | "done" | "error"; section: Section | null; error: string | null }> =
@@ -100,7 +93,6 @@ export function createSearch(api: Api, opts?: { debounceMs?: number; remember?: 
 
     retryGen++;
     lastQuery = serialiseQuery(state.chips);
-    if (opts?.remember) discoverQuery = lastQuery;
     lastState = state;
 
     if (ids.length === 0) {

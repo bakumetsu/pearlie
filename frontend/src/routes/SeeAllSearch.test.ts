@@ -2,8 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/svelte";
 import App from "../App.svelte";
-import { createSearch, getLastDiscoverQuery } from "../lib/stores/search.svelte";
-import { parseQuery } from "../lib/query";
+import { clearSearchAnswers } from "../lib/stores/search.svelte";
 
 function web(id: string) {
   return { source: "danbooru", post_id: id, title: `post ${id}`, thumb_url: `/t/${id}`, preview_url: `/p/${id}`, width: 100, height: 100, tags: [] };
@@ -17,6 +16,7 @@ describe("SeeAll search bar", () => {
   let empty: boolean;
 
   beforeEach(() => {
+    clearSearchAnswers();
     vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {} });
     const obs = class { observe() {} disconnect() {} unobserve() {} };
     vi.stubGlobal("IntersectionObserver", obs);
@@ -100,29 +100,17 @@ describe("SeeAll search bar", () => {
     expect(lists.length).toBe(1);
   });
 
-  it("without q it starts from the last Discover search in one request; typing never changes the store", async () => {
-    const store = createSearch({} as never, { remember: true });
-    const chips = parseQuery(`remembered${n}`);
-    store.run({ chips, pill: "web", sites: [] });
-    expect(getLastDiscoverQuery()).toBe(`remembered${n}`);
-    expect(store.lastQuery).toBe(`remembered${n}`);
+  it("without q it opens unfiltered in one request, even after a Discover search", async () => {
     history.replaceState({}, "", "/see-all?source=danbooru");
     await ready();
     await vi.waitFor(() => expect(searches.length).toBeGreaterThan(0));
     await new Promise((r) => setTimeout(r, 30));
     expect(searches.length).toBe(1);
-    expect(searches[0].get("q")).toBe(`remembered${n}`);
-    expect(location.search).toContain(`q=remembered${n}`);
-    const input = screen.getByRole("textbox") as HTMLInputElement;
-    await fireEvent.input(input, { target: { value: "other" } });
-    await fireEvent.keyDown(input, { key: "Enter" });
-    await vi.waitFor(() => expect(searches.length).toBe(2));
-    expect(getLastDiscoverQuery()).toBe(`remembered${n}`);
+    expect(searches[0].get("q") ?? "").toBe("");
+    expect(location.search).not.toContain("q=");
   });
 
-  it("with q in the address, the address wins over the last Discover search", async () => {
-    const store = createSearch({} as never, { remember: true });
-    store.run({ chips: parseQuery("old"), pill: "web", sites: [] });
+  it("with q in the address (from Discover), the address is used", async () => {
     history.replaceState({}, "", `/see-all?source=danbooru&q=mine${n}`);
     await ready();
     expect(searches.length).toBe(1);

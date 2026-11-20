@@ -28,7 +28,7 @@
   import Lightbox from "../lib/components/Lightbox.svelte";
   import Toolbar from "../lib/browse/Toolbar.svelte";
   import SeeAllSearch from "../lib/browse/SeeAllSearch.svelte";
-  import { getLastDiscoverQuery, cachedSearch, clearSearchAnswers } from "../lib/stores/search.svelte";
+  import { cachedSearch, clearSearchAnswers } from "../lib/stores/search.svelte";
   import { nextAutohide } from "../lib/browse/autohide";
   import { parseOrder, parseRating } from "../lib/browse/filters";
   import type { SourceFilters } from "../lib/api/client";
@@ -43,22 +43,9 @@
   let h1: HTMLHeadingElement | undefined;
   let notice = $state<string | null>(null);
 
-  // Opened without a q: start from the last Discover search (one way; See all never writes it back).
-  // The grid waits for the prefilled address, so the first request already carries it.
-  const prefillQ = match.query.get("q") ? "" : getLastDiscoverQuery().trim();
-  let prefilling = $state(prefillQ !== "");
-
   $effect(() => () => selection.clear());
 
   onMount(() => {
-    if (prefillQ) {
-      const qs = new SvelteURLSearchParams(match.query);
-      qs.set("q", prefillQ);
-      // After a tick: the app shell subscribes to the router after its children mount.
-      tick().then(() => router.navigate(match.path + `?${qs.toString()}`, { replace: true }));
-      // The grid effect clears the flag once the prefilled q arrives; this timer only guards a missed update.
-      setTimeout(() => { prefilling = false; }, 1000);
-    }
     h1?.focus();
     selection.clear();
     viewSettings.load(api);
@@ -79,7 +66,6 @@
   });
 
   const q = $derived(match.query.get("q") ?? "");
-  $effect(() => { if (q) prefilling = false; });
   const sort = $derived(match.query.get("sort") ?? "");
   const favorite = $derived(match.query.get("favorite") === "true");
   const caps = $derived(filterCaps[source]);
@@ -204,7 +190,7 @@
 
   $effect(() => {
     if (!viewSettings.ready || !options.ready) return;
-    if (pendingCloseQuery !== null || prefilling) return;
+    if (pendingCloseQuery !== null) return;
     const inf = infinite;
     const k = sourceToKind(source);
     const src = source;
