@@ -19,8 +19,12 @@ from app.connections_store import (
     ConnectionStore,
     StoreError,
 )
+from app.sources.nhentai import NHentai
 
 router = APIRouter(prefix="/api/connections")
+
+NhentaiAuth = Literal["guest", "ok", "failed", "unchecked"]
+NhentaiReason = Literal["invalid", "blocked"]
 
 
 class FieldOut(BaseModel):
@@ -43,6 +47,8 @@ class ConnectionOut(BaseModel):
     address_locked: bool
     key_locked: bool
     fields: list[FieldOut]
+    auth: NhentaiAuth | None = None
+    reason: NhentaiReason | None = None
 
 
 class ConnectionsOut(BaseModel):
@@ -69,8 +75,24 @@ class TestOut(BaseModel):
     message: str
 
 
-def _build_out(name: str, store: ConnectionStore) -> ConnectionOut:
+def _nhentai_auth(request: Request) -> tuple[NhentaiAuth, NhentaiReason | None]:
+    """Key state of the nhentai adapter as (auth, reason); never the key itself."""
+    source = getattr(request.app.state, "sources", {}).get("nhentai")
+    if not isinstance(source, NHentai):
+        return "guest", None
+    state, reason = source.key_state
+    if state == "ok":
+        return "ok", None
+    if state == "unchecked":
+        return "unchecked", None
+    if state == "failed":
+        return "failed", "blocked" if reason == "blocked" else "invalid"
+    return "guest", None
+
+
+def _build_out(name: str, store: ConnectionStore, request: Request) -> ConnectionOut:
     locked = store.env_locked(name)
+    auth, reason = _nhentai_auth(request) if name == "nhentai" else (None, None)
     return ConnectionOut(
         name=name,
         address=store.address(name),
@@ -88,13 +110,15 @@ def _build_out(name: str, store: ConnectionStore) -> ConnectionOut:
             )
             for f in FIELDS[name]
         ],
+        auth=auth,
+        reason=reason,
     )
 
 
 @router.get("", response_model=ConnectionsOut)
 def get_connections(request: Request) -> ConnectionsOut:
     store: ConnectionStore = request.app.state.connection_store
-    connections = [_build_out(name, store) for name in NAMES]
+    connections = [_build_out(name, store, request) for name in NAMES]
     return ConnectionsOut(can_store=store.can_store(), connections=connections)
 
 
@@ -131,7 +155,7 @@ def put_connection(request: Request, name: str, body: ConnectionIn) -> Connectio
         if code == "unknown":
             raise ApiError(404, "not_found", "unknown connection") from exc
         raise ApiError(500, "error", "unexpected store error") from exc
-    out = _build_out(name, store)
+    out = _build_out(name, store, request)
     clear_health_cache(request.app)
     if name in ("stash", "stump"):
         from app.main import rebuild_client
@@ -145,5 +169,31 @@ def test_connection(request: Request, name: str) -> TestOut:
     if name not in NAMES:
         raise ApiError(404, "not_found", "unknown connection")
 
+    if name == "nhentai":
+        checked = _test_nhentai_key(request)
+        if checked is not None:
+            return checked
     result = probe_connection(request.app, name)
     return TestOut(ok=result.ok, message=result.message)
+
+
+_KEY_MESSAGES = {
+    ("ok", ""): (True, "Key works"),
+    ("failed", "invalid"): (False, "Key rejected by nhentai"),
+    ("failed", "blocked"): (False, "nhentai blocked this key. Try again later."),
+}
+
+
+def _test_nhentai_key(request: Request) -> TestOut | None:
+    """Run the GET /user key check; None when there is no key or no real site call."""
+    if request.app.state.settings.mode == "fixture":
+        return None
+    source = getattr(request.app.state, "sources", {}).get("nhentai")
+    if not isinstance(source, NHentai):
+        return None
+    state = source.check_key()
+    if state[0] == "unset":
+        return None
+    ok, message = _KEY_MESSAGES.get(state, (False, "nhentai unreachable"))
+    clear_health_cache(request.app)
+    return TestOut(ok=ok, message=message)
