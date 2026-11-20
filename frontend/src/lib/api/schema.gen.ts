@@ -24,6 +24,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/recommend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recommend Fixture
+         * @description Fixture Recommendations: books that share tags with the seed.
+         */
+        get: operations["recommend_fixture_api_recommend_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recommend/random": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recommend Random Fixture
+         * @description Fixture Random: shuffled books.
+         */
+        get: operations["recommend_random_fixture_api_recommend_random_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/library/stump/series": {
         parameters: {
             query?: never;
@@ -1987,6 +2027,33 @@ export interface components {
             /** Completed */
             completed: boolean;
         };
+        /** RecommendItem */
+        RecommendItem: {
+            /** Id */
+            id: string;
+            /** Source */
+            source: string;
+            /** Title */
+            title: string;
+            /**
+             * Author
+             * @default
+             */
+            author: string;
+            /**
+             * Thumb Url
+             * @default
+             */
+            thumb_url: string;
+            /** Saveable */
+            saveable?: boolean | null;
+            saved?: components["schemas"]["SavedRef"] | null;
+        };
+        /** RecommendResponse */
+        RecommendResponse: {
+            /** Items */
+            items: components["schemas"]["RecommendItem"][];
+        };
         /** RejectAdded */
         RejectAdded: {
             /** Added */
@@ -2637,6 +2704,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recommend_fixture_api_recommend_get: {
+        parameters: {
+            query: {
+                source: string;
+                id: string;
+                kind?: "book" | "series";
+                limit?: number;
+                safe?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recommend_random_fixture_api_recommend_random_get: {
+        parameters: {
+            query: {
+                source: string;
+                limit?: number;
+                exclude?: string;
+                safe?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendResponse"];
                 };
             };
             /** @description Validation Error */

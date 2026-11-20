@@ -33,6 +33,7 @@ from app.api import (
     media_web_real,
     options,
     player_settings,
+    recommend,
     rules,
     rules_real,
     search,
@@ -77,6 +78,7 @@ from app.update.version import current_version
 
 FIXTURE_ROUTERS = {
     "search": search.router,
+    "recommend": recommend.fixture_router,
     "library_stump": library_stump.router,
     "library_stash": library_stash.router,
     "media_stash": media_stash.router,
@@ -88,6 +90,7 @@ FIXTURE_ROUTERS = {
 }
 REAL_ROUTERS: dict[str, APIRouter] = {
     "search": search_real.router,
+    "recommend": recommend.router,
     "library_stump": library_stump_real.router,
     "media_stash": media_stash_real.router,
     "library_stash": library_stash_real.router,
