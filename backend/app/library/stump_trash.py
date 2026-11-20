@@ -228,6 +228,7 @@ class StumpTrash:
             items = self._pending.pop(library_id, set())
         if not items:
             return
+        logger.info("trash stump scan requested: %d items", len(items))
         try:
             self._c.scan_library(library_id)
         except BookServerError as e:
@@ -262,14 +263,19 @@ class StumpTrash:
         return foreign
 
     def empty_if_ours(self, library_id: str) -> bool:
-        """Call empty-trash only when every soft-deleted item is one Pearlie trashed."""
+        """Call empty-trash when at most `stump_clean_max_foreign` soft-deleted items are foreign."""
         try:
             foreign = self.foreign_deleted(library_id)  # checked right before the call
-            if foreign:
+            limit = self._s.stump_clean_max_foreign
+            if foreign > limit:
                 logger.warning(
-                    "trash stump empty-trash skipped: %d foreign soft-deleted items", foreign
+                    "trash stump empty-trash skipped: %d foreign soft-deleted items (limit %d)",
+                    foreign,
+                    limit,
                 )
                 return False
+            if foreign:
+                logger.info("trash stump empty-trash: %d foreign soft-deleted items", foreign)
             self._c.purge_deleted(library_id)
         except BookServerError as e:
             logger.warning("trash stump empty-trash failed code=%s: items stay hidden", e.code)

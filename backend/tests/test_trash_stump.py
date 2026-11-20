@@ -60,7 +60,7 @@ class FsStump(stump_mock.MockStump):
                 self.books[-1].update(id=f"N{self.n}", tags=[], readProgress=None)
 
 
-def make(tmp_path, mock, wait=0.0):
+def make(tmp_path, mock, wait=0.0, **extra):
     (tmp_path / "trash").mkdir(exist_ok=True)
     app = create_app(
         Settings(
@@ -72,6 +72,7 @@ def make(tmp_path, mock, wait=0.0):
             static_dir=tmp_path / "nostatic",
             trash_dir=tmp_path / "trash",
             _env_file=None,  # pyright: ignore[reportCallIssue]
+            **extra,
         )
     )
     http = httpx.Client(base_url=URL, transport=httpx.MockTransport(mock))
@@ -127,15 +128,35 @@ def test_delete_moves_file_then_scan_and_clean_library(tmp_path):
     assert state.trash.get(r.json()["token"])["target"] == "stump"
 
 
-def test_foreign_missing_item_blocks_clean_library(tmp_path):
+def test_few_foreign_missing_items_still_clean_library(tmp_path):
     folder, _, _, m = setup_lib(tmp_path)
     m.add_file(9, folder / "offline.cbz")  # never on disk: the scan marks it MISSING
     c = make(tmp_path, m)
     assert c.delete("/api/library/books/B1").status_code == 200
+    assert wait_for(lambda: m.cleaned == ["L1"])
+    assert {b["id"] for b in m.books} == {"B2"}
+
+
+def test_many_foreign_missing_items_block_clean_library(tmp_path):
+    folder, _, _, m = setup_lib(tmp_path)
+    m.add_file(9, folder / "offline.cbz")
+    m.add_file(8, folder / "offline2.cbz")
+    c = make(tmp_path, m, stump_clean_max_foreign=1)
+    assert c.delete("/api/library/books/B1").status_code == 200
     assert wait_for(lambda: m.scanned == ["L1"])
     time.sleep(0.3)
     assert m.cleaned == []
-    assert {b["id"] for b in m.books if b["status"] == "MISSING"} == {"B1", "B9"}
+    assert {b["id"] for b in m.books if b["status"] == "MISSING"} == {"B1", "B8", "B9"}
+
+
+def test_trashed_book_is_hidden_from_search_section(tmp_path):
+    _, _, _, m = setup_lib(tmp_path)
+    c = make(tmp_path, m, wait=60.0)  # scan has not run: Stump still lists B1 as READY
+    assert c.delete("/api/library/books/B1").status_code == 200
+    r = c.get("/api/search", params={"sources": "stump_books"})
+    assert r.status_code == 200, r.text
+    ids = [i["id"] for i in r.json()["sections"][0]["items"]]
+    assert "B1" not in ids and "B2" in ids
 
 
 def test_clean_library_failure_keeps_items_and_does_not_retry(tmp_path):
