@@ -21,6 +21,7 @@ from app.api.media_owned import is_owned, try_book_page
 from app.api.media_web_real import proxy_path
 from app.db import connect
 from app.filters.rules import Verdict, evaluate, load_rules
+from app.filters.safe_mode import resolve_safe, visible_tags
 from app.jobs.store import JobStore
 from app.models import Tag, WebBook, WebItem
 from app.sources.base import Post, SourceError
@@ -362,6 +363,20 @@ def build_book(post: Post, target: str) -> WebBook:
     )
 
 
+def _apply_safe_tags(request: Request, data: WebBook) -> None:
+    safe, allow_blurred = resolve_safe(request, None)
+    if not safe or allow_blurred:
+        return
+    rules = load_rules(request.app.state.settings.db_path)
+    data.item.tags = visible_tags(data.item.tags, rules, safe, allow_blurred)
+    shown = {(t.scope or "", t.name) for t in data.item.tags}
+    data.tags = {
+        scope: kept
+        for scope, names in data.tags.items()
+        if (kept := [n for n in names if (scope, n) in shown])
+    }
+
+
 @router.get("/{gid}/book", response_model=WebBook)
 async def book(request: Request, gid: str) -> Response:
     """Gallery metadata for the book page; no media bytes."""
@@ -371,6 +386,7 @@ async def book(request: Request, gid: str) -> Response:
     except _Refusal as r:
         return _refusal_response(r)
     data = build_book(post, src.target)
+    _apply_safe_tags(request, data)
     data.item.saved = (
         JobStore(request.app.state.settings.db_path)
         .saved_refs("nhentai", [post.post_id])

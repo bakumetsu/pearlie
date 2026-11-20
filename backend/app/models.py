@@ -98,6 +98,10 @@ class StreamOption(BaseModel):
 
 class LibraryItemDetail(LibraryItem):
     tags: list[Tag] = Field(default_factory=list)
+    inherited_tags: list[Tag] = Field(
+        default_factory=list,
+        description="Series detail only. Tags of its books that the series itself lacks.",
+    )
     full_url: str | None = None
     stream_url: str | None = None
     mime: str | None = None

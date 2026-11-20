@@ -58,6 +58,9 @@ def series_detail(s: SeriesDTO, books: list[BookDTO], truncated: bool = False) -
         book_count=s.book_count,
         read_count=s.read_count,
         tags=[Tag(name=t) for t in sorted(s.tags)],
+        inherited_tags=[
+            Tag(name=t) for t in sorted({t for b in books for t in b.tags} - set(s.tags))
+        ],
         books=[book_item(b) for b in books],
         notice=(
             Problem(code="truncated", message="Showing the first 10,000 books")
