@@ -90,5 +90,6 @@ describe("tagSearchHref", () => {
   it("builds a search URL on the same source", () => {
     expect(tagSearchHref("big_cat")).toBe("/?q=big_cat");
     expect(tagSearchHref("a b", "books")).toBe("/?q=a_b&src=books");
+    expect(tagSearchHref("a b")).toBe("/?q=a_b");
   });
 });
