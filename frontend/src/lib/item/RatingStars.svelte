@@ -1,8 +1,9 @@
 <script lang="ts">
   import Icon from "../components/Icon.svelte";
 
-  let { value, onrate }: {
+  let { value, onrate, size = 20 }: {
     value: number | null;
+    size?: number;
     onrate: (n: number) => void;
   } = $props();
 
@@ -19,7 +20,7 @@
       class:filled={value !== null && n <= value}
       onclick={() => onrate(n)}
     >
-      <Icon name={value !== null && n <= value ? "star-filled" : "star"} size={20} />
+      <Icon name={value !== null && n <= value ? "star-filled" : "star"} {size} />
     </button>
   {/each}
 </div>
@@ -33,6 +34,10 @@
     background: transparent;
     border: none;
     color: var(--muted);
+    min-height: 44px;
+    min-width: 32px;
+    padding: 0;
+    cursor: pointer;
   }
   button.filled {
     color: var(--accent);

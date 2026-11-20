@@ -4,6 +4,7 @@
   import BookPage from "../book/BookPage.svelte";
   import PageGrid from "../book/PageGrid.svelte";
   import Icon from "../components/Icon.svelte";
+  import RatingStars from "./RatingStars.svelte";
   import StumpBookSide from "./StumpBookSide.svelte";
 
   let {
@@ -53,6 +54,12 @@
   const last = $derived(readPage && readPage > 1 && !done ? readPage : null);
   const hasNav = $derived(!!onprev && !!onnext);
 
+  let banOpen = $state(false);
+  function reject(tag: string) {
+    banOpen = false;
+    onrejecttag?.(tag);
+  }
+
   let busy = $state(false);
   async function markRead() {
     if (busy || count < 1) return;
@@ -73,8 +80,12 @@
   backdrop={detail.thumb_url}
   {backdropStrength}
   title={detail.title}
+  by={detail.author || detail.studio || ""}
   {onback}
 >
+  {#snippet meta()}
+    <RatingStars value={detail.rating ?? null} {onrate} size={24} />
+  {/snippet}
   {#snippet bar()}
     {#if hasNav}
       <button class="ib" type="button" aria-label="Previous item" title="Previous item" disabled={!canPrev} onclick={onprev}><Icon name="chevron-left" size={20} /></button>
@@ -97,14 +108,24 @@
     <button class="mi" role="menuitem" type="button" onclick={onfavorite}>
       <Icon name={detail.favorite ? "heart-filled" : "heart"} size={20} />{detail.favorite ? "Unfavorite" : "Favorite"}
     </button>
+    {#if onrejecttag}
+      <button class="mi" role="menuitem" type="button" aria-expanded={banOpen} onclick={() => (banOpen = !banOpen)}><Icon name="ban" size={20} />Reject a tag</button>
+    {/if}
     <button class="mi" role="menuitem" type="button" onclick={ondelete}>
       <Icon name="trash" size={20} />Delete
     </button>
   {/snippet}
   {#snippet side()}
-    <StumpBookSide {detail} {tags} {onrate} {onaddtag} {onremovetag} {onrejecttag} />
+    <StumpBookSide {detail} {tags} {onaddtag} {onremovetag} />
   {/snippet}
 
+  {#if banOpen}
+    <div class="ban" role="group" aria-label="Reject a tag">
+      {#each tags as t (t)}
+        <button type="button" class="chip" onclick={() => reject(t)}>{t}</button>
+      {/each}
+    </div>
+  {/if}
   {#if count > 0 && detail.page_thumb_url}
     <PageGrid thumbTpl={detail.page_thumb_url} {count} {last} onopen={(n) => onread(n)} />
   {:else if count === 0}
@@ -113,5 +134,7 @@
 </BookPage>
 
 <style>
+  .ban { display: flex; flex-wrap: wrap; gap: var(--s-1); margin-bottom: var(--s-3); }
+  .chip { min-height: 44px; padding: 0 var(--s-3); border: 1px solid var(--line-strong); border-radius: 999px; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
   .note { text-align: center; color: var(--muted); padding: var(--s-5) 0; }
 </style>
