@@ -370,6 +370,16 @@ def test_mark_unread_after_finish_drops_finished_state() -> None:
     assert book.read_page is None and book.read_done is False
 
 
+def test_mark_unread_fails_loudly_when_history_delete_fails() -> None:
+    server, mock = _server()
+    server.set_progress("b1", 5, True)
+    mock.fail_ops["DeleteMediaReadingHistory"] = "boom"
+    with pytest.raises(BookServerError):
+        server.set_progress("b1", 0, False)
+    assert len(_ops(mock, "ClearMediaProgress")) == 1
+    assert server.get_book("b1").read_done is True  # no silent half reset
+
+
 def test_mark_unread_clears_cached_walks() -> None:
     server, mock = _server()
     server.set_progress("b1", 5, True)

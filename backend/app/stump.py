@@ -79,8 +79,8 @@ RETURN_SELECTION = {
     "updateSeriesMetadata": _SEL,  # guess: SeriesMetadata
     "updateMediaProgress": _SEL,  # guess: ReadProgress object
     "finishMediaProgress": "",  # scalar in the Stump 0.1.13 web bundle: no selection
-    "clearMediaProgress": "",  # Boolean in stump main (reading_progress.rs): no selection
-    "deleteMediaReadingHistory": "",  # Int in stump main (reading_progress.rs): no selection
+    "clearMediaProgress": "",  # Boolean at Stump v0.1.13: no selection
+    "deleteMediaReadingHistory": "",  # i64 at Stump v0.1.13: no selection
     "setMediaLockedFields": " { id }",  # Media; seen in the Stump 0.1.13 web bundle
     "setSeriesLockedFields": " { id }",  # Series; seen in the Stump 0.1.13 web bundle
 }
@@ -113,8 +113,11 @@ M_FINISH_PROGRESS = (
     f"{{ finishMediaProgress(id: $id){RETURN_SELECTION['finishMediaProgress']} }}"
 )
 # Mark unread (T-401): clearMediaProgress trashes the active readthrough; it keeps finished ones,
-# so deleteMediaReadingHistory then trashes those. Source: stumpapp/stump
-# crates/graphql/src/mutation/reading_progress.rs
+# so deleteMediaReadingHistory then trashes those. Both exist at the Stump v0.1.13 tag, in
+# stumpapp/stump crates/graphql/src/mutation/reading_progress.rs (struct ReadProgressMutation):
+#   clear_media_progress(&self, ctx, id: ID) -> Result<bool>
+#   delete_media_reading_history(&self, ctx, id: ID) -> Result<i64>
+# Names are camelCased by async-graphql; not checked against a live schema (no live Stump).
 M_CLEAR_PROGRESS = (
     "mutation ClearMediaProgress($id: ID!) "
     f"{{ clearMediaProgress(id: $id){RETURN_SELECTION['clearMediaProgress']} }}"
