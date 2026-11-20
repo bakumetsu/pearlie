@@ -18,6 +18,11 @@
 
 
 
+  function sourceText(job: Job): string {
+    const post = job.post_id ? `#${job.post_id}` : "";
+    return [job.source, post].filter(Boolean).join(" ");
+  }
+
   const jobs = getJobs();
   const router = getRouter();
 
@@ -89,6 +94,7 @@
   {@const route = routeFor(job)}
   {@const info = stateInfo(job.state)}
   {@const eta = etaLabel(job)}
+  {@const src = sourceText(job)}
   <li class="row">
     <img src={job.thumb_url} alt="" decoding="async" />
     <div class="text">
@@ -99,7 +105,7 @@
           <span>{job.title}</span>
         {/if}
       </span>
-      <span class="muted">{job.source} → {job.target === "stash" ? "Stash" : "Stump"}</span>
+      <span class="muted dest"><span class="src-word">{job.source ?? ""}</span> → {job.target === "stash" ? "Stash" : "Stump"}</span>
       <span class="chip {job.state}">
         <Icon name={info.icon} size={14} /> {info.label}
       </span>
@@ -127,6 +133,7 @@
         {/if}
       {/if}
     </div>
+    <span class="source" title={src}>{src}</span>
     <div class="actions">
       {#if canRetry(job)}
         <button aria-label="Retry" onclick={() => jobs.retry(job.id)}>
@@ -144,6 +151,7 @@
 
 <style>
   .content {
+    container-type: inline-size;
     padding: var(--s-5) var(--gutter);
     min-width: 0;
     display: flex;
@@ -357,6 +365,31 @@
     color: var(--muted);
     text-align: center;
     padding: var(--s-5) 0;
+  }
+
+  .source {
+    display: none;
+    color: var(--muted);
+    font-size: var(--t-13);
+    font-variant-numeric: tabular-nums;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @container (min-width: 1000px) {
+    .row {
+      /* actions column: two 44px buttons + gap (--s-1) */
+      grid-template-columns: 56px minmax(0, 1fr) 200px calc(2 * 44px + var(--s-1));
+    }
+
+    .source {
+      display: block;
+    }
+
+    .src-word {
+      display: none;
+    }
   }
 
   .skel {
