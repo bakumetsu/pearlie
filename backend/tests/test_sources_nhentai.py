@@ -70,6 +70,7 @@ def make(handler, **kw) -> NHentai:
         client=httpx.Client(transport=httpx.MockTransport(handler)),
         throttle=Throttle(0.0),
         credentials=lambda: CREDS,
+        paced=False,
         **kw,
     )
 
