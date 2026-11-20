@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 # Bump on every new column or table (test_db.py snapshot guard fails otherwise).
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS jobs (
@@ -78,6 +78,12 @@ CREATE TABLE IF NOT EXISTS trash_items (
     trashed_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
     size_bytes INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS stump_purged (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    library_id TEXT NOT NULL DEFAULT '',
+    purged_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_trash_entity ON trash_items (target, entity_id);
 CREATE INDEX IF NOT EXISTS idx_trash_md5 ON trash_items (md5);

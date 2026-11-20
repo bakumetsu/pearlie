@@ -58,6 +58,7 @@ class StumpTrash:
         self._lock = threading.Lock()
         self._pending: dict[str, set[tuple[str, str]]] = {}
         self._timers: dict[str, threading.Timer] = {}
+        store.on_stump_purge = self._purged
 
     # -- paths ----------------------------------------------------------------
 
@@ -216,6 +217,21 @@ class StumpTrash:
             self._timers[library_id] = timer
             timer.start()
 
+    def _purged(self, library_id: str) -> None:
+        """A trash record was deleted for good: make Stump scan and drop what it still lists."""
+        items = {(k, i) for lib, k, i in self._store.stump_pending() if lib == library_id}
+        logger.info("trash stump scan queued after purge: %d items", len(items))
+        for kind, id in items:
+            self._queue(library_id, kind, id)
+
+    def requeue_pending(self) -> None:
+        """At start-up: the debounce timers of the last run are gone; queue one scan per library."""
+        pending = self._store.stump_pending()
+        for lib, kind, id in pending:
+            self._queue(lib, kind, id)
+        if pending:
+            logger.info("trash stump scan queued at start: %d items", len(pending))
+
     def cancel(self, library_id: str, id: str) -> None:
         """Forget a pending item (it is being restored)."""
         with self._lock:
@@ -228,12 +244,14 @@ class StumpTrash:
             items = self._pending.pop(library_id, set())
         if not items:
             return
+        logger.info("trash stump scan requested: %d items", len(items))
         try:
             self._c.scan_library(library_id)
         except BookServerError as e:
             logger.warning("trash stump scan failed code=%s: items stay hidden", e.code)
             return
         self._settle(items)
+        self._store.clear_purged([i for k, i in items if self._settled(k, i)])
         self._drop_walks()  # a walk taken before the scan still lists the items
         self.empty_if_ours(library_id)
 
@@ -262,14 +280,19 @@ class StumpTrash:
         return foreign
 
     def empty_if_ours(self, library_id: str) -> bool:
-        """Call empty-trash only when every soft-deleted item is one Pearlie trashed."""
+        """Call empty-trash when at most `stump_clean_max_foreign` items are foreign."""
         try:
             foreign = self.foreign_deleted(library_id)  # checked right before the call
-            if foreign:
+            limit = self._s.stump_clean_max_foreign
+            if foreign > limit:
                 logger.warning(
-                    "trash stump empty-trash skipped: %d foreign soft-deleted items", foreign
+                    "trash stump empty-trash skipped: %d foreign soft-deleted items (limit %d)",
+                    foreign,
+                    limit,
                 )
                 return False
+            if foreign:
+                logger.info("trash stump empty-trash: %d foreign soft-deleted items", foreign)
             self._c.purge_deleted(library_id)
         except BookServerError as e:
             logger.warning("trash stump empty-trash failed code=%s: items stay hidden", e.code)

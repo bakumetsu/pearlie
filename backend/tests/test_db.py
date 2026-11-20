@@ -423,6 +423,8 @@ SNAPSHOTS = {
     },
 }
 
+SNAPSHOTS[11] = {**SNAPSHOTS[10], "stump_purged": ["id", "kind", "library_id", "purged_at"]}
+
 
 def test_init_db_creates_tables(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"

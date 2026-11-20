@@ -111,8 +111,12 @@ def _library_section(
     try:
         if sid == "stump_books":
             server = book_server_of(request.app)
+            trash = getattr(state, "trash", None)
+            owned = trash.stump_owned_ids() if trash is not None else set()
             if tags:
-                rows = server.tagged_books(q, tags)
+                rows = [
+                    r for r in server.tagged_books(q, tags) if not r.deleted and r.id not in owned
+                ]
                 total = len(rows)
                 pages = pages_for(total, size)
                 served = clamp_page(pg, pages)
@@ -122,7 +126,7 @@ def _library_section(
                 reply, pages, served = fetch_book_page(
                     lambda p, n: server.list_books(p, n, q, SORT_CREATED_DESC), pg, size
                 )
-                items = [book_item(r) for r in reply.items]
+                items = [book_item(r) for r in reply.items if not r.deleted and r.id not in owned]
                 total = reply.total_items
                 next_page = served + 1 if not reply.last else None
         else:
