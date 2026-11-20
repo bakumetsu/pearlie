@@ -135,5 +135,10 @@
     .lc { width: 200px; }
     .title { font-size: 30px; }
     .sub { font-size: 16px; }
+    .side { position: sticky; top: var(--s-4); max-height: calc(100vh - 2 * var(--s-4)); overflow-y: auto; }
+  }
+  @media (min-width: 1600px) {
+    .cols { grid-template-columns: 1fr 320px; }
+    .info { max-inline-size: var(--measure); }
   }
 </style>

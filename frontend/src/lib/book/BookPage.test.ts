@@ -82,4 +82,9 @@ describe("BookPage", () => {
     expect(css).toMatch(/\.acts[^{]*\{[^}]*align-self:\s*stretch/);
     expect(css).toMatch(/\.tl[^{]*\{[^}]*margin-left:\s*auto/);
   });
+  it("wide layout: sticky side column, 320 px from 1600 px, info capped at the measure", () => {
+    expect(css).toMatch(/\.side\s*\{[^}]*position:\s*sticky/);
+    expect(css).toMatch(/@media \(min-width: 1600px\)\s*\{[^}]*grid-template-columns:\s*1fr 320px/);
+    expect(css).toMatch(/\.info\s*\{[^}]*max-inline-size:\s*var\(--measure\)/);
+  });
 });

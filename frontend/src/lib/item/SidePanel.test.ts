@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, waitFor, fireEvent } from "@testing-library/svelte";
 import SidePanel from "./SidePanel.svelte";
+import css from "./SidePanel.svelte?raw";
 import { API_CONTEXT_KEY, ApiError } from "../api/client";
 import type { Api } from "../api/client";
 
@@ -75,5 +76,9 @@ describe("SidePanel", () => {
     await waitFor(() => getByText("Title 8"));
     await fireEvent.click(getByText("Title 8"));
     expect(onopen).toHaveBeenCalledWith(expect.objectContaining({ id: "8" }));
+  });
+  it("uses 121 px thumbnails from 900 px", () => {
+    expect(css).toMatch(/@media \(min-width: 900px\)[^@]*grid-template-columns:\s*121px 1fr/);
+    expect(css).toMatch(/\.mth\s*\{[^}]*width:\s*121px/);
   });
 });

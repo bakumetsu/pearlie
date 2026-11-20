@@ -148,6 +148,11 @@
   .why { font-size: var(--t-12); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tick { position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--progress); color: #111; }
   .skel { height: 72px; border-radius: 8px; background: linear-gradient(90deg, var(--surface), #26262c, var(--surface)); background-size: 200% 100%; animation: sh 1.2s linear infinite; }
+  @media (min-width: 900px) {
+    .mrow { grid-template-columns: 121px 1fr; min-height: 190px; }
+    .mth { width: 121px; border-radius: 6px; }
+    .skel { height: 190px; }
+  }
   @keyframes sh { to { background-position: -200% 0; } }
   @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
   .state { padding: var(--s-4) 0; color: var(--muted); font-size: var(--t-13); display: flex; flex-direction: column; gap: var(--s-2); align-items: flex-start; }
