@@ -36,31 +36,50 @@ class Throttle:
         self._current: float = min_interval
         self._clean: int = 0
         self._next_at: float = 0.0
+        self._bucket_next: dict[str, float] = {}
         self._pause_until: float = 0.0
         self._clock = clock
         self._sleep = sleep
         self._lock = threading.Lock()
 
-    def reserve(self, floor: float = 0.0) -> float:
+    def reserve(self, floor: float = 0.0, bucket: str = "") -> float:
         """Take the next slot and return the seconds to wait (the caller sleeps).
 
-        `floor` spaces the slot at least that far from the previous one.
+        `floor` spaces the slot at least that far from the previous one. `bucket` names
+        an own clock (empty: the shared one); the interval is max(current, floor).
         """
         with self._lock:
             now = self._clock()
-            start = max(now, self._next_at)
-            self._next_at = start + max(self._current, floor)
+            start = max(now, self._at(bucket))
+            self._set_at(bucket, start + max(self._current, floor))
         return max(0.0, start - now)
 
-    def reserve_within(self, max_wait: float) -> float | None:
+    def reserve_within(self, max_wait: float, floor: float = 0.0, bucket: str = "") -> float | None:
         """Like reserve, but take no slot and return None when the wait exceeds `max_wait`."""
         with self._lock:
             now = self._clock()
-            start = max(now, self._next_at)
+            start = max(now, self._at(bucket))
             if start - now > max_wait:
                 return None
-            self._next_at = start + self._current
+            self._set_at(bucket, start + max(self._current, floor))
         return max(0.0, start - now)
+
+    def _at(self, bucket: str) -> float:
+        if not bucket:
+            return self._next_at
+        # a running back-off pause covers every bucket, also one not used yet
+        return max(self._bucket_next.get(bucket, 0.0), self._pause_until)
+
+    def _set_at(self, bucket: str, value: float) -> None:
+        if bucket:
+            self._bucket_next[bucket] = value
+        else:
+            self._next_at = value
+
+    def hold_until(self, delay: float, bucket: str = "") -> None:
+        """Push the next slot of a bucket at least `delay` seconds out (RateLimit-Remaining 0)."""
+        with self._lock:
+            self._set_at(bucket, max(self._at(bucket), self._clock() + max(0.0, delay)))
 
     def nap(self, delay: float) -> None:
         """Sleep `delay` seconds with the throttle's own sleep function."""
@@ -74,8 +93,11 @@ class Throttle:
             logger.debug("THROTTLE site=%s wait=%.1fs", self._site, delay)
             self._sleep(delay)
 
-    def report(self, status: int, retry_after: float | None = None) -> None:
-        """Record a response; raise pace on 429/503, ease on success."""
+    def report(self, status: int, retry_after: float | None = None, floor: float = 0.0) -> None:
+        """Record a response; raise pace on 429/503, ease on success.
+
+        `floor` is the documented-limit pace: back-off doubles from at least that.
+        """
         with self._lock:
             if status in (429, 503):
                 self._clean = 0
@@ -86,9 +108,11 @@ class Throttle:
                     # one back-off per pause: a concurrent 429 from the same burst adds nothing
                     return
                 else:
-                    new = min(MAX_WAIT, (self._current or 1.0) * 2)
+                    new = min(MAX_WAIT, (max(self._current, floor) or 1.0) * 2)
                 self._current = max(self._user, new)
                 self._next_at = max(self._next_at, now + self._current)
+                for name in self._bucket_next:
+                    self._bucket_next[name] = max(self._bucket_next[name], now + self._current)
                 self._pause_until = max(self._pause_until, now + self._current)
                 logger.warning(
                     "THROTTLE site=%s backoff status=%d retry_after=%s wait=%.1fs",

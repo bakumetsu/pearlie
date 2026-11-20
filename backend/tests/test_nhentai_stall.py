@@ -24,7 +24,9 @@ GALLERY = {
 
 
 def _src(handler, thr: Throttle) -> NHentai:
-    return NHentai(client=httpx.Client(transport=httpx.MockTransport(handler)), throttle=thr)
+    return NHentai(
+        client=httpx.Client(transport=httpx.MockTransport(handler)), throttle=thr, paced=False
+    )
 
 
 def test_429_retry_after_fails_fast_and_takes_no_slot() -> None:
