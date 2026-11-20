@@ -3,6 +3,7 @@
 	import { connections } from "../stores/connections.svelte";
 	import type { ConnectionsStore } from "../stores/connections.svelte";
 	import { getApi, ApiError, errorText } from "../api/client";
+	import Icon from "../components/Icon.svelte";
 	import type { Api } from "../api/client";
 
 	let {
@@ -28,6 +29,22 @@
 	// Sites with more than one credential field (login + key, cookie + User-Agent, ...)
 	const fields = $derived(conn?.fields ?? []);
 	const multi = $derived(fields.length > 1);
+	// nhentai: the API key is the main field; Cookie and User-Agent sit under "Advanced"
+	const hasApiKey = $derived(name === "nhentai" && fields.some((f) => f.id === "api_key"));
+	const mainFields = $derived(hasApiKey ? fields.filter((f) => f.id === "api_key") : fields);
+	const advFields = $derived(hasApiKey ? fields.filter((f) => f.id !== "api_key") : []);
+	let advOpen = $state(untrack(() => (store.byName(name)?.fields ?? []).some((f) => f.id === "cookie" && f.state === "set")));
+	const NHENTAI_KEY_URL = "https://nhentai.net/user/settings";
+	const keyRejected = $derived(hasApiKey && conn?.auth === "failed");
+	const keyRejectedText = $derived(
+		conn?.reason === "blocked" ? "nhentai blocked this key" : "nhentai rejected this key"
+	);
+	function chipText(f: { id: string; state: string }): string {
+		if (f.id !== "api_key" || f.state !== "set") return f.state;
+		if (conn?.auth === "ok") return "ok";
+		if (conn?.auth === "failed") return "invalid";
+		return f.state;
+	}
 	const canEditKeys = $derived(store.canStore);
 	// Fixed length: neither the real key nor its length reaches the DOM
 	const MASK = "•".repeat(8);
@@ -154,6 +171,8 @@
 			values = {};
 			touched = {};
 			await store.test(api, name);
+			// A rejected key stays visible in the popup so the user need not press Test
+			if (hasApiKey && store.results[name] && !store.results[name]!.ok) return;
 			onclose();
 		} catch (e) {
 			if (e instanceof ApiError) {
@@ -198,7 +217,7 @@
 		{/if}
 
 		{#if multi}
-			{#each fields as f (f.id)}
+			{#each mainFields as f (f.id)}
 				<div class="row">
 					<label for={`conn-f-${f.id}`}>{f.label}</label>
 					<input
@@ -211,18 +230,72 @@
 							touched = { ...touched, [f.id]: true };
 						}}
 						placeholder={f.state === "set" && !touched[f.id] ? MASK : ""}
+						aria-describedby={f.id === "api_key" && keyRejected ? "conn-key-err" : undefined}
 						disabled={f.locked || !canEditKeys}
 					/>
 					{#if f.locked}
 						<span class="chip">set in .env</span>
 					{:else}
-						<span class="chip">{f.state}</span>
+						<span class="chip" class:ok={chipText(f) === "ok"} class:bad={chipText(f) === "invalid"}>{chipText(f)}</span>
 					{/if}
 					{#if clearFieldIds.includes(f.id)}
 						<p class="hint">{f.label} will be removed</p>
 					{/if}
 				</div>
 			{/each}
+			{#if hasApiKey}
+				{#if keyRejected}
+					<p class="err" id="conn-key-err" role="alert">{keyRejectedText}</p>
+				{/if}
+				<div class="row">
+					<span class="hint grow-hint">Create it in nhentai Settings &gt; API keys</span>
+					<a
+						class="btn"
+						href={NHENTAI_KEY_URL}
+						target="_blank"
+						rel="noopener noreferrer"
+						aria-label="Open nhentai API key settings (new tab)"><Icon name="external-link" size={16} /></a
+					>
+				</div>
+				<button
+					class="btn fold"
+					type="button"
+					aria-expanded={advOpen}
+					aria-controls="conn-advanced"
+					onclick={() => (advOpen = !advOpen)}
+				>
+					<Icon name={advOpen ? "chevron-down" : "chevron-right"} size={16} /> Advanced
+				</button>
+				{#if advOpen}
+					<div id="conn-advanced">
+						{#each advFields as f (f.id)}
+							<div class="row">
+								<label for={`conn-f-${f.id}`}>{f.label}</label>
+								<input
+									id={`conn-f-${f.id}`}
+									type={f.id === "cookie" ? "password" : "text"}
+									autocomplete="off"
+									value={values[f.id] ?? ""}
+									oninput={(e) => {
+										values = { ...values, [f.id]: e.currentTarget.value };
+										touched = { ...touched, [f.id]: true };
+									}}
+									placeholder={f.state === "set" && !touched[f.id] ? MASK : ""}
+									disabled={f.locked || !canEditKeys}
+								/>
+								{#if f.locked}
+									<span class="chip">set in .env</span>
+								{:else}
+									<span class="chip">{f.state}</span>
+								{/if}
+								{#if clearFieldIds.includes(f.id)}
+									<p class="hint">{f.label} will be removed</p>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/if}
+			{/if}
 			{#if !store.canStore}
 				<p class="note" role="note">Keys can't be saved here: Pearlie could not create its encryption key file. Check that the data folder is writable, or set PEARLIE_SECRET_KEY in .env.</p>
 			{/if}
@@ -324,6 +397,33 @@
 		border-radius: 999px;
 		font-size: 0.7rem;
 		color: var(--muted, #999);
+	}
+	.chip.ok {
+		background: var(--ok-bg);
+		color: var(--ok-fg);
+		border-color: transparent;
+	}
+	.chip.bad {
+		color: var(--danger-hot, #ff6b6b);
+		border-color: var(--danger-hot, #ff6b6b);
+	}
+	.grow-hint {
+		flex: 1;
+	}
+	a.btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		color: inherit;
+		text-decoration: none;
+	}
+	.fold {
+		width: 100%;
+		justify-content: flex-start;
+		gap: 0.25rem;
+		padding: 0 0.25rem;
+		border: 0;
+		background: transparent;
 	}
 	.hint {
 		width: 100%;
