@@ -2,6 +2,9 @@
   import Icon from "./Icon.svelte";
   import type { Snippet } from "svelte";
   import { onMount } from "svelte";
+  import { railColumns, RAIL_IMAGE, RAIL_VIDEO, RAIL_MIN_WIDTH } from "../browse/columns";
+
+  const GAP = 8;
 
   let { title, count, seeAllHref, onnavigate, hidden, rulesHref, error, onretry, wide, children }: {
     title: string;
@@ -21,6 +24,8 @@
   let clientWidth = $state(0);
   let scrollWidth = $state(0);
 
+  let cols = $state<number | null>(null);
+
   const canLeft = $derived(scrollLeft > 0);
   const canRight = $derived(scrollLeft + clientWidth < scrollWidth - 1);
 
@@ -29,6 +34,12 @@
       scrollLeft = strip.scrollLeft;
       clientWidth = strip.clientWidth;
       scrollWidth = strip.scrollWidth;
+      if (typeof window !== "undefined" && window.innerWidth >= RAIL_MIN_WIDTH && clientWidth > 0) {
+        const r = wide ? RAIL_VIDEO : RAIL_IMAGE;
+        cols = railColumns(clientWidth, r.base, r.maxTile, GAP, r.minTile);
+      } else {
+        cols = null;
+      }
     }
   }
 
@@ -78,7 +89,7 @@
       >
         <Icon name="chevron-left" size={20} />
       </button>
-      <div class="strip no-scrollbar" class:wide bind:this={strip} onscroll={updateMetrics}>
+      <div class="strip no-scrollbar" class:wide class:cols={cols !== null} style:--cols={cols} bind:this={strip} onscroll={updateMetrics}>
         {@render children()}
       </div>
       <button
@@ -151,6 +162,9 @@
   }
   .strip.wide > :global(*) {
     flex-basis: max(200px, calc((100% - 4 * var(--s-2)) / 5));
+  }
+  .strip.cols > :global(*) {
+    flex: 0 0 calc((100% - (var(--cols) - 1) * var(--s-2)) / var(--cols));
   }
   .strip::-webkit-scrollbar {
     display: none;
