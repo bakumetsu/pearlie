@@ -1,0 +1,25 @@
+# Pearlie debug API (T-417 / D-34): /api/debug/ may skip the proxy login.
+# It needs the debug key, is GET-only and returns no secrets or media.
+# Put this handle BEFORE the login-protected handle.
+#
+# - `path` matchers are case-sensitive: `/API/DEBUG/x` does not match and
+#   stays behind the login.
+# - the upstream path is FIXED: `uri strip_prefix` + `rewrite` build
+#   /api/debug/<rest> only; the backend also answers 401 to `..`, `//`,
+#   `%`, `;` and backslash paths.
+# - the key is sent only in the Authorization header, never in the URL.
+
+pearlie.example.com {
+	@debug path /api/debug/*
+	handle @debug {
+		uri strip_prefix /api/debug
+		rewrite * /api/debug{path}
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	# everything else: your normal login (basic_auth, forward_auth, ...)
+	handle {
+		# basic_auth { ... }
+		reverse_proxy 127.0.0.1:8000
+	}
+}
