@@ -1417,6 +1417,10 @@ export interface components {
             key_locked: boolean;
             /** Fields */
             fields: components["schemas"]["FieldOut"][];
+            /** Auth */
+            auth?: ("guest" | "ok" | "failed" | "unchecked") | null;
+            /** Reason */
+            reason?: ("invalid" | "blocked") | null;
         };
         /** ConnectionsOut */
         ConnectionsOut: {
