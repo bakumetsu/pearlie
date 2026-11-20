@@ -72,16 +72,17 @@ describe("TagChips", () => {
 describe("TagEditor", () => {
   afterEach(cleanup);
 
-  it("x rejects when onreject is set, else removes", async () => {
+  it("x removes by default, even with onreject; rejects only in reject mode", async () => {
     const onremove = vi.fn();
     const onreject = vi.fn();
     const { unmount } = render(TagEditor, { tags: ["cat"], onadd: vi.fn(), onremove, onreject });
-    await fireEvent.click(screen.getByLabelText("Reject cat"));
-    expect(onreject).toHaveBeenCalledWith("cat");
-    unmount();
-    render(TagEditor, { tags: ["cat"], onadd: vi.fn(), onremove });
     await fireEvent.click(screen.getByLabelText("Remove cat"));
     expect(onremove).toHaveBeenCalledWith("cat");
+    expect(onreject).not.toHaveBeenCalled();
+    unmount();
+    render(TagEditor, { tags: ["cat"], onadd: vi.fn(), onremove, onreject, mode: "reject" });
+    await fireEvent.click(screen.getByLabelText("Reject cat"));
+    expect(onreject).toHaveBeenCalledWith("cat");
   });
 });
 

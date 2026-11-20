@@ -1,13 +1,15 @@
 <script lang="ts">
   import TagChips from "./TagChips.svelte";
   import { getRouter } from "../ctx";
-  import { tagSearchHref } from "../query";
+  import { tagSearchHref, type Pill } from "../query";
 
-  let { tags, onadd, onremove, onreject }: {
+  let { tags, onadd, onremove, onreject, mode = "remove", pill = "all" }: {
     tags: string[];
     onadd: (text: string) => void;
     onremove: (tag: string) => void;
     onreject?: (tag: string) => void;
+    mode?: "reject" | "remove";
+    pill?: Pill;
   } = $props();
 
   // Pages that run without the app shell (tests) have no router: a tap then does nothing.
@@ -18,10 +20,8 @@
     router = undefined;
   }
 
-  const mode = $derived(onreject ? "reject" : "remove");
-
   function handleX(name: string): void {
-    if (onreject) onreject(name);
+    if (mode === "reject" && onreject) onreject(name);
     else onremove(name);
   }
 </script>
@@ -29,7 +29,7 @@
 <TagChips
   tags={tags.map((name) => ({ name }))}
   {mode}
-  onsearch={(name) => router?.navigate(tagSearchHref(name))}
+  onsearch={(name) => router?.navigate(tagSearchHref(name, pill))}
   onx={handleX}
   {onadd}
 />
