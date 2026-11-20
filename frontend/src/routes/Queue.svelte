@@ -379,7 +379,8 @@
 
   @container (min-width: 1000px) {
     .row {
-      grid-template-columns: 56px minmax(0, 1fr) 200px 93px;
+      /* actions column: two 44px buttons + gap (--s-1) */
+      grid-template-columns: 56px minmax(0, 1fr) 200px calc(2 * 44px + var(--s-1));
     }
 
     .source {
