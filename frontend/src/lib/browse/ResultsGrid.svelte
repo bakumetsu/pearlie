@@ -7,7 +7,8 @@
   import { webItemHref } from "../router";
   import { keyOf } from "../stores/shared.svelte";
   import type { Mode } from "./layout";
-  import { zoomSize, columnCount, dealMasonry, wallRows } from "./layout";
+  import { zoomSize, dealMasonry, wallRows } from "./layout";
+  import { gridColumns } from "./columns";
   import { itemAspect, captionLines } from "./sources";
   import { VirtualLayout, WALL_GAP, MASONRY_GAP } from "./virtualLayout";
 
@@ -70,7 +71,7 @@
   const flowItems = $derived(items.slice(0, FLOW_COUNT));
   const flowAspects = $derived(flowItems.map(itemAspect));
   const flowRows = $derived(wallRows(flowAspects, width, size, WALL_GAP));
-  const flowDealt = $derived(dealMasonry(flowAspects, columnCount(width, size, MASONRY_GAP)));
+  const flowDealt = $derived(dealMasonry(flowAspects, gridColumns(width, size, MASONRY_GAP)));
 
   // ---- windowed layout ----
   const layout = new VirtualLayout();

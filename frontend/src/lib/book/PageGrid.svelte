@@ -3,6 +3,7 @@
   import { linkClick } from "../router";
   import { pageSrc } from "../reader/pages";
   import { gatedSrc } from "../webImageQueue";
+  import { pageColumns } from "../browse/columns";
 
   let {
     thumbTpl,
@@ -19,11 +20,24 @@
   } = $props();
 
   const router = getRouter();
+  // 5 to 8 columns from 900 px (D-41 3.4); below that the CSS rule stays.
+  const GAP = 8;
+  let cols = $state(0);
+  function track(node: HTMLElement) {
+    const read = () => {
+      cols = (window.innerWidth || 0) >= 900 ? pageColumns(node.clientWidth, GAP) : 0;
+    };
+    read();
+    if (typeof ResizeObserver !== "function") return;
+    const ro = new ResizeObserver(read);
+    ro.observe(node);
+    return { destroy: () => ro.disconnect() };
+  }
   const pages = $derived(Array.from({ length: count }, (_, i) => i + 1));
   const src = (n: number) => ({ src: pageSrc(thumbTpl, n), prio: n <= 6 ? ("focus" as const) : ("prefetch" as const) });
 </script>
 
-<ul class="grid">
+<ul class="grid" use:track style:grid-template-columns={cols ? `repeat(${cols}, minmax(0, 1fr))` : undefined}>
   {#each pages as n (n)}
     <li>
       {#if hrefFor}
