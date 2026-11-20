@@ -16,6 +16,7 @@ from pydantic import SecretStr
 from app import logs
 from app.api import (
     connections,
+    debug_key_admin,
     destinations,
     jobs,
     jobs_real,
@@ -46,6 +47,7 @@ from app.api import (
     update,
     view_settings,
 )
+from app.api import debug as debug_api
 from app.api import fixture as fixture_api
 from app.api import logs as logs_api
 from app.api.errors import ApiError, stub_router
@@ -56,6 +58,7 @@ from app.api.security_headers import SecurityHeaders
 from app.config import ConfigError, Settings, load_settings
 from app.connections_store import ConnectionStore
 from app.db import connect, init_db
+from app.debug_key import DebugKeyGuard
 from app.jobs.worker import JobWorker
 from app.legacy import migrate_komga
 from app.library.stash_trash import StashTrash
@@ -285,6 +288,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url="/openapi.json" if docs_on else None,
     )
     install_errors(app)
+    app.add_middleware(DebugKeyGuard)  # inside HostGuard: the Host check runs first
     app.add_middleware(HostGuard)
     app.add_middleware(SecurityHeaders)
     app.state.settings = settings
@@ -446,6 +450,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(logs_api.router)
     app.include_router(player_settings.router)
     app.include_router(options.router)
+    app.include_router(debug_key_admin.router)
+    app.include_router(debug_api.router)
     app.include_router(connections.router)
     app.include_router(site_icons.router)
     app.include_router(update.router)

@@ -195,6 +195,7 @@ _HEADER_RE = re.compile(
 _BEARER_RE = re.compile(r"\b(Bearer)\s+\S+", re.IGNORECASE)
 _USERINFO_RE = re.compile(r"(https?://)[^/\s@:]+:[^/\s@]+@", re.IGNORECASE)
 _QUERY_RE = re.compile(r"(https?://[^\s?#]+)[?#]\S*", re.IGNORECASE)
+_PDK_RE = re.compile(r"pdk_[A-Za-z0-9_-]{20,}")
 _LONG_RE = re.compile(
     r"(?<![A-Za-z0-9+/_.\-])(?=[A-Za-z0-9+]*\d)(?=[A-Za-z0-9+]*[A-Za-z])[A-Za-z0-9+]{40,}={0,2}"
     r"(?![A-Za-z0-9+/_.\-])"
@@ -206,6 +207,7 @@ def scrub(text: str) -> str:
     for secret in _secrets_sorted:
         if secret in text:
             text = text.replace(secret, "***")
+    text = _PDK_RE.sub("***", text)
     text = _USERINFO_RE.sub(r"\1***@", text)
     text = _QUERY_RE.sub(r"\1?***", text)
     text = _HEADER_RE.sub(r"\1\2***", text)
