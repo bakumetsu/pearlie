@@ -100,7 +100,7 @@ describe("StumpBook", () => {
 
   it("shows the rating under the author, tag chips and no Rating or Details section", () => {
     const { getByRole, getByText, queryByText, queryByLabelText } = setup({ author: "Some Author" });
-    expect(getByText("by Some Author")).toBeTruthy();
+    expect(getByText("Some Author")).toBeTruthy();
     expect(getByRole("radiogroup", { name: "Rating" })).toBeTruthy();
     expect(getByText("Tags")).toBeTruthy();
     expect(getByText("a")).toBeTruthy();

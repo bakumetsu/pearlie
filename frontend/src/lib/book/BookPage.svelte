@@ -71,7 +71,7 @@
           <div class="info">
             <h1 class="title">{title}</h1>
             {#each lines as l (l)}<p class="sub">{l}</p>{/each}
-            {#if by}<p class="by">by {by}</p>{/if}
+            {#if by}<p class="by">{by}</p>{/if}
             {@render meta?.()}
             {#if progress !== undefined}
               <div class="ratio" aria-hidden="true"><i style:width={Math.round(Math.min(1, Math.max(0, progress)) * 100) + "%"}></i></div>
@@ -86,7 +86,7 @@
                   <div class="menu" role="menu" tabindex="-1" onclick={() => (menuOpen = false)} onkeydown={(e) => { if (e.key === "Escape") menuOpen = false; }}>{@render actions()}</div>
                 {/if}
                 {/if}
-                {@render tools?.()}
+                {#if tools}<span class="tl">{@render tools()}</span>{/if}
               </div>
             {/if}
           </div>
@@ -122,6 +122,8 @@
   .ratio { width: 200px; max-width: 100%; height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; }
   .ratio i { display: block; height: 100%; background: var(--progress); }
   .acts { position: relative; margin-top: auto; display: flex; align-items: center; gap: var(--s-2); }
+  .acts :global(.ib) { background: transparent; border-color: transparent; }
+  .tl { margin-left: auto; display: flex; gap: var(--s-2); }
   .menu { position: absolute; left: 0; bottom: 52px; z-index: 5; min-width: 220px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-md); padding: var(--s-1); display: flex; flex-direction: column; box-shadow: 0 8px 24px rgb(0 0 0 / .5); }
   .menu :global(.mi) { min-height: 44px; display: flex; align-items: center; gap: var(--s-3); padding: 0 var(--s-3); border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
   .menu :global(.mi:hover) { background: var(--bg); }

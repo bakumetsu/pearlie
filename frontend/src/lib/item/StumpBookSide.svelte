@@ -23,7 +23,7 @@
 
 <div class="kside">
   <section>
-    <h2>Tags{#if isSeries}<em>lock = from the books</em>{/if}</h2>
+    <h2>Tags</h2>
     <TagChips
       tags={own}
       {inherited}
@@ -45,5 +45,4 @@
 <style>
   .kside { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
   h2 { margin: 0 0 var(--s-1); font-size: var(--t-12); text-transform: uppercase; color: var(--muted); letter-spacing: .04em; font-weight: 500; }
-  h2 em { font-style: normal; text-transform: none; letter-spacing: 0; margin-left: 6px; }
 </style>
