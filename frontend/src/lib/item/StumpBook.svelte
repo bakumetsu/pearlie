@@ -120,7 +120,7 @@
       <button class="mi" role="menuitem" type="button" disabled={done || busy} onclick={markRead}>
         <Icon name="check" size={20} />{done ? "Read" : "Mark read"}
       </button>
-      <button class="mi" role="menuitem" type="button" disabled={!readPage || busy} onclick={markUnread}>
+      <button class="mi" role="menuitem" type="button" disabled={busy} onclick={markUnread}>
         <Icon name="rotate-ccw" size={20} />Mark unread
       </button>
     {/if}
