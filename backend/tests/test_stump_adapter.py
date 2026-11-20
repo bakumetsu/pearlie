@@ -348,7 +348,15 @@ def test_progress_update_and_finish() -> None:
     assert _ops(mock, "FinishMediaProgress")[0]["variables"] == {"id": "b1"}
     assert server.get_book("b1").read_done is True
     with pytest.raises(BookServerError):
-        server.set_progress("b1", 0, False)
+        server.set_progress("b1", -1, False)
+
+
+def test_progress_page_zero_resets_to_not_started() -> None:
+    server, mock = _server()
+    server.set_progress("b1", 3, False)
+    server.set_progress("b1", 0, False)
+    assert _ops(mock, "UpdateMediaProgress")[-1]["variables"]["input"] == {"paged": {"page": 0}}
+    assert server.get_book("b1").read_page == 0
 
 
 def test_ids_allow_cuid_chars_only() -> None:

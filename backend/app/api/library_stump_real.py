@@ -380,9 +380,9 @@ def set_progress(request: Request, id: str, body: ProgressBody) -> ProgressResul
         raise _up(e) from None
     pages_count = book.page_count
     page = body.page
-    if not (1 <= page <= pages_count):
+    if not (0 <= page <= pages_count):  # page 0 marks the book unread
         raise ApiError(422, "invalid", "Page out of range", field="page")
-    completed = page >= pages_count
+    completed = page >= pages_count > 0
     try:
         server.set_progress(id, page, completed)
     except BookServerError as e:

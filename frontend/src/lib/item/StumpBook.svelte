@@ -47,8 +47,11 @@
   } = $props();
 
   // Local copy of the read page: mark read updates it without a reload.
-  let marked = $state<{ id: string; page: number } | null>(null);
-  const readPage = $derived(marked && marked.id === detail.id ? marked.page : (detail.read_page ?? null));
+  // It holds only while the server value is the one it was set against: newer progress wins.
+  let marked = $state<{ id: string; page: number; base: number | null } | null>(null);
+  const readPage = $derived(
+    marked && marked.id === detail.id && marked.base === (detail.read_page ?? null) ? marked.page : (detail.read_page ?? null),
+  );
   const count = $derived(detail.page_count ?? 0);
   const done = $derived(isCompleted(readPage ?? 0, count));
   const last = $derived(readPage && readPage > 1 && !done ? readPage : null);
@@ -66,9 +69,22 @@
     busy = true;
     try {
       await api.saveProgress(detail.id, count);
-      marked = { id: detail.id, page: count };
+      marked = { id: detail.id, page: count, base: detail.read_page ?? null };
     } catch {
       onerror("Could not mark this book as read");
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function markUnread() {
+    if (busy) return;
+    busy = true;
+    try {
+      await api.saveProgress(detail.id, 0);
+      marked = { id: detail.id, page: 0, base: detail.read_page ?? null };
+    } catch {
+      onerror("Could not mark this book as unread");
     } finally {
       busy = false;
     }
@@ -103,6 +119,9 @@
     {#if count > 0}
       <button class="mi" role="menuitem" type="button" disabled={done || busy} onclick={markRead}>
         <Icon name="check" size={20} />{done ? "Read" : "Mark read"}
+      </button>
+      <button class="mi" role="menuitem" type="button" disabled={!readPage || busy} onclick={markUnread}>
+        <Icon name="rotate-ccw" size={20} />Mark unread
       </button>
     {/if}
     <button class="mi" role="menuitem" type="button" onclick={onfavorite}>

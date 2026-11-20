@@ -445,7 +445,8 @@ class StumpBookServer:
         if completed:
             self._c.finish_progress(book_id)
             return
-        self._check_page(page)
+        if page != 0:  # page 0 resets the book to not started
+            self._check_page(page)
         self._c.update_progress(book_id, page)
 
     # health
