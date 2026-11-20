@@ -97,7 +97,7 @@
 					<li class="row">
 						<div class="plate" style="--h: {hueOf(t.item.id)}"><Icon name={kindIcon(t.item.kind)} size={24} /></div>
 						<div class="text">
-							<span class="title">{t.item.title}</span>
+							<span class="title" title={t.item.title}>{t.item.title}</span>
 							<span class="meta">
 								<span class="side">{sideOf(t.item.kind)}</span>
 								<span>{kindLabel(t.item.kind)}</span>
@@ -108,6 +108,13 @@
 								</span>
 							</span>
 						</div>
+						<span class="cell kind"><span class="side">{sideOf(t.item.kind)}</span> {kindLabel(t.item.kind)}</span>
+						<span class="cell size">{t.item.size_bytes == null ? '–' : formatSize(t.item.size_bytes)}</span>
+						<span class="cell left">
+							<span class="dl" class:soon={left < 3}>
+								<Icon name="trash" size={12} />{left} {left === 1 ? 'day' : 'days'} left
+							</span>
+						</span>
 						<div class="actions">
 							<button aria-label={`Restore ${t.item.title}`} onclick={() => trash.restore(t.token)}>
 								<Icon name="undo" size={16} />
@@ -147,6 +154,7 @@
 
 <style>
 	.content {
+		container-type: inline-size;
 		padding: 1.5rem var(--gutter);
 		min-width: 0;
 		display: flex;
@@ -159,6 +167,7 @@
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: var(--s-3);
+		padding-right: var(--sfw-clear);
 	}
 
 	h1 {
@@ -348,6 +357,36 @@
 
 	.confirm .t {
 		flex: 1 1 200px;
+		max-width: var(--measure);
+	}
+
+	.cell {
+		display: none;
+		font-size: 0.75rem;
+		color: var(--muted);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.size {
+		font-variant-numeric: tabular-nums;
+		text-align: right;
+	}
+
+	@container (min-width: 1000px) {
+		.row {
+			/* actions column: two 44px buttons + gap 4px */
+			grid-template-columns: 56px minmax(0, 1fr) 140px 96px 140px calc(2 * 44px + 4px);
+		}
+
+		.cell {
+			display: block;
+		}
+
+		.text .meta {
+			display: none;
+		}
 	}
 
 	.skel {
