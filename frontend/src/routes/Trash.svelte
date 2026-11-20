@@ -147,9 +147,8 @@
 
 <style>
 	.content {
-		max-width: 720px;
-		margin: 0 auto;
-		padding: 1.5rem 1rem;
+		padding: 1.5rem var(--gutter);
+		min-width: 0;
 		display: flex;
 		flex-direction: column;
 		gap: var(--s-2);

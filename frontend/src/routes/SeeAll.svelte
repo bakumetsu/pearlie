@@ -667,7 +667,7 @@
 {/if}
 
 <style>
-  .content { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--s-4); }
+  .content { padding: 0 var(--gutter); min-width: 0; }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   /* --bar-scale shrinks the bar's spacing only (80 / 85 / 95 %); every control keeps its 44 px hit area. */
   .sticky-header { --bar-scale: 0.85; position: sticky; top: 0; background: var(--surface); z-index: 10; padding: calc(var(--s-4) * var(--bar-scale)) 0; }
