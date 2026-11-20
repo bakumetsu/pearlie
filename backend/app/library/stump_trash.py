@@ -263,7 +263,7 @@ class StumpTrash:
         return foreign
 
     def empty_if_ours(self, library_id: str) -> bool:
-        """Call empty-trash when at most `stump_clean_max_foreign` soft-deleted items are foreign."""
+        """Call empty-trash when at most `stump_clean_max_foreign` foreign items are soft-deleted."""
         try:
             foreign = self.foreign_deleted(library_id)  # checked right before the call
             limit = self._s.stump_clean_max_foreign
