@@ -41,6 +41,10 @@ def make_client(
     app = create_app(Settings(**kwargs, _env_file=None))  # pyright: ignore[reportCallIssue]
     if handler is not None:
         app.state.connection_transport = httpx.MockTransport(handler)
+        # the nhentai Test runs the key check through the source's own client
+        app.state.sources["nhentai"]._client = httpx.Client(  # pyright: ignore[reportPrivateUsage]
+            transport=httpx.MockTransport(handler)
+        )
     return TestClient(app, base_url="http://localhost")
 
 
