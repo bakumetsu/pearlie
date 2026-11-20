@@ -75,3 +75,31 @@ def test_patch_without_rating_keeps_it_and_favorite_still_rejected(
     assert stump_routes._rating_of(req, "books", "b1") == 3
     with pytest.raises(ApiError):
         stump_routes._patch(req, "books", "b1", PatchBody(favorite=True))
+
+
+class _ProgressServer(_Server):
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, int, bool]] = []
+
+    def get_book(self, id: str) -> BookDTO:
+        return BookDTO(id, "l", "s1", id, id, "/p", "2026-01-01", page_count=5)
+
+    def set_progress(self, book_id: str, page: int, completed: bool) -> None:
+        self.calls.append((book_id, page, completed))
+
+
+def test_progress_route_page_zero_marks_unread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    req = _request(tmp_path, monkeypatch)
+    server = _ProgressServer()
+    monkeypatch.setattr(stump_routes, "book_server_of", lambda app: server)
+    body = stump_routes.ProgressBody
+    res = stump_routes.set_progress(req, "b1", body(page=0))
+    assert (res.page, res.completed) == (0, False)
+    stump_routes.set_progress(req, "b1", body(page=5))
+    assert server.calls == [("b1", 0, False), ("b1", 5, True)]
+    with pytest.raises(ApiError):
+        stump_routes.set_progress(req, "b1", body(page=6))
+    with pytest.raises(ApiError):
+        stump_routes.set_progress(req, "b1", body(page=-1))

@@ -68,6 +68,41 @@ describe("StumpBook", () => {
     await waitFor(() => expect(r.container.querySelector("button.thumb.last")).toBeNull());
   });
 
+  it("marks the book unread: saves page 0 and drops the outline", async () => {
+    const r = setup();
+    await openMenu(r);
+    await fireEvent.click(r.getByText("Mark unread"));
+    expect(r.saveProgress).toHaveBeenCalledWith("b1", 0);
+    await waitFor(() => expect(r.container.querySelector("button.thumb.last")).toBeNull());
+    expect(r.getByText("Read")).toBeTruthy();
+  });
+
+  it("offers Mark unread on a finished book and disables it on an unread one", async () => {
+    const done = setup({ read_page: 8 });
+    await openMenu(done);
+    expect((done.getByText("Mark unread").closest("button") as HTMLButtonElement).disabled).toBe(false);
+    cleanup();
+    const fresh = setup({ read_page: null });
+    await openMenu(fresh);
+    expect((fresh.getByText("Mark unread").closest("button") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("reports an error when mark unread fails", async () => {
+    const r = setup({}, vi.fn(async () => { throw new Error("x"); }));
+    await openMenu(r);
+    await fireEvent.click(r.getByText("Mark unread"));
+    await waitFor(() => expect(r.onerror).toHaveBeenCalled());
+  });
+
+  it("newer server progress replaces a stale mark read", async () => {
+    const r = setup({ read_page: 3 });
+    await openMenu(r);
+    await fireEvent.click(r.getByText("Mark read"));
+    await waitFor(() => expect(r.container.querySelector("button.thumb.last")).toBeNull());
+    await r.rerender({ detail: { kind: "book", id: "b1", title: "Stump Book", thumb_url: "/cover", page_count: 8, read_page: 2, page_thumb_url: "/api/media/stump/books/b1/pages/{n}/thumb", favorite: false, added_at: "2026-01-01T00:00:00Z" } as LibraryItemDetail });
+    await waitFor(() => expect(r.container.querySelector("button.thumb.last")?.getAttribute("aria-label")).toBe("Page 2"));
+  });
+
   it("reports an error when mark read fails", async () => {
     const r = setup({}, vi.fn(async () => { throw new Error("x"); }));
     await openMenu(r);
