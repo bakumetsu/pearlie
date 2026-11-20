@@ -359,6 +359,19 @@ def test_progress_page_zero_resets_to_not_started() -> None:
     assert server.get_book("b1").read_page == 0
 
 
+def test_mark_unread_after_finish_shows_page_zero() -> None:
+    from app.bookserver.map import book_detail
+
+    server, _ = _server()
+    server.set_progress("b1", 5, True)
+    assert server.get_book("b1").read_done is True
+    server.set_progress("b1", 0, False)
+    book = server.get_book("b1")
+    assert book.read_page == 0
+    detail = book_detail(book)  # the API carries read_page only, never the finished history
+    assert detail.read_page == 0 and not hasattr(detail, "read_done")
+
+
 def test_ids_allow_cuid_chars_only() -> None:
     server, _ = _server()
     assert server.valid_id("cl9x2A_-1") and not server.valid_id("../x") and not server.valid_id("")
