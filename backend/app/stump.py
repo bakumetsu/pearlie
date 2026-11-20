@@ -79,6 +79,8 @@ RETURN_SELECTION = {
     "updateSeriesMetadata": _SEL,  # guess: SeriesMetadata
     "updateMediaProgress": _SEL,  # guess: ReadProgress object
     "finishMediaProgress": "",  # scalar in the Stump 0.1.13 web bundle: no selection
+    "clearMediaProgress": "",  # Boolean in stump main (reading_progress.rs): no selection
+    "deleteMediaReadingHistory": "",  # Int in stump main (reading_progress.rs): no selection
     "setMediaLockedFields": " { id }",  # Media; seen in the Stump 0.1.13 web bundle
     "setSeriesLockedFields": " { id }",  # Series; seen in the Stump 0.1.13 web bundle
 }
@@ -109,6 +111,17 @@ M_UPDATE_PROGRESS = (
 M_FINISH_PROGRESS = (
     "mutation FinishMediaProgress($id: ID!) "
     f"{{ finishMediaProgress(id: $id){RETURN_SELECTION['finishMediaProgress']} }}"
+)
+# Mark unread (T-401): clearMediaProgress trashes the active readthrough; it keeps finished ones,
+# so deleteMediaReadingHistory then trashes those. Source: stumpapp/stump
+# crates/graphql/src/mutation/reading_progress.rs
+M_CLEAR_PROGRESS = (
+    "mutation ClearMediaProgress($id: ID!) "
+    f"{{ clearMediaProgress(id: $id){RETURN_SELECTION['clearMediaProgress']} }}"
+)
+M_DELETE_HISTORY = (
+    "mutation DeleteMediaReadingHistory($id: ID!) "
+    f"{{ deleteMediaReadingHistory(id: $id){RETURN_SELECTION['deleteMediaReadingHistory']} }}"
 )
 
 # Locked-field names: sent as the variable `lockedFields: [MetadataField!]!` (enum values by name)
@@ -340,6 +353,11 @@ class Stump:
 
     def finish_progress(self, media_id: str) -> None:
         self.gql("FinishMediaProgress", M_FINISH_PROGRESS, {"id": media_id})
+
+    def reset_progress(self, media_id: str) -> None:
+        """Mark unread: drop the active readthrough and every finished one."""
+        self.gql("ClearMediaProgress", M_CLEAR_PROGRESS, {"id": media_id})
+        self.gql("DeleteMediaReadingHistory", M_DELETE_HISTORY, {"id": media_id})
 
     # REST images
 

@@ -445,8 +445,13 @@ class StumpBookServer:
         if completed:
             self._c.finish_progress(book_id)
             return
-        if page != 0:  # page 0 resets the book to not started
-            self._check_page(page)
+        if page == 0:  # not started: Stump keeps the finished state unless it is deleted
+            try:
+                self._c.reset_progress(book_id)
+            finally:
+                self._walks.clear()  # tiles and series readCount read fresh data
+            return
+        self._check_page(page)
         self._c.update_progress(book_id, page)
 
     # health
