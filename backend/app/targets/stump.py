@@ -23,12 +23,12 @@ from app.config import Settings
 from app.db import connect
 from app.library.trash import TrashStore
 from app.models import Problem
-from app.sources.base import Post, Source
+from app.sources.base import Post, Source, SourceError
 from app.sources.nhentai import CDN_HOST, NHentai
 from app.sources.throttle import Throttle
 from app.stump import Stump
 from app.targets import destinations
-from app.targets.comicinfo import build_cbz
+from app.targets.comicinfo import build_cbz, repack_download
 from app.targets.placement import (
     IndexCache,
     NameIndex,
@@ -242,6 +242,53 @@ class StumpTarget:
             if on_progress:
                 on_progress(n, len(urls))
         return pages
+
+    def _fetch_api(
+        self,
+        src: NHentai,
+        post: Post,
+        work: Path,
+        cbz: Path,
+        plan: Plan,
+        tag: str,
+        on_progress: Callable[[int, int], None] | None,
+    ) -> bool:
+        """Route B: official download link, file repacked as the CBZ. False: use route A.
+
+        Any failure (no link, bad host, non-200, too large, not a gallery zip) is logged
+        without the key or link and returns False.
+        """
+        throttle = self._throttles.get(post.source)
+        part = work / "api.zip"
+        try:
+            url = src.download_url(post.post_id)
+            if throttle:
+                throttle.wait()
+            written = 0
+            with self._http.stream(
+                "GET", url, headers=src.page_headers(), follow_redirects=False
+            ) as resp:
+                if throttle:
+                    throttle.report(resp.status_code, _retry_after(resp))
+                if resp.status_code != 200:
+                    raise SaveError("download_failed", f"file returned {resp.status_code}", 502)
+                with open(part, "wb") as f:
+                    for chunk in resp.iter_bytes():
+                        written += len(chunk)
+                        if written > MAX_GALLERY_BYTES:
+                            raise SaveError("too_large", "gallery is too large", 502)
+                        f.write(chunk)
+            count = repack_download(part, cbz, post, plan, MAX_GALLERY_BYTES)
+        except (SourceError, SaveError, ValueError, httpx.HTTPError, OSError) as e:
+            code = getattr(e, "code", type(e).__name__)
+            logger.warning("STUMP %s route=api failed (%s), falling back to gallery-dl", tag, code)
+            cbz.unlink(missing_ok=True)
+            return False
+        finally:
+            part.unlink(missing_ok=True)
+        if on_progress:
+            on_progress(count, count)
+        return True
 
     def _place_mode(self) -> str:
         conn = connect(self._settings.db_path)
@@ -482,8 +529,11 @@ class StumpTarget:
         if self._saved(post):
             logger.info("STUMP %s duplicate via=saved_items", tag)
             return self._duplicate("saved_items by post")
-        urls = self._urls(post)
-        logger.info("STUMP %s save start pages=%d", tag, len(urls))
+        src = self._sources.get(post.source)
+        # Route B needs a working key; the state is read once, here, for the whole job.
+        use_api = isinstance(src, NHentai) and src.key_state[0] == "ok"
+        urls = [] if use_api else self._urls(post)
+        logger.info("STUMP %s save start route=%s", tag, "api" if use_api else "gallery-dl")
         folder = self._folder(post.source)
         self._check_mounted(folder, tag)
         existed = Path(folder).is_dir()
@@ -507,10 +557,17 @@ class StumpTarget:
             ) from None
         try:
             try:
-                pages = self._fetch(urls, work, post, on_progress)
-                logger.info("STUMP %s downloaded pages=%d", tag, len(pages))
                 cbz = work / "gallery.cbz.part"
-                build_cbz(cbz, pages, post, plan)
+                if use_api:
+                    assert isinstance(src, NHentai)
+                    use_api = self._fetch_api(src, post, work, cbz, plan, tag, on_progress)
+                if not use_api:
+                    urls = urls or self._urls(post)
+                    pages = self._fetch(urls, work, post, on_progress)
+                    logger.info("STUMP %s downloaded pages=%d route=gallery-dl", tag, len(pages))
+                    build_cbz(cbz, pages, post, plan)
+                else:
+                    logger.info("STUMP %s downloaded route=api", tag)
                 md5 = _md5_of(cbz)
                 logger.info("STUMP %s cbz built md5=%s", tag, md5)
                 place_dir = self._target_dir(plan, dest_dir, oneshots, notices)

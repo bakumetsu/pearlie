@@ -68,3 +68,47 @@ def build_cbz(dest: Path, pages: Sequence[Path], post: Post, placement: Plan | N
         for n, page in enumerate(pages, 1):
             _entry(zf, f"{n:03d}{page.suffix.lower()}", page.read_bytes())
         _entry(zf, "ComicInfo.xml", comic_info(post, len(pages), placement))
+
+
+PAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+
+
+def repack_download(
+    src: Path,
+    dest: Path,
+    post: Post,
+    placement: Plan | None = None,
+    max_bytes: int = 500 * 1024 * 1024,
+) -> int:
+    """Rewrite the site's download zip as the same CBZ route A builds; return the page count.
+
+    Pages are the entries named `<n>.<ext>`, ordered by n and renamed 001.ext...; meta.json
+    and every other entry are dropped, and ComicInfo.xml is made from the post (the same
+    metadata meta.json holds). Raises ValueError when the file is not a usable gallery zip.
+    """
+    try:
+        zf = zipfile.ZipFile(src)
+    except (zipfile.BadZipFile, OSError):
+        raise ValueError("not a zip file") from None
+    with zf:
+        found: list[tuple[int, zipfile.ZipInfo]] = []
+        for info in zf.infolist():
+            stem, _, ext = info.filename.rpartition(".")
+            if info.is_dir() or f".{ext.lower()}" not in PAGE_EXTS or not stem.isdigit():
+                continue
+            found.append((int(stem), info))
+        found.sort(key=lambda t: t[0])
+        numbers = [n for n, _ in found]
+        if not found or len(set(numbers)) != len(numbers):
+            raise ValueError("no pages in the zip")
+        if sum(i.file_size for _, i in found) > max_bytes:
+            raise ValueError("zip is too large")
+        try:
+            with zipfile.ZipFile(dest, "w", zipfile.ZIP_STORED) as out:
+                for n, (_, info) in enumerate(found, 1):
+                    ext = Path(info.filename).suffix.lower()
+                    _entry(out, f"{n:03d}{ext}", zf.read(info))
+                _entry(out, "ComicInfo.xml", comic_info(post, len(found), placement))
+        except (zipfile.BadZipFile, OSError, NotImplementedError, RuntimeError):
+            raise ValueError("zip could not be read") from None
+    return len(found)
