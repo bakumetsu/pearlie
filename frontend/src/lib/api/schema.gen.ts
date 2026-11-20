@@ -1721,6 +1721,12 @@ export interface components {
             /** Added At */
             added_at: string;
             /**
+             * Author
+             * @description Stump book or series. Author field, else title prefix; empty if unknown.
+             * @default
+             */
+            author: string;
+            /**
              * Inherited Tags
              * @description Series detail only. Tags of its books that the series itself lacks.
              */

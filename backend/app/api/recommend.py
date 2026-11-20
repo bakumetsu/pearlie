@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 import math
 import random
-import re
 import typing
 from dataclasses import dataclass, field
 from typing import Literal
@@ -24,6 +23,7 @@ from app.api.search_real import _cache_of
 from app.bookserver.base import BookDTO, BookServerError
 from app.bookserver.factory import book_server_of
 from app.bookserver.map import book_item
+from app.bookserver.people import book_author, title_people
 from app.filters.rules import RuleSet, evaluate, load_rules
 from app.filters.safe_mode import is_hidden_in_safe_mode, resolve_safe
 from app.jobs.store import JobStore
@@ -45,8 +45,6 @@ SEARCH_ROWS = 25  # nhentai: one search page per seed
 RETRY_AFTER_S = 60  # the source message says "retry in a minute"
 RANDOM_TERM = "language:english"  # the fixed broad term for Random on a web source
 _GENERIC_SCOPES = ("language", "category")  # never a useful query word
-_AUTHOR_RE = re.compile(r"^\s*\[([^\]]+)\]")
-_PAIR_RE = re.compile(r"^(.*?)\s*\((.*)\)\s*$")
 
 
 class RecommendItem(BaseModel):
@@ -78,18 +76,6 @@ class Cand:
 
 def _fold(s: str) -> str:
     return " ".join(s.lower().replace("_", " ").split())
-
-
-def title_people(title: str | None) -> tuple[str, str]:
-    """(artist, group) from a `[Group (Artist)]` or `[Artist]` title prefix; empty when absent."""
-    m = _AUTHOR_RE.match(title or "")
-    if not m:
-        return "", ""
-    inner = m.group(1).strip()
-    pair = _PAIR_RE.match(inner)
-    if pair and pair.group(1).strip() and pair.group(2).strip():
-        return pair.group(2).strip(), pair.group(1).strip()
-    return inner, ""
 
 
 def _people(*names: str) -> set[str]:
@@ -137,11 +123,6 @@ def _passes(tags: dict[str, list[str]], rules: RuleSet, safe: bool, allow: bool)
 # --- Stump ---
 
 
-def _book_author(b: BookDTO) -> str:
-    artist, group = title_people(b.title)
-    return artist or group or (b.authors[0] if b.authors else "")
-
-
 def _book_cand(b: BookDTO) -> Cand:
     artist, group = title_people(b.title)
     return Cand(
@@ -157,7 +138,7 @@ def _stump_row(b: BookDTO) -> RecommendItem:
         id=b.id,
         source="stump",
         title=b.title,
-        author=_book_author(b),
+        author=book_author(b),
         thumb_url=book_item(b).thumb_url,
     )
 

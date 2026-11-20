@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.bookserver.base import BookDTO, SeriesDTO
+from app.bookserver.people import book_author, title_people
 from app.models import LibraryItem, LibraryItemDetail, Problem, Tag
 
 _MEDIA = "/api/media/stump"
@@ -41,6 +42,7 @@ def book_detail(b: BookDTO) -> LibraryItemDetail:
         title=b.title,
         thumb_url=f"{_MEDIA}/books/{b.id}/thumb",
         tags=[Tag(name=t) for t in sorted(b.tags)],
+        author=book_author(b),
         page_count=b.page_count,
         read_page=b.read_page,
         page_url=f"{_MEDIA}/books/{b.id}/pages/{{n}}",
@@ -58,6 +60,7 @@ def series_detail(s: SeriesDTO, books: list[BookDTO], truncated: bool = False) -
         book_count=s.book_count,
         read_count=s.read_count,
         tags=[Tag(name=t) for t in sorted(s.tags)],
+        author=title_people(s.title)[0] or title_people(s.title)[1],
         inherited_tags=[
             Tag(name=t) for t in sorted({t for b in books for t in b.tags} - set(s.tags))
         ],
