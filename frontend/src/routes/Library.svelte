@@ -56,13 +56,23 @@
   const visibleRows = $derived(ROWS.filter((r) => hubKinds(hub, ROWS.map((x) => x.kind)).includes(r.kind)));
 
   const fav = $derived(match.query.get("favorite") === "true");
+  const random = $derived(match.query.get("sort") === "random");
+  const seedParam = $derived(match.query.get("seed"));
+  const seed = $derived(
+    random && seedParam && Number.isFinite(Number(seedParam)) ? Number(seedParam) : undefined,
+  );
 
   async function loadRow(kind: Kind, signal?: AbortSignal) {
     rowStates[kind] = { status: "loading", items: [], total: null, next_page: null };
     try {
       const result = await api.list(
         kind,
-        { page_size: ROW_PAGE_SIZE, favorite: fav ? true : undefined },
+        {
+          page_size: ROW_PAGE_SIZE,
+          favorite: fav ? true : undefined,
+          sort: random ? "random" : undefined,
+          seed,
+        },
         signal,
       );
       if (signal?.aborted) return;
@@ -99,10 +109,21 @@
 
   function toggleFav(value: boolean) {
     const qs = new SvelteURLSearchParams(match.query);
+    qs.delete("sort");
+    qs.delete("seed");
     if (value) qs.set("favorite", "true");
     else qs.delete("favorite");
     const search = qs.toString();
     router.navigate(match.path + (search ? `?${search}` : ""), { replace: true });
+  }
+
+  // Every tap on Random shuffles with a new seed; the seed stays in the URL so paging is stable.
+  function shuffle() {
+    const qs = new SvelteURLSearchParams(match.query);
+    qs.delete("favorite");
+    qs.set("sort", "random");
+    qs.set("seed", String(Math.floor(Math.random() * 1e8)));
+    router.navigate(`${match.path}?${qs.toString()}`, { replace: true });
   }
 
   function setHub(h: Hub) {
@@ -111,17 +132,19 @@
   }
 
   function seeAllHref(base: string): string {
+    if (random && seed !== undefined) return `${base}?sort=random&seed=${seed}`;
     return fav ? `${base}?favorite=true` : base;
   }
 
   // A video tile click queues the row's loaded items; further pages load as in See all.
   function queueVideos(rs: RowState) {
     const favorite = fav ? true : undefined;
+    const sort = random ? "random" : undefined;
     seedVideoQueue(
-      "row:library:videos:" + (fav ? "fav" : "all"),
+      "row:library:videos:" + (fav ? "fav" : random ? "random:" + seed : "all"),
       rs.items,
       async (page, signal) => {
-        const r = await api.list("videos", { page, page_size: ROW_PAGE_SIZE, favorite }, signal);
+        const r = await api.list("videos", { page, page_size: ROW_PAGE_SIZE, favorite, sort, seed }, signal);
         return { items: r.items, total: r.total ?? null, next_page: r.next_page ?? null, page: r.page ?? null, pages: r.pages ?? null, page_size: r.page_size ?? null };
       },
       { total: rs.total, pageSize: ROW_PAGE_SIZE, hasNext: rs.next_page !== null },
@@ -152,10 +175,17 @@
   <div class="chips" role="group" aria-label="Filter">
     <button
       class="chip"
-      aria-pressed={!fav}
+      aria-pressed={!fav && !random}
       onclick={() => toggleFav(false)}
     >
       All
+    </button>
+    <button
+      class="chip"
+      aria-pressed={random}
+      onclick={shuffle}
+    >
+      Random
     </button>
     <button
       class="chip"
