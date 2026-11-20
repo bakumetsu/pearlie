@@ -86,9 +86,10 @@ The stub generates placeholder media by default. For realistic photos, clips and
 | nhentai | logged-in session cookies + the browser's User-Agent | see below |
 
 **nhentai.** The site's own CBZ link is signed by the server (`sig`), tied to the account (`u`) and expires (`exp`), so Pearlie cannot build it.
-- **Route A (default):** metadata from `/api/v2/galleries/{id}`, pages through gallery-dl, packed into a CBZ (gallery-dl `zip` post-processor with `"extension": "cbz"`), then `ComicInfo.xml` added.
-- **Route B (fallback):** replay the request the Download button sends (with session cookies, and `cf_clearance` plus the same User-Agent if Cloudflare is in front), take the signed URL, fetch the file at once. FlareSolverr only if needed; a captcha puts the job in a "needs click" state.
-- Still to check: that gallery-dl's nhentai extractor works today (`gallery-dl --simulate https://nhentai.net/g/<id>/`), and which request the button sends (for route B).
+- **Route A (no login, or any route B failure):** metadata from `/api/v2/galleries/{id}`, pages through gallery-dl, packed into a CBZ (gallery-dl `zip` post-processor with `"extension": "cbz"`), then `ComicInfo.xml` added.
+- **Route B (key state ok):** `POST /api/v2/galleries/{id}/download` with the API key answers `{url, expires_at}`. The signed `url` is fetched at once with no key and no cookie (host must be an nhentai CDN host). Pearlie repacks the zip as the same CBZ route A builds (pages `<n>.webp` ordered by n and renamed `001.webp`, `meta.json` dropped, `ComicInfo.xml` made from the post metadata). The state is read once when the job starts.
+- **Fall back to route A, same job:** any route B failure (non-200, key turns failed on 401, 7-per-5-min download budget used up (the job never waits), bad host, file too large, not a valid gallery zip). The job log shows `route=api` or `route=gallery-dl`; it never holds the key or the signed URL.
+- Still to check: that gallery-dl's nhentai extractor works today (`gallery-dl --simulate https://nhentai.net/g/<id>/`), and route B with a real multi-page file (only a 1-page file was probed).
 
 ## 7. Targets
 

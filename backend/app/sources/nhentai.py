@@ -5,7 +5,9 @@ import logging
 import re
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
+from urllib.parse import urlparse
 
 import httpx
 
@@ -38,9 +40,12 @@ BUCKET_PACE: dict[str, tuple[float, float]] = {
     "detail": (3.2, 1.5),
     "related": (3.2, 1.5),
 }
+DOWNLOAD_LIMIT = 7  # documented: 7 download links per 5 min per user
+DOWNLOAD_WINDOW = 300.0
 _API_PREFIX = "/api/v2"
 _DETAIL = re.compile(r"^/galleries/\d+$")
 _RELATED = re.compile(r"^/galleries/\d+/related$")
+_DOWNLOAD = re.compile(r"^/galleries/\d+/download$")
 _log = logging.getLogger(__name__)
 
 
@@ -58,6 +63,8 @@ def bucket_of(path: str) -> str:
         return "related"
     if p == "/user":
         return "user"
+    if _DOWNLOAD.match(p):
+        return "download"
     return "other"
 
 
@@ -165,6 +172,7 @@ class NHentai:
         self._key_reason = ""
         self._last_check = 0.0
         self._last_403_check = 0.0
+        self._download_times: deque[float] = deque()
         self._spawn: Callable[[Callable[[], object]], None] = self._spawn_thread
         self._tag_names: dict[int, tuple[str, str, float]] = {}
         self._warned_unknown = False
@@ -391,6 +399,50 @@ class NHentai:
         if not isinstance(data, dict):
             raise SourceError("upstream_error", "nhentai sent invalid JSON")
         return data
+
+    def download_url(self, post_id: str) -> str:
+        """Ask the official endpoint for the gallery's file link (route B of a save job).
+
+        Needs the key (state ok). Never waits: when the 7-per-5-min budget is used up or a
+        back-off pause runs, it raises so the job takes route A. The signed link is returned
+        to the caller only and never logged.
+        """
+        if not post_id.isdigit():
+            raise SourceError("bad_request", "invalid gallery id", 422)
+        headers = self._headers()
+        if "Authorization" not in headers:
+            raise SourceError("upstream_error", "no usable key", 401)
+        now = time.monotonic()
+        with self._key_lock:
+            while self._download_times and now - self._download_times[0] > DOWNLOAD_WINDOW:
+                self._download_times.popleft()
+            if len(self._download_times) >= DOWNLOAD_LIMIT:
+                raise SourceError("rate_limited", "download budget used up", 429)
+            self._download_times.append(now)
+        if self._throttle.reserve_within(0.0, 0.0, "download") is None:
+            raise SourceError("rate_limited", "nhentai asked to slow down", 429)
+        path = f"{_API_PREFIX}/galleries/{post_id}/download"
+        try:
+            resp = self._client.post(self._base_url + path, headers=headers)
+        except httpx.HTTPError as e:
+            _log.warning("nhentai: %s failed (%s)", path, type(e).__name__)
+            raise SourceError("upstream_error", "nhentai is unreachable") from None
+        self._throttle.report(resp.status_code, _retry_after(resp))
+        if resp.status_code == 401:
+            self._set_key("failed", "invalid")
+        if resp.status_code != 200:
+            _log.warning("nhentai: %s status=%d", path, resp.status_code)
+            raise SourceError(
+                "upstream_error", f"nhentai returned {resp.status_code}", resp.status_code
+            )
+        try:
+            url = resp.json().get("url")
+        except Exception:
+            url = None
+        parsed = urlparse(url) if isinstance(url, str) else None
+        if parsed is None or parsed.scheme != "https" or not CDN_HOST.match(parsed.hostname or ""):
+            raise SourceError("upstream_error", "nhentai sent no usable download link")
+        return str(url)
 
     def _honour_rate_headers(self, resp: httpx.Response, bucket: str) -> None:
         """X-RateLimit-Remaining 0: hold the bucket until the next window."""
