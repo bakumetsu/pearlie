@@ -36,6 +36,7 @@ THUMB_QUALITY = 80
 _T = TypeVar("_T")
 _MISSING = "MISSING"
 WALK_TTL_S = 15.0  # how long a full series or deleted-items walk is reused
+SERIES_SEARCH_TTL_S = 60.0  # the series search walk (up to 100 calls) outlives a slow typist
 TAG_WALK_TTL_S = 600.0  # the library tag walk is big (up to 100 calls): reuse it longer
 TAG_WALK_PAGES = SERIES_BOOKS_PAGES  # the cap: 10,000 books, in memory only, never in the DB
 
@@ -252,7 +253,11 @@ class StumpBookServer:
         Stump v0.1.13 has no series tag filter, so this reads one cached name-ordered walk (cap
         10,000 series, in memory only) and matches here, then pages the matches.
         """
-        walk = self._walked(("serieswalk", library_id), lambda: self._walk_all_series(library_id))
+        walk = self._walked(
+            ("serieswalk", library_id),
+            lambda: self._walk_all_series(library_id),
+            SERIES_SEARCH_TTL_S,
+        )
         want = q.strip().lower()
         want_tag = _tag_key(q)
         hits = [
