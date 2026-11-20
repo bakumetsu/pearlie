@@ -152,7 +152,7 @@ def _stump_walk(request: Request) -> list[BookDTO]:
     # cached for minutes: the trash records are the truth.
     trash = getattr(request.app.state, "trash", None)
     owned = trash.stump_owned_ids() if trash is not None else set()
-    return [b for b in books if b.id not in owned] if owned else books
+    return [b for b in books if not b.deleted and b.id not in owned]
 
 
 def _stump_seed(request: Request, id: str, kind: str) -> tuple[set[str], set[str], set[str]]:
