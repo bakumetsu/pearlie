@@ -10,7 +10,7 @@
   const stars: readonly number[] = [1, 2, 3, 4, 5];
 </script>
 
-<div role="radiogroup" aria-label="Rating" class="rs">
+<div role="radiogroup" aria-label="Rating" class="rs" class:big={size > 20}>
   {#each stars as n (n)}
     <button
       type="button"
@@ -39,6 +39,9 @@
     padding: 0;
     cursor: pointer;
   }
+  /* Big stars sit in the narrow hero by-line: keep the row inside a phone column; the height stays 44 px. */
+  .big { gap: 0; max-width: 100%; }
+  .big button { flex: 0 1 28px; min-width: 0; padding: 0; display: grid; place-items: center; overflow: hidden; }
   button.filled {
     color: var(--accent);
   }
