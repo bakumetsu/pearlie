@@ -69,6 +69,13 @@ def test_create_shows_key_once_and_stores_hash_only(
     assert key.encode() not in Path(settings.db_path).read_bytes()
 
 
+def test_cross_site_delete_is_403_and_key_stays(app_client: TestClient) -> None:
+    key = _make_key(app_client)
+    r = app_client.delete("/api/options/debug-key", headers={"Origin": "http://evil.example"})
+    assert r.status_code == 403
+    assert app_client.get("/api/debug/whoami", headers=_auth(key)).status_code == 200
+
+
 def test_bad_ttl_is_422(app_client: TestClient) -> None:
     assert app_client.post("/api/options/debug-key", json={"ttl": "2d"}).status_code == 422
 

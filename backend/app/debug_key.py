@@ -20,6 +20,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import parse_qsl
 
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -228,6 +229,7 @@ class FailureLimiter:
 
     def fail(self, peer: str) -> None:
         now = time.monotonic()
+        # clear() resets every lock; accepted: behind the proxy there is one peer
         if len(self._fails) > 1024:  # bounded memory under a spray of peers
             self._fails.clear()
         q = self._fails.setdefault(peer, deque())
@@ -299,7 +301,9 @@ class DebugKeyGuard:
         headers = Headers(scope=scope)
         path: str = scope["path"]
         token = _bearer(headers)
-        record = authenticate(db_path, token)  # always hashes, even for a bad header
+        record = await run_in_threadpool(
+            authenticate, db_path, token
+        )  # always hashes, even for a bad header
         path_ok = path.startswith(GUARDED_PREFIX + "/") and not any(
             part in path for part in _BAD_PATH_PARTS
         )
@@ -331,4 +335,4 @@ class DebugKeyGuard:
                 _clean(peer, 64),
                 _clean(xff, 64) or "-",
             )
-            touch(db_path, record)
+            await run_in_threadpool(touch, db_path, record)
