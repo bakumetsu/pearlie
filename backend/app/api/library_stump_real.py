@@ -20,14 +20,18 @@ from app.bookserver.base import (
 )
 from app.bookserver.factory import book_server_of
 from app.bookserver.map import book_detail, book_item, series_detail, series_item
+from app.filters.rules import load_rules
+from app.filters.safe_mode import resolve_safe, visible_tags
 from app.library.trash import TrashError
 from app.models import (
     LibraryItem,
+    LibraryItemDetail,
     Page,
     PatchBody,
     Problem,
     ProgressBody,
     ProgressResult,
+    Tag,
     TrashResult,
 )
 from app.paging import clamp_page, clamp_page_size, pages_for
@@ -216,6 +220,15 @@ def list_stump_books(
     )
 
 
+def _apply_safe_tags(request: Request, detail: LibraryItemDetail) -> None:
+    safe, allow_blurred = resolve_safe(request, None)
+    if not safe or allow_blurred:
+        return
+    rules = load_rules(request.app.state.settings.db_path)
+    detail.tags = visible_tags(detail.tags, rules, safe, allow_blurred)
+    detail.inherited_tags = visible_tags(detail.inherited_tags, rules, safe, allow_blurred)
+
+
 @router.get("/library/series/{id}")
 def get_series(request: Request, id: str):
     _check_id(request, id)
@@ -228,7 +241,9 @@ def get_series(request: Request, id: str):
         raise _up(e) from None
     if series.deleted:
         raise ApiError(404, "not_found", "Item not found")
-    return series_detail(series, books, truncated)
+    detail = series_detail(series, books, truncated)
+    _apply_safe_tags(request, detail)
+    return detail
 
 
 @router.get("/library/books/{id}")
@@ -242,7 +257,9 @@ def get_book(request: Request, id: str):
         raise _up(e) from None
     if book.deleted:
         raise ApiError(404, "not_found", "Item not found")
-    return book_detail(book)
+    detail = book_detail(book)
+    _apply_safe_tags(request, detail)
+    return detail
 
 
 @router.patch("/library/series/{id}")
@@ -255,6 +272,16 @@ def patch_book(request: Request, id: str, body: PatchBody):
     return _patch(request, "books", id, body)
 
 
+def _with_hidden_tags(request: Request, current: list[str], sent: list[str]) -> list[str]:
+    """Add back the tags that safe mode hid from the client, so a tag edit keeps them."""
+    safe, allow_blurred = resolve_safe(request, None)
+    if not safe or allow_blurred:
+        return sent
+    rules = load_rules(request.app.state.settings.db_path)
+    shown = {t.name for t in visible_tags([Tag(name=t) for t in current], rules, safe, False)}
+    return sent + [t for t in current if t not in shown and t not in sent]
+
+
 def _patch(request: Request, kind: Kind, id: str, body: PatchBody):
     _check_id(request, id)
     check_patch("Stump", body)
@@ -264,12 +291,9 @@ def _patch(request: Request, kind: Kind, id: str, body: PatchBody):
                 raise ApiError(422, "invalid_tag", "Bad tag", field="tags")
     server = book_server_of(request.app)
     try:
-        if kind == "series":
-            server.get_series(id)
-        else:
-            server.get_book(id)
+        current = server.get_series(id) if kind == "series" else server.get_book(id)
         if body.tags is not None:
-            server.set_tags(kind, id, body.tags)
+            server.set_tags(kind, id, _with_hidden_tags(request, current.tags, body.tags))
     except BookServerError as e:
         raise _up(e) from None
     if kind == "series":

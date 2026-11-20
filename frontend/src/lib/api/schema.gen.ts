@@ -1680,6 +1680,11 @@ export interface components {
             blur?: components["schemas"]["Blur"] | null;
             /** Added At */
             added_at: string;
+            /**
+             * Inherited Tags
+             * @description Series detail only. Tags of its books that the series itself lacks.
+             */
+            inherited_tags?: components["schemas"]["Tag"][];
             /** Full Url */
             full_url?: string | null;
             /** Stream Url */
