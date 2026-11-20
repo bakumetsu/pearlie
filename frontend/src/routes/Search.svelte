@@ -32,7 +32,7 @@
 
   const api = getApi();
   const router = getRouter();
-  const search = createSearch(api, { remember: true });
+  const search = createSearch(api);
   const jobsStore = findJobs();
   $effect(() => {
     if (jobsStore) search.settle(jobsStore.items);
