@@ -168,8 +168,7 @@ def test_stump_title_sends_only_title_text(tmp_path) -> None:
     )
     assert len(seen) == 1
     assert _text(seen[0]) == "big dragon two"
-    notice = r.json()["sections"][0]["notice"]
-    assert notice["message"] == "Tag chips do not narrow Stump results"
+    assert r.json()["sections"][0]["notice"] is None
 
 
 def test_stump_title_without_tags_has_no_notice(tmp_path) -> None:
@@ -180,11 +179,11 @@ def test_stump_title_without_tags_has_no_notice(tmp_path) -> None:
     assert r.json()["sections"][0]["notice"] is None
 
 
-def test_stump_without_title_keeps_q(tmp_path) -> None:
+def test_stump_tags_without_title_send_no_text(tmp_path) -> None:
     seen: list = []
     client = _app(tmp_path, stump_handler=_stump_ok(seen))
     client.get("/api/search", params={"q": "cat dog", "sources": "stump_books"})
-    assert _text(seen[0]) == "cat dog"
+    assert _text(seen[0]) == ""  # the tags read the walk, they are not search text
 
 
 def test_stump_excluded_title_skipped(tmp_path) -> None:

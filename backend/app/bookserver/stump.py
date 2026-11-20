@@ -36,6 +36,8 @@ THUMB_QUALITY = 80
 _T = TypeVar("_T")
 _MISSING = "MISSING"
 WALK_TTL_S = 15.0  # how long a full series or deleted-items walk is reused
+TAG_WALK_TTL_S = 600.0  # the library tag walk is big (up to 100 calls): reuse it longer
+TAG_WALK_PAGES = SERIES_BOOKS_PAGES  # the cap: 10,000 books, in memory only, never in the DB
 
 # Stump's order inputs are oneof objects: `{series: {field, direction}}` or `{media: {...}}`
 _NAME_ASC = {"field": "NAME", "direction": "ASC"}
@@ -80,6 +82,11 @@ def _links(meta: dict) -> list[tuple[str, str]]:
 
 def _tags(d: dict) -> list[str]:
     return sorted(str(t.get("name", "")) for t in d.get("tags") or [] if isinstance(t, dict))
+
+
+def _tag_key(tag: str) -> str:
+    """A tag as compared in a tag search: no quotes, `_` as space, lower case."""
+    return tag.strip().replace('"', "").replace("_", " ").lower()
 
 
 def book_dto(d: dict) -> BookDTO:
@@ -180,18 +187,18 @@ class StumpBookServer:
     def __init__(self, client: Stump, cache: ThumbCache | None = None) -> None:
         self._c = client
         self._cache = cache
-        self._walks: dict[tuple, tuple[float, object]] = {}
+        self._walks: dict[tuple, tuple[float, object, float]] = {}
 
-    def _walked(self, key: tuple, walk: Callable[[], _T]) -> _T:
-        """Result of *walk*, reused for `WALK_TTL_S`; every write through this adapter clears it."""
+    def _walked(self, key: tuple, walk: Callable[[], _T], ttl: float = WALK_TTL_S) -> _T:
+        """Result of *walk*, reused for *ttl*; every write through this adapter clears it."""
         hit = self._walks.get(key)
-        if hit is not None and time.monotonic() - hit[0] < WALK_TTL_S:
+        if hit is not None and time.monotonic() - hit[0] < hit[2]:
             return hit[1]  # type: ignore[return-value]
         value = walk()
         now = time.monotonic()
-        for k in [k for k, (t, _v) in self._walks.items() if now - t >= WALK_TTL_S]:
+        for k in [k for k, (t, _v, ttl_k) in self._walks.items() if now - t >= ttl_k]:
             del self._walks[k]  # sweep, so the dict cannot grow without bound
-        self._walks[key] = (now, value)
+        self._walks[key] = (now, value, ttl)
         return value
 
     def invalidate_walks(self) -> None:
@@ -266,6 +273,33 @@ class StumpBookServer:
             if _page(conn, page, PAGE_SIZE, []).last:
                 return books, False
         return books, True
+
+    def tagged_books(self, q: str, tags: list[str]) -> list[BookDTO]:
+        """Books matching the title text *q* that carry every tag (AND); `-tag` must be absent.
+
+        Reads one cached walk of the title search (cap 10,000 books, newest first): the tag lists
+        come with the books, so a tag tap costs no extra Stump call.
+        """
+        books = self._walked(("tagwalk", q), lambda: self._walk_books(q), TAG_WALK_TTL_S)
+        want = {t for t in map(_tag_key, tags) if t and not t.startswith("-")}
+        drop = {t[1:] for t in map(_tag_key, tags) if t.startswith("-") and len(t) > 1}
+        out = []
+        for b in books:
+            have = {_tag_key(t) for t in b.tags}
+            if want <= have and not drop & have:
+                out.append(b)
+        return out
+
+    def _walk_books(self, q: str) -> list[BookDTO]:
+        books: list[BookDTO] = []
+        for page in range(1, TAG_WALK_PAGES + 1):
+            conn = self._c.list_media(
+                page, PAGE_SIZE, _filter(q, None), _order("media", q, SORT_CREATED_DESC)
+            )
+            books.extend(book_dto(d) for d in conn.get("nodes") or [])
+            if _page(conn, page, PAGE_SIZE, []).last:
+                break
+        return books
 
     # search / lookup
 

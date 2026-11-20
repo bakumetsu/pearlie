@@ -102,6 +102,16 @@ class FakeBookServer:
     def series_books(self, series_id: str) -> tuple[list[BookDTO], bool]:
         return [b for b in self.books.values() if b.series_id == series_id], False
 
+    def tagged_books(self, q: str, tags: list[str]) -> list[BookDTO]:
+        want = {t.lower() for t in tags if not t.startswith("-")}
+        drop = {t[1:].lower() for t in tags if t.startswith("-")}
+        rows = []
+        for b in self.books.values():
+            have = {t.lower() for t in b.tags}
+            if not b.deleted and q.lower() in b.title.lower() and want <= have and not drop & have:
+                rows.append(b)
+        return rows
+
     def find_by_path(
         self, kind: Kind, library_id: str, path: str, text: str
     ) -> BookDTO | SeriesDTO | None:
