@@ -71,15 +71,52 @@ def test_forwarded_host_is_checked(tmp_path: Path) -> None:
     assert resp.status_code == 403
 
 
-def test_static_files_are_not_host_checked(tmp_path: Path) -> None:
+def _static_client(tmp_path: Path) -> TestClient:
     static = tmp_path / "dist"
-    static.mkdir()
+    (static / "assets").mkdir(parents=True)
     (static / "index.html").write_text("<html>ok</html>")
+    (static / "assets" / "a.js").write_text("1")
     settings = Settings(
         mode="fixture",
         db_path=tmp_path / "p.db",
         static_dir=static,
         _env_file=None,  # pyright: ignore[reportCallIssue]
     )
-    resp = TestClient(create_app(settings)).get("/", headers={"Host": "evil.example"})
-    assert resp.status_code == 200
+    return TestClient(create_app(settings))
+
+
+@pytest.mark.parametrize("path", ["/", "/library/some/spa/route", "/assets/a.js"])
+def test_web_ui_paths_refuse_unlisted_host_with_html_page(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, path: str
+) -> None:
+    tc = _static_client(tmp_path)
+    with caplog.at_level("WARNING", logger="app.api.guard"):
+        resp = tc.get(path, headers={"Host": "evil<b>.example"})
+    assert resp.status_code == 403
+    assert resp.headers["content-type"].startswith("text/html")
+    assert "PEARLIE_ALLOWED_HOSTS" in resp.text
+    assert "evil&lt;b&gt;.example" in resp.text
+    assert "<b>" not in resp.text
+    assert "evil" in caplog.text
+
+
+def test_web_ui_passes_for_allowed_host(tmp_path: Path) -> None:
+    tc = _static_client(tmp_path)
+    assert tc.get("/", headers={"Host": "localhost:8000"}).status_code == 200
+    assert tc.get("/assets/a.js", headers={"Host": "10.0.0.5"}).status_code == 200
+
+
+def test_long_host_is_truncated_in_page(tmp_path: Path) -> None:
+    resp = _static_client(tmp_path).get("/", headers={"Host": "a" * 300 + ".example"})
+    assert resp.status_code == 403
+    assert "a" * 101 not in resp.text
+
+
+def test_warning_is_logged_once_per_host(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    tc = _client(tmp_path)
+    with caplog.at_level("WARNING", logger="app.api.guard"):
+        for _ in range(3):
+            tc.get("/api/logs/settings", headers={"Host": "once.example"})
+        tc.get("/", headers={"Host": "other.example"})
+    assert caplog.text.count("once.example") == 1
+    assert caplog.text.count("other.example") == 1

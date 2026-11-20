@@ -49,7 +49,7 @@ Update with `update` in the container or from Options > System.
 
 **How to sign releases (maintainer).** Set up commit signing (GPG, SSH or S/MIME) and add the public key to your GitHub account: `git config commit.gpgsign true`, and for SSH keys `git config gpg.format ssh` with `git config user.signingkey <key>`. The release commit that the `vX.Y.Z` tag points to must carry a "Verified" badge on GitHub; the updater reads this badge, not the tag signature.
 
-**Upgrade note for reverse-proxy users.** Pearlie only answers `/api` requests whose host is an IP address, `localhost`, a `*.ts.net` name or a name listed in `PEARLIE_ALLOWED_HOSTS` (DNS rebinding defence). If you reach Pearlie through a reverse proxy with its own host name, add that name to `PEARLIE_ALLOWED_HOSTS` in `/opt/pearlie/.env` (comma list, e.g. `PEARLIE_ALLOWED_HOSTS=pearlie.home`) and run `systemctl restart pearlie`. Without it the web UI shows a "host not allowed" page naming the host to add.
+**Upgrade note for reverse-proxy users.** Pearlie only answers requests (web UI and `/api`) whose host is an IP address, `localhost`, a `*.ts.net` name or a name listed in `PEARLIE_ALLOWED_HOSTS` (DNS rebinding defence). If you reach Pearlie through a reverse proxy with its own host name, add that name to `PEARLIE_ALLOWED_HOSTS` in `/opt/pearlie/.env` (comma list, e.g. `PEARLIE_ALLOWED_HOSTS=pearlie.home`) and run `systemctl restart pearlie`. Without it Pearlie shows a "host not allowed" page naming the host to add, and writes one WARNING line to the log.
 
 ## Dev setup
 

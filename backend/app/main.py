@@ -49,7 +49,7 @@ from app.api import fixture as fixture_api
 from app.api import logs as logs_api
 from app.api.errors import ApiError, stub_router
 from app.api.errors import install as install_errors
-from app.api.guard import mutation_guard
+from app.api.guard import HostGuard, mutation_guard
 from app.api.health import router as health_router
 from app.api.security_headers import SecurityHeaders
 from app.config import ConfigError, Settings, load_settings
@@ -277,6 +277,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url="/openapi.json" if docs_on else None,
     )
     install_errors(app)
+    app.add_middleware(HostGuard)
     app.add_middleware(SecurityHeaders)
     app.state.settings = settings
     app.state.update_root = runner.LAYOUT_ROOT
