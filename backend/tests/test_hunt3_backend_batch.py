@@ -74,6 +74,8 @@ def test_f5_owned_ids_cached_and_dropped_on_write(env, monkeypatch):
     )
     assert "B1" in store.stump_owned_ids()  # the write dropped the cache
     store.purge_row(row["token"])
+    assert "B1" in store.stump_owned_ids()  # purged: hidden until Stump drops it
+    store.clear_purged(["B1"])
     assert "B1" not in store.stump_owned_ids()
 
 
