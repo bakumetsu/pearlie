@@ -92,6 +92,7 @@ class MockStump:
         self.last_job: str | None = "job1"
         self.cleaned: list[str] = []
         self.locks: list[tuple[str, str, list[str]]] = []  # (operation, id, fields)
+        self.fail_ops: dict[str, str] = {}  # operation name -> error message answered every time
         self.progress_errors: list[str] = []  # messages answered before a progress save works
 
     def __call__(self, req: httpx.Request) -> httpx.Response:
@@ -192,6 +193,19 @@ class MockStump:
                 {"completedAt": "2026-01-02T00:00:00Z"}
             ]
             return self._ok({"finishMediaProgress": True})
+        if op in ("ClearMediaProgress", "DeleteMediaReadingHistory"):
+            if op in self.fail_ops:
+                return httpx.Response(200, json={"errors": [{"message": self.fail_ops[op]}]})
+            field = op[0].lower() + op[1:]
+            if f"{field}(id: $id) {{" in query:  # Stump returns a scalar: a selection is an error
+                msg = f'Field "{field}" must not have a selection'
+                return httpx.Response(200, json={"errors": [{"message": msg}]})
+            book = self._find(self.books, v["id"])
+            if op == "ClearMediaProgress":
+                book["readProgress"] = None
+            else:
+                book["readHistory"] = []
+            return self._ok({field: True})
         return None
 
     @staticmethod
