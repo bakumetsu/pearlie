@@ -8,6 +8,7 @@ import httpx
 
 from app.update.check import FakeChecker, UpdateChecker
 from app.update.repo import LATEST_RELEASE_URL, TAGS_URL
+from app.update.version import dev_version
 
 
 def _chk(
@@ -197,6 +198,44 @@ def test_dev_good_and_bad(tmp_path: Path) -> None:
     r2 = _chk(tmp_path / "b.db", h_bad, clock2).check("dev")
     assert r2.error == "unreachable"
     assert r2.latest is None
+
+
+def test_dev_latest_is_dev_counter(tmp_path: Path) -> None:
+    clock: list[float] = [1_000.0]
+    seen: list[str] = []
+
+    def h(req: httpx.Request) -> httpx.Response:
+        seen.append(str(req.url))
+        if req.url.path.endswith("/commits/dev"):
+            return httpx.Response(200, json={"sha": "a" * 40})
+        if req.url.path.endswith("/tags"):
+            return httpx.Response(200, json=[{"name": "v0.8.0"}, {"name": "v0.9.0"}])
+        if "/compare/v0.9.0..." in str(req.url):
+            return httpx.Response(200, json={"total_commits": 47})
+        return httpx.Response(404)
+
+    r = _chk(tmp_path / "a.db", h, clock).check("dev")
+    assert r.latest is not None
+    assert r.latest.version == dev_version(47)
+    assert r.latest.commit == "a" * 40
+    assert len(seen) == 3
+    assert seen[-1].endswith("per_page=1")
+
+
+def test_dev_latest_falls_back_to_sha_on_compare_failure(tmp_path: Path) -> None:
+    clock: list[float] = [1_000.0]
+
+    def h(req: httpx.Request) -> httpx.Response:
+        if req.url.path.endswith("/commits/dev"):
+            return httpx.Response(200, json={"sha": "a" * 40})
+        if req.url.path.endswith("/tags"):
+            return httpx.Response(200, json=[{"name": "v0.9.0"}])
+        return httpx.Response(403, headers={"X-RateLimit-Remaining": "0"})
+
+    r = _chk(tmp_path / "a.db", h, clock).check("dev")
+    assert r.error is None
+    assert r.latest is not None
+    assert r.latest.version == "aaaaaaa"
 
 
 def test_fake_checker() -> None:
