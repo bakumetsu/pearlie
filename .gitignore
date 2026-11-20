@@ -1,5 +1,7 @@
 /kit/
 /backlog_archive_table.md
+/backlog_table.md
+/backlog_queue.md
 .env
 __pycache__/
 node_modules/
