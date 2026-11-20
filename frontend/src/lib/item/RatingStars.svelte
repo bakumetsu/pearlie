@@ -39,9 +39,9 @@
     padding: 0;
     cursor: pointer;
   }
-  /* Big stars sit in the narrow hero by-line: keep the row inside a phone column; the height stays 44 px. */
-  .big { gap: 0; max-width: 100%; }
-  .big button { flex: 0 1 28px; min-width: 0; padding: 0; display: grid; place-items: center; overflow: hidden; }
+  /* Big stars sit in the narrow hero by-line: every button stays 44 x 44 px; neighbours overlap so five fit a phone column. */
+  .big { gap: 0; padding-left: 10px; }
+  .big button { flex: none; width: 44px; min-width: 44px; margin-left: -20px; display: grid; place-items: center; }
   button.filled {
     color: var(--accent);
   }

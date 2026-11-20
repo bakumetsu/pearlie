@@ -1,4 +1,4 @@
-"""Author of a book: the author field, else the title prefix, else nothing (D-36 section 3.2)."""
+"""Author of a book: the author field first, else the title prefix (D-36 section 3.2)."""
 
 from __future__ import annotations
 
@@ -23,5 +23,7 @@ def title_people(title: str | None) -> tuple[str, str]:
 
 
 def book_author(b: BookDTO) -> str:
+    if b.authors and b.authors[0]:
+        return b.authors[0]
     artist, group = title_people(b.title)
-    return artist or group or (b.authors[0] if b.authors else "")
+    return artist or group

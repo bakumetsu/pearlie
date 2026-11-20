@@ -10,8 +10,9 @@ def _book(title: str, authors: list[str] | None = None) -> BookDTO:
     return BookDTO("b1", "l", "s1", title, title, "/p", "2026-01-01", authors=authors or [])
 
 
-def test_book_author_prefers_title_artist_then_author_field() -> None:
-    assert book_detail(_book("[Group (Artist)] T", ["Writer"])).author == "Artist"
+def test_book_author_prefers_author_field_then_title_artist() -> None:
+    assert book_detail(_book("[Group (Artist)] T", ["Writer"])).author == "Writer"
+    assert book_detail(_book("[Group (Artist)] T")).author == "Artist"
     assert book_detail(_book("T", ["Writer"])).author == "Writer"
     assert book_detail(_book("T")).author == ""
 
