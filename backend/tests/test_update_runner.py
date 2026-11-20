@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from app.update.runner import (
+    effective_status,
     is_running,
     read_conf,
     read_status,
@@ -181,3 +182,30 @@ def test_start_update_false_nonzero() -> None:
 
 def test_start_update_false_oserror() -> None:
     assert start_update(_run_oserror) is False
+
+
+def test_effective_status_stale_running_is_failed(tmp_path: Path) -> None:
+    _write_status(tmp_path, json.dumps({"state": "running", "step": "build", "error": None}))
+    result = effective_status(tmp_path, _run_with_returncode(3))
+    assert result["state"] == "failed"
+    assert result["step"] == "build"
+    assert result["error"] is not None
+    assert "interrupted" in result["error"]
+    # read-only: the file is untouched
+    assert json.loads((tmp_path / "update-status.json").read_text())["state"] == "running"
+
+
+def test_effective_status_active_unit_stays_running(tmp_path: Path) -> None:
+    _write_status(tmp_path, json.dumps({"state": "running", "step": "build"}))
+    assert effective_status(tmp_path, _run_with_returncode(0))["state"] == "running"
+
+
+def test_effective_status_systemctl_missing_counts_as_stale(tmp_path: Path) -> None:
+    _write_status(tmp_path, json.dumps({"state": "running", "step": "download"}))
+    assert effective_status(tmp_path, _run_oserror)["state"] == "failed"
+
+
+@pytest.mark.parametrize("state", ["done", "failed", "rolled_back", "idle"])
+def test_effective_status_other_states_pass_through(tmp_path: Path, state: str) -> None:
+    _write_status(tmp_path, json.dumps({"state": state, "step": "health", "error": "x"}))
+    assert effective_status(tmp_path, _run_with_returncode(3)) == read_status(tmp_path)

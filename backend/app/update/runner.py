@@ -25,6 +25,7 @@ STATES: tuple[str, ...] = (
     "failed",
     "failed_rollback",
 )
+STALE_ERROR = "interrupted: the update did not finish, try again"
 CHANNELS: tuple[str, ...] = ("main", "dev")
 
 
@@ -57,6 +58,20 @@ def read_status(root: Path = LAYOUT_ROOT) -> dict[str, str | None]:
         "step": step if isinstance(step, str) else None,
         "error": error if isinstance(error, str) else None,
     }
+
+
+def effective_status(
+    root: Path = LAYOUT_ROOT,
+    run: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
+) -> dict[str, str | None]:
+    """read_status, but a "running" file whose pearlie-update unit is not active
+    is stale (the run was killed, for example by a container restart): report it
+    as failed. The backend never writes the file; the script clears it on its
+    next start."""
+    status = read_status(root)
+    if status["state"] == "running" and not is_running(run):
+        return {"state": "failed", "step": status["step"], "error": STALE_ERROR}
+    return status
 
 
 def read_conf(root: Path = LAYOUT_ROOT) -> dict[str, str]:

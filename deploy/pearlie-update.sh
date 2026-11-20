@@ -16,6 +16,7 @@ NPM="${PEARLIE_NPM:-npm}"
 SYSTEMCTL="${PEARLIE_SYSTEMCTL:-systemctl}"
 BIN="${PEARLIE_BIN:-/usr/local/bin/pearlie-update}"
 LOCK="${PEARLIE_LOCK:-/run/pearlie-update.lock}"
+DF="${PEARLIE_DF:-df}"
 
 CHANNEL=""
 HOST="127.0.0.1"
@@ -36,6 +37,7 @@ INST_VERSION=""
 INST_COMMIT=""
 INST_CHANNEL=""
 REQUIRE_VERIFIED="off"
+MIN_FREE_MB=2048
 STATUS_ON=0
 
 # --- helpers ---
@@ -65,8 +67,6 @@ write_status() {
   local state="$1" step="$2" error="$3"
   STEP="$step"
   [[ "$STATUS_ON" == "1" ]] || return 0
-  local tmp
-  tmp="$(mktemp "$ROOT/update-status.json.XXXXXX")"
   local from_json to_json started_at_json error_json
   from_json="$(json_str "$FROM_V")"
   to_json="$(json_str "$TO_V")"
@@ -80,10 +80,23 @@ write_status() {
   else
     error_json="null"
   fi
-  printf '{"state":%s,"step":%s,"from":%s,"to":%s,"started_at":%s,"error":%s}\n' \
-    "$(json_str "$state")" "$(json_str "$step")" \
-    "$from_json" "$to_json" "$started_at_json" "$error_json" > "$tmp"
-  mv -f "$tmp" "$ROOT/update-status.json"
+  local body
+  body="$(printf '{"state":%s,"step":%s,"from":%s,"to":%s,"started_at":%s,"error":%s}
+'     "$(json_str "$state")" "$(json_str "$step")"     "$from_json" "$to_json" "$started_at_json" "$error_json")"
+  # atomic write through a temp file; a full disk can fail mktemp, printf or mv,
+  # then fall back to overwriting the status file in place
+  local tmp=""
+  tmp="$(mktemp "$ROOT/update-status.json.XXXXXX" 2>/dev/null)" || tmp=""
+  if [[ -n "$tmp" ]]; then
+    if printf '%s
+' "$body" > "$tmp" 2>/dev/null && mv -f "$tmp" "$ROOT/update-status.json" 2>/dev/null; then
+      return 0
+    fi
+    rm -f "$tmp" 2>/dev/null || true
+  fi
+  printf '%s
+' "$body" > "$ROOT/update-status.json" 2>/dev/null || true
+  return 0
 }
 
 die() {
@@ -201,6 +214,14 @@ read_conf() {
       port)
         if [[ "$value" =~ ^[0-9]+$ ]] && (( 10#$value >= 1 && 10#$value <= 65535 )); then
           PORT="$value"
+        else
+          echo "update.conf: bad line: $line" >&2
+          exit 1
+        fi
+        ;;
+      min_free_mb)
+        if [[ "$value" =~ ^[0-9]+$ ]]; then
+          MIN_FREE_MB="$((10#$value))"
         else
           echo "update.conf: bad line: $line" >&2
           exit 1
@@ -446,6 +467,47 @@ check_only() {
     exit 10
   fi
   exit 0
+}
+
+# A run killed without its EXIT trap (container restart, power loss) leaves a
+# "running" status, temp files, staging and a partial release behind. We hold
+# the lock here, so nothing else is writing: clear it all.
+clear_stale_run() {
+  local cur prev entry full keep_cur keep_prev
+  if [[ -f "$ROOT/staging/swap" ]]; then
+    swapoff "$ROOT/staging/swap" 2>/dev/null || true
+  fi
+  rm -rf "$ROOT/staging"
+  rm -f "$ROOT"/update-status.json.* "$ROOT/update-status.json"
+  cur="$(readlink "$ROOT/current" 2>/dev/null || true)"
+  prev="$(readlink "$ROOT/previous" 2>/dev/null || true)"
+  keep_cur="${cur%/}"
+  keep_prev="${prev%/}"
+  for entry in "$ROOT/releases"/*/; do
+    [[ -d "$entry" ]] || continue
+    full="${entry%/}"
+    if [[ -n "$keep_cur" && "${full##*/}" == "${keep_cur##*/}" ]]; then
+      continue
+    fi
+    if [[ -n "$keep_prev" && "${full##*/}" == "${keep_prev##*/}" ]]; then
+      continue
+    fi
+    log "removing leftover release ${full##*/}"
+    rm -rf "$full"
+  done
+  mkdir -p "$ROOT/staging"
+}
+
+# fail early, with a clear message, instead of dying in the middle of npm ci
+check_free_space() {
+  STEP="preflight"
+  local avail_kb avail_mb
+  avail_kb="$("$DF" -Pk "$ROOT" 2>/dev/null | awk 'NR==2{print $4}')" || avail_kb=""
+  [[ "$avail_kb" =~ ^[0-9]+$ ]] || return 0
+  avail_mb=$((avail_kb / 1024))
+  if (( avail_mb < MIN_FREE_MB )); then
+    die "not enough disk space: need ${MIN_FREE_MB} MB, have ${avail_mb} MB"
+  fi
 }
 
 MAX_EXTRACTED_BYTES="${PEARLIE_MAX_EXTRACTED_BYTES:-524288000}"
@@ -1000,6 +1062,7 @@ main() {
     load_continue
     TO_V="$TARGET_VERSION"
   else
+    clear_stale_run
     write_status "running" "resolve" ""
     resolve_target
     TO_V="$TARGET_VERSION"
@@ -1009,6 +1072,8 @@ main() {
       echo "Pearlie is up to date (${INST_VERSION:-none})"
       exit 0
     fi
+    write_status "running" "preflight" ""
+    check_free_space
     write_status "running" "download" ""
     download_and_extract
     TO_V="$TARGET_VERSION"

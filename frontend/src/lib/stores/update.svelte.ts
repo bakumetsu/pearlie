@@ -202,9 +202,14 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
           applyError = s.error;
           toasts.push({
             kind: "error",
-            message: s.error
-              ? "Update failed and was rolled back: " + s.error
-              : "Update failed and was rolled back",
+            message:
+              s.state === "failed"
+                ? s.error
+                  ? "Update failed: " + s.error
+                  : "Update failed"
+                : s.error
+                  ? "Update failed and was rolled back: " + s.error
+                  : "Update failed and was rolled back",
           });
           return;
         case "failed_rollback":
@@ -458,6 +463,12 @@ export function createUpdate(api: Api, opts: { intervalMs?: number; timeoutMs?: 
     get note() { return note; },
     get step() { return step; },
     get applyError() { return applyError; },
+    // last run ended in failure (also an interrupted run found after a restart)
+    get failure(): string | null {
+      const s = status;
+      if (phase !== "idle" || (s?.state !== "failed" && s?.state !== "rolled_back")) return null;
+      return s.error ?? "Update failed";
+    },
     load,
     retry,
     apply,
