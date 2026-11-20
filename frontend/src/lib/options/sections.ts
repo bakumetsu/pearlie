@@ -257,6 +257,14 @@ export const SECTIONS: Section[] = [
         ],
       },
       {
+        title: 'Debug access',
+        rows: [
+          { label: 'Key', hint: 'lets Claude read jobs, logs and state, read-only' },
+          { label: 'Lifetime', hint: '1 hour, 24 hours or 7 days' },
+          { label: 'Revoke', hint: 'ends the key at once' },
+        ],
+      },
+      {
         title: 'Log viewer',
         rows: [
           { label: 'Day', hint: 'pick a day' },

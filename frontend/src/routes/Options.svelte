@@ -28,6 +28,7 @@
   import ThumbCacheCard from "../lib/options/ThumbCacheCard.svelte";
   import ChangelogCard from "../lib/options/ChangelogCard.svelte";
   import LogsCard from "../lib/options/LogsCard.svelte";
+  import DebugKeyCard from "../lib/options/DebugKeyCard.svelte";
   import TrashRetentionCard from "../lib/options/TrashRetentionCard.svelte";
   import TrashFolderCard from "../lib/options/TrashFolderCard.svelte";
   import SaveFoldersCard from "../lib/options/SaveFoldersCard.svelte";
@@ -245,6 +246,8 @@
     <ChangelogCard active={q === ""} />
   {:else if sectionId === "logs" && card.title === "Logging"}
     <LogsCard />
+  {:else if sectionId === "logs" && card.title === "Debug access"}
+    <DebugKeyCard />
   {:else if sectionId === "logs" && card.title === "Log viewer"}
     <!-- shown with Logging -->
   {:else}
