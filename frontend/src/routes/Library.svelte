@@ -231,9 +231,8 @@
 
 <style>
   .content {
-    max-width: var(--content-max);
-    margin: 0 auto;
-    padding: var(--s-5);
+    padding: var(--s-5) var(--gutter);
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: var(--s-4);

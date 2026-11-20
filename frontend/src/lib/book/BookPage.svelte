@@ -99,7 +99,7 @@
 </div>
 
 <style>
-  .bp { position: relative; min-height: 100%; padding: 0 var(--s-4) var(--s-6); max-width: var(--content-max); margin: 0 auto; }
+  .bp { position: relative; min-height: 100%; padding: 0 var(--gutter) var(--s-6); min-width: 0; }
   .backdrop { position: absolute; inset: 0 0 auto 0; height: 420px; background-size: cover; background-position: center; filter: blur(40px); opacity: .35; mask-image: linear-gradient(#000, transparent); -webkit-mask-image: linear-gradient(#000, transparent); pointer-events: none; z-index: 0; }
   .bar, .cols, .rest { position: relative; z-index: 1; }
   .bar { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) 0; }

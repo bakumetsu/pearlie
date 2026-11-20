@@ -575,9 +575,8 @@
   .content {
     flex: 1;
     width: 100%;
-    max-width: var(--content-max);
-    margin: 0 auto;
-    padding: var(--s-4);
+    padding: var(--s-4) var(--gutter);
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: var(--s-5);

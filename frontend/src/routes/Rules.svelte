@@ -337,9 +337,8 @@
 
 <style>
   .content {
-    max-width: var(--content-max);
-    margin: 0 auto;
-    padding: var(--s-5);
+    padding: var(--s-5) var(--gutter);
+    min-width: 0;
     padding-bottom: 96px;
     display: flex;
     flex-direction: column;
@@ -435,6 +434,7 @@
     display: flex;
     gap: var(--s-2);
     align-items: center;
+    max-inline-size: var(--measure);
   }
 
   .addrow input,
@@ -448,6 +448,7 @@
     align-items: center;
     gap: var(--s-2);
     width: 100%;
+    max-inline-size: var(--measure);
   }
 
   h1:focus-visible {
@@ -510,6 +511,7 @@
   }
 
   .hint {
+    max-inline-size: var(--measure);
     color: var(--muted);
     font-size: var(--t-13);
   }
