@@ -120,7 +120,7 @@
 {/snippet}
 
 <section aria-label="Recommendations">
-  <h3>Recommendations<em>{source === "nhentai" ? "nhentai only" : "Stump only"}</em></h3>
+  <h3>Recommendations</h3>
   {@render body(rec, "Nothing similar found.", "Could not load.", loadRec)}
 </section>
 <section aria-label="Random">
@@ -134,7 +134,6 @@
 <style>
   section { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
   h3 { margin: 0; font-size: var(--t-12); color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 500; }
-  h3 em { font-style: normal; text-transform: none; letter-spacing: 0; margin-left: 6px; }
   .hrow { display: flex; align-items: center; justify-content: space-between; }
   .ib { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); border: 1px solid var(--line-strong); border-radius: var(--r-md); background: transparent; color: var(--text); font: inherit; cursor: pointer; }
   .hrow .ib { border-color: transparent; }

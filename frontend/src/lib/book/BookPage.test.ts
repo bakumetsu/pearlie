@@ -16,7 +16,7 @@ describe("BookPage", () => {
     });
     expect(getByText("Big")).toBeTruthy();
     expect(container.querySelectorAll(".sub")).toHaveLength(2);
-    expect(getByText("by Someone")).toBeTruthy();
+    expect(getByText("Someone")).toBeTruthy();
     expect(container.querySelector(".backdrop")).toBeTruthy();
     await fireEvent.click(getByLabelText("Back"));
     expect(onback).toHaveBeenCalled();

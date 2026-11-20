@@ -75,7 +75,7 @@ describe("StumpSeries", () => {
 
   it("shows the rating under the by-line and no progress bar or sub line", () => {
     const { container, getByRole, getByText } = setup({ author: "Some Author" });
-    expect(getByText("by Some Author")).toBeTruthy();
+    expect(getByText("Some Author")).toBeTruthy();
     expect(getByRole("radiogroup", { name: "Rating" })).toBeTruthy();
     expect(container.querySelector(".ratio")).toBeNull();
     expect(container.querySelector(".sub")).toBeNull();
