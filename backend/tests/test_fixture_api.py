@@ -152,6 +152,16 @@ def test_trash_list(client):
     assert tl2.items[0].item.id == "3"
 
 
+def test_trash_list_sizes(client):
+    """Trash rows carry size_bytes: set for a video, null for an image."""
+    client.delete("/api/library/videos/1")
+    client.delete("/api/library/images/3")
+    tl = TrashList.model_validate(client.get("/api/trash").json())
+    by_kind = {e.item.kind: e.item.size_bytes for e in tl.items}
+    assert by_kind["video"] == 50_000_000 + 1_000_003
+    assert by_kind["image"] is None
+
+
 def test_trash_expired_hidden_not_purged(client):
     """Expired trash entries are hidden from GET but not purged."""
     tr = TrashResult.model_validate(client.delete("/api/library/images/3").json())

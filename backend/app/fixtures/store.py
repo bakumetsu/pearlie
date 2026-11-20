@@ -291,7 +291,13 @@ class Store:
             token=token,
             expires_at=expires_dt.isoformat(),
             retention_days=self.retention_days,
-            item=TrashItem(kind=raw["kind"], id=id, title=raw["title"], group_id=group_id),
+            item=TrashItem(
+                kind=raw["kind"],
+                id=id,
+                title=raw["title"],
+                size_bytes=raw.get("size_bytes"),
+                group_id=group_id,
+            ),
         )
 
     def delete_batch(self, items: list[tuple[str, str]]) -> TrashBatchResult:
@@ -348,6 +354,7 @@ class Store:
                         kind=entry["item"]["kind"],
                         id=entry["item"]["id"],
                         title=entry["item"]["title"],
+                        size_bytes=entry["item"].get("size_bytes"),
                         group_id=entry.get("group_id"),
                     ),
                 )
