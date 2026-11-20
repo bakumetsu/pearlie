@@ -121,7 +121,7 @@
   .by { margin: 0; color: var(--muted); font-size: var(--t-13); }
   .ratio { width: 200px; max-width: 100%; height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; }
   .ratio i { display: block; height: 100%; background: var(--progress); }
-  .acts { position: relative; margin-top: auto; display: flex; align-items: center; gap: var(--s-2); }
+  .acts { position: relative; align-self: stretch; margin-top: auto; display: flex; align-items: center; gap: var(--s-2); }
   .acts :global(.ib) { background: transparent; border-color: transparent; }
   .tl { margin-left: auto; display: flex; gap: var(--s-2); }
   .menu { position: absolute; left: 0; bottom: 52px; z-index: 5; min-width: 220px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-md); padding: var(--s-1); display: flex; flex-direction: column; box-shadow: 0 8px 24px rgb(0 0 0 / .5); }
