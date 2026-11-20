@@ -165,3 +165,24 @@ def test_download_budget_does_not_wait(env) -> None:
     target.save(make_post(), [])
     assert site.posts == DOWNLOAD_LIMIT  # no 8th call; the job took route A
     assert site.page_gets == 3
+
+
+def test_same_page_bytes_give_the_same_cbz_from_both_routes(tmp_path: Path) -> None:
+    from app.targets.comicinfo import build_cbz, repack_download
+
+    post = make_post(pages=2)
+    pages = []
+    for n in (1, 2):
+        p = tmp_path / f"{n}.webp"
+        p.write_bytes(b"same-%d" % n)
+        pages.append(p)
+    a = tmp_path / "a.cbz"
+    build_cbz(a, pages, post)
+    z = tmp_path / "d.zip"
+    with zipfile.ZipFile(z, "w") as zf:
+        zf.writestr("meta.json", "{}")
+        for p in reversed(pages):
+            zf.writestr(p.name, p.read_bytes())
+    b = tmp_path / "b.cbz"
+    assert repack_download(z, b, post) == 2
+    assert a.read_bytes() == b.read_bytes()
