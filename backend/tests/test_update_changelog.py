@@ -434,3 +434,33 @@ def test_api_passes_offset_and_limit(client: Any) -> None:
     assert r.status_code == 200 and r.json()["has_more"] is True
     assert calls[-1]["offset"] == 10 and calls[-1]["limit"] == 5
     assert client.get("/api/update/changelog?limit=11").status_code == 422
+
+
+def test_build_block_without_prefixed_subjects_shows_changed_group() -> None:
+    commits = [
+        _c("Merge branch 'x' into dev", parents=2),
+        _c("Docs: recommend endpoints"),
+        _c("WIP half done"),
+        _c("add TagChips\n\nbody"),
+    ]
+    b = build_block("T", commits, "https://example.test/c")
+    assert [(g["kind"], g["items"]) for g in b["groups"]] == [
+        ("Changed", ["Docs: recommend endpoints", "Add TagChips"])
+    ]
+    assert b["total"] == 2 and b["more"] == 0
+
+
+def test_build_block_prefixed_subject_hides_plain_ones() -> None:
+    b = build_block("T", [_c("Docs: words"), _c("fix: a")], None)
+    assert [g["kind"] for g in b["groups"]] == ["Fixed"]
+
+
+def test_dev_whats_new_with_plain_subjects(tmp_path: Path) -> None:
+    routes = {**_DEV, _cmp(SHA_A, SHA_B): {"commits": [_c("Book author: first")]}}
+    out = _get(_mk(tmp_path, routes), "dev", latest_ref=SHA_B, installed_commit=SHA_A)
+    assert out["whats_new"]["groups"] == [{"kind": "Changed", "items": ["Book author: first"]}]
+
+
+def test_dev_installed_is_head_has_no_whats_new(tmp_path: Path) -> None:
+    out = _get(_mk(tmp_path, _DEV), "dev", latest_ref=SHA_B, installed_commit=SHA_B)
+    assert out["whats_new"] is None
