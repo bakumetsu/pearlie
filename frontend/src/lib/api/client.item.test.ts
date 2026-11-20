@@ -90,3 +90,23 @@ describe("client item & rules", () => {
     expect(err.code).toBe("not_found");
   });
 });
+
+describe("client recommend", () => {
+  it("recommend and recommendRandom build the query", async () => {
+    const fake = vi.fn().mockResolvedValue(ok({ items: [] }));
+    const api = createApi("", fake);
+    await api.recommend({ source: "nhentai", id: "5", kind: "book", limit: 6 });
+    expect(fake).toHaveBeenLastCalledWith("/api/recommend?source=nhentai&id=5&kind=book&limit=6", { signal: undefined });
+    await api.recommendRandom({ source: "nhentai", limit: 5, exclude: "5" });
+    expect(fake).toHaveBeenLastCalledWith("/api/recommend/random?source=nhentai&limit=5&exclude=5", { signal: undefined });
+  });
+
+  it("reads retry_after from the body, else the Retry-After header", async () => {
+    const err = (body: unknown, header: string | null) =>
+      ({ ok: false, status: 429, json: async () => body, headers: { get: () => header } }) as unknown as Response;
+    const a = createApi("", vi.fn().mockResolvedValue(err({ code: "rate_limited", message: "m", retry_after: 7 }, "3")));
+    await expect(a.recommend({ source: "s", id: "1" })).rejects.toMatchObject({ code: "rate_limited", retryAfter: 7 });
+    const b = createApi("", vi.fn().mockResolvedValue(err({ code: "rate_limited", message: "m" }, "3")));
+    await expect(b.recommend({ source: "s", id: "1" })).rejects.toMatchObject({ retryAfter: 3 });
+  });
+});

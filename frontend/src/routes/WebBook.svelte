@@ -11,11 +11,15 @@
   import { placement } from "../lib/stores/placement.svelte";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { rejectTag } from "../lib/item/reject";
+  import type { ToastsLike } from "../lib/item/itemView.svelte";
   import { saveWebItem, saveStateFor, savedHrefFor } from "../lib/web/saveFlow";
   import { restoreSaved } from "../lib/web/restoreSaved";
   import Icon from "../lib/components/Icon.svelte";
   import BookPage from "../lib/book/BookPage.svelte";
   import PageGrid from "../lib/book/PageGrid.svelte";
+  import TagChips from "../lib/item/TagChips.svelte";
+  import SidePanel from "../lib/item/SidePanel.svelte";
+  import { tagSearchHref } from "../lib/query";
 
   let { match }: { match: Match } = $props();
 
@@ -33,7 +37,7 @@
 
   let book = $state<WebBook | null>(null);
   let status = $state<"loading" | "ready" | "error">("loading");
-  let banOpen = $state(false);
+  let rejected = $state<string[]>([]);
   let last = $state<number | null>(null);
   let errorText = $state("Could not load this book.");
 
@@ -75,7 +79,6 @@
     return { big, sub };
   });
   const groups = $derived(Object.entries(book?.tags ?? {}).filter(([, v]) => v.length > 0));
-  const allTags = $derived(groups.flatMap(([, v]) => v));
 
   function back() {
     if (router.canGoBack()) history.back();
@@ -88,9 +91,28 @@
       item,
     );
   }
-  function reject(tag: string) {
-    banOpen = false;
-    void rejectTag(api, toasts, tag);
+  // x on a chip: reject it (Undo toast), or undo a reject already made here.
+  function chipX(tag: string, isRejected: boolean) {
+    if (isRejected) {
+      void api.unrejectTag(tag).then(
+        () => (rejected = rejected.filter((t) => t !== tag)),
+        () => toasts.push({ kind: "error", message: "Can't undo any more" }),
+      );
+      return;
+    }
+    rejected = [...rejected, tag];
+    const clear = () => (rejected = rejected.filter((x) => x !== tag));
+    const undoable: ToastsLike = {
+      push: (t) => {
+        if (t.kind !== "undo") clear();
+        const act = t.onAction;
+        return toasts.push({ ...t, onAction: () => { act?.(); clear(); } });
+      },
+    };
+    void rejectTag(api, undoable, tag);
+  }
+  function openRow(r: { source: string; id: string }) {
+    router.navigate("/web/" + encodeURIComponent(r.source) + "/" + encodeURIComponent(r.id));
   }
 </script>
 
@@ -120,18 +142,21 @@
         </button>
       {/if}
       <a class="mi" role="menuitem" href={"https://nhentai.net/g/" + encodeURIComponent(id) + "/"} target="_blank" rel="noopener noreferrer"><Icon name="external-link" size={20} />Open on nhentai</a>
-      {#if allTags.length}
-        <button class="mi" role="menuitem" type="button" aria-expanded={banOpen} onclick={() => (banOpen = !banOpen)}><Icon name="ban" size={20} />Reject a tag</button>
-      {/if}
     {/if}
   {/snippet}
   {#snippet side()}
     {#each groups as [type, names] (type)}
       <section>
         <h2>{type}</h2>
-        <ul class="chips">{#each names as n (n)}<li>{n}</li>{/each}</ul>
+        <TagChips
+          tags={names.map((name) => ({ name, state: rejected.includes(name) ? ("rejected" as const) : undefined }))}
+          mode="reject"
+          onsearch={(name) => router.navigate(tagSearchHref(name, "web"))}
+          onx={chipX}
+        />
       </section>
     {/each}
+    <SidePanel {source} {id} onopen={openRow} />
   {/snippet}
 
   {#if status === "loading"}
@@ -142,13 +167,6 @@
       <button class="btn" type="button" onclick={load}><Icon name="refresh" size={18} /> Retry</button>
     </div>
   {:else}
-    {#if banOpen}
-      <div class="ban" role="group" aria-label="Reject a tag">
-        {#each allTags as t (t)}
-          <button type="button" class="chip" onclick={() => reject(t)}>{t}</button>
-        {/each}
-      </div>
-    {/if}
     {#if count > 0}
       <PageGrid thumbTpl={book.page_thumb_url} count={count} {last} hrefFor={(n) => readBase + "?p=" + n} />
     {:else}
@@ -158,11 +176,6 @@
 </BookPage>
 
 <style>
-  .chips { display: flex; flex-wrap: wrap; gap: var(--s-1); list-style: none; margin: 0; padding: 0; }
-  .chips li, .chip { padding: 2px var(--s-2); border-radius: 999px; background: var(--surface); color: var(--text); font-size: var(--t-12); border: 0; }
-  .chip { min-height: 44px; padding: 0 var(--s-3); cursor: pointer; font: inherit; font-size: var(--t-13); }
-  .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .ban { display: flex; flex-wrap: wrap; gap: var(--s-1); margin-top: var(--s-4); }
   h2 { margin: 0 0 var(--s-1); font-size: var(--t-12); text-transform: uppercase; color: var(--muted); letter-spacing: .04em; }
   section { margin-bottom: var(--s-4); }
   .note { text-align: center; color: var(--muted); padding: var(--s-5) 0; }
