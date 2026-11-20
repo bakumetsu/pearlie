@@ -281,7 +281,7 @@
 	.btns {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--s-2);
+		gap: var(--s-2) var(--s-4);
 	}
 	.btn {
 		min-height: 44px;
