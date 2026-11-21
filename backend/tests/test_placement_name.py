@@ -99,3 +99,30 @@ def test_year_after_dash_is_not_a_volume() -> None:
     assert not parse_name("Fate - 2025").is_series
     assert parse_name("Fate - 2025", hardened=False).is_series
 
+
+_COSPLAY = "Cosplay-bu Ura Katsudou Nisshi - Cosplay CLUB Secret Activity diary"
+
+
+@pytest.mark.parametrize("number", ["1", "2", "4", "5"])
+def test_number_ending_the_english_part_is_a_volume(number: str) -> None:
+    p = parse_name(f"[Grove Grow (Komori Kuduyu)] {_COSPLAY} {number} [English] [MTL]")
+    assert (p.author, p.root, p.number, p.is_series) == (
+        "[Grove Grow (Komori Kuduyu)]",
+        "Cosplay-bu Ura Katsudou Nisshi",
+        number,
+        True,
+    )
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Fate - Grand Order 2023",  # a year
+        "Fate - Grand Order 2 Special",  # bare number with a tail
+        "Fate - Grand Order III Special",  # roman number with a tail
+        "Fate - Grand Order",  # no number
+    ],
+)
+def test_number_in_english_part_stays_oneshot_when_rules_reject(title: str) -> None:
+    p = parse_name(title)
+    assert (p.root, p.number, p.is_series) == ("Fate", "", False)
