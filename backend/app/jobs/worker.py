@@ -237,6 +237,11 @@ class JobWorker:
                 )
                 if attempt < self._FINISH_TRIES:
                     time.sleep(0.2 * attempt)
+        logger.error(
+            "job=%s left running: finish failed %d times; the next start requeues it (recover)",
+            job_id,
+            self._FINISH_TRIES,
+        )
 
     def _run_job(self, job_id: str, source_id: str) -> None:
         try:
