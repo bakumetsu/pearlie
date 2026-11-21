@@ -106,6 +106,19 @@ describe("DebugKeyCard", () => {
     expect(screen.getByRole("button", { name: "New key" })).toBeTruthy();
   });
 
+  it("Never creates a key without expiry and the active card warns", async () => {
+    const NEVER = { ...ACTIVE, expires_at: null };
+    hoisted.api.getDebugKey.mockResolvedValueOnce(OFF).mockResolvedValueOnce(NEVER);
+    hoisted.api.createDebugKey.mockResolvedValueOnce({ ...CREATED, expires_at: null });
+    render(DebugKeyCard);
+    await fireEvent.click(await screen.findByRole("button", { name: "Never" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Create key" }));
+    expect(hoisted.api.createDebugKey).toHaveBeenCalledWith("never");
+    expect(await screen.findByText(/It never expires/)).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(await screen.findByText(/No expiry\. Revoke the key/)).toBeTruthy();
+  });
+
   it("Revoke sends DELETE without a confirm and shows a toast", async () => {
     hoisted.api.getDebugKey.mockResolvedValueOnce(ACTIVE).mockResolvedValueOnce(OFF);
     hoisted.api.deleteDebugKey.mockResolvedValueOnce(undefined);

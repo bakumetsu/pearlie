@@ -10,6 +10,7 @@
 		{ id: "1h", label: "1 hour" },
 		{ id: "24h", label: "24 hours" },
 		{ id: "7d", label: "7 days" },
+		{ id: "never", label: "Never" },
 	];
 
 	let status = $state<Status | null>(null);
@@ -138,7 +139,7 @@
 			<div class="btns"><button class="btn" onclick={load}>Retry</button></div>
 		</div>
 	{:else if created}
-		<p class="line" aria-live="polite">Key created. Expires {rel(created.expires_at, true)}.</p>
+		<p class="line" aria-live="polite">Key created. {created.expires_at ? `Expires ${rel(created.expires_at, true)}.` : "It never expires."}</p>
 		<div class="body">
 			<div class="keywrap">
 				<div
@@ -180,17 +181,28 @@
 		</p>
 		<div class="body">
 			<dl>
-				<dt>Key id</dt>
-				<dd>{status.id}</dd>
-				<dt>{expired ? "Expired" : "Expires"}</dt>
-				<dd title={exact(status.expires_at)} aria-label={exact(status.expires_at)}>
-					{rel(status.expires_at, true)}
-				</dd>
-				<dt>Last used</dt>
-				<dd>{status.last_used_at ? `${rel(status.last_used_at, false)} (approx.)` : "never"}</dd>
-				<dt>Uses</dt>
-				<dd>about {status.uses_approx}</dd>
+				<div>
+					<dt>Key id</dt>
+					<dd>{status.id}</dd>
+				</div>
+				<div>
+					<dt>{expired ? "Expired" : "Expires"}</dt>
+					<dd title={exact(status.expires_at)} aria-label={exact(status.expires_at)}>
+						{rel(status.expires_at, true)}
+					</dd>
+				</div>
+				<div>
+					<dt>Last used</dt>
+					<dd>{status.last_used_at ? `${rel(status.last_used_at, false)} (approx.)` : "never"}</dd>
+				</div>
+				<div>
+					<dt>Uses</dt>
+					<dd>about {status.uses_approx}</dd>
+				</div>
 			</dl>
+			{#if !expired && !status.expires_at}
+				<p class="warn"><Icon name="triangle-alert" size={16} />No expiry. Revoke the key when you are done.</p>
+			{/if}
 			{#if confirmNew}
 				<p class="line nopad" role="alert">Replace the current key?</p>
 				<div class="btns">
@@ -234,10 +246,10 @@
 		padding: 0;
 	}
 	.body {
-		padding: var(--s-2) 16px 0;
+		padding: var(--s-1) 16px 0;
 		display: flex;
 		flex-direction: column;
-		gap: var(--s-3);
+		gap: var(--s-2);
 	}
 	.skel {
 		height: 14px;
@@ -356,25 +368,23 @@
 	dl {
 		margin: 0;
 		display: grid;
-		grid-template-columns: auto 1fr;
-		gap: 0 var(--s-4);
+		grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+		gap: var(--s-2) var(--s-3);
+	}
+	dl > div {
+		min-width: 0;
 	}
 	dt,
 	dd {
 		margin: 0;
-		padding: 10px 0;
-		border-top: 1px solid var(--line);
 	}
 	dt {
 		color: var(--muted);
+		font-size: var(--t-12);
 	}
 	dd {
-		text-align: right;
+		font-size: var(--t-13);
 		font-variant-numeric: tabular-nums;
-	}
-	dt:first-of-type,
-	dt:first-of-type + dd {
-		border-top: 0;
 	}
 	.chip {
 		display: inline-flex;

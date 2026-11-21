@@ -1607,7 +1607,7 @@ export interface components {
              * Ttl
              * @enum {string}
              */
-            ttl: "1h" | "24h" | "7d";
+            ttl: "1h" | "24h" | "7d" | "never";
         };
         /** CreatedKey */
         CreatedKey: {
@@ -1616,7 +1616,7 @@ export interface components {
             /** Id */
             id: string;
             /** Expires At */
-            expires_at: string;
+            expires_at: string | null;
         };
         /** DebugBody */
         DebugBody: {
@@ -3048,7 +3048,7 @@ export interface components {
             /** Key Id */
             key_id: string;
             /** Expires At */
-            expires_at: string;
+            expires_at: string | null;
             /** Scope */
             scope: string[];
         };

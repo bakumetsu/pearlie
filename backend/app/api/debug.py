@@ -45,7 +45,7 @@ Limit = Annotated[int, Query(ge=1, le=200)]
 
 class Whoami(BaseModel):
     key_id: str
-    expires_at: str
+    expires_at: str | None
     scope: list[str]
 
 
