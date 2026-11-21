@@ -194,10 +194,10 @@
 					<dd>about {status.uses_approx}</dd>
 				</div>
 			</dl>
-			{#if !expired && !status.expires_at}
-				<p class="warn"><Icon name="triangle-alert" size={16} />No expiry. Revoke the key when you are done.</p>
-			{/if}
-			<div class="btns">
+			<div class="foot">
+				{#if !expired && !status.expires_at}
+					<p class="warn"><Icon name="triangle-alert" size={16} />No expiry. Revoke the key when you are done.</p>
+				{/if}
 				<button
 					class="btn dng"
 					disabled={busy}
@@ -228,7 +228,7 @@
 			onkeydown={onDialogKeydown}
 		>
 			{#if dialog === "shown" && created}
-				<h2 class="card-title" id="debugkey-dlg-title">
+				<h2 class="dtitle" id="debugkey-dlg-title">
 					<Icon name="shield" size={18} />Key created
 				</h2>
 				<p class="line" aria-live="polite">{created.expires_at ? `Expires ${rel(created.expires_at, true)}.` : "It never expires."}</p>
@@ -254,7 +254,7 @@
 					</div>
 				</div>
 			{:else}
-				<h2 class="card-title" id="debugkey-dlg-title">
+				<h2 class="dtitle" id="debugkey-dlg-title">
 					{status?.state === "off" ? "Create key" : "Replace the current key?"}
 				</h2>
 				<div class="body">
@@ -300,10 +300,40 @@
 	.dlg {
 		background: var(--surface);
 		border-radius: var(--r-sm);
-		padding-bottom: var(--s-4);
-		max-width: 460px;
+		padding: var(--s-4);
+		max-width: 420px;
 		width: calc(100% - 32px);
 		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+	}
+	.dtitle {
+		display: flex;
+		align-items: center;
+		gap: var(--s-2);
+		margin: 0 0 var(--s-1);
+		font-size: var(--t-15);
+		font-weight: 600;
+	}
+	.dlg .line {
+		padding: 0 0 var(--s-3);
+	}
+	.dlg .body {
+		padding: 0;
+	}
+	.dlg .btns {
+		display: grid;
+		grid-auto-flow: column;
+		grid-auto-columns: 1fr;
+		gap: var(--s-2);
+	}
+	.foot {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: var(--s-2) var(--s-3);
+	}
+	.foot .btn {
+		margin-left: auto;
 	}
 	.line {
 		margin: 0;
@@ -357,7 +387,7 @@
 	.seg[aria-pressed="true"] {
 		background: var(--accent-bg);
 		color: var(--accent);
-		box-shadow: inset 0 -3px 0 var(--accent);
+		box-shadow: inset 0 0 0 1px var(--accent);
 	}
 	.btns {
 		display: flex;
@@ -405,7 +435,10 @@
 		background: var(--bg);
 		border: 1px solid var(--line-strong);
 		border-radius: var(--r-sm);
-		padding: var(--s-3);
+		padding: 0 var(--s-3);
+		display: flex;
+		align-items: center;
+		min-height: 44px;
 		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 		font-size: var(--t-12);
 		overflow-wrap: anywhere;
@@ -425,7 +458,7 @@
 	}
 	.warn {
 		display: flex;
-		align-items: flex-start;
+		align-items: center;
 		gap: var(--s-2);
 		margin: 0;
 		color: var(--progress);
