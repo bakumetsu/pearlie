@@ -1,4 +1,4 @@
-/* global console, process */
+/* global console, process, URL */
 // Dev-only fixture API for the UI checks. No real Stash, Stump or site calls, no secrets.
 // Start: node scripts/stub-api.mjs [port]  (default 8010; Vite: --config vite.stub.config.ts)
 // /__expire: debug key expired. /__error: real 500 on it and on later GETs; DELETE debug-key clears it.
