@@ -161,6 +161,30 @@ describe("DebugKeyCard", () => {
     expect(screen.getByText("pdk_secretvalue123")).toBeTruthy();
   });
 
+  it("Tab and Shift+Tab wrap inside the dialog", async () => {
+    hoisted.api.getDebugKey.mockResolvedValueOnce(OFF);
+    render(DebugKeyCard);
+    await openDialog("Create key");
+    const dlg = screen.getByRole("dialog");
+    const items = Array.from(dlg.querySelectorAll<HTMLElement>("button"));
+    const first = items[0];
+    const last = items[items.length - 1];
+    last.focus();
+    const fwd = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    last.dispatchEvent(fwd);
+    expect(fwd.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(first);
+    const back = new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true });
+    first.dispatchEvent(back);
+    expect(back.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(last);
+    // From the dialog box itself (focus on open), Shift+Tab goes to the last item.
+    dlg.focus();
+    const fromBox = new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true });
+    dlg.dispatchEvent(fromBox);
+    expect(document.activeElement).toBe(last);
+  });
+
   it("expired state shows the chip and a Remove button", async () => {
     hoisted.api.getDebugKey.mockResolvedValueOnce(EXPIRED);
     render(DebugKeyCard);

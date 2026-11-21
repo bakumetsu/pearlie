@@ -131,7 +131,34 @@
 		opener?.focus();
 	}
 
+	const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+	// Keep Tab and Shift+Tab inside the modal dialog.
+	function trapTab(e: KeyboardEvent) {
+		if (!dialogEl) return;
+		const items = Array.from(dialogEl.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => !el.hasAttribute("disabled"));
+		if (!items.length) {
+			e.preventDefault();
+			dialogEl.focus();
+			return;
+		}
+		const first = items[0];
+		const last = items[items.length - 1];
+		const active = document.activeElement;
+		if (e.shiftKey && (active === first || active === dialogEl)) {
+			e.preventDefault();
+			last.focus();
+		} else if (!e.shiftKey && (active === last || active === dialogEl)) {
+			e.preventDefault();
+			first.focus();
+		}
+	}
+
 	function onDialogKeydown(e: KeyboardEvent) {
+		if (e.key === "Tab") {
+			trapTab(e);
+			return;
+		}
 		// The key is shown once: only Done closes that step.
 		if (e.key === "Escape" && dialog === "pick") {
 			e.preventDefault();
