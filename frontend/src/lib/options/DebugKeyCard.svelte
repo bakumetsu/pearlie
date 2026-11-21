@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, onMount } from "svelte";
+	import { onDestroy, onMount, tick } from "svelte";
 	import { getApi } from "../api/client";
 	import type { CreatedDebugKey as Created, DebugKeyStatus as Status, DebugKeyTtl as Ttl } from "../api/client";
 	import Icon from "../components/Icon.svelte";
@@ -17,7 +17,10 @@
 	let phase = $state<"loading" | "ready" | "error">("loading");
 	let ttl = $state<Ttl>("24h");
 	let busy = $state(false);
-	let confirmNew = $state(false);
+	// "pick": choose the lifetime; "shown": the new key, once. Both live in the dialog.
+	let dialog = $state<"pick" | "shown" | null>(null);
+	let dialogEl = $state<HTMLElement | null>(null);
+	let opener: HTMLElement | null = null;
 	// The key lives only here: never in storage, a log or the URL.
 	let created = $state<Created | null>(null);
 	let copied = $state(false);
@@ -65,7 +68,7 @@
 			const k = await api.createDebugKey(ttl);
 			if (!alive) return;
 			created = k;
-			confirmNew = false;
+			dialog = "shown";
 			copied = false;
 			await load();
 		} catch {
@@ -82,7 +85,7 @@
 			await api.deleteDebugKey();
 			if (!alive) return;
 			created = null;
-			confirmNew = false;
+			dialog = null;
 			toasts.push({ kind: "info", message: label });
 			await load();
 		} catch {
@@ -116,19 +119,46 @@
 		}
 	}
 
+	function openDialog() {
+		opener = document.activeElement as HTMLElement | null;
+		dialog = "pick";
+		void tick().then(() => dialogEl?.focus());
+	}
+
+	function closeDialog() {
+		if (dialog === "shown") created = null;
+		dialog = null;
+		opener?.focus();
+	}
+
+	function onDialogKeydown(e: KeyboardEvent) {
+		// The key is shown once: only Done closes that step.
+		if (e.key === "Escape" && dialog === "pick") {
+			e.preventDefault();
+			closeDialog();
+		}
+	}
+
 	onMount(() => {
 		void load();
 	});
 </script>
 
 <section class="card debugkey">
-	<h2 class="card-title">
-		<Icon name="shield" size={18} />
-		Debug access
-		{#if phase === "ready" && status?.state === "expired" && !created}
-			<span class="chip"><Icon name="triangle-alert" size={14} />Expired</span>
+	<div class="head">
+		<h2 class="card-title">
+			<Icon name="shield" size={18} />
+			Debug access
+			{#if phase === "ready" && status?.state === "expired"}
+				<span class="chip"><Icon name="triangle-alert" size={14} />Expired</span>
+			{/if}
+		</h2>
+		{#if phase === "ready" && status}
+			<button class="btn pri" disabled={busy} onclick={openDialog}>
+				{status.state === "off" ? "Create key" : "New key"}
+			</button>
 		{/if}
-	</h2>
+	</div>
 
 	{#if phase === "loading" && !status}
 		<div class="skel" role="status" aria-label="Loading"></div>
@@ -138,43 +168,7 @@
 			<p class="line nopad">Could not load the key state</p>
 			<div class="btns"><button class="btn" onclick={load}>Retry</button></div>
 		</div>
-	{:else if created}
-		<p class="line" aria-live="polite">Key created. {created.expires_at ? `Expires ${rel(created.expires_at, true)}.` : "It never expires."}</p>
-		<div class="body">
-			<div class="keywrap">
-				<div
-					class="key"
-					bind:this={keyBox}
-					role="textbox"
-					tabindex="0"
-					aria-readonly="true"
-					aria-label="Debug key, shown once"
-					onclick={selectKey}
-					onkeydown={(e) => (e.key === "Enter" ? selectKey() : null)}
-				>{created.key}</div>
-				<button class="icb" aria-label="Copy key" title="Copy key" onclick={copy}>
-					<Icon name={copied ? "check" : "copy"} size={18} />
-				</button>
-			</div>
-			<p class="warn"><Icon name="triangle-alert" size={16} />Shown once. Store it now; Pearlie keeps only a hash.</p>
-			<div class="btns">
-				<button class="btn pri" onclick={() => (created = null)}>Done</button>
-			</div>
-		</div>
-	{:else if status?.state === "off"}
-		<p class="line" aria-live="polite">Off. Lets Claude read jobs, logs and state, read-only.</p>
-		<div class="body">
-			<div class="seg-group" role="group" aria-label="Key lifetime">
-				{#each TTLS as t (t.id)}
-					<button class="seg" aria-pressed={ttl === t.id} onclick={() => (ttl = t.id)}>{t.label}</button>
-				{/each}
-			</div>
-			<div class="btns">
-				<button class="btn pri" disabled={busy} onclick={create}>Create key</button>
-			</div>
-			<p class="line nopad">Needs the proxy to let /api/debug/ pass. Not needed on Tailscale.</p>
-		</div>
-	{:else if status}
+	{:else if status && status.state !== "off"}
 		{@const expired = status.state === "expired"}
 		<p class="line" aria-live="polite">
 			{expired ? "This key no longer works." : "On. Claude can read jobs, logs and state."}
@@ -203,38 +197,113 @@
 			{#if !expired && !status.expires_at}
 				<p class="warn"><Icon name="triangle-alert" size={16} />No expiry. Revoke the key when you are done.</p>
 			{/if}
-			{#if confirmNew}
-				<p class="line nopad" role="alert">Replace the current key?</p>
-				<div class="btns">
-					<button class="btn pri" disabled={busy} onclick={create}>Replace</button>
-					<button class="btn" onclick={() => (confirmNew = false)}>Cancel</button>
-				</div>
-			{:else}
-				<div class="seg-group" role="group" aria-label="Key lifetime">
-					{#each TTLS as t (t.id)}
-						<button class="seg" aria-pressed={ttl === t.id} onclick={() => (ttl = t.id)}>{t.label}</button>
-					{/each}
-				</div>
-				<div class="btns">
-					<button class="btn pri" disabled={busy} onclick={() => (confirmNew = true)}>New key</button>
-					<button
-						class="btn dng revoke"
-						disabled={busy}
-						onclick={() => revoke(expired ? "Key removed" : "Key revoked")}
-					>
-						<Icon name="trash" size={18} />{expired ? "Remove" : "Revoke"}
-					</button>
-				</div>
-			{/if}
+			<div class="btns">
+				<button
+					class="btn dng"
+					disabled={busy}
+					onclick={() => revoke(expired ? "Key removed" : "Key revoked")}
+				>
+					<Icon name="trash" size={18} />{expired ? "Remove" : "Revoke"}
+				</button>
+			</div>
 		</div>
 	{/if}
 </section>
+
+{#if dialog}
+	<div
+		class="overlay"
+		role="presentation"
+		onclick={(e) => {
+			if (e.target === e.currentTarget && dialog === "pick") closeDialog();
+		}}
+	>
+		<div
+			class="dlg"
+			role="dialog"
+			tabindex="-1"
+			aria-modal="true"
+			aria-labelledby="debugkey-dlg-title"
+			bind:this={dialogEl}
+			onkeydown={onDialogKeydown}
+		>
+			{#if dialog === "shown" && created}
+				<h2 class="card-title" id="debugkey-dlg-title">
+					<Icon name="shield" size={18} />Key created
+				</h2>
+				<p class="line" aria-live="polite">{created.expires_at ? `Expires ${rel(created.expires_at, true)}.` : "It never expires."}</p>
+				<div class="body">
+					<div class="keywrap">
+						<div
+							class="key"
+							bind:this={keyBox}
+							role="textbox"
+							tabindex="0"
+							aria-readonly="true"
+							aria-label="Debug key, shown once"
+							onclick={selectKey}
+							onkeydown={(e) => (e.key === "Enter" ? selectKey() : null)}
+						>{created.key}</div>
+						<button class="icb" aria-label="Copy key" title="Copy key" onclick={copy}>
+							<Icon name={copied ? "check" : "copy"} size={18} />
+						</button>
+					</div>
+					<p class="warn"><Icon name="triangle-alert" size={16} />Shown once. Store it now; Pearlie keeps only a hash.</p>
+					<div class="btns">
+						<button class="btn pri" onclick={closeDialog}>Done</button>
+					</div>
+				</div>
+			{:else}
+				<h2 class="card-title" id="debugkey-dlg-title">
+					{status?.state === "off" ? "Create key" : "Replace the current key?"}
+				</h2>
+				<div class="body">
+					<div class="seg-group" role="group" aria-label="Key lifetime">
+						{#each TTLS as t (t.id)}
+							<button class="seg" aria-pressed={ttl === t.id} onclick={() => (ttl = t.id)}>{t.label}</button>
+						{/each}
+					</div>
+					<div class="btns">
+						<button class="btn pri" disabled={busy} onclick={create}>
+							{status?.state === "off" ? "Create key" : "Replace"}
+						</button>
+						<button class="btn" onclick={closeDialog}>Cancel</button>
+					</div>
+				</div>
+			{/if}
+		</div>
+	</div>
+{/if}
 
 <style>
 	.card-title {
 		display: flex;
 		align-items: center;
 		gap: var(--s-2);
+	}
+	.head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--s-3);
+		padding-right: 16px;
+	}
+	.overlay {
+		position: fixed;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(0, 0, 0, 0.4);
+		z-index: 1000;
+	}
+	.dlg {
+		background: var(--surface);
+		border-radius: var(--r-sm);
+		padding-bottom: var(--s-4);
+		max-width: 460px;
+		width: calc(100% - 32px);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 	}
 	.line {
 		margin: 0;
@@ -320,9 +389,6 @@
 		background: var(--danger-bg);
 		border-color: transparent;
 		color: var(--danger-fg);
-	}
-	.btn.revoke {
-		margin-left: auto;
 	}
 	.btn:disabled {
 		opacity: 0.5;

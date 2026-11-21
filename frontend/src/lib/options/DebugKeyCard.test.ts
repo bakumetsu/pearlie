@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, fireEvent, screen, waitFor } from "@testing-library/svelte";
+import { render, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/svelte";
 import DebugKeyCard from "./DebugKeyCard.svelte";
 import { toasts } from "../stores/toasts.svelte";
 
@@ -29,6 +29,12 @@ vi.mock("../api/client", async (orig) => ({
   getApi: () => hoisted.api,
 }));
 
+// Opens the dialog from the header button; returns queries scoped to the dialog.
+async function openDialog(name: "Create key" | "New key") {
+  await fireEvent.click(await screen.findByRole("button", { name }));
+  return within(await screen.findByRole("dialog"));
+}
+
 describe("DebugKeyCard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -39,25 +45,30 @@ describe("DebugKeyCard", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows the off state with the 24 hours lifetime selected", async () => {
+  it("off state has Create key in the header, no hint text, and the lifetime only in the dialog", async () => {
     hoisted.api.getDebugKey.mockResolvedValueOnce(OFF);
     render(DebugKeyCard);
-    expect(await screen.findByText(/Off\. Lets Claude read/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "24 hours" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: "Create key" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Create key" })).toBeTruthy();
+    expect(screen.queryByText(/Lets Claude read/)).toBeNull();
+    expect(screen.queryByText(/Needs the proxy/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "24 hours" })).toBeNull();
+    const dlg = await openDialog("Create key");
+    expect(dlg.getByRole("button", { name: "24 hours" }).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("creates a key, shows it once with Copy, and Done hides it", async () => {
     hoisted.api.getDebugKey.mockResolvedValueOnce(OFF).mockResolvedValueOnce(ACTIVE);
     hoisted.api.createDebugKey.mockResolvedValueOnce(CREATED);
     render(DebugKeyCard);
-    await fireEvent.click(await screen.findByRole("button", { name: "7 days" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Create key" }));
+    const dlg = await openDialog("Create key");
+    await fireEvent.click(dlg.getByRole("button", { name: "7 days" }));
+    await fireEvent.click(dlg.getByRole("button", { name: "Create key" }));
     expect(await screen.findByLabelText("Debug key, shown once")).toBeTruthy();
     expect(screen.getByText("pdk_secretvalue123")).toBeTruthy();
     expect(hoisted.api.createDebugKey).toHaveBeenCalledWith("7d");
     await fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.queryByText("pdk_secretvalue123")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(await screen.findByText("ab12cd34")).toBeTruthy();
   });
 
@@ -67,7 +78,8 @@ describe("DebugKeyCard", () => {
     hoisted.api.getDebugKey.mockResolvedValueOnce(OFF).mockResolvedValueOnce(ACTIVE);
     hoisted.api.createDebugKey.mockResolvedValueOnce(CREATED);
     render(DebugKeyCard);
-    await fireEvent.click(await screen.findByRole("button", { name: "Create key" }));
+    const dlg = await openDialog("Create key");
+    await fireEvent.click(dlg.getByRole("button", { name: "Create key" }));
     await fireEvent.click(await screen.findByRole("button", { name: "Copy key" }));
     expect(writeText).toHaveBeenCalledWith("pdk_secretvalue123");
     expect(toasts.push).toHaveBeenCalledWith({ kind: "info", message: "Copied" });
@@ -78,7 +90,8 @@ describe("DebugKeyCard", () => {
     hoisted.api.getDebugKey.mockResolvedValueOnce(OFF).mockResolvedValueOnce(ACTIVE);
     hoisted.api.createDebugKey.mockResolvedValueOnce(CREATED);
     render(DebugKeyCard);
-    await fireEvent.click(await screen.findByRole("button", { name: "Create key" }));
+    const dlg = await openDialog("Create key");
+    await fireEvent.click(dlg.getByRole("button", { name: "Create key" }));
     await fireEvent.click(await screen.findByRole("button", { name: "Copy key" }));
     expect(screen.getByText("pdk_secretvalue123")).toBeTruthy();
     expect(toasts.push).toHaveBeenCalledWith(expect.objectContaining({ kind: "error" }));
@@ -88,11 +101,12 @@ describe("DebugKeyCard", () => {
     hoisted.api.getDebugKey.mockResolvedValueOnce(OFF);
     hoisted.api.createDebugKey.mockRejectedValueOnce(new Error("x"));
     render(DebugKeyCard);
-    await fireEvent.click(await screen.findByRole("button", { name: "Create key" }));
+    const dlg = await openDialog("Create key");
+    await fireEvent.click(dlg.getByRole("button", { name: "Create key" }));
     await waitFor(() =>
       expect(toasts.push).toHaveBeenCalledWith({ kind: "error", message: "Could not create the key" }),
     );
-    expect(screen.getByRole("button", { name: "Create key" })).toBeTruthy();
+    expect(dlg.getByRole("button", { name: "Create key" })).toBeTruthy();
   });
 
   it("active state shows rows, approx. wording and asks before replacing", async () => {
@@ -100,10 +114,11 @@ describe("DebugKeyCard", () => {
     render(DebugKeyCard);
     expect(await screen.findByText("about 12")).toBeTruthy();
     expect(screen.getByText("never")).toBeTruthy();
-    await fireEvent.click(screen.getByRole("button", { name: "New key" }));
-    expect(screen.getByText("Replace the current key?")).toBeTruthy();
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.getByRole("button", { name: "New key" })).toBeTruthy();
+    const dlg = await openDialog("New key");
+    expect(dlg.getByText("Replace the current key?")).toBeTruthy();
+    await fireEvent.click(dlg.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(hoisted.api.createDebugKey).not.toHaveBeenCalled();
   });
 
   it("Never creates a key without expiry and the active card warns", async () => {
@@ -111,8 +126,9 @@ describe("DebugKeyCard", () => {
     hoisted.api.getDebugKey.mockResolvedValueOnce(OFF).mockResolvedValueOnce(NEVER);
     hoisted.api.createDebugKey.mockResolvedValueOnce({ ...CREATED, expires_at: null });
     render(DebugKeyCard);
-    await fireEvent.click(await screen.findByRole("button", { name: "Never" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Create key" }));
+    const dlg = await openDialog("Create key");
+    await fireEvent.click(dlg.getByRole("button", { name: "Never" }));
+    await fireEvent.click(dlg.getByRole("button", { name: "Create key" }));
     expect(hoisted.api.createDebugKey).toHaveBeenCalledWith("never");
     expect(await screen.findByText(/It never expires/)).toBeTruthy();
     await fireEvent.click(screen.getByRole("button", { name: "Done" }));
@@ -129,6 +145,20 @@ describe("DebugKeyCard", () => {
     );
     expect(hoisted.api.deleteDebugKey).toHaveBeenCalledTimes(1);
     expect(await screen.findByRole("button", { name: "Create key" })).toBeTruthy();
+  });
+
+  it("Escape closes the pick step but not the shown key", async () => {
+    hoisted.api.getDebugKey.mockResolvedValueOnce(OFF).mockResolvedValueOnce(ACTIVE);
+    hoisted.api.createDebugKey.mockResolvedValueOnce(CREATED);
+    render(DebugKeyCard);
+    let dlg = await openDialog("Create key");
+    await fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    dlg = await openDialog("Create key");
+    await fireEvent.click(dlg.getByRole("button", { name: "Create key" }));
+    await screen.findByText("pdk_secretvalue123");
+    await fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.getByText("pdk_secretvalue123")).toBeTruthy();
   });
 
   it("expired state shows the chip and a Remove button", async () => {
@@ -151,7 +181,8 @@ describe("DebugKeyCard", () => {
     hoisted.api.getDebugKey.mockResolvedValueOnce(OFF).mockResolvedValueOnce(ACTIVE);
     hoisted.api.createDebugKey.mockResolvedValueOnce(CREATED);
     render(DebugKeyCard);
-    await fireEvent.click(await screen.findByRole("button", { name: "Create key" }));
+    const dlg = await openDialog("Create key");
+    await fireEvent.click(dlg.getByRole("button", { name: "Create key" }));
     await screen.findByText("pdk_secretvalue123");
     expect(setItem).not.toHaveBeenCalled();
   });
