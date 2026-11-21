@@ -286,10 +286,14 @@
 		display: flex;
 		align-items: center;
 		gap: var(--s-2);
+		min-width: 0;
 	}
 	.muted {
 		color: var(--muted);
 		font-size: var(--t-13);
+		min-width: 0;
+		overflow-wrap: anywhere;
+		text-align: right;
 	}
 	.pill {
 		background: var(--accent-bg);
