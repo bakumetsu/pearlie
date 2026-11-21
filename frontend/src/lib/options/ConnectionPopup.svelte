@@ -257,15 +257,6 @@
 						aria-label="Open nhentai API key settings (new tab)"><Icon name="external-link" size={16} /></a
 					>
 				</div>
-				<button
-					class="btn fold"
-					type="button"
-					aria-expanded={advOpen}
-					aria-controls="conn-advanced"
-					onclick={() => (advOpen = !advOpen)}
-				>
-					<Icon name={advOpen ? "chevron-down" : "chevron-right"} size={16} /> Advanced
-				</button>
 				{#if advOpen}
 					<div id="conn-advanced">
 						{#each advFields as f (f.id)}
@@ -333,6 +324,17 @@
 		{/if}
 
 		<div class="row actions">
+			{#if multi && hasApiKey}
+				<button
+					class="btn fold"
+					type="button"
+					aria-expanded={advOpen}
+					aria-controls="conn-advanced"
+					onclick={() => (advOpen = !advOpen)}
+				>
+					<Icon name={advOpen ? "chevron-down" : "chevron-right"} size={16} /> Advanced
+				</button>
+			{/if}
 			<button class="btn" disabled={busy} onclick={onclose}>Cancel</button>
 			<button class="btn primary" disabled={busy} onclick={handleSaveAndTest}>Save</button>
 		</div>
@@ -418,7 +420,7 @@
 		text-decoration: none;
 	}
 	.fold {
-		width: 100%;
+		margin-right: auto;
 		justify-content: flex-start;
 		gap: 0.25rem;
 		padding: 0 0.25rem;
