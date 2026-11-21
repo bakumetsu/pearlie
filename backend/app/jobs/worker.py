@@ -218,16 +218,25 @@ class JobWorker:
 
         return report
 
+    _FINISH_TRIES = 5
+
     def _finish_failed(self, job_id: str, error: str, error_code: str) -> None:
-        """Write the failed row; retry once so a transient DB error cannot leave it running."""
-        for attempt in (1, 2):
+        """Write the failed row; retry with a growing pause so a transient DB error cannot
+        leave the job running (a running row blocks a new job for the same post)."""
+        for attempt in range(1, self._FINISH_TRIES + 1):
             try:
                 self._store.finish(job_id, "failed", error=error, error_code=error_code)
                 return
             except Exception as e:
-                logger.error("job=%s finish failed (try %d): %s", job_id, attempt, type(e).__name__)
-                if attempt == 1:
-                    time.sleep(0.2)
+                logger.error(
+                    "job=%s finish failed (try %d/%d): %s",
+                    job_id,
+                    attempt,
+                    self._FINISH_TRIES,
+                    type(e).__name__,
+                )
+                if attempt < self._FINISH_TRIES:
+                    time.sleep(0.2 * attempt)
 
     def _run_job(self, job_id: str, source_id: str) -> None:
         try:

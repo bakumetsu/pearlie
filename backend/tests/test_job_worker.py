@@ -492,6 +492,29 @@ def test_failed_finish_does_not_leave_job_running(
     assert calls == ["done", "failed", "failed"]
 
 
+def test_failed_finish_retries_past_two_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    worker, store, target, sources, clock = make(tmp_path)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    real_finish = store.finish
+    calls: list[str] = []
+
+    def flaky(job_id: str, state: str, *args: Any, **kwargs: Any) -> None:
+        calls.append(state)
+        if len(calls) <= 4:
+            raise RuntimeError("db locked")
+        real_finish(job_id, state, *args, **kwargs)
+
+    monkeypatch.setattr(worker._store, "finish", flaky)
+    jid = enqueue(store, sources, "danbooru", "1")
+    assert worker.run_once() is True
+    job = store.get(jid)
+    assert job is not None
+    assert job.state == "failed"
+    assert calls == ["done", "failed", "failed", "failed", "failed"]
+
+
 def test_stump_progress_stored_and_cleared(tmp_path: Path) -> None:
     from app.targets.stump import StumpTarget
 

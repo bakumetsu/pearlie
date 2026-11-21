@@ -184,7 +184,7 @@ def make_graphql_handler(
 def make_site_handler(
     requests: list[httpx.Request],
     content: bytes = b"pngbytes",
-    content_length: int | None = None,
+    content_length: int | str | None = None,
     content_type: str | None = None,
 ) -> Callable[[httpx.Request], httpx.Response]:
     def handler(request: httpx.Request) -> httpx.Response:
@@ -252,7 +252,7 @@ def make_target(
         path_ids: Sequence[str] = ("7",),
         scene_path_ids: Sequence[str] = (),
         content: bytes = b"pngbytes",
-        content_length: int | None = None,
+        content_length: int | str | None = None,
         content_type: str | None = None,
         job_status: str = "FINISHED",
         tag_hits: Sequence[list[dict]] = (),
@@ -606,6 +606,19 @@ def test_size_mismatch(
     with pytest.raises(stash.SaveError) as exc:
         target.save(post, [])
     assert exc.value.code == "size_mismatch"
+    assert list((tmp_path / "temp").glob("*.part")) == []
+
+
+def test_bad_content_length_header_is_treated_as_missing(
+    settings: Settings,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_target,
+) -> None:
+    patch_folder(monkeypatch)
+    target = make_target(content_length="abc")
+    post = make_post()
+    target.save(post, [])  # no ValueError, no size check
     assert list((tmp_path / "temp").glob("*.part")) == []
 
 
