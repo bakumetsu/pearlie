@@ -167,6 +167,19 @@ def test_download_budget_does_not_wait(env) -> None:
     assert site.page_gets == 3
 
 
+def test_throttle_refusal_does_not_use_download_budget(env) -> None:
+    from app.sources.base import SourceError
+
+    _target, src, site, _dest = env
+    src.check_key()
+    src._throttle.hold_until(60.0, "download")
+    for _ in range(DOWNLOAD_LIMIT + 3):
+        with pytest.raises(SourceError) as exc:
+            src.download_url("42")
+        assert exc.value.status == 429
+    assert len(src._download_times) == 0 and site.posts == 0
+
+
 def test_same_page_bytes_give_the_same_cbz_from_both_routes(tmp_path: Path) -> None:
     from app.targets.comicinfo import build_cbz, repack_download
 
