@@ -203,3 +203,13 @@ def test_clean_folder_name_drops_backslash():
     assert clean_folder_name("a\\b") == "ab"
     assert clean_folder_name("..\\..\\x") == "....x"
     assert clean_folder_name("\\") == "Grouped_Series"
+
+
+def test_plan_romaji_dash_english_volumes_share_one_series(tmp_path):
+    idx = build_index(_tree(tmp_path), "_oneshots")
+    base = "[G (K)] Cosplay-bu Ura Katsudou Nisshi - Cosplay CLUB Secret Activity diary"
+    plans = [make_plan(idx, parse_name(f"{base} {n} [English]"), "auto") for n in (1, 2, 4, 5)]
+    assert {(p.kind, p.series, p.folder) for p in plans} == {
+        ("series", "Cosplay-bu Ura Katsudou Nisshi", "[G (K)] Cosplay-bu Ura Katsudou Nisshi")
+    }
+    assert [p.number for p in plans] == ["1", "2", "4", "5"]

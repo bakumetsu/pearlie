@@ -125,6 +125,10 @@ def parse_name(
             if _ROMAN_RE.match(num):
                 num = str(_roman_to_int(num))
             return ParsedName(author, primary, num, True)
+        # "Romaji - English title 5": the number ends the English part, the root is the romaji
+        tail_vol = _try_volume(rest, hardened)
+        if tail_vol is not None:
+            return ParsedName(author, primary, tail_vol[1], True)
 
     # 7. Fallback
     root = primary if primary else "Unknown_Title"
