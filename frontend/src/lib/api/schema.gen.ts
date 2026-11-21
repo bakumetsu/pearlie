@@ -1116,6 +1116,178 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/options/debug-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Status */
+        get: operations["get_status_api_options_debug_key_get"];
+        put?: never;
+        /** Create */
+        post: operations["create_api_options_debug_key_post"];
+        /** Revoke */
+        delete: operations["revoke_api_options_debug_key_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debug/whoami": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whoami */
+        get: operations["whoami_api_debug_whoami_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debug/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Jobs */
+        get: operations["list_jobs_api_debug_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debug/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Job */
+        get: operations["get_job_api_debug_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debug/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Log Days */
+        get: operations["list_log_days_api_debug_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debug/logs/{date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Log Day */
+        get: operations["log_day_api_debug_logs__date__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debug/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** State */
+        get: operations["state_api_debug_state_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debug/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rules */
+        get: operations["rules_api_debug_rules_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debug/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trash */
+        get: operations["trash_api_debug_trash_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debug/saved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Saved */
+        get: operations["saved_api_debug_saved_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/connections": {
         parameters: {
             query?: never;
@@ -1429,10 +1601,200 @@ export interface components {
             /** Connections */
             connections: components["schemas"]["ConnectionOut"][];
         };
+        /** CreateBody */
+        CreateBody: {
+            /**
+             * Ttl
+             * @enum {string}
+             */
+            ttl: "1h" | "24h" | "7d" | "never";
+        };
+        /** CreatedKey */
+        CreatedKey: {
+            /** Key */
+            key: string;
+            /** Id */
+            id: string;
+            /** Expires At */
+            expires_at: string | null;
+        };
         /** DebugBody */
         DebugBody: {
             /** Debug */
             debug: boolean;
+        };
+        /** DebugConnection */
+        DebugConnection: {
+            /** Name */
+            name: string;
+            /** Address Host */
+            address_host: string;
+            /** Secret */
+            secret: string;
+        };
+        /** DebugJob */
+        DebugJob: {
+            /** Id */
+            id: number;
+            /** Source */
+            source: string;
+            /** Post Id */
+            post_id: string;
+            /** Status */
+            status: string;
+            /** Error Code */
+            error_code: string | null;
+            /** Error */
+            error: string | null;
+            /** Target */
+            target: string;
+            /** Title */
+            title: string;
+            /** Attempts */
+            attempts: number;
+            /** Restarts */
+            restarts: number;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /** DebugJobDetail */
+        DebugJobDetail: {
+            /** Id */
+            id: number;
+            /** Source */
+            source: string;
+            /** Post Id */
+            post_id: string;
+            /** Status */
+            status: string;
+            /** Error Code */
+            error_code: string | null;
+            /** Error */
+            error: string | null;
+            /** Target */
+            target: string;
+            /** Title */
+            title: string;
+            /** Attempts */
+            attempts: number;
+            /** Restarts */
+            restarts: number;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Notices */
+            notices: string[];
+            /** Dest Path */
+            dest_path: string | null;
+        };
+        /** DebugJobList */
+        DebugJobList: {
+            /** Jobs */
+            jobs: components["schemas"]["DebugJob"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /** DebugKeyStatus */
+        DebugKeyStatus: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "off" | "active" | "expired";
+            /** Id */
+            id: string | null;
+            /** Created At */
+            created_at: string | null;
+            /** Expires At */
+            expires_at: string | null;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Uses Approx */
+            uses_approx: number;
+        };
+        /** DebugRule */
+        DebugRule: {
+            /** Id */
+            id: number;
+            /** List */
+            list: string;
+            /** Scope */
+            scope: string | null;
+            /** Enabled */
+            enabled: boolean;
+        };
+        /** DebugRules */
+        DebugRules: {
+            /** Version */
+            version: number;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Rules */
+            rules: components["schemas"]["DebugRule"][];
+        };
+        /** DebugSavedItem */
+        DebugSavedItem: {
+            /** Source */
+            source: string;
+            /** Post Id */
+            post_id: string;
+            /** Md5 */
+            md5: string;
+            /** Target */
+            target: string;
+            /** Created At */
+            created_at: string;
+        };
+        /** DebugState */
+        DebugState: {
+            /** Version */
+            version: string;
+            /** Schema Version */
+            schema_version: number;
+            /** Mode */
+            mode: string;
+            /** Health */
+            health: {
+                [key: string]: string;
+            };
+            /** Connections */
+            connections: components["schemas"]["DebugConnection"][];
+            /** Settings */
+            settings: {
+                [key: string]: string | null;
+            };
+            /** Queue Counts */
+            queue_counts: {
+                [key: string]: number;
+            };
+        };
+        /** DebugTrashItem */
+        DebugTrashItem: {
+            /** Group */
+            group: string | null;
+            /** Source */
+            source: string | null;
+            /** Post Id */
+            post_id: string | null;
+            /** Trashed At */
+            trashed_at: string;
+            /** Purge At */
+            purge_at: string;
         };
         /** DestinationItem */
         DestinationItem: {
@@ -2680,6 +3042,15 @@ export interface components {
              * @description Animated GIF to play in a grid tile; GIFs of known, small size only.
              */
             gif_url?: string | null;
+        };
+        /** Whoami */
+        Whoami: {
+            /** Key Id */
+            key_id: string;
+            /** Expires At */
+            expires_at: string | null;
+            /** Scope */
+            scope: string[];
         };
     };
     responses: never;
@@ -4868,6 +5239,326 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ThumbCacheCleared"];
+                };
+            };
+        };
+    };
+    get_status_api_options_debug_key_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebugKeyStatus"];
+                };
+            };
+        };
+    };
+    create_api_options_debug_key_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedKey"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_api_options_debug_key_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    whoami_api_debug_whoami_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Whoami"];
+                };
+            };
+        };
+    };
+    list_jobs_api_debug_jobs_get: {
+        parameters: {
+            query?: {
+                state?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebugJobList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_api_debug_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebugJobDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_log_days_api_debug_logs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    log_day_api_debug_logs__date__get: {
+        parameters: {
+            query?: {
+                level?: string;
+                limit?: number;
+                cursor?: string | null;
+                q?: string | null;
+            };
+            header?: never;
+            path: {
+                date: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    state_api_debug_state_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebugState"];
+                };
+            };
+        };
+    };
+    rules_api_debug_rules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebugRules"];
+                };
+            };
+        };
+    };
+    trash_api_debug_trash_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebugTrashItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    saved_api_debug_saved_get: {
+        parameters: {
+            query?: {
+                source?: string | null;
+                post_id?: string | null;
+                md5?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebugSavedItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/options/debug-key")
 class CreateBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    ttl: Literal["1h", "24h", "7d"]
+    ttl: Literal["1h", "24h", "7d", "never"]
 
 
 class DebugKeyStatus(BaseModel):
@@ -31,7 +31,7 @@ class DebugKeyStatus(BaseModel):
 class CreatedKey(BaseModel):
     key: str
     id: str
-    expires_at: str
+    expires_at: str | None
 
 
 @router.get("")

@@ -36,6 +36,7 @@ TTLS: dict[str, timedelta] = {
     "24h": timedelta(hours=24),
     "7d": timedelta(days=7),
 }
+NEVER = "never"  # no expiry: only Revoke ends the key
 TOUCH_INTERVAL_S = 60.0
 FAIL_LIMIT = 10
 FAIL_WINDOW_S = 60.0
@@ -61,6 +62,14 @@ def _parse(value: str | None) -> datetime | None:
         return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     except ValueError:
         return None
+
+
+def _expired(record: dict) -> bool:
+    """A key with no valid expiry is expired, unless it was made as "never" (fail closed)."""
+    if record.get("never") is True and record.get("expires_at") is None:
+        return False
+    expires = _parse(record.get("expires_at"))
+    return expires is None or expires <= _now()
 
 
 def _digest(token: str) -> str:
@@ -95,8 +104,8 @@ def read_record(db_path: Path) -> dict | None:
 
 def create_key(db_path: Path, ttl: str) -> tuple[str, dict]:
     """Make a key and replace any old one in one statement. The key is returned once."""
-    if ttl not in TTLS:
-        raise ValueError("ttl must be 1h, 24h or 7d")
+    if ttl != NEVER and ttl not in TTLS:
+        raise ValueError("ttl must be 1h, 24h, 7d or never")
     key = PREFIX + secrets.token_urlsafe(32)
     digest = _digest(key)
     now = _now()
@@ -104,10 +113,12 @@ def create_key(db_path: Path, ttl: str) -> tuple[str, dict]:
         "id": digest[:8],
         "hash": digest,
         "created_at": _iso(now),
-        "expires_at": _iso(now + TTLS[ttl]),
+        "expires_at": None if ttl == NEVER else _iso(now + TTLS[ttl]),
         "last_used_at": None,
         "uses": 0,
     }
+    if ttl == NEVER:
+        record["never"] = True
     conn = connect(db_path)
     try:
         conn.execute(
@@ -146,10 +157,8 @@ def key_status(record: dict | None) -> dict:
             "last_used_at": None,
             "uses_approx": 0,
         }
-    expires = _parse(record.get("expires_at"))
-    expired = expires is None or expires <= _now()
     return {
-        "state": "expired" if expired else "active",
+        "state": "expired" if _expired(record) else "active",
         "id": record.get("id"),
         "created_at": record.get("created_at"),
         "expires_at": record.get("expires_at"),
@@ -168,8 +177,7 @@ def authenticate(db_path: Path, token: str | None) -> dict | None:
     match = hmac.compare_digest(_digest(token or ""), stored)
     if record is None or not match or not token:
         return None
-    expires = _parse(record.get("expires_at"))
-    if expires is None or expires <= _now():
+    if _expired(record):
         return None
     return record
 

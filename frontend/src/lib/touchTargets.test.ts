@@ -103,6 +103,9 @@ const targets: Target[] = [
   { file: '/src/routes/Options.svelte',   selector: '.clear-btn',       width: true },
   { file: '/src/routes/Rules.svelte',     selector: '.tagchip button',  width: true },
   { file: '/src/routes/SeeAll.svelte',    selector: '.retry-btn',       width: false },
+  { file: '/src/lib/options/DebugKeyCard.svelte', selector: '.btn',     width: true },
+  { file: '/src/lib/options/DebugKeyCard.svelte', selector: '.seg',     width: false },
+  { file: '/src/lib/options/DebugKeyCard.svelte', selector: '.icb',     width: true },
 ];
 
 // ── tests ────────────────────────────────────────────────────────────────────
