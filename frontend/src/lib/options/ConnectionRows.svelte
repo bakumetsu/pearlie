@@ -22,6 +22,17 @@
 
 	store.load(api);
 
+	function chipFor(key: string): string {
+		if (store.error) return "unknown";
+		if (store.loading) return "missing";
+		const c = store.byName(key);
+		if (key === "nhentai" && c?.key === "set") {
+			if (c.auth === "ok") return "ok";
+			if (c.auth === "failed") return "invalid";
+		}
+		return c?.key === "set" ? "set" : "missing";
+	}
+
 	function editingLabel(): string {
 		return names.find((n) => n.key === editing)?.label ?? "";
 	}
@@ -37,9 +48,7 @@
 	{#each names as { key, label } (key)}
 		<div class="row conn">
 			<span class="row-label">{label}</span>
-			<span class="chip"
-				>{store.error ? "unknown" : store.loading ? "missing" : store.byName(key)?.key === "set" ? "set" : "missing"}</span
-			>
+			<span class="chip" class:ok={chipFor(key) === "ok"} class:bad={chipFor(key) === "invalid"}>{chipFor(key)}</span>
 			{#if store.byName(key)?.address}
 				<span class="muted">{store.byName(key)?.address}</span>
 			{/if}
@@ -72,6 +81,15 @@
 <style>
 	.test-btn {
 		margin-left: auto;
+	}
+	.chip.ok {
+		background: var(--ok-bg);
+		color: var(--ok-fg);
+		border-color: transparent;
+	}
+	.chip.bad {
+		color: var(--danger-hot);
+		border-color: var(--danger-hot);
 	}
 	.result {
 		font-size: var(--t-13);
