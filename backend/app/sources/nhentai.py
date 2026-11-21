@@ -418,9 +418,9 @@ class NHentai:
                 self._download_times.popleft()
             if len(self._download_times) >= DOWNLOAD_LIMIT:
                 raise SourceError("rate_limited", "download budget used up", 429)
+            if self._throttle.reserve_within(0.0, 0.0, "download") is None:
+                raise SourceError("rate_limited", "nhentai asked to slow down", 429)
             self._download_times.append(now)
-        if self._throttle.reserve_within(0.0, 0.0, "download") is None:
-            raise SourceError("rate_limited", "nhentai asked to slow down", 429)
         path = f"{_API_PREFIX}/galleries/{post_id}/download"
         try:
             resp = self._client.post(self._base_url + path, headers=headers)
