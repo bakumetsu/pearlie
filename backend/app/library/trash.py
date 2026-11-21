@@ -460,6 +460,9 @@ class TrashStore:
             if _parse(row["expires_at"]) <= datetime.now(UTC):
                 self.purge_row(token)
                 raise TrashError(404, "not_found", "Item not found")
+            if not self._inside(Path(row["trash_path"])):
+                logger.warning("trash restore refused token=%s", token)
+                raise TrashError(503, "trash_unavailable", "Could not restore")
             self._run("UPDATE trash_items SET state = 'restoring' WHERE token = ?", (token,))
         src = Path(row["trash_path"])
         target = Path(row["orig_path"])
@@ -489,7 +492,11 @@ class TrashStore:
                 "restore_incomplete",
                 f"{target.name} is back in the library but not registered",
             ) from None
-        self._saved_items_after_restore(row, new_id)
+        try:
+            self._saved_items_after_restore(row, new_id)
+        except Exception as e:
+            # The file is back and registered; do not leave the row in `restoring`.
+            logger.warning("restore index update failed token=%s error=%s", token, type(e).__name__)
         self._drop(token, self.dir / token)
         logger.info("trash token=%s state=restored", token)
         return result
