@@ -172,7 +172,10 @@ class JobStore:
                     found[row["post_id"]] = _ref(
                         row["target"], row["image_id"], row["kind"], row["library_id"]
                     )
-            by_md5 = {m.lower(): pid for pid, m in (md5s or {}).items() if m and pid not in found}
+            by_md5: dict[str, list[str]] = {}
+            for pid, m in (md5s or {}).items():
+                if m and pid not in found:
+                    by_md5.setdefault(m.lower(), []).append(pid)
             for chunk in _chunks(list(by_md5)):
                 marks = ",".join("?" * len(chunk))
                 for row in conn.execute(
@@ -180,10 +183,9 @@ class JobStore:
                     f"WHERE md5 IN ({marks})",
                     tuple(chunk),
                 ):
-                    found.setdefault(
-                        by_md5[row["md5"].lower()],
-                        _ref(row["target"], row["image_id"], row["kind"], row["library_id"]),
-                    )
+                    ref = _ref(row["target"], row["image_id"], row["kind"], row["library_id"])
+                    for pid in by_md5[row["md5"].lower()]:
+                        found.setdefault(pid, ref)
             return found
         finally:
             conn.close()

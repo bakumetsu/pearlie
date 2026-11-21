@@ -214,6 +214,10 @@ class StashTarget:
                         self._fail_log("download", "bad_content", url, detail=f"type={ctype}")
                         raise SaveError("bad_content", "download is not a media file", 502)
                 content_length = response.headers.get("content-length")
+                if content_length is not None and not (
+                    content_length.strip().isascii() and content_length.strip().isdigit()
+                ):
+                    content_length = None  # a bad header counts as missing
                 if response.headers.get("content-encoding", "identity").lower() != "identity":
                     # Content-Length counts the encoded bytes; we write the decoded ones.
                     content_length = None
@@ -241,7 +245,7 @@ class StashTarget:
             part_path.unlink(missing_ok=True)
             self._fail_log("download", "size_mismatch", url, detail=info)
             raise SaveError("size_mismatch", "downloaded file is empty", 502)
-        if content_length is not None and int(content_length) != bytes_written:
+        if content_length is not None and int(content_length.strip()) != bytes_written:
             part_path.unlink(missing_ok=True)
             self._fail_log("download", "size_mismatch", url, detail=info)
             raise SaveError("size_mismatch", "downloaded size differs from Content-Length", 502)
@@ -252,7 +256,7 @@ class StashTarget:
                 and ext in self._VIDEO_EXT
                 and ctype.startswith("video/")
                 and bytes_written > 0
-                and (content_length is None or int(content_length) == bytes_written)
+                and (content_length is None or int(content_length.strip()) == bytes_written)
             ):
                 logger.warning(
                     "%sstep=download md5_mismatch_accepted "

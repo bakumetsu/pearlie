@@ -246,6 +246,21 @@ def test_saved_refs_batch_and_md5(tmp_path: Path) -> None:
     assert "9" not in store.saved_refs("danbooru", ["9"])
 
 
+def test_saved_refs_md5_shared_by_two_posts(tmp_path: Path) -> None:
+    store = make(tmp_path)
+    conn = connect(tmp_path / "p.db")
+    conn.execute(
+        "INSERT INTO saved_items (source, post_id, md5, target, image_id) "
+        "VALUES ('gelbooru', '9', ?, 'stash', '7')",
+        ("c" * 32,),
+    )
+    conn.commit()
+    conn.close()
+    got = store.saved_refs("danbooru", ["3", "4"], {"3": "C" * 32, "4": "c" * 32})
+    assert got["3"].id == "7"
+    assert got["4"].id == "7"
+
+
 def test_saved_refs_video_kind(tmp_path: Path) -> None:
     store = make(tmp_path)
     conn = connect(tmp_path / "p.db")
