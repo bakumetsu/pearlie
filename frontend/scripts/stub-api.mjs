@@ -39,7 +39,13 @@ export function createStub() {
         if (failing) return send(500, { detail: "stub error" });
         if (req.method === "GET") return send(200, key);
         if (req.method === "POST") {
-          const ttl = JSON.parse(body || "{}").ttl ?? "24h";
+          let ttl;
+          try {
+            ttl = JSON.parse(body || "{}").ttl ?? "24h";
+          } catch {
+            return send(400, { detail: "bad json" });
+          }
+          if (!(ttl in TTL)) return send(400, { detail: "bad ttl" });
           const now = Date.now();
           key = {
             state: "active",

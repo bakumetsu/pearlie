@@ -292,6 +292,8 @@
 		color: var(--muted);
 		font-size: var(--t-13);
 		min-width: 0;
+	}
+	.row-value.muted {
 		overflow-wrap: anywhere;
 		text-align: right;
 	}

@@ -20,4 +20,10 @@ describe("stub api", () => {
     expect(after.status).toBe(200);
     expect((await after.json()).state).toBe("off");
   });
+
+  it("answers a bad POST body with 400 and stays alive", async () => {
+    const bad = await fetch(`${base}/api/options/debug-key`, { method: "POST", body: "{nope" });
+    expect(bad.status).toBe(400);
+    expect((await fetch(`${base}/api/options/debug-key`)).status).toBe(200);
+  });
 });
