@@ -10,6 +10,9 @@ export type WebItem = S["WebItem"];
 export type WebBook = S["WebBook"];
 export type Section = S["Section"];
 export type SearchResponse = S["SearchResponse"];
+export type MergedRow = S["MergedRow"];
+export type MergedPage = S["MergedPage"];
+export type MergedSite = S["MergedSite"];
 export type SaveBody = S["SaveBody"];
 export type PlacementSuggestion = S["PlacementSuggestion"];
 export type SaveAccepted = S["SaveAccepted"];
@@ -140,6 +143,9 @@ export interface Api {
     p: { q: string; sources?: string[]; page?: number; page_size?: number; order?: string; rating?: string[] },
     signal?: AbortSignal,
   ): Promise<SearchResponse>;
+  // The merged Discover row; `have` = site ids the page already shows (keeps their tiles in place).
+  mergedRow(p: { have?: string[] }, signal?: AbortSignal): Promise<MergedRow>;
+  mergedList(p: { page?: number }, signal?: AbortSignal): Promise<MergedPage>;
   searchFilters(signal?: AbortSignal): Promise<SearchFilters>;
   list(kind: Kind, p: ListParams, signal?: AbortSignal): Promise<LibraryPage>;
   save(body: SaveBody, signal?: AbortSignal): Promise<SaveAccepted>;
@@ -292,6 +298,26 @@ export function createApi(baseUrl = "", f: typeof fetch = (...a) => fetch(...a))
           order: p.order,
           rating: p.rating?.length ? p.rating.join(",") : undefined,
           // The server drops the safe-mode posts; unknown value fails closed.
+          safe: (sfw?.on ?? true) ? "1" : "0",
+        }),
+        undefined,
+        signal,
+      );
+    },
+    mergedRow(p, signal) {
+      return request<MergedRow>(
+        buildUrl("/api/discover/merged", {
+          have: p.have?.length ? p.have.join(",") : undefined,
+          safe: (sfw?.on ?? true) ? "1" : "0",
+        }),
+        undefined,
+        signal,
+      );
+    },
+    mergedList(p, signal) {
+      return request<MergedPage>(
+        buildUrl("/api/discover/merged/list", {
+          page: p.page !== undefined ? String(p.page) : undefined,
           safe: (sfw?.on ?? true) ? "1" : "0",
         }),
         undefined,

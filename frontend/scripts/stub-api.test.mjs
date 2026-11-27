@@ -26,4 +26,26 @@ describe("stub api", () => {
     expect(bad.status).toBe(400);
     expect((await fetch(`${base}/api/options/debug-key`)).status).toBe(200);
   });
+  it("serves the merged row: ok, partial and slow (late Rule34 on the poll)", async () => {
+    const get = async (q = "") => (await fetch(`${base}/api/discover/merged${q}`)).json();
+    await fetch(`${base}/__merged?mode=ok`);
+    const ok = await get();
+    expect(ok.items).toHaveLength(48);
+    expect(ok.items.slice(0, 4).map((i) => i.source)).toEqual(["danbooru", "gelbooru", "rule34", "nhentai"]);
+    await fetch(`${base}/__merged?mode=partial`);
+    const partial = await get();
+    expect(partial.items.some((i) => i.source === "gelbooru")).toBe(false);
+    expect(partial.sites.find((s) => s.id === "gelbooru").state).toBe("error");
+    await fetch(`${base}/__merged?mode=slow`);
+    expect((await get()).pending).toBe(true);
+    const poll = await get("?have=danbooru,gelbooru,nhentai");
+    expect(poll.pending).toBe(false);
+    expect(poll.items.slice(0, 3).map((i) => i.source)).toEqual(["danbooru", "gelbooru", "nhentai"]);
+  });
+
+  it("serves the merged list pages with next_page null at the end", async () => {
+    const p3 = await (await fetch(`${base}/api/discover/merged/list?page=3`)).json();
+    expect(p3.next_page).toBeNull();
+    expect(p3.items).toHaveLength(48);
+  });
 });
