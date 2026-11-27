@@ -20,18 +20,17 @@
     onopen?: (item: WebItem) => void;
   } = $props();
 
-  const SKELETONS = [0, 1, 2, 3, 4, 5, 6];
+  const SKELETONS = [0, 1, 2, 3, 4, 5, 6, 7];
   const letter = (source: string) => SITE_ORDER.find((s) => s.id === source)?.label[0] ?? source[0]?.toUpperCase() ?? "";
 </script>
 
 {#if status === "loading" || status === "idle"}
-  <div class="skeleton-row" aria-busy="true">
-    <div class="skeleton-title"></div>
-    <div class="skeleton-items">
+  <div class="busy" aria-busy="true">
+    <SectionRow title="Latest from your sites" {seeAllHref}>
       {#each SKELETONS as s (s)}
         <div class="skeleton"></div>
       {/each}
-    </div>
+    </SectionRow>
   </div>
 {:else}
   <SectionRow title="Latest from your sites" {seeAllHref} {hidden} {rulesHref} {error} {onretry} {onnavigate}>
@@ -46,27 +45,9 @@
 {/if}
 
 <style>
-  .skeleton-row {
-    display: flex;
-    flex-direction: column;
-    gap: var(--s-2);
-  }
-  .skeleton-title {
-    width: 120px;
-    height: 24px;
-    border-radius: var(--r-sm);
-    background: var(--surface);
-    animation: pulse 1.5s ease-in-out infinite;
-  }
-  .skeleton-items {
-    display: flex;
-    gap: var(--s-2);
-    overflow: hidden;
-  }
+  /* Same strip, gap and tile width as the loaded row (SectionRow), same 3:4 shape as a web tile. */
   .skeleton {
-    flex: 0 0 160px;
-    width: 160px;
-    height: 160px;
+    aspect-ratio: 3 / 4;
     border-radius: var(--r-md);
     background: var(--surface);
     animation: pulse 1.5s ease-in-out infinite;
