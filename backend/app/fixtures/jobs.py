@@ -134,12 +134,15 @@ class JobBoard:
                 }
             )
 
-    def list(self, states: set[str] | None = None) -> list[Job]:
+    def list(
+        self, states: set[str] | None = None, limit: int | None = None, offset: int = 0
+    ) -> list[Job]:
         self._advance()
         out = [
             self._to_model(j) for j in reversed(self.jobs) if states is None or j["state"] in states
         ]
-        return out
+        out = out[max(0, offset) :]
+        return out if limit is None else out[:limit]
 
     def get(self, job_id: str) -> Job | None:
         self._advance()

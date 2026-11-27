@@ -151,7 +151,7 @@ def save_placement(
 def list_jobs(
     request: Request,
     state: str | None = Query(None),
-    limit: int | None = Query(None, ge=1, le=500),
+    limit: int = Query(500, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> JobList:
     """List jobs, optionally filtered by state CSV and paged by limit/offset."""

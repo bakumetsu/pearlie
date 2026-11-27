@@ -59,10 +59,14 @@ def save_placement(
 
 
 @router.get("/jobs")
-def list_jobs(state: str | None = Query(None)) -> JobList:
-    """List jobs, optionally filtered by state CSV."""
+def list_jobs(
+    state: str | None = Query(None),
+    limit: int = Query(500, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> JobList:
+    """List jobs newest first, optionally filtered by state CSV; capped by limit/offset."""
     states: set[str] | None = set(state.split(",")) if state else None
-    return JobList(items=store.jobs.list(states))
+    return JobList(items=store.jobs.list(states, limit, offset))
 
 
 @router.get("/jobs/{id}")

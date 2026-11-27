@@ -588,7 +588,7 @@ export interface paths {
         };
         /**
          * List Jobs
-         * @description List jobs, optionally filtered by state CSV.
+         * @description List jobs newest first, optionally filtered by state CSV; capped by limit/offset.
          */
         get: operations["list_jobs_api_jobs_get"];
         put?: never;
@@ -4185,6 +4185,8 @@ export interface operations {
         parameters: {
             query?: {
                 state?: string | null;
+                limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;

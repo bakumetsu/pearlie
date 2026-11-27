@@ -129,48 +129,53 @@ def _rebuild_active_index(conn: sqlite3.Connection) -> None:
 
 def init_db(path: Path) -> None:
     conn = connect(path)
-    conn.executescript(SCHEMA)
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(saved_items)")}
-    if "image_id" not in cols:
-        conn.execute("ALTER TABLE saved_items ADD COLUMN image_id TEXT")
-    if "library_id" not in cols:
-        conn.execute("ALTER TABLE saved_items ADD COLUMN library_id TEXT")
-    if "kind" not in cols:
-        conn.execute("ALTER TABLE saved_items ADD COLUMN kind TEXT NOT NULL DEFAULT 'image'")
-    if "imported" not in cols:
-        conn.execute("ALTER TABLE saved_items ADD COLUMN imported INTEGER NOT NULL DEFAULT 0")
-    jobs_cols = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
-    jobs_migrations: dict[str, str] = {
-        "error_code": "error_code TEXT",
-        "target": "target TEXT NOT NULL DEFAULT 'stash'",
-        "title": "title TEXT NOT NULL DEFAULT ''",
-        "thumb_url": "thumb_url TEXT NOT NULL DEFAULT ''",
-        "post_json": "post_json TEXT",
-        "notices": "notices TEXT NOT NULL DEFAULT '[]'",
-        "library_ref_id": "library_ref_id TEXT",
-        "dest_path": "dest_path TEXT",
-        "attempts": "attempts INTEGER NOT NULL DEFAULT 0",
-        "restarts": "restarts INTEGER NOT NULL DEFAULT 0",
-        "started_at": "started_at TEXT",
-        "finished_at": "finished_at TEXT",
-        "placement": "placement TEXT",
-        "pages_done": "pages_done INTEGER",
-        "pages_total": "pages_total INTEGER",
-        "eta_s": "eta_s REAL",
-        "scan_library_id": "scan_library_id TEXT",
-        "scan_name": "scan_name TEXT",
-        "scan_due_at": "scan_due_at TEXT",
-    }
-    for col_name, col_def in jobs_migrations.items():
-        if col_name not in jobs_cols:
-            conn.execute(f"ALTER TABLE jobs ADD COLUMN {col_def}")
-    _rebuild_active_index(conn)
-    rules_cols = {row[1] for row in conn.execute("PRAGMA table_info(rules)")}
-    if "target" not in rules_cols:
-        conn.execute("ALTER TABLE rules ADD COLUMN target TEXT")
-    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-    conn.commit()
-    conn.close()
+    try:
+        conn.executescript(SCHEMA)
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(saved_items)")}
+        if "image_id" not in cols:
+            conn.execute("ALTER TABLE saved_items ADD COLUMN image_id TEXT")
+        if "library_id" not in cols:
+            conn.execute("ALTER TABLE saved_items ADD COLUMN library_id TEXT")
+        if "kind" not in cols:
+            conn.execute("ALTER TABLE saved_items ADD COLUMN kind TEXT NOT NULL DEFAULT 'image'")
+        if "imported" not in cols:
+            conn.execute("ALTER TABLE saved_items ADD COLUMN imported INTEGER NOT NULL DEFAULT 0")
+        jobs_cols = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
+        jobs_migrations: dict[str, str] = {
+            "error_code": "error_code TEXT",
+            "target": "target TEXT NOT NULL DEFAULT 'stash'",
+            "title": "title TEXT NOT NULL DEFAULT ''",
+            "thumb_url": "thumb_url TEXT NOT NULL DEFAULT ''",
+            "post_json": "post_json TEXT",
+            "notices": "notices TEXT NOT NULL DEFAULT '[]'",
+            "library_ref_id": "library_ref_id TEXT",
+            "dest_path": "dest_path TEXT",
+            "attempts": "attempts INTEGER NOT NULL DEFAULT 0",
+            "restarts": "restarts INTEGER NOT NULL DEFAULT 0",
+            "started_at": "started_at TEXT",
+            "finished_at": "finished_at TEXT",
+            "placement": "placement TEXT",
+            "pages_done": "pages_done INTEGER",
+            "pages_total": "pages_total INTEGER",
+            "eta_s": "eta_s REAL",
+            "scan_library_id": "scan_library_id TEXT",
+            "scan_name": "scan_name TEXT",
+            "scan_due_at": "scan_due_at TEXT",
+        }
+        for col_name, col_def in jobs_migrations.items():
+            if col_name not in jobs_cols:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {col_def}")
+        _rebuild_active_index(conn)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_saved_items_image_id ON saved_items (image_id)"
+        )
+        rules_cols = {row[1] for row in conn.execute("PRAGMA table_info(rules)")}
+        if "target" not in rules_cols:
+            conn.execute("ALTER TABLE rules ADD COLUMN target TEXT")
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def schema_version(path: Path) -> int:
