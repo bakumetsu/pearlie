@@ -121,7 +121,7 @@ describe("createSearch", () => {
     expect(s.banner).toBe("Search failed");
   });
 
-  it("no chips: site rows first, library rows below, sent once", () => {
+  it("no chips: only the site rows (library rows hidden), sent once", () => {
     const api = makeApi();
     api.search.mockResolvedValue({ sections: [] });
     const s = createSearch(api);
@@ -130,12 +130,8 @@ describe("createSearch", () => {
     s.run(st, { immediate: true });
     expect(api.search).toHaveBeenCalledTimes(1);
     expect(api.search.mock.calls[0][0].q).toBe("");
-    expect(api.search.mock.calls[0][0].sources).toEqual([
-      "danbooru", "gelbooru", "stash_images", "stash_videos", "stump_books",
-    ]);
-    expect(Object.keys(s.sections)).toEqual([
-      "danbooru", "gelbooru", "stash_images", "stash_videos", "stump_books",
-    ]);
+    expect(api.search.mock.calls[0][0].sources).toEqual(["danbooru", "gelbooru"]);
+    expect(Object.keys(s.sections)).toEqual(["danbooru", "gelbooru"]);
   });
 
   it("tag search and plain text search: the selected site's row is first", () => {

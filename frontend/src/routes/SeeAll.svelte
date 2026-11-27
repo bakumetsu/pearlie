@@ -5,6 +5,7 @@
   import { settleQueued } from "../lib/web/saveFlow";
   import { linkClick, webItemHref } from "../lib/router";
   import type { Match } from "../lib/router";
+  import { SITE_ORDER } from "../lib/query";
   import type { Kind, WebItem, LibraryItem } from "../lib/api/client";
   import { ApiError as ApiErrorClass } from "../lib/api/client";
   import { gridFor } from "../lib/stores/shared.svelte";
@@ -74,7 +75,9 @@
   const seed = $derived(match.query.get("seed") ?? undefined);
   const page = $derived(pageOf(match.query.get("page")));
   const vs = $derived(viewSettings.get(source));
-  const infinite = $derived(options.values?.infinite_scroll ?? false);
+  // The merged list is always infinite: no total, no pager.
+  const merged = $derived(source === "merged");
+  const infinite = $derived(merged || (options.values?.infinite_scroll ?? false));
   let sentinelEl = $state<HTMLElement | null>(null);
   let pagerEl = $state<HTMLSelectElement | HTMLInputElement | null>(null);
 
@@ -95,6 +98,7 @@
       case "stash_videos": return "Videos";
       case "stump_series": return "Books";
       case "stump_books": return "Books";
+      case "merged": return "Latest from your sites";
       default: return source || "Results";
     }
   });
@@ -223,6 +227,13 @@
         return { items: r.items, total: r.total ?? null, next_page: r.next_page ?? null, page: r.page ?? null, pages: r.pages ?? null, page_size: r.page_size ?? null, stats: r.stats ?? null };
       };
       untrack(() => { grid.setAccumulate(inf); grid.open(listKey, loader, pg); });
+    } else if (src === "merged") {
+      notice = null;
+      const loader = async (p: number, signal: AbortSignal) => {
+        const r = await api.mergedList({ page: p }, signal);
+        return { items: r.items ?? [], total: null, next_page: r.next_page ?? null, pages: null, page_size: null, stats: null };
+      };
+      untrack(() => { grid.setAccumulate(true); grid.open(listKey, loader, 1); });
     } else {
       notice = null;
       const loader = async (p: number, signal: AbortSignal) => {
@@ -567,6 +578,8 @@
     if (next.hidden !== barHidden) barHidden = next.hidden;
   }
 
+  const siteLetter = (w: WebItem) => SITE_ORDER.find((d) => d.id === w.source)?.label[0] ?? w.source[0]?.toUpperCase();
+
   function onNav(e: MouseEvent) {
     linkClick(e, router);
   }
@@ -587,12 +600,12 @@
       {#if !isLibrary && grid.total == null && grid.status === "done" && grid.items.length > 0}<span class="shown" data-testid="shown">{grid.items.length} shown</span>{/if}
     </div>
 
-    {#if caps?.search !== false}
+    {#if caps?.search !== false && !merged}
       <SeeAllSearch value={q} web={!isLibrary} onsubmit={setQuery} />
     {/if}
 
     <div class="controls">
-      <Toolbar sort={sortValue} {rating} sorts={sortOptions} ratings={isLibrary ? [] : ratingOptions} {orderBlocked} favorites={favoritesAvail} {favorite} {canReset} onapply={onToolbar} onfavorite={onFavToggle} onreset={onReset} />
+      {#if !merged}<Toolbar sort={sortValue} {rating} sorts={sortOptions} ratings={isLibrary ? [] : ratingOptions} {orderBlocked} favorites={favoritesAvail} {favorite} {canReset} onapply={onToolbar} onfavorite={onFavToggle} onreset={onReset} />{/if}
     {#if viewSettings.ready}
       <ViewBar modes={vs.modes as Mode[]} mode={vs.mode as Mode} perPage={vs.per_page} zoom={vs.zoom} options={vs.per_page_options} max={vs.per_page_max} onmode={onMode} onperpage={onPerPage} onzoom={onZoom} onzoompreview={onZoomPreview} />
     {/if}
@@ -631,7 +644,7 @@
         </div>
       </div>
     {:else}
-      <ResultsGrid bind:this={gridEl} onready={onGridReady} items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => { const h = webItemHref(w.source, w.post_id); if (h) router.navigate(h); else openWeb(w); }} webHref={(w) => webTileHref(match.path, match.query, w)} landscape={source === "stash_videos"} selectable={isLibrary} />
+      <ResultsGrid bind:this={gridEl} onready={onGridReady} items={grid.items} mode={vs.mode as Mode} zoom={vs.zoom} loading={false} skeletons={vs.per_page} saveStates={saveStates} onsave={handleSave} onnavigate={onNav} onopenitem={wallMode ? openItem : undefined} onopenweb={(w) => { const h = webItemHref(w.source, w.post_id); if (h) router.navigate(h); else openWeb(w); }} webHref={(w) => webTileHref(match.path, match.query, w)} badge={merged ? siteLetter : undefined} landscape={source === "stash_videos"} selectable={isLibrary} />
     {/if}
 
     {#if infinite && grid.status === "done"}

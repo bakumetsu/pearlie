@@ -1,15 +1,16 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { getApi } from "../lib/api/client";
   import { getRouter, findJobs } from "../lib/ctx";
   import { itemHref, toPlural } from "../lib/item/kinds";
   import { toasts } from "../lib/stores/toasts.svelte";
   import { createSearch } from "../lib/stores/search.svelte";
+  import { createMergedRow } from "../lib/stores/mergedRow.svelte";
   import { options } from "../lib/stores/options.svelte";
   import { placement } from "../lib/stores/placement.svelte";
   import { sfw } from "../lib/stores/sfw.svelte";
   import { tappedSite, firstTapped } from "../lib/stores/tappedSite.svelte";
-  import { readSites, writeSites } from "../lib/stores/siteMemory";
+  import { readSites, writeSites, readAll, writeAll } from "../lib/stores/siteMemory";
   import { parseSearchParams, buildSearchParams, serialiseQuery, commitText, nhentaiIdOf, filterChips, effectiveSites, orderedSites, SITE_ORDER, DEFAULT_SITES } from "../lib/query";
   import type { SearchState, SiteId } from "../lib/query";
   import { hrefOf, linkClick, inPageClick, webItemHref } from "../lib/router";
@@ -22,6 +23,7 @@
   import SiteMarks from "../lib/components/SiteMarks.svelte";
   import FilterPanel from "../lib/components/FilterPanel.svelte";
   import SectionRow from "../lib/components/SectionRow.svelte";
+  import MergedRow from "../lib/components/MergedRow.svelte";
   import Tile from "../lib/components/Tile.svelte";
   import { saveWebItem } from "../lib/web/saveFlow";
   import { restoreSaved } from "../lib/web/restoreSaved";
@@ -33,6 +35,7 @@
   const api = getApi();
   const router = getRouter();
   const search = createSearch(api);
+  const mergedRow = createMergedRow(api);
   const jobsStore = findJobs();
   $effect(() => {
     if (jobsStore) search.settle(jobsStore.items);
@@ -40,11 +43,13 @@
 
   const hidden = $derived(options.values?.hidden_sites ?? []);
   // The address keeps the saved sites; a hidden one is only left out of what is shown and searched.
-  // A sites param in the address wins; without one, the pills last chosen on this device apply.
+  // A sites or all param in the address wins; without one, the pills last chosen on this device apply.
+  // A device that remembers sites but never saw All keeps its site choice (no All).
   const saved = $derived.by(() => {
     const parsed = parseSearchParams("?" + match.query.toString());
-    if (match.query.has("sites")) return parsed;
-    return { ...parsed, sites: readSites() ?? parsed.sites };
+    if (match.query.has("sites") || match.query.has("all")) return parsed;
+    const sites = readSites();
+    return { ...parsed, sites: sites ?? parsed.sites, all: readAll() ?? sites === undefined };
   });
   // The saved site order sets the order of the site rows; the address keeps the fixed order.
   const siteOrder = $derived(orderedSites(options.values?.site_order));
@@ -58,6 +63,10 @@
     ),
   });
 
+  // The merged row: All on, no query, and at least 2 rail sites (the sites not hidden in Options).
+  const rail = $derived(siteOrder.filter((id) => !hidden.includes(id)));
+  const mergedMode = $derived(!!query.all && query.pill === "all" && query.chips.length === 0 && rail.length >= 2);
+
   // Chip edits stay in a draft until the user runs the search.
   let draftChips = $derived(query.chips);
   let pending = $state("");
@@ -70,8 +79,23 @@
     const safe = sfw?.on ?? false;
     const toggled = lastSafe !== undefined && safe !== lastSafe;
     lastSafe = safe;
-    search.run(query, { immediate: first || toggled, force: toggled });
+    // The merged row has its own request: no /api/search call (no sections).
+    search.run(mergedMode ? { ...query, sites: [] } : query, { immediate: first || toggled, force: toggled });
     first = false;
+  });
+
+  // The merged row loads while it shows; a pill tap away stops the wait (the backend call goes on and fills its cache).
+  let lastMergedSafe: boolean | undefined;
+  $effect(() => {
+    const safe = sfw?.on ?? false;
+    const on = mergedMode;
+    const key = `merged:${rail.join(",")}:${safe ? "safe" : "open"}`;
+    const toggled = lastMergedSafe !== undefined && safe !== lastMergedSafe;
+    lastMergedSafe = safe;
+    untrack(() => {
+      if (on) mergedRow.load({ key, force: toggled });
+      else mergedRow.abort();
+    });
   });
 
   let h1: HTMLHeadingElement | undefined;
@@ -109,6 +133,7 @@
 
   function navigateState(next: SearchState): void {
     writeSites(next.sites);
+    writeAll(!!next.all);
     router.navigate("/" + buildSearchParams(next), { replace: true });
   }
 
@@ -160,12 +185,17 @@
   }
 
   function clearFilters(): void {
-    navigateState({ ...saved, pill: "all", sites: DEFAULT_SITES });
+    navigateState({ ...saved, pill: "all", sites: DEFAULT_SITES, all: true });
   }
 
   function handleSitesChange(sites: SiteId[]): void {
     const kept = sites.length ? saved.sites.filter((id) => hidden.includes(id)) : [];
-    navigateState({ ...saved, sites: SITE_ORDER.map((d) => d.id).filter((id) => kept.includes(id) || sites.includes(id)) });
+    navigateState({ ...saved, all: false, sites: SITE_ORDER.map((d) => d.id).filter((id) => kept.includes(id) || sites.includes(id)) });
+  }
+
+  // All is exclusive: the site selection shows empty and stays in memory for the next site tap.
+  function handleAll(): void {
+    navigateState({ ...saved, all: true });
   }
 
   function tileSaveState(item: WebItem): "idle" | "queued" | "in_library" {
@@ -214,10 +244,9 @@
   $effect(() => {
     const ref = rawWeb;
     if (!ref) { webTried = null; return; }
-    if (search.loading) return;
+    if (search.loading || mergedRow.status === "loading") return;
     if (lightbox && lightbox.source === ref.source && lightbox.post_id === ref.postId) return;
-    const hit = Object.values(search.sections)
-      .flatMap((e) => (e.section?.items ?? []))
+    const hit = [...Object.values(search.sections).flatMap((e) => (e.section?.items ?? [])), ...mergedRow.items]
       .find((i): i is WebItem => "post_id" in i && i.source === ref.source && i.post_id === ref.postId);
     if (hit) { lightbox = hit; return; }
     const key = ref.source + ":" + ref.postId;
@@ -282,7 +311,7 @@
   <header class="header">
     <h1 class="sr-only" tabindex="-1" bind:this={h1}>Discover</h1>
     <div class="hmarks">
-      <SiteMarks sites={query.sites} onsites={handleSitesChange} {hidden} order={siteOrder} ontap={(id) => (tappedSite.id = id)} onreorder={(o) => options.set({ site_order: o })} {names} />
+      <SiteMarks sites={mergedMode ? [] : query.sites} all={rail.length >= 2 ? mergedMode : undefined} onall={handleAll} onsites={handleSitesChange} {hidden} order={siteOrder} ontap={(id) => (tappedSite.id = id)} onreorder={(o) => options.set({ site_order: o })} {names} />
     </div>
     <div class="hfield">
       <div class="search-row">
@@ -329,6 +358,22 @@
         <span>Search failed</span>
         <button class="banner-btn" onclick={() => search.retryAll()}>Retry</button>
       </div>
+    {/if}
+
+    {#if mergedMode}
+      <MergedRow
+        items={mergedRow.items}
+        status={mergedRow.status}
+        error={mergedRow.error}
+        hidden={mergedRow.hidden}
+        onretry={() => mergedRow.retry()}
+        onnavigate={(e) => linkClick(e, router)}
+        tileHref={(item) => webItemHref(item.source, item.post_id) ?? webTileHref(match.path, match.query, item)}
+        saveState={tileSaveState}
+        savedHref={tileSavedHref}
+        onsave={doSave}
+        onopen={(item) => { const h = webItemHref(item.source, item.post_id); if (h) router.navigate(h); else openWeb(item); }}
+      />
     {/if}
 
     {#each orderedSections as [id, entry] (id)}

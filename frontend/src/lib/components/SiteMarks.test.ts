@@ -8,6 +8,19 @@ import { effectiveSites, orderedSites, moveSite } from "../query";
 afterEach(cleanup);
 
 describe("SiteMarks", () => {
+  it("shows the All pill first only when asked, pressed by `all`, and taps call onall", async () => {
+    const onall = vi.fn();
+    const { container, rerender } = render(SiteMarks, { sites: [], onsites: () => {} });
+    expect(screen.queryByRole("button", { name: "All" })).toBeNull();
+    await rerender({ sites: [], onsites: () => {}, all: true, onall });
+    const all = screen.getByRole("button", { name: "All" });
+    expect(all.getAttribute("aria-pressed")).toBe("true");
+    expect(all.querySelector(".mk")?.textContent).toBe("A");
+    expect(container.querySelector(".mark-btn")).toBe(all);
+    await fireEvent.click(all);
+    expect(onall).toHaveBeenCalledTimes(1);
+  });
+
   it("shows the backend icon for each site", () => {
     const { container } = render(SiteMarks, { sites: ["danbooru"], onsites: () => {} });
     const imgs = Array.from(container.querySelectorAll("img")).map((i) => i.getAttribute("src"));
