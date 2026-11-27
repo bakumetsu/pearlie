@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import threading
+
 import httpx
+import pytest
 
 from app.search_cache import SearchCache
 from app.sources.base import SearchPage
@@ -73,7 +76,7 @@ def test_search_expires_after_ttl(tmp_path):
     clock.now = 10.0
     client.get(url)
     assert len(calls) == 1
-    clock.now = 301.0
+    clock.now = 601.0
     client.get(url)
     assert len(calls) == 2
 
@@ -93,3 +96,60 @@ def test_library_sources_are_not_cached(tmp_path):
     client.get("/api/search?q=x&sources=stash_images")
     cache = getattr(client.app.state, "search_cache", None)  # pyright: ignore[reportAttributeAccessIssue]
     assert cache is None or cache._rows == {}  # pyright: ignore[reportPrivateUsage]
+
+
+def test_get_or_join_second_request_joins_running_call():
+    """A request for a key during a running call starts no second call and gets its answer."""
+    cache = SearchCache()
+    started, release = threading.Event(), threading.Event()
+    calls: list[int] = []
+    page = _page()
+
+    def slow() -> SearchPage:
+        calls.append(1)
+        started.set()
+        release.wait(5)
+        return page
+
+    out: list[SearchPage] = []
+    t1 = threading.Thread(target=lambda: out.append(cache.get_or_join(("k",), slow)))
+    t1.start()
+    assert started.wait(5)
+
+    def second() -> SearchPage:
+        calls.append(2)
+        return _page()
+
+    t2 = threading.Thread(target=lambda: out.append(cache.get_or_join(("k",), second)))
+    t2.start()
+    release.set()
+    t1.join(5)
+    t2.join(5)
+    assert calls == [1]
+    assert out == [page, page]
+    assert cache.get(("k",)) is page
+
+
+def test_get_or_join_error_is_shared_and_not_stored():
+    """A failed call is not cached and leaves no running entry; the next call tries again."""
+    cache = SearchCache()
+
+    def boom() -> SearchPage:
+        raise RuntimeError("x")
+
+    with pytest.raises(RuntimeError):
+        cache.get_or_join(("k",), boom)
+    assert cache.get(("k",)) is None
+    page = _page()
+    assert cache.get_or_join(("k",), lambda: page) is page
+
+
+def test_default_ttl_is_ten_minutes():
+    """An answer lives 10 minutes by default."""
+    clock = Clock()
+    cache = SearchCache(clock=clock)
+    cache.put(("a",), _page())
+    clock.now = 599.0
+    assert cache.get(("a",)) is not None
+    clock.now = 601.0
+    assert cache.get(("a",)) is None

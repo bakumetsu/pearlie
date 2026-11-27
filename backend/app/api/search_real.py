@@ -39,7 +39,7 @@ from app.models import (
 )
 from app.paging import PAGE_SIZE_CAPS, clamp_page, clamp_page_size, pages_for
 from app.search_cache import SearchCache
-from app.sources.base import Post, Source, SourceError
+from app.sources.base import Post, SearchPage, Source, SourceError
 from app.sources.filters import NOTICE_CODE
 from app.sources.nhentai import reject_terms
 from app.sources.query_terms import split_terms, title_terms
@@ -80,6 +80,31 @@ def _cache_of(request: Request) -> SearchCache:
     if cache is None:
         cache = state.search_cache = SearchCache()
     return cache
+
+
+def site_items(
+    cache: SearchCache,
+    sid: str,
+    src: Source,
+    tags: list[str],
+    pg: int,
+    size: int | None,
+    order: typing.Any,
+    rating: typing.Any,
+) -> SearchPage:
+    """One site page through the cache; a call that is already running is joined, not repeated."""
+    # order picks which words a capped source sends, so sort only when nothing is cut
+    cap = getattr(src, "tag_limit", None)
+    same_query = cap is None or len(tags) <= cap
+    ckey = (
+        sid,
+        tuple(sorted(tags) if same_query else tags),
+        pg,
+        size,
+        order,
+        tuple(rating),
+    )
+    return cache.get_or_join(ckey, lambda: src.search(tags, pg, size, order, rating))
 
 
 def _web_thumb(post: Post) -> str:
@@ -218,23 +243,10 @@ def search(
                 tags += [t for t in reject_terms(rules.reject) if t not in tags]
             pg = page if not multi else 1
             size_v = page_size if not multi else None
-            cache = _cache_of(request)
-            # order picks which words a capped source sends, so sort only when nothing is cut
-            cap = getattr(src, "tag_limit", None)
-            same_query = cap is None or len(tags) <= cap
-            ckey = (
-                sid,
-                tuple(sorted(tags) if same_query else tags),
-                pg,
-                size_v,
-                order_v,
-                tuple(rating_v),
-            )
             try:
-                page_result = cache.get(ckey)
-                if page_result is None:
-                    page_result = src.search(tags, pg, size_v, order_v, rating_v)
-                    cache.put(ckey, page_result)
+                page_result = site_items(
+                    _cache_of(request), sid, src, tags, pg, size_v, order_v, rating_v
+                )
             except SourceError as e:
                 sections.append(
                     Section(
