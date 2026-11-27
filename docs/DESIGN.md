@@ -156,7 +156,7 @@ Notes:
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/search?q=&sources=&page=&page_size=&order=&rating=&safe=` | one search across library and sites; `safe=1|0` drops warn-blurred posts on the server (counted in `hidden`; absent: the stored sfw option; a view choice, not access control); results grouped per section; `order` newest\|score and `rating` csv g,s,q,e apply to web sites (a section `notice` says when a filter is local or dropped) |
+| GET | `/api/search?q=&sources=&page=&page_size=&order=&rating=&safe=` | one search across library and sites; `safe=1|0` drops warn-blurred posts on the server (counted in `hidden`; absent: the stored sfw option; a view choice, not access control); results grouped per section; `order` newest\|score and `rating` csv g,s,q,e apply to web sites (a section `notice` says when a filter is local or dropped); each site answer is cached in memory for 10 minutes (good answers only), and a second request for a site call that is still running joins it instead of calling the site again |
 | GET / PUT | `/api/tabs` | the global list of search tabs `{tabs: [{id, q, src, sites, order, rating}], active, rev}`; PUT must send the current `rev` or gets 409; stored in the settings table (in memory in fixture mode) |
 | GET | `/api/search/filters` | per source: the order, rating, sort, per-page options the toolbar may offer; no site call |
 | GET | `/api/library/stash/images` · `/videos` · `/api/library/stump/series` · `/books` | the "See all" views |
