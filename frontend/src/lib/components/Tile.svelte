@@ -9,7 +9,7 @@
   import { options } from "../stores/options.svelte";
   import { selection } from "../library/selection.svelte";
 
-  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, onaspect, landscape = false, selectable = false, revealed: revealedProp = false, onreveal }: {
+  let { item, href, onnavigate, saveState = "idle", savedHref, onsave, onopen, onopenitem, variant = "grid", aspect, onaspect, landscape = false, selectable = false, revealed: revealedProp = false, onreveal, badge }: {
     item: LibraryItem | WebItem;
     href?: string;
     onnavigate?: (e: MouseEvent) => void;
@@ -28,6 +28,8 @@
     // A grid that unmounts tiles keeps the reveal for them: it passes the state and hears the change.
     revealed?: boolean;
     onreveal?: () => void;
+    // Web tile: the site letter (as on the pill), top left. Decorative; the open link names the source.
+    badge?: string;
   } = $props();
 
   const isWeb = $derived("post_id" in item);
@@ -215,11 +217,14 @@
       {#if blurred}
         <div class="warn-overlay">Warn: {w.blur!.tag}</div>
       {/if}
+      {#if badge}
+        <span class="site-badge" aria-hidden="true">{badge}</span>
+      {/if}
       {#if saveState === "in_library" || w.saved}
         {#if savedHref}
-          <a class="badge" href={savedHref} onclick={onnavigate}><Icon name="check" size={12} />In library</a>
+          <a class="badge" class:with-site={!!badge} href={savedHref} onclick={onnavigate}><Icon name="check" size={12} />In library</a>
         {:else}
-          <span class="badge"><Icon name="check" size={12} />In library</span>
+          <span class="badge" class:with-site={!!badge}><Icon name="check" size={12} />In library</span>
         {/if}
       {/if}
       {#if saveState === "idle" && !w.saved && w.saveable !== false}
@@ -455,6 +460,26 @@
     padding: 2px var(--s-1);
     border-radius: var(--r-sm);
     text-decoration: none;
+  }
+  .badge.with-site {
+    left: calc(var(--s-1) + 22px + var(--s-1));
+  }
+  .site-badge {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: inset 0 0 0 1px var(--accent);
+    pointer-events: none;
   }
   .save-btn {
     position: absolute;
