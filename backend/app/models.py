@@ -221,6 +221,28 @@ class Section(BaseModel):
     notice: Problem | None = None  # a filter was applied locally or dropped; results still valid
 
 
+MergedState = Literal["ok", "empty", "pending", "rate_limited", "error"]
+
+
+class MergedSite(BaseModel):
+    """What one rail site gave the merged Discover row."""
+
+    id: WebSource
+    title: str
+    state: MergedState
+    count: int = 0  # posts this site gave the row, after rules and dedupe; not shown
+    message: str | None = None  # the site's own Problem message; no secrets
+
+
+class MergedRow(BaseModel):
+    """First page of every rail site, mixed in turns."""
+
+    items: list[WebItem] = Field(default_factory=list)
+    sites: list[MergedSite] = Field(default_factory=list)  # rail order
+    hidden: int = 0  # posts removed by rules or safe mode, all sites
+    pending: bool = False  # a site is still running; poll again
+
+
 class SourceFilters(BaseModel):
     """What the order/rating/per-page toolbar may offer for one source."""
 

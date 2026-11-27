@@ -18,6 +18,7 @@ from app.api import (
     connections,
     debug_key_admin,
     destinations,
+    discover_merged,
     jobs,
     jobs_real,
     library_scan,
@@ -93,6 +94,7 @@ FIXTURE_ROUTERS = {
 }
 REAL_ROUTERS: dict[str, APIRouter] = {
     "search": search_real.router,
+    "discover_merged": discover_merged.router,
     "recommend": recommend.router,
     "library_stump": library_stump_real.router,
     "media_stash": media_stash_real.router,
@@ -210,6 +212,10 @@ def _require_configured(name: str, clients: tuple[str, ...]):
             raise ApiError(503, "not_configured", f"{name} is not configured")
 
     return check
+
+
+def _no_live_sites() -> None:
+    raise ApiError(501, "not_implemented", "merged Discover needs real mode")
 
 
 def rebuild_client(app: FastAPI, name: str) -> None:
@@ -430,6 +436,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         router, 501, "not_implemented", f"{name} is not available in real mode yet"
                     )
                 )
+
+    if settings.mode == "fixture":
+        # in the schema for the client types; it calls live sites, so fixture mode refuses it
+        app.include_router(discover_merged.router, dependencies=[Depends(_no_live_sites)])
 
     mounted_fixture: set[str] = set()
     if settings.mode == "fixture":
