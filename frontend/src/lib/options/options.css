@@ -5,6 +5,7 @@
   border-radius: var(--r-sm);
   padding: 0 0 4px;
   margin: 0 0 20px;
+  max-inline-size: 960px;
 }
 
 .options .card-title,
