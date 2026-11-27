@@ -644,6 +644,8 @@
         <div class="more-box" data-testid="more-sentinel" bind:this={sentinelEl}>
           <span class="sr-only" role="status">{grid.more === "loading" ? "Loading more" : ""}</span>
         </div>
+      {:else if grid.items.length > 0}
+        <p class="end-note" data-testid="end-note">{notice?.includes("page limit") ? "Site page limit reached" : "End of results"}</p>
       {/if}
     {:else if !infinite && grid.status !== "error" && grid.status !== "idle"}
       <Pager page={grid.page} pages={grid.pages} hasNext={grid.hasNext} perPage={vs.per_page} shown={grid.items.length} total={grid.total} stats={grid.stats ? { megapixels: grid.stats.megapixels ?? null, size_bytes: grid.stats.size_bytes ?? null } : null} onpage={setPage} showStats={false} spaced />
@@ -684,6 +686,7 @@
   .error-box { padding: var(--s-4); text-align: center; color: var(--text); }
   .more-box { min-height: 44px; padding: var(--s-4); text-align: center; color: var(--text); }
   .more-box p { margin: 0; }
+  .end-note { margin: 0; padding: var(--s-4); text-align: center; color: var(--muted); font-size: 0.875rem; }
   .retry-btn { min-height: 44px; margin-top: var(--s-4); padding: var(--s-2) var(--s-4); border: none; border-radius: var(--s-2); background: var(--text); color: var(--surface); cursor: pointer; }
   .empty { text-align: center; padding: var(--s-8); color: var(--text); }
   .empty p { margin: 0 0 var(--s-2); }

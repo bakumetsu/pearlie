@@ -115,6 +115,8 @@ class Danbooru:
             raise SourceError("not_found", "Post not found", 404)
         if status == 429:
             raise SourceError("rate_limited", "Danbooru rate limit", 429)
+        if status == 410:  # "You cannot go beyond page N": the site's page cap, not an error
+            raise SourceError("page_limit", "Site page limit reached", 410)
         if status in (400, 422):
             raise SourceError("bad_request", "Danbooru rejected the search", status)
         if status >= 400:
@@ -144,10 +146,17 @@ class Danbooru:
             cleaned, order, rating or [], self._tag_limit
         )
         query = " ".join(server_tags)
-        data = self._get(
-            "/posts.json",
-            params={"tags": query, "page": page, "limit": size},
-        )
+        try:
+            data = self._get(
+                "/posts.json",
+                params={"tags": query, "page": page, "limit": size},
+            )
+        except SourceError as exc:
+            if exc.code != "page_limit":
+                raise
+            return SearchPage(
+                posts=[], page=page, next_page=None, notices=[*notices, "Site page limit reached"]
+            )
         if not isinstance(data, list):
             raise SourceError("upstream_error", "Danbooru sent invalid JSON")
         raw_count = len(data)

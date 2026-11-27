@@ -288,3 +288,17 @@ def test_metatag_inside_cap_not_dropped():
 
     result = d.search(["rating:e", "b"], page=1)
     assert result.dropped == []
+
+
+def test_page_cap_410_is_a_clean_end():
+    """A 410 "beyond page N" ends the list with a notice instead of an error."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            410, json={"success": False, "message": "You cannot go beyond page 1000."}
+        )
+
+    result = make(handler).search(["cat"], page=1001)
+    assert result.posts == []
+    assert result.next_page is None
+    assert "Site page limit reached" in result.notices
