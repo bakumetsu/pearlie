@@ -12,6 +12,7 @@ describe("SeeAll infinite scroll", () => {
   let infinite: boolean;
   let failPage: number | null;
   let blurPage1: boolean;
+  let limitNotice: boolean;
   let tl: typeof import("@testing-library/svelte");
   let observers: { cb: (e: Entries) => void; live: boolean }[];
 
@@ -50,6 +51,7 @@ describe("SeeAll infinite scroll", () => {
     infinite = true;
     failPage = null;
     blurPage1 = false;
+    limitNotice = false;
     globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, "http://localhost");
       const json = (body: unknown, status = 200) =>
@@ -71,6 +73,7 @@ describe("SeeAll infinite scroll", () => {
           total: 6,
           pages: 3,
           next_page: p < 3 ? p + 1 : null,
+          notice: limitNotice && p === 3 ? { code: "notice", message: "Site page limit reached" } : undefined,
         });
       }
       return json({}, 404);
@@ -120,6 +123,16 @@ describe("SeeAll infinite scroll", () => {
     expect(location.search).not.toContain("page=");
     // The list ends with a quiet note, never silently and never with Retry
     expect(tl.screen.getByTestId("end-note").textContent).toBe("End of results");
+    expect(tl.screen.queryByText("Retry")).toBeNull();
+  });
+
+  it("on: a site page limit ends the list with a limit note, no Retry", async () => {
+    limitNotice = true;
+    const { container } = await firstPage();
+    nearEnd();
+    await vi.waitFor(() => expect(container.querySelectorAll("a.tile").length).toBe(4));
+    nearEnd();
+    await vi.waitFor(() => expect(tl.screen.getByTestId("end-note").textContent).toBe("Site page limit reached"));
     expect(tl.screen.queryByText("Retry")).toBeNull();
   });
 

@@ -178,6 +178,14 @@ class DapiSource:
                 type(first_exc).__name__,
             )
         next_page = page + 1 if len(data) == size else None
+        _log.info(
+            "%s search pid=%d size=%d got=%d next_page=%s",
+            self.id,
+            max(page, 1) - 1,
+            size,
+            len(data),
+            next_page,
+        )
         return SearchPage(posts=posts, page=page, next_page=next_page, notices=notices)
 
     @staticmethod
