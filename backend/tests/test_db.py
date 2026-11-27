@@ -614,3 +614,32 @@ def test_init_db_twice_is_idempotent(tmp_path: Path):
     assert cur.execute("SELECT COUNT(*) FROM rules").fetchone()[0] == 1
     assert cur.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 1
     conn.close()
+
+
+def test_init_db_indexes_saved_items_image_id(tmp_path: Path) -> None:
+    db_path = tmp_path / "test.db"
+    init_db(db_path)
+    conn = connect(db_path)
+    try:
+        names = {r[1] for r in conn.execute("PRAGMA index_list(saved_items)")}
+    finally:
+        conn.close()
+    assert "idx_saved_items_image_id" in names
+
+
+def test_init_db_closes_connection_on_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    closed: list[bool] = []
+
+    class Wrap:
+        def executescript(self, sql: str) -> None:
+            raise RuntimeError("boom")
+
+        def close(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr("app.db.connect", lambda p: Wrap())
+    with pytest.raises(RuntimeError):
+        init_db(tmp_path / "x.db")
+    assert closed == [True]

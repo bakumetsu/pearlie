@@ -539,3 +539,16 @@ def test_book_upstream_failure_is_named_and_logged(
     assert exc.value.status == 404
     assert exc.value.message == "nhentai: not found"
     assert "book load failed: gid=999 reason=upstream" in caplog.text
+
+
+def test_list_default_cap_and_offset(tmp_path: Path) -> None:
+    client, _, db_path = make_client(tmp_path)
+    store = JobStore(db_path)
+    ids = [store.enqueue(_make_post("danbooru", str(n)), "stash", "t", "u") for n in range(503)]
+    items = client.get("/api/jobs").json()["items"]
+    assert len(items) == 500
+    assert items[0]["id"] == ids[-1]
+    older = client.get("/api/jobs?limit=500&offset=500").json()["items"]
+    assert [j["id"] for j in older] == ids[2::-1]
+    assert len(client.get("/api/jobs?limit=2&offset=1").json()["items"]) == 2
+    assert client.get("/api/jobs?limit=501").status_code == 422
