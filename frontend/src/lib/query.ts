@@ -10,7 +10,8 @@ export type SectionId =
   | "rule34"
   | "nhentai";
 export type SiteId = "danbooru" | "gelbooru" | "rule34" | "nhentai";
-export type SearchState = { chips: Chip[]; pill: Pill; sites: SiteId[] };
+/** `all`: the All pill (the merged row). Left out = false, for states built without it. */
+export type SearchState = { chips: Chip[]; pill: Pill; sites: SiteId[]; all?: boolean };
 
 export type ChipKind = "tag" | "title" | "id";
 
@@ -144,12 +145,12 @@ export const LIBRARY_SECTIONS: SectionId[] = [
   "stump_books",
 ];
 
-/** Resolve the active section ids for a pill and site selection. */
-export function sectionsFor(pill: Pill, sites: SiteId[]): SectionId[] {
+/** Resolve the active section ids for a pill and site selection. An empty query leaves the library rows out (the Library page has them). */
+export function sectionsFor(pill: Pill, sites: SiteId[], emptyQuery = false): SectionId[] {
   switch (pill) {
     case "all":
       // The selected sites' rows come first, with or without chips; library rows below.
-      return [...sites, ...LIBRARY_SECTIONS];
+      return emptyQuery ? [...sites] : [...sites, ...LIBRARY_SECTIONS];
     case "images":
       return ["stash_images"];
     case "videos":
@@ -176,6 +177,8 @@ export function parseSearchParams(search: string): SearchState {
     src && (VALID_PILLS as string[]).includes(src) ? (src as Pill) : "all";
 
   const sitesRaw = params.get("sites");
+  // The first visit (no sites and no all in the address) starts with All.
+  const all = params.get("all") === "1" || (sitesRaw === null && !params.has("all"));
   let sites: SiteId[];
   if (sitesRaw === null) {
     sites = DEFAULT_SITES;
@@ -187,7 +190,7 @@ export function parseSearchParams(search: string): SearchState {
       .filter((s): s is SiteId => (VALID_SITES as string[]).includes(s));
   }
 
-  return { chips, pill, sites };
+  return { chips, pill, sites, all };
 }
 
 /** Build a location.search string from a SearchState. */
@@ -199,11 +202,14 @@ export function buildSearchParams(s: SearchState): string {
   if (s.pill !== "all") {
     params.set("src", s.pill);
   }
-  const sameSites =
-    s.sites.length === DEFAULT_SITES.length &&
-    s.sites.every((v, i) => v === DEFAULT_SITES[i]);
-  if (!sameSites) {
-    params.set("sites", s.sites.join(","));
+  if (s.all) {
+    params.set("all", "1");
+  } else {
+    // Without All the sites are always written: an address without them means the first visit (All).
+    const sameSites =
+      s.sites.length === DEFAULT_SITES.length &&
+      s.sites.every((v, i) => v === DEFAULT_SITES[i]);
+    if (s.all === false || !sameSites) params.set("sites", s.sites.join(","));
   }
   const str = params.toString();
   return str ? `?${str}` : "";
@@ -266,7 +272,7 @@ export function filterChips(s: SearchState): FilterChip[] {
   if (s.pill !== "all") {
     out.push({ key: "pill", label: PILLS.find((p) => p.id === s.pill)?.label ?? s.pill, remove: { pill: "all" } });
   }
-  if (!isDefaultSites(s.sites)) {
+  if (!s.all && !isDefaultSites(s.sites)) {
     for (const id of s.sites) {
       out.push({
         key: "site:" + id,

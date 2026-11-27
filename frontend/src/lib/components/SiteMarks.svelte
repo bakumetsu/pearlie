@@ -11,6 +11,8 @@
     onreorder,
     ontap,
     names = true,
+    all,
+    onall,
   }: {
     sites: SiteId[];
     onsites: (s: SiteId[]) => void;
@@ -19,6 +21,9 @@
     onreorder?: (order: SiteId[]) => void;
     ontap?: (id: SiteId) => void;
     names?: boolean;
+    /** The All pill (merged row): shown first when this is set; true = pressed. */
+    all?: boolean;
+    onall?: () => void;
   } = $props();
 
   const MOVE_PX = 6;
@@ -129,6 +134,14 @@
 </script>
 
 <div class="marks" role="group" aria-label="Sites" bind:this={group}>
+  {#if all !== undefined}
+    <button class="mark-btn" type="button" data-all="1" title="All" aria-label="All" aria-pressed={all} onclick={() => onall?.()}>
+      <span class="mark-visual" class:active={all}>
+        <span class="mk" aria-hidden="true">A</span>
+        {#if names}<span class="mk-name">All</span>{/if}
+      </span>
+    </button>
+  {/if}
   {#each shown as s (s.id)}
     {@const on = sites.includes(s.id)}
     <button

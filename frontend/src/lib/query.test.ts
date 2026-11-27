@@ -105,7 +105,7 @@ describe("sectionsFor", () => {
 
 describe("parseSearchParams", () => {
   it("defaults on missing params", () => {
-    expect(parseSearchParams("")).toEqual({ chips: [], pill: "all", sites: ["danbooru"] });
+    expect(parseSearchParams("")).toEqual({ chips: [], pill: "all", sites: ["danbooru"], all: true });
   });
 
   it("ignores an invalid src", () => {
@@ -146,8 +146,28 @@ describe("buildSearchParams", () => {
       chips: [parseChip("artist:foo")!],
       pill: "images",
       sites: ["gelbooru"],
+      all: false,
     };
     expect(parseSearchParams(buildSearchParams(s))).toEqual(s);
+  });
+
+  it("All: the first visit and all=1 start with All; a sites address does not", () => {
+    expect(parseSearchParams("").all).toBe(true);
+    expect(parseSearchParams("?all=1").all).toBe(true);
+    expect(parseSearchParams("?sites=gelbooru").all).toBe(false);
+    expect(parseSearchParams("?sites=").all).toBe(false);
+  });
+
+  it("All is written as all=1; without All the sites are always written", () => {
+    expect(buildSearchParams({ chips: [], pill: "all", sites: ["danbooru"], all: true })).toBe("?all=1");
+    expect(buildSearchParams({ chips: [], pill: "all", sites: ["danbooru"], all: false })).toBe("?sites=danbooru");
+    const s: SearchState = { chips: [], pill: "all", sites: ["danbooru"], all: true };
+    expect(parseSearchParams(buildSearchParams(s))).toEqual(s);
+  });
+
+  it("sectionsFor leaves the library rows out on an empty query", () => {
+    expect(sectionsFor("all", ["danbooru"], true)).toEqual(["danbooru"]);
+    expect(sectionsFor("all", ["danbooru"], false)).toEqual(["danbooru", "stash_images", "stash_videos", "stump_books"]);
   });
 });
 

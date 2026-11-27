@@ -23,6 +23,8 @@ export function itemAspect(item: LibraryItem | WebItem): number {
           : rawKind === "book"
             ? "books"
             : undefined;
+  // Mirrors Tile.svelte: an nhentai cover is always 2:3, whatever size the post reports.
+  if ("post_id" in item && item.source === "nhentai") return 2 / 3;
   const width = (item as { width?: number | null }).width;
   const height = (item as { height?: number | null }).height;
   return fallbackAspect(kind, width, height);

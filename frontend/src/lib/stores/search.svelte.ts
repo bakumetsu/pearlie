@@ -5,10 +5,11 @@ import { sectionsFor, serialiseQuery } from "../query";
 import type { SearchState } from "../query";
 import type { Job } from "../jobs/group";
 import { settleQueued } from "../web/saveFlow";
+import { clearMergedAnswers } from "./mergedRow.svelte";
 
 // Last answers per search, kept for the page session so Back/Forward shows them without a new request.
-// Same 5 min as the backend cache; library sources are never kept (new saves must show at once).
-const ANSWER_TTL_MS = 5 * 60 * 1000;
+// Same 10 min as the backend cache; library sources are never kept (new saves must show at once).
+const ANSWER_TTL_MS = 10 * 60 * 1000;
 const ANSWER_MAX = 50;
 const LIBRARY_IDS = new Set(["stash_images", "stash_videos", "stump_books"]);
 // Plain Map on purpose: nothing renders from it, so it needs no reactivity.
@@ -19,9 +20,10 @@ type SearchResult = Awaited<ReturnType<Api["search"]>>;
 
 export function clearSearchAnswers(): void {
   answers.clear();
+  clearMergedAnswers();
 }
 
-/** api.search with a 5 min memory of good answers. Errors are never kept. */
+/** api.search with a 10 min memory of good answers. Errors are never kept. */
 export async function cachedSearch(api: Api, params: SearchParams, signal?: AbortSignal, now: () => number = Date.now): Promise<SearchResult> {
   const ids = params.sources ?? [];
   const keep = ids.length > 0 && !ids.some((id) => LIBRARY_IDS.has(id));
@@ -68,7 +70,7 @@ export function createSearch(api: Api, opts?: { debounceMs?: number }) {
   }
 
   function run(state: SearchState, o?: { immediate?: boolean; force?: boolean }) {
-    const ids = sectionsFor(state.pill, state.sites);
+    const ids = sectionsFor(state.pill, state.sites, state.chips.length === 0);
 
     // An identical query (chips + sources) is never re-sent.
     // The order of the rows is not part of the query: a reorder only moves them.

@@ -30,3 +30,23 @@ export function writeSites(sites: SiteId[], storage: SiteStorage | undefined = d
     storage?.setItem(KEY, sites.join(","));
   } catch { /* storage blocked: the choice lasts until reload */ }
 }
+
+const ALL_KEY = "pearlie.search.all";
+
+/** Whether the All pill was last on, on this device; undefined when never saved. */
+export function readAll(storage: SiteStorage | undefined = defaultStorage()): boolean | undefined {
+  try {
+    const raw = storage?.getItem(ALL_KEY);
+    if (raw === null || raw === undefined) return undefined;
+    return raw === "1";
+  } catch {
+    return undefined;
+  }
+}
+
+/** Remember the All pill per device. */
+export function writeAll(all: boolean, storage: SiteStorage | undefined = defaultStorage()): void {
+  try {
+    storage?.setItem(ALL_KEY, all ? "1" : "0");
+  } catch { /* storage blocked: the choice lasts until reload */ }
+}

@@ -38,6 +38,7 @@
     landscape = false,
     selectable = false,
     onready,
+    badge,
   }: {
     items: Item[];
     mode: Mode;
@@ -54,6 +55,8 @@
     selectable?: boolean;
     landscape?: boolean;
     onready?: () => void;
+    // Site letter on a web tile (the merged See all list).
+    badge?: (item: WebItem) => string | undefined;
   } = $props();
 
   // Until the width is known (first paint, jsdom) the first FLOW_COUNT items render in normal flow.
@@ -461,6 +464,7 @@
       revealed={revealedKeys.has(keyOf(item))}
       onreveal={() => revealedKeys.add(keyOf(item))}
       onopen={onopenweb ? () => onopenweb(item as WebItem) : undefined}
+      badge={badge?.(item as WebItem)}
     />
   {:else}
     <Tile

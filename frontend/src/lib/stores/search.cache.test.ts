@@ -9,6 +9,18 @@ function makeApi(res: unknown): Api & { search: Mock } {
 const good = { query: "a", sections: [{ id: "nhentai", items: [] }] };
 
 describe("cachedSearch", () => {
+  it("clearSearchAnswers also clears the merged row answers", async () => {
+    const { createMergedRow } = await import("./mergedRow.svelte");
+    const api = { mergedRow: vi.fn().mockResolvedValue({ items: [], sites: [{ id: "danbooru", state: "ok" }], hidden: 0, pending: false }) } as unknown as Api;
+    createMergedRow(api).load({ key: "merged:a:open" });
+    await vi.waitFor(() => expect(api.mergedRow).toHaveBeenCalledTimes(1));
+    createMergedRow(api).load({ key: "merged:a:open" });
+    expect(api.mergedRow).toHaveBeenCalledTimes(1);
+    clearSearchAnswers();
+    createMergedRow(api).load({ key: "merged:a:open" });
+    expect(api.mergedRow).toHaveBeenCalledTimes(2);
+  });
+
   beforeEach(() => clearSearchAnswers());
 
   it("Back reuses the stored answer without a new request", async () => {
@@ -27,7 +39,7 @@ describe("cachedSearch", () => {
     await cachedSearch(api, { q: "a", sources: ["nhentai"], page: 1 }, undefined, now);
     await cachedSearch(api, { q: "a", sources: ["nhentai"], page: 2 }, undefined, now);
     expect(api.search).toHaveBeenCalledTimes(2);
-    t = 5 * 60 * 1000 + 1;
+    t = 10 * 60 * 1000 + 1;
     await cachedSearch(api, { q: "a", sources: ["nhentai"], page: 1 }, undefined, now);
     expect(api.search).toHaveBeenCalledTimes(3);
   });
