@@ -118,6 +118,9 @@ describe("SeeAll infinite scroll", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(requested).toEqual([1, 2, 3]);
     expect(location.search).not.toContain("page=");
+    // The list ends with a quiet note, never silently and never with Retry
+    expect(tl.screen.getByTestId("end-note").textContent).toBe("End of results");
+    expect(tl.screen.queryByText("Retry")).toBeNull();
   });
 
   it("on: an error shows Retry, does not repeat by itself, Retry asks once more", async () => {
