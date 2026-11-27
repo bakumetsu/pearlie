@@ -20,24 +20,25 @@
 
 <section class="card">
 	<h2 class="card-title">Discover rail</h2>
-	<div class="rail" role="group" aria-labelledby="rail-title">
-		<h3 id="rail-title" class="rail-title">Sites in the rail</h3>
-		<p class="hint">A hidden site leaves the Discover rail. Your saved searches keep it.</p>
-		{#if lastOn}
-			<p class="hint">At least one site stays on.</p>
-		{/if}
-		{#each SITE_ORDER as s (s.id)}
-			{@const label = `Show ${s.label} in rail`}
-			<div class="rail-line">
-				<span>{s.label}</span>
-				<Switch
-					checked={!hidden.includes(s.id)}
-					{label}
-					disabled={lastOn && !hidden.includes(s.id)}
-					onclick={() => toggle(s.id)}
-				/>
-			</div>
-		{/each}
+	<div class="row stack">
+		<span class="row-label">
+			Sites in the rail<br />
+			<span class="muted">Sites that show as pills in Discover.{lastOn ? " At least one stays on." : ""}</span>
+		</span>
+		<div class="rail-list" role="group" aria-label="Sites in the rail">
+			{#each SITE_ORDER as s (s.id)}
+				{@const label = `Show ${s.label} in rail`}
+				<span class="rail-site">
+					<span>{s.label}</span>
+					<Switch
+						checked={!hidden.includes(s.id)}
+						{label}
+						disabled={lastOn && !hidden.includes(s.id)}
+						onclick={() => toggle(s.id)}
+					/>
+				</span>
+			{/each}
+		</div>
 	</div>
 	<div class="row">
 		<span class="row-label">Show site names</span>
@@ -47,7 +48,6 @@
 			onclick={() => store.set({ site_names: !(store.values?.site_names ?? true) })}
 		/>
 	</div>
-	<p class="hint">Off: pills show the icon only.</p>
 	<div class="row">
 		<span class="row-label">Tapped site first</span>
 		<Switch
@@ -56,24 +56,32 @@
 			onclick={() => store.set({ tapped_first: !(store.values?.tapped_first ?? false) })}
 		/>
 	</div>
-	<p class="hint">On: the site you tapped last becomes the first row. The rest keep the pill order. Forgotten when you close the app.</p>
+	<p class="hint">On: the site you tapped last becomes the first row. Forgotten when you close the app.</p>
 </section>
 
 <style>
-	.rail-title {
-		margin: 0;
-		padding: 16px 16px 2px;
-		border-top: 1px solid #2c2c33;
-		font-size: var(--t-15);
-		font-weight: 600;
+	:global(.options .card) .row.stack {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 4px;
 	}
-	.rail-line {
+	.muted {
+		font-size: var(--t-13);
+		color: var(--muted);
+	}
+	.rail-list {
+		display: flex;
+		flex-direction: column;
+	}
+	.rail-site {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: var(--s-3);
 		min-height: 44px;
-		margin: 0 16px;
-		padding: 0 0 0 16px;
+		padding-left: 16px;
+		border-top: 1px solid #2c2c33;
+	}
+	.rail-site:first-child {
+		border-top: 0;
 	}
 </style>

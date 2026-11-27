@@ -40,7 +40,7 @@ describe("DiscoverRailCard", () => {
     render(DiscoverRailCard, { store });
     const sw = screen.getByRole("switch", { name: "Show Danbooru in rail" }) as HTMLButtonElement;
     expect(sw.disabled).toBe(true);
-    expect(screen.getByText("At least one site stays on.")).toBeTruthy();
+    expect(screen.getByText(/At least one stays on./)).toBeTruthy();
     await fireEvent.click(sw);
     expect(store.set).not.toHaveBeenCalled();
     expect((screen.getByRole("switch", { name: "Show Rule34 in rail" }) as HTMLButtonElement).disabled).toBe(false);
