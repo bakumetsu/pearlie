@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/discover/merged": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discover Merged
+         * @description The merged first row. A site that is slow after the wait is pending, not waited for.
+         */
+        get: operations["discover_merged_api_discover_merged_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/search": {
         parameters: {
             query?: never;
@@ -2138,6 +2158,51 @@ export interface components {
              */
             prefix_stash: string;
         };
+        /**
+         * MergedRow
+         * @description First page of every rail site, mixed in turns.
+         */
+        MergedRow: {
+            /** Items */
+            items?: components["schemas"]["WebItem"][];
+            /** Sites */
+            sites?: components["schemas"]["MergedSite"][];
+            /**
+             * Hidden
+             * @default 0
+             */
+            hidden: number;
+            /**
+             * Pending
+             * @default false
+             */
+            pending: boolean;
+        };
+        /**
+         * MergedSite
+         * @description What one rail site gave the merged Discover row.
+         */
+        MergedSite: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "danbooru" | "gelbooru" | "rule34" | "nhentai";
+            /** Title */
+            title: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "empty" | "pending" | "rate_limited" | "error";
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /** Message */
+            message?: string | null;
+        };
         /** Mount */
         Mount: {
             /** Name */
@@ -3061,6 +3126,38 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    discover_merged_api_discover_merged_get: {
+        parameters: {
+            query?: {
+                have?: string;
+                safe?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MergedRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     search_api_search_get: {
         parameters: {
             query?: {
