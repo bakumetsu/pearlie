@@ -68,7 +68,7 @@
 		const kind = pillFor(key);
 		if (kind === "rejected") {
 			const blocked = store.byName(key)?.reason === "blocked";
-			return { text: `nhentai ${blocked ? "blocked" : "rejected"} this key`, link: "Edit key" };
+			return { text: `nhentai ${blocked ? "blocked" : "rejected"} this key.`, link: "Edit key" };
 		}
 		if (kind === "down") return { text: store.results[key]?.message ?? "Test failed", link: "Edit settings" };
 		if (kind === "backoff") {
