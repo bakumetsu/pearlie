@@ -19,24 +19,26 @@
 </script>
 
 <section class="card">
-	<h2 class="card-title">Sites in the rail</h2>
-	<p class="hint">A hidden site leaves the Discover rail. Your saved searches keep it.</p>
-	{#if lastOn}
-		<p class="hint">At least one site stays on.</p>
-	{/if}
-
-	{#each SITE_ORDER as s (s.id)}
-		{@const label = `Show ${s.label} in rail`}
-		<div class="row">
-			<span class="row-label">{s.label}</span>
-			<Switch
-				checked={!hidden.includes(s.id)}
-				{label}
-				disabled={lastOn && !hidden.includes(s.id)}
-				onclick={() => toggle(s.id)}
-			/>
-		</div>
-	{/each}
+	<h2 class="card-title">Discover rail</h2>
+	<div class="rail" role="group" aria-labelledby="rail-title">
+		<h3 id="rail-title" class="rail-title">Sites in the rail</h3>
+		<p class="hint">A hidden site leaves the Discover rail. Your saved searches keep it.</p>
+		{#if lastOn}
+			<p class="hint">At least one site stays on.</p>
+		{/if}
+		{#each SITE_ORDER as s (s.id)}
+			{@const label = `Show ${s.label} in rail`}
+			<div class="rail-line">
+				<span>{s.label}</span>
+				<Switch
+					checked={!hidden.includes(s.id)}
+					{label}
+					disabled={lastOn && !hidden.includes(s.id)}
+					onclick={() => toggle(s.id)}
+				/>
+			</div>
+		{/each}
+	</div>
 	<div class="row">
 		<span class="row-label">Show site names</span>
 		<Switch
@@ -56,3 +58,22 @@
 	</div>
 	<p class="hint">On: the site you tapped last becomes the first row. The rest keep the pill order. Forgotten when you close the app.</p>
 </section>
+
+<style>
+	.rail-title {
+		margin: 0;
+		padding: 16px 16px 2px;
+		border-top: 1px solid #2c2c33;
+		font-size: var(--t-15);
+		font-weight: 600;
+	}
+	.rail-line {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--s-3);
+		min-height: 44px;
+		margin: 0 16px;
+		padding: 0 0 0 16px;
+	}
+</style>

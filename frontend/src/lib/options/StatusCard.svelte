@@ -45,9 +45,6 @@
 			{#each health.mounts as mount, i (i)}
 				<li class="row"><span>Mount {mount.name}</span><span class="chip {chipClass(mount.state)}">{statusLabel(mount.state)}</span></li>
 			{/each}
-			{#each health.sites as site, i (i)}
-				<li class="row"><span>{site.id}</span><span class="chip {chipClass(site.state)}">{statusLabel(site.state)}</span></li>
-			{/each}
 		</ul>
 	{:else if healthError}
 		<p class="hint">Status unavailable.</p>

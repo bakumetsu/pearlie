@@ -9,7 +9,7 @@
     rowMatches,
     type OptionCard,
     SECTION_ICONS,
-    isSectionId,
+    resolveSectionId,
     type SectionId,
     type Section,
     type Group,
@@ -20,7 +20,6 @@
   import Rules from "./Rules.svelte";
   import ImageViewerCard from "../lib/options/ImageViewerCard.svelte";
   import ListsCard from "../lib/options/ListsCard.svelte";
-  import DownloadsCard from "../lib/options/DownloadsCard.svelte";
   import ImagesPerSiteCard from "../lib/options/ImagesPerSiteCard.svelte";
   import StatusCard from "../lib/options/StatusCard.svelte";
   import UpdateCard from "../lib/options/UpdateCard.svelte";
@@ -34,7 +33,8 @@
   import SaveFoldersCard from "../lib/options/SaveFoldersCard.svelte";
   import ConnectionRows from "../lib/options/ConnectionRows.svelte";
   import ContentFilterCard from "../lib/options/ContentFilterCard.svelte";
-  import DiscoverCard from "../lib/options/DiscoverCard.svelte";
+  import SitesCard from "../lib/options/SitesCard.svelte";
+  import DiscoverRailCard from "../lib/options/DiscoverRailCard.svelte";
   import { guardedNavigate } from "../lib/stores/rules.svelte";
 
   let { match }: { match: Match } = $props();
@@ -118,7 +118,8 @@
   $effect(() => {
     try {
       const v = localStorage.getItem(STORAGE_KEY);
-      if (v && isSectionId(v)) remembered = v;
+      const id = v ? resolveSectionId(v) : null;
+      if (id) remembered = id;
     } catch {
       /* ignore */
     }
@@ -126,7 +127,8 @@
 
   let activeSectionId = $derived.by<SectionId>(() => {
     const p = match.params.section;
-    if (p && isSectionId(p)) return p;
+    const id = p ? resolveSectionId(p) : null;
+    if (id) return id;
     if (remembered) return remembered;
     return "general";
   });
@@ -134,9 +136,10 @@
   // Persist on explicit navigation to a section
   $effect(() => {
     const p = match.params.section;
-    if (p && isSectionId(p)) {
+    const id = p ? resolveSectionId(p) : null;
+    if (id) {
       try {
-        localStorage.setItem(STORAGE_KEY, p);
+        localStorage.setItem(STORAGE_KEY, id);
       } catch {
         /* ignore */
       }
@@ -198,13 +201,6 @@
   // ── Whether we are in "search mode" (non-empty query) ─────
   let isSearching = $derived(searchQuery.trim().length > 0);
 
-  const SITE_NAMES = [
-    { key: "danbooru", label: "Danbooru" },
-    { key: "gelbooru", label: "Gelbooru" },
-    { key: "rule34", label: "Rule34" },
-    { key: "nhentai", label: "nhentai" },
-  ];
-
   const LIBRARY_NAMES = [
     { key: "stash", label: "Stash" },
     { key: "stump", label: "Stump" },
@@ -218,10 +214,6 @@
     <ListsCard />
   {:else if sectionId === "content-filter" && card.title === "Content filter"}
     <ContentFilterCard />
-  {:else if sectionId === "discover" && card.title === "Sites in the rail"}
-    <DiscoverCard />
-  {:else if sectionId === "sources" && card.title === "Downloads"}
-    <DownloadsCard />
   {:else if sectionId === "sources" && card.title === "Browsing"}
     <ImagesPerSiteCard />
   {:else if sectionId === "save-folders" && card.title === "Save folders"}
@@ -230,8 +222,10 @@
     <TrashRetentionCard />
   {:else if sectionId === "trash" && card.title === "Folder"}
     <TrashFolderCard />
-  {:else if sectionId === "sources" && card.title === "Site access"}
-    <ConnectionRows title="Site access" names={SITE_NAMES} />
+  {:else if sectionId === "sources" && card.title === "Sites"}
+    <SitesCard />
+  {:else if sectionId === "sources" && card.title === "Discover rail"}
+    <DiscoverRailCard />
   {:else if sectionId === "library" && card.title === "Stash"}
     <ConnectionRows title="Stash and Stump" names={LIBRARY_NAMES} />
   {:else if sectionId === "library" && card.title === "Status"}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { searchSections, isSectionId, SECTIONS } from './sections'
+import { searchSections, isSectionId, resolveSectionId, SECTIONS } from './sections'
 
 describe('searchSections', () => {
   it('returns all sections with count 0 for empty query', () => {
@@ -51,7 +51,7 @@ describe('searchSections', () => {
   it('reports correct per-section count', () => {
     const results = searchSections('Test')
     const sources = results.find((h) => h.section.id === 'sources')!
-    expect(sources.count).toBe(1)
+    expect(sources.count).toBe(1) // Sites > Test
 
     const library = results.find((h) => h.section.id === 'library')!
     expect(library.count).toBe(1) // Stash (also carries Stump)
@@ -91,5 +91,40 @@ describe('isSectionId', () => {
     expect(isSectionId('')).toBe(false)
     expect(isSectionId('GENERAL')).toBe(false)
     expect(isSectionId('content_filter')).toBe(false)
+  })
+})
+
+describe('Sources page', () => {
+  it('has no Discover section', () => {
+    expect(isSectionId('discover')).toBe(false)
+  })
+
+  it('lists Browsing, Sites and Discover rail in order', () => {
+    const sources = SECTIONS.find((s) => s.id === 'sources')!
+    expect(sources.cards.map((c) => c.title)).toEqual(['Browsing', 'Sites', 'Discover rail'])
+  })
+
+  it('finds the moved rail rows under Sources', () => {
+    for (const q of ['Sites in the rail', 'Show site names', 'Tapped site first']) {
+      const hit = searchSections(q).find((h) => h.section.id === 'sources')!
+      expect(hit.cards.some((c) => c.title === 'Discover rail')).toBe(true)
+    }
+  })
+
+  it('keeps site rows out of the Library status hint', () => {
+    const library = SECTIONS.find((s) => s.id === 'library')!
+    const status = library.cards.find((c) => c.title === 'Status')!
+    expect(status.rows[0].hint).not.toContain('sites')
+  })
+})
+
+describe('resolveSectionId', () => {
+  it('opens Sources for the old discover address', () => {
+    expect(resolveSectionId('discover')).toBe('sources')
+  })
+
+  it('passes valid ids and rejects unknown ones', () => {
+    expect(resolveSectionId('trash')).toBe('trash')
+    expect(resolveSectionId('foo')).toBeNull()
   })
 })

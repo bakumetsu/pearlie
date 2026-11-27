@@ -4,7 +4,6 @@ export type SectionId =
   | 'general'
   | 'viewing'
   | 'content-filter'
-  | 'discover'
   | 'rules'
   | 'sources'
   | 'library'
@@ -89,18 +88,6 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
-    id: 'discover',
-    title: 'Discover',
-    group: 'Personal',
-    later: false,
-    cards: [
-      {
-        title: 'Sites in the rail',
-        rows: [{ label: 'Show in rail', hint: 'per-site on/off' }],
-      },
-    ],
-  },
-  {
     id: 'rules',
     title: 'Rules',
     group: 'Library',
@@ -119,19 +106,27 @@ export const SECTIONS: Section[] = [
     later: false,
     cards: [
       {
-        title: 'Downloads',
-        rows: [{ label: 'Seconds between requests', hint: 'per-site pace' }],
-      },
-      {
         title: 'Browsing',
-        rows: [{ label: 'Images at a time', hint: 'per-site image slots' }],
+        rows: [
+          { label: 'Images at a time', hint: 'per-site image slots' },
+          { label: 'Delay between requests', hint: 'per-site pace' },
+        ],
       },
       {
-        title: 'Site access',
+        title: 'Sites',
         rows: [
+          { label: 'Status', hint: 'ready, no key, key rejected, backing off' },
           { label: 'Test', hint: 'test connection' },
           { label: 'Address', hint: 'site URL' },
           { label: 'Key', hint: 'API key or cookies' },
+        ],
+      },
+      {
+        title: 'Discover rail',
+        rows: [
+          { label: 'Sites in the rail', hint: 'per-site on/off' },
+          { label: 'Show site names', hint: 'name next to the icon on pills' },
+          { label: 'Tapped site first', hint: 'last tapped site becomes the first row' },
         ],
       },
     ],
@@ -152,7 +147,7 @@ export const SECTIONS: Section[] = [
       {
         title: 'Status',
         rows: [
-          { label: 'Health', hint: 'Stash, Stump, database, mounts, sites' },
+          { label: 'Health', hint: 'Stash, Stump, database, mounts' },
         ],
       },
       {
@@ -353,6 +348,15 @@ export function searchSections(query: string): SearchHit[] {
 
 const SECTION_IDS: ReadonlySet<string> = new Set(SECTIONS.map((s) => s.id))
 
+/** Old section addresses that now open another section. */
+const SECTION_ALIASES: Record<string, SectionId> = { discover: 'sources' }
+
+/** The section a path or remembered id opens, or null when unknown. */
+export function resolveSectionId(s: string): SectionId | null {
+  if (isSectionId(s)) return s
+  return SECTION_ALIASES[s] ?? null
+}
+
 export function isSectionId(s: string): s is SectionId {
   return SECTION_IDS.has(s)
 }
@@ -361,7 +365,6 @@ export const SECTION_ICONS: Record<SectionId, IconName> = {
   general: 'sliders',
   viewing: 'eye',
   'content-filter': 'eye-off',
-  discover: 'star',
   rules: 'rules',
   sources: 'download',
   library: 'library',

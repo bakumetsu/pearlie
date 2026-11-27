@@ -46,8 +46,7 @@ describe("StatusCard", () => {
     const dbRow = screen.getByText("Database").closest("li");
     expect(dbRow?.textContent).toContain("OK");
 
-    const danbooruRow = screen.getByText("danbooru").closest("li");
-    expect(danbooruRow?.textContent).toContain("Not configured");
+    expect(screen.queryByText("danbooru")).toBeNull();
 
     expect(screen.getByText("Mount local")).toBeDefined();
   });
