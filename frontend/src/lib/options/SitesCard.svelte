@@ -205,7 +205,7 @@
 	.pill {
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
+		gap: 4px;
 		width: max-content;
 		padding: 2px 8px;
 		border-radius: 99px;

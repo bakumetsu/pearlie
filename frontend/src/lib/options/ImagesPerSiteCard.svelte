@@ -168,7 +168,11 @@
 		align-items: center;
 		gap: var(--s-3);
 		min-height: 60px;
-		padding: 8px 16px;
+		margin: 0 16px;
+		padding: 8px 0;
+	}
+	.delay-line + .delay-line {
+		border-top: 1px solid #2c2c33;
 	}
 	.delay-name {
 		flex: 1;
