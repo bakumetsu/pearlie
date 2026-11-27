@@ -62,4 +62,8 @@ describe("itemAspect", () => {
   it("returns 1 for a web item", () => {
     expect(itemAspect(web("1"))).toBe(1);
   });
+
+  it("returns 2/3 for an nhentai cover whatever size it reports", () => {
+    expect(itemAspect({ ...web("2"), source: "nhentai", width: 300, height: 400 })).toBeCloseTo(2 / 3);
+  });
 });

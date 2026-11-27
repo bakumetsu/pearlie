@@ -173,3 +173,12 @@ describe("ViewBarComponent", () => {
     expect(screen.queryByRole("dialog", { name: "View settings" })).toBeNull();
   });
 });
+
+describe("zoomOnly", () => {
+  it("shows the zoom slider and no per-page select or view menu", () => {
+    render(ViewBarComponent, { props: { ...baseProps(), zoomOnly: true } });
+    expect(screen.getByRole("slider", { name: "Zoom" })).toBeTruthy();
+    expect(screen.queryByLabelText("Per page")).toBeNull();
+    expect(screen.queryByRole("button", { name: "View" })).toBeNull();
+  });
+});

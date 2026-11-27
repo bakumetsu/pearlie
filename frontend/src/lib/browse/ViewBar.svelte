@@ -16,6 +16,7 @@
     onperpage,
     onzoom,
     onzoompreview,
+    zoomOnly = false,
   }: {
     mode: Mode;
     modes: Mode[];
@@ -27,6 +28,8 @@
     onperpage: (n: number) => void;
     onzoom: (z: number) => void;
     onzoompreview: (z: number) => void;
+    // Only the zoom slider: no per-page select, no mode picker (the merged See all list).
+    zoomOnly?: boolean;
   } = $props();
 
   let custom = $state(false);
@@ -91,6 +94,7 @@
 />
 
 {#snippet controls(inline: boolean)}
+  {#if !zoomOnly}
   <div class="pp">
     <select aria-label="Per page" value={String(perPage)} onchange={onPerPageChange}>
       {#each selectOptions as n (n)}
@@ -153,6 +157,7 @@
       </div>
     {/if}
   </div>
+  {/if}
   {/if}
   <div class="zoom-wrap">
     <input

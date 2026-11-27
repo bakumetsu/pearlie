@@ -607,7 +607,7 @@
     <div class="controls">
       {#if !merged}<Toolbar sort={sortValue} {rating} sorts={sortOptions} ratings={isLibrary ? [] : ratingOptions} {orderBlocked} favorites={favoritesAvail} {favorite} {canReset} onapply={onToolbar} onfavorite={onFavToggle} onreset={onReset} />{/if}
     {#if viewSettings.ready}
-      <ViewBar modes={vs.modes as Mode[]} mode={vs.mode as Mode} perPage={vs.per_page} zoom={vs.zoom} options={vs.per_page_options} max={vs.per_page_max} onmode={onMode} onperpage={onPerPage} onzoom={onZoom} onzoompreview={onZoomPreview} />
+      <ViewBar zoomOnly={merged} modes={vs.modes as Mode[]} mode={vs.mode as Mode} perPage={vs.per_page} zoom={vs.zoom} options={vs.per_page_options} max={vs.per_page_max} onmode={onMode} onperpage={onPerPage} onzoom={onZoom} onzoompreview={onZoomPreview} />
     {/if}
     {#if isLibrary}<SelectBar onchanged={() => void grid.goTo(grid.page)} />{/if}
     </div>
