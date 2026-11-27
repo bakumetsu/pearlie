@@ -8,7 +8,7 @@ import typing
 from concurrent.futures import Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
 from app.api.errors import ApiError
 from app.api.media_owned import is_owned
@@ -20,7 +20,17 @@ from app.filters.rules import evaluate, load_rules
 from app.filters.safe_mode import is_hidden_in_safe_mode, resolve_safe
 from app.gif_grid import grid_gif_ok
 from app.jobs.store import JobStore
-from app.models import Blur, MergedRow, MergedSite, MergedState, Tag, Target, WebItem, WebSource
+from app.models import (
+    Blur,
+    MergedPage,
+    MergedRow,
+    MergedSite,
+    MergedState,
+    Tag,
+    Target,
+    WebItem,
+    WebSource,
+)
 from app.sources.base import Post, SearchPage, Source, SourceError
 from app.sources.nhentai import reject_terms
 from app.sources.throttle import DEFAULT_PACE
@@ -50,11 +60,11 @@ def _rail(request: Request) -> list[str]:
     return rail_sites(order, hidden, request.app.state.sources)
 
 
-def _call(request_cache, sid: str, src: Source, tags: list[str]) -> _Outcome:
-    """One first-page call through the shared cache; a running call is joined."""
+def _call(request_cache, sid: str, src: Source, tags: list[str], pg: int) -> _Outcome:
+    """One page call through the shared cache; a running call is joined."""
     t0 = time.monotonic()
     try:
-        page = site_items(request_cache, sid, src, tags, 1, None, None, [])
+        page = site_items(request_cache, sid, src, tags, pg, None, None, [])
     except SourceError as e:
         return _Outcome(code=e.code, message=e.message, elapsed_ms=_ms(t0))
     except Exception as e:  # a site bug must not break the row; the log keeps the type only
@@ -120,29 +130,20 @@ def _web_item(post: Post, blur: Blur | None, src: Source) -> WebItem:
     )
 
 
-@router.get("/discover/merged")
-def discover_merged(
-    request: Request,
-    have: str = "",
-    safe: bool | None = None,
-) -> MergedRow:
-    """The merged first row. A site that is slow after the wait is pending, not waited for."""
+def _fetch(
+    request: Request, rail: list[str], page: int
+) -> tuple[dict[str, _Outcome], dict[str, MergedState]]:
+    """Call every rail site once for *page*; wait at most MERGE_WAIT_S, log each missing site."""
     wait_s = MERGE_WAIT_S
-    rail = _rail(request)
-    if len(rail) < 2:
-        raise ApiError(409, "not_merged", "Fewer than two sites in the rail")
-    have_ids = {s.strip() for s in have.split(",") if s.strip()}
-    safe_on, allow_blurred = resolve_safe(request, safe)
-    rules = load_rules(request.app.state.settings.db_path)
     sources: dict[str, Source] = request.app.state.sources
     cache = _cache_of(request)
-
+    rules = load_rules(request.app.state.settings.db_path)
     pool = ThreadPoolExecutor(max_workers=len(rail), thread_name_prefix="discover-merged")
     futures: dict[str, Future[_Outcome]] = {}
     for sid in rail:
         # same tags as a split row in multi mode, so both share one cache entry
         tags = reject_terms(rules.reject) if sid == "nhentai" else []
-        futures[sid] = pool.submit(_call, cache, sid, sources[sid], tags)
+        futures[sid] = pool.submit(_call, cache, sid, sources[sid], tags, page)
     wait(futures.values(), timeout=wait_s)
     pool.shutdown(wait=False)
 
@@ -169,7 +170,22 @@ def discover_merged(
                 out.elapsed_ms,
                 out.code,
             )
+    return outcomes, states
 
+
+def _build(
+    request: Request,
+    rail: list[str],
+    outcomes: dict[str, _Outcome],
+    states: dict[str, MergedState],
+    have_ids: set[str],
+    safe: bool | None,
+    per_site: int | None,
+) -> tuple[list[WebItem], list[MergedSite], int]:
+    """Rules, safe mode, interleave, dedupe, saved flags: items, site states, hidden count."""
+    safe_on, allow_blurred = resolve_safe(request, safe)
+    rules = load_rules(request.app.state.settings.db_path)
+    sources: dict[str, Source] = request.app.state.sources
     hidden = 0
     blurs: dict[tuple[str, str], Blur | None] = {}
     visible: dict[str, list[Post]] = {}
@@ -190,7 +206,7 @@ def discover_merged(
             posts.append(post)
         visible[sid] = posts
 
-    row = dedupe(interleave(visible, rail, have_ids, per_site=PER_SITE))
+    row = dedupe(interleave(visible, rail, have_ids, per_site=per_site))
     items = [_web_item(p, blurs[(p.source, p.post_id)], sources[p.source]) for p in row]
     store = JobStore(request.app.state.settings.db_path)
     for sid in visible:
@@ -214,9 +230,44 @@ def discover_merged(
         )
         for sid in rail
     ]
+    return items, sites, hidden
+
+
+def _merged_rail(request: Request) -> list[str]:
+    rail = _rail(request)
+    if len(rail) < 2:
+        raise ApiError(409, "not_merged", "Fewer than two sites in the rail")
+    return rail
+
+
+@router.get("/discover/merged")
+def discover_merged(
+    request: Request,
+    have: str = "",
+    safe: bool | None = None,
+) -> MergedRow:
+    """The merged first row. A site that is slow after the wait is pending, not waited for."""
+    rail = _merged_rail(request)
+    have_ids = {s.strip() for s in have.split(",") if s.strip()}
+    outcomes, states = _fetch(request, rail, 1)
+    items, sites, hidden = _build(request, rail, outcomes, states, have_ids, safe, PER_SITE)
     return MergedRow(
         items=items,
         sites=sites,
         hidden=hidden,
         pending=any(s.state == "pending" for s in sites),
     )
+
+
+@router.get("/discover/merged/list")
+def discover_merged_list(
+    request: Request,
+    page: int = Query(1, ge=1),
+    safe: bool | None = None,
+) -> MergedPage:
+    """One page of the mixed See all list: page N of every rail site, a slow site left out."""
+    rail = _merged_rail(request)
+    outcomes, states = _fetch(request, rail, page)
+    items, sites, _ = _build(request, rail, outcomes, states, set(), safe, None)
+    got = any(o.page is not None and o.page.posts for o in outcomes.values())
+    return MergedPage(items=items, page=page, next_page=page + 1 if got else None, sites=sites)

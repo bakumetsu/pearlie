@@ -243,6 +243,15 @@ class MergedRow(BaseModel):
     pending: bool = False  # a site is still running; poll again
 
 
+class MergedPage(BaseModel):
+    """One page of the mixed See all list: page N of every rail site, interleaved."""
+
+    items: list[WebItem] = Field(default_factory=list)
+    page: int = 1
+    next_page: int | None = None  # None when no site gave posts; the total is not known
+    sites: list[MergedSite] = Field(default_factory=list)  # rail order
+
+
 class SourceFilters(BaseModel):
     """What the order/rating/per-page toolbar may offer for one source."""
 

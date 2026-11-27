@@ -24,6 +24,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/discover/merged/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discover Merged List
+         * @description One page of the mixed See all list: page N of every rail site, a slow site left out.
+         */
+        get: operations["discover_merged_list_api_discover_merged_list_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/search": {
         parameters: {
             query?: never;
@@ -2159,6 +2179,23 @@ export interface components {
             prefix_stash: string;
         };
         /**
+         * MergedPage
+         * @description One page of the mixed See all list: page N of every rail site, interleaved.
+         */
+        MergedPage: {
+            /** Items */
+            items?: components["schemas"]["WebItem"][];
+            /**
+             * Page
+             * @default 1
+             */
+            page: number;
+            /** Next Page */
+            next_page?: number | null;
+            /** Sites */
+            sites?: components["schemas"]["MergedSite"][];
+        };
+        /**
          * MergedRow
          * @description First page of every rail site, mixed in turns.
          */
@@ -3145,6 +3182,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MergedRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discover_merged_list_api_discover_merged_list_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                safe?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MergedPage"];
                 };
             };
             /** @description Validation Error */
