@@ -476,7 +476,6 @@
     opacity: 0;
   }
   .tile:hover .save-btn,
-  .tile:focus-within .save-btn,
   .save-btn:focus-visible {
     opacity: 1;
   }

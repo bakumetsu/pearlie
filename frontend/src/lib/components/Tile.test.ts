@@ -139,9 +139,13 @@ describe("Tile web caption", () => {
     const off = render(Tile, { item: { ...(webItem as object), source: "nhentai", target: "stump", saveable: false } as never });
     expect(off.container.querySelector("button.save-btn")).toBeNull();
   });
-  it("save button is revealed on hover/focus and on touch", () => {
+  it("save button is revealed on hover, on its own keyboard focus and on touch", () => {
     expect(tileSrc).toContain("@media (hover: none)");
-    expect(tileSrc).toContain(".tile:focus-within .save-btn");
+    expect(tileSrc).toContain(".tile:hover .save-btn");
+    expect(tileSrc).toContain(".save-btn:focus-visible");
+  });
+  it("tile focus alone does not reveal Save (focus returns to the tile after the detail view closes)", () => {
+    expect(tileSrc).not.toContain(".tile:focus-within .save-btn");
   });
 });
 describe("Tile warn-list", () => {
