@@ -35,7 +35,8 @@
 {:else}
   <SectionRow title="Latest from your sites" {seeAllHref} {hidden} {rulesHref} {error} {onretry} {onnavigate}>
     {#if items.length === 0 && status === "done"}
-      <p class="empty">Nothing to show. The sites gave no posts, or rules hid them.</p>
+      <!-- inline flex: SectionRow `.strip > *` sets a fixed tile width -->
+      <p class="empty" style="flex: 1 1 100%">Nothing to show. The sites gave no posts, or rules hid them.</p>
     {:else}
       {#each items as item (item.source + ":" + item.post_id)}
         <Tile {item} badge={letter(item.source)} href={tileHref?.(item)} saveState={saveState?.(item)} savedHref={savedHref?.(item)} onsave={() => onsave?.(item)} onopen={() => onopen?.(item)} />
@@ -53,7 +54,6 @@
     animation: pulse 1.5s ease-in-out infinite;
   }
   .empty {
-    flex: 1 1 100%;
     margin: 0;
     font-size: var(--t-14);
     color: var(--muted);
