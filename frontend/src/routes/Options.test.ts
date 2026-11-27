@@ -79,13 +79,13 @@ afterEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────
 
 describe("Options", () => {
-  it("renders all 14 sections in the list (desktop, no search)", () => {
+  it("renders all 13 sections in the list (desktop, no search)", () => {
     render(Options, {
       props: { match: makeMatch() },
     });
 
     const rows = document.querySelectorAll("button[data-section]");
-    expect(rows.length).toBe(14);
+    expect(rows.length).toBe(13);
 
     const labels = Array.from(rows).map((r) =>
       r.querySelector(".section-row-label")?.textContent?.trim(),
@@ -100,6 +100,32 @@ describe("Options", () => {
     expect(labels).toContain("Update");
     expect(labels).toContain("Logs");
     expect(labels).toContain("About");
+    expect(labels).not.toContain("Discover");
+  });
+
+  it("/options/discover opens Sources", () => {
+    render(Options, {
+      props: { match: makeMatch({ params: { section: "discover" }, path: "/options/discover" }) },
+    });
+    const activeRow = document.querySelector<HTMLButtonElement>(
+      'button[data-section][aria-current="page"]',
+    );
+    expect(activeRow?.querySelector(".section-row-label")?.textContent?.trim()).toBe("Sources");
+    expect(document.body.textContent).toContain("Discover rail");
+  });
+
+  it("a remembered discover section opens Sources", () => {
+    const store: Record<string, string> = { "pearlie.options.section": "discover" };
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+    });
+    render(Options, { props: { match: makeMatch() } });
+    const activeRow = document.querySelector<HTMLButtonElement>(
+      'button[data-section][aria-current="page"]',
+    );
+    expect(activeRow?.querySelector(".section-row-label")?.textContent?.trim()).toBe("Sources");
   });
 
   it("search shows 'Nothing found' when no match", async () => {
@@ -184,7 +210,7 @@ describe("Options", () => {
     // Search present
     expect(document.querySelector('input[aria-label="Search options"]')).toBeTruthy();
     // Section rows present
-    expect(document.querySelectorAll("button[data-section]").length).toBe(14);
+    expect(document.querySelectorAll("button[data-section]").length).toBe(13);
   });
 
   it("phone: /options/viewing shows section + back button", () => {
@@ -278,7 +304,7 @@ describe("Options", () => {
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await tick();
     expect(input.value).toBe("");
-    expect(document.querySelectorAll("button[data-section]").length).toBe(14);
+    expect(document.querySelectorAll("button[data-section]").length).toBe(13);
   });
 
   it("ArrowDown moves focus to the next section row", () => {

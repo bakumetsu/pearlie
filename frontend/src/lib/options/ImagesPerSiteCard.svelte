@@ -161,7 +161,7 @@
 		padding: 16px 16px 2px;
 		border-top: 1px solid #2c2c33;
 		font-size: var(--t-15);
-		font-weight: 600;
+		font-weight: 400;
 	}
 	.delay-line {
 		display: flex;
