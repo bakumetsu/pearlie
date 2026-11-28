@@ -43,8 +43,9 @@ from app.sources.base import Post, SearchPage, Source, SourceError
 from app.sources.filters import NOTICE_CODE
 from app.sources.nhentai import reject_terms
 from app.sources.query_terms import split_terms, title_terms
-from app.targets.stash_client import StashClient, StashError
-from app.targets.stash_library import (
+from app.targets.servers import (
+    StashClient,
+    StashError,
     image_item,
     log_gif_rejects,
     map_items,

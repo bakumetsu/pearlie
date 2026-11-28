@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.api.errors import ApiError
 from app.jobs.store import JobStore
-from app.targets.stash_client import StashClient, StashError
+from app.targets.servers import StashClient, StashError
 
 router = APIRouter(prefix="/api")
 

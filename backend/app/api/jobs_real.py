@@ -13,7 +13,7 @@ from app.jobs.store import JobStore
 from app.jobs.worker import JobWorker
 from app.models import Job, JobList, PlacementSuggestion, SaveAccepted, SaveBody, WebSource
 from app.sources.base import Post, Source, SourceError
-from app.targets.stash import SaveError
+from app.targets.servers import SaveError
 
 router = APIRouter(prefix="/api")
 logger = logging.getLogger("pearlie")

@@ -8,8 +8,7 @@ from fastapi.responses import Response, StreamingResponse
 
 from app.api.errors import ApiError
 from app.api.relay import CHUNK_SIZE, relay
-from app.targets import stash_library
-from app.targets.stash_client import StashError
+from app.targets.servers import StashError, stash_library
 
 router = APIRouter(prefix="/api/media")
 MANIFEST_MAX = 1_000_000  # an HLS manifest is small; more is not a manifest

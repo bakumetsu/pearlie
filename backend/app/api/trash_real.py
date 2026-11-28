@@ -12,8 +12,6 @@ from app.api import options
 from app.api.errors import ApiError
 from app.bookserver.base import BOOK_TARGETS, BookServerError
 from app.bookserver.factory import book_server_of
-from app.library.stash_trash import StashTrash
-from app.library.stump_trash import StumpTrash
 from app.library.trash import TrashError, TrashStore
 from app.models import (
     GroupRestoreResult,
@@ -32,8 +30,7 @@ from app.models import (
     TrashRoot,
     TrashStatus,
 )
-from app.targets.stash_client import StashError
-from app.targets.stash_library import valid_id
+from app.targets.servers import StashError, StashTrash, StumpTrash, valid_id
 
 logger = logging.getLogger("pearlie")
 
