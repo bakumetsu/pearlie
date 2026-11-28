@@ -99,10 +99,14 @@ describe("ToastRegion", () => {
     expect(toasts.current).toBeNull();
   });
 
-  it("shows the queued count", async () => {
+  it("stacks up to 3 toasts with Undo first", async () => {
     mount("home");
-    toasts.push({ kind: "info", message: "one" });
-    toasts.push({ kind: "info", message: "two" });
-    expect(await screen.findByText("+1")).toBeTruthy();
+    for (const m of ["one", "two", "three", "four"]) toasts.push({ kind: "info", message: m });
+    toasts.push({ kind: "undo", message: "gone", actionLabel: "Undo" });
+    await screen.findByText("gone");
+    const region = document.querySelector("[data-toast-region]")!;
+    expect(region.textContent).toMatch(/^gone/);
+    expect(region.querySelectorAll("span.min-w-0").length).toBe(3);
+    expect(region.textContent).not.toContain("+");
   });
 });

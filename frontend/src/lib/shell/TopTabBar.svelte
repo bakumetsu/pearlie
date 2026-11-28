@@ -8,7 +8,7 @@
 </script>
 
 <!-- Desktop only: 48 px bar, 6 tabs (icon + word), accent tab has a 2 px underline, SFW eye at the right. -->
-<header class="fixed inset-x-0 top-0 z-[900] hidden h-12 items-center border-b border-border bg-background px-2 lg:flex">
+<header class="ui-root fixed inset-x-0 top-0 z-[900] hidden h-12 items-center border-b border-border bg-background px-2 lg:flex">
   <nav aria-label="Main" class="flex h-full flex-1 items-stretch gap-1">
     {#each TABS as tab (tab.name)}
       {@const active = isActive(tab.name, current)}

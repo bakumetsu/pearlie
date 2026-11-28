@@ -1,21 +1,25 @@
 <script lang="ts">
-  import { toasts } from "$lib/stores/toasts.svelte";
+  import { toasts, type Toast } from "$lib/stores/toasts.svelte";
   import { cn } from "$lib/utils";
 
   // Same store, labels and pause rules as ui/Toaster.svelte. Bottom centre on desktop; above the bottom bar on phone.
-  // The store shows one toast at a time and queues the rest (toasts.svelte.ts:13-14): the queue shows as "+N".
+  // Stack of up to 3 from toasts.visible, Undo first. Only the current toast has a timer; each action runs its own toast.
   let { bars = true }: { bars?: boolean } = $props();
+
+  function run(toast: Toast) {
+    toast.onAction?.();
+    toasts.dismiss(toast.id);
+  }
 </script>
 
 <div
-  class={cn("pointer-events-none fixed inset-x-0 z-[1100] flex justify-center px-4", bars ? "bottom-[72px] lg:bottom-4" : "bottom-4")}
+  class={cn("ui-root pointer-events-none fixed inset-x-0 z-[1100] flex flex-col items-center gap-2 px-4", bars ? "bottom-[72px] lg:bottom-4" : "bottom-4")}
   role="status"
   aria-live="polite"
   aria-atomic="false"
   data-toast-region
 >
-  {#if toasts.current}
-    {@const toast = toasts.current}
+  {#each toasts.visible as toast (toast.id)}
     <div
       class={cn(
         "pointer-events-auto flex min-h-11 max-w-full items-center gap-3 rounded-lg border border-input bg-popover px-4 text-popover-foreground shadow-[var(--shadow-float)]",
@@ -32,22 +36,19 @@
         {#if toast.href}
           <a
             href={toast.href}
-            onclick={() => toasts.runAction()}
+            onclick={() => run(toast)}
             class="inline-flex h-11 min-w-11 items-center font-semibold! text-primary! focus-visible:outline-2 focus-visible:outline-ring"
             >{toast.actionLabel}</a
           >
         {:else}
           <button
             type="button"
-            onclick={() => toasts.runAction()}
+            onclick={() => run(toast)}
             class="inline-flex h-11 min-w-11 items-center justify-center font-semibold! text-primary! focus-visible:outline-2 focus-visible:outline-ring"
             >{toast.actionLabel}</button
           >
         {/if}
       {/if}
-      {#if toasts.queued > 0}
-        <span class="text-xs text-muted-foreground" aria-label="{toasts.queued} more">+{toasts.queued}</span>
-      {/if}
     </div>
-  {/if}
+  {/each}
 </div>

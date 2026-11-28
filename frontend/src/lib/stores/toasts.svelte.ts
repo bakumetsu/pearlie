@@ -49,6 +49,11 @@ export function createToasts(timers?: { set: typeof setTimeout; clear: typeof cl
   return {
     get current(): Toast | null { return current; },
     get queued(): number { return queue.length; },
+    /** Read-only stack for the shell toast region: up to 3, Undo toasts first (stable order). */
+    get visible(): Toast[] {
+      const all = current === null ? [] : [current, ...queue];
+      return [...all.filter((t) => t.kind === "undo"), ...all.filter((t) => t.kind !== "undo")].slice(0, 3);
+    },
 
     push(t: { kind: ToastKind; message: string; actionLabel?: string; href?: string; onAction?: () => void; durationMs?: number }): number {
       const id = nextId++;

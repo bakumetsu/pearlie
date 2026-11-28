@@ -7,7 +7,7 @@
 </script>
 
 <!-- Phone and tablet: 48 px bar with the page title, a back arrow on deep pages and the SFW eye. -->
-<header class="fixed inset-x-0 top-0 z-[900] flex h-12 items-center gap-1 border-b border-border bg-background px-1 lg:hidden">
+<header class="ui-root fixed inset-x-0 top-0 z-[900] flex h-12 items-center gap-1 border-b border-border bg-background px-1 lg:hidden">
   {#if isDeep(current)}
     <IconButton icon="arrow-left" label="Back" onclick={() => history.back()} />
   {/if}

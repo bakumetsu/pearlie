@@ -9,7 +9,7 @@
 <!-- Phone and tablet: 56 px bar, 6 items, 11 px labels. -->
 <nav
   aria-label="Main"
-  class="fixed inset-x-0 bottom-0 z-[900] flex h-14 items-stretch justify-evenly border-t border-border bg-background lg:hidden"
+  class="ui-root fixed inset-x-0 bottom-0 z-[900] flex h-14 items-stretch justify-evenly border-t border-border bg-background lg:hidden"
 >
   {#each TABS as tab (tab.name)}
     {@const active = isActive(tab.name, current)}
