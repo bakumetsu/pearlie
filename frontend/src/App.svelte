@@ -31,6 +31,10 @@
   import { gridFor } from "./lib/stores/shared.svelte";
   import { toasts } from "./lib/stores/toasts.svelte";
   import { createPlayerNav } from "./lib/player/playerNav.svelte";
+  import AppShell from "./lib/shell/AppShell.svelte";
+  import { shellEnabled } from "./lib/shell/nav";
+
+  const shell = shellEnabled();
 
   const router = createRouter();
   setRouter(router);
@@ -81,8 +85,7 @@
   });
 </script>
 
-<Nav current={match.name} queueBadge={jobs.badge} onnavigate={(e) => linkClick(e, router)} />
-
+{#snippet screens()}
 <main class="main" style="margin-left: var(--rail-w)">
   {#key match.name}
     {#if match.name === "discover"}
@@ -117,13 +120,27 @@
     {/if}
   {/key}
 </main>
+{/snippet}
 
-<SfwToggle />
-<Toast />
+{#snippet overlays()}
 <PlacementSheet />
 <HostBlockBanner />
 <PlayerHost />
 <MiniDock />
+{/snippet}
+
+{#if shell}
+  <AppShell current={match.name} queueBadge={jobs.badge} onnavigate={(e) => linkClick(e, router)}>
+    {@render screens()}
+    {@render overlays()}
+  </AppShell>
+{:else}
+  <Nav current={match.name} queueBadge={jobs.badge} onnavigate={(e) => linkClick(e, router)} />
+  {@render screens()}
+  <SfwToggle />
+  <Toast />
+  {@render overlays()}
+{/if}
 
 <style>
   .main {
