@@ -185,3 +185,23 @@ describe("Lightbox", () => {
     expect(document.querySelector('[aria-label="Saved in your library"]')).toBeNull();
   });
 });
+
+describe("Lightbox duplicate tags", () => {
+  afterEach(() => cleanup());
+  it("mounts with the same tag name twice", () => {
+    const item = {
+      source: "rule34",
+      post_id: "19489718",
+      preview_url: "http://mock/p.jpg",
+      thumb_url: "http://mock/t.jpg",
+      width: 600,
+      height: 900,
+      tags: [
+        { name: "female", category: "general" },
+        { name: "female", category: "general" },
+      ],
+    } as never;
+    const { container } = render(Lightbox, { props: { item, onsave: vi.fn(), onclose: vi.fn() } });
+    expect(container.querySelectorAll(".tags li").length).toBe(2);
+  });
+});

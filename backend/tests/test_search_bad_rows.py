@@ -139,3 +139,11 @@ def test_short_secret_warns_once_by_name(caplog):
     assert logs.scrub("x abc y") == "x abc y"
 
     logs.clear_secrets()
+
+
+def test_dapi_to_post_drops_duplicate_tags():
+    post = Rule34._to_post(
+        SimpleNamespace(_base_url="https://api.rule34.xxx", id="rule34", md5_key="hash"),  # type: ignore[arg-type]
+        {"id": 1, "hash": "h", "tags": "female a female b a"},
+    )
+    assert post.tags == {"general": ["female", "a", "b"]}

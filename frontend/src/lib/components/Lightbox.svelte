@@ -116,7 +116,7 @@
       <section class="tags">
         <span class="tags-label">Tags</span>
         <ul>
-          {#each item.tags as tag, i (tag.name)}
+          {#each item.tags as tag, i (i)}
             <li>
               {#if onreject}
                 <button

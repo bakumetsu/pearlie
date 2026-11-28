@@ -212,7 +212,7 @@ class DapiSource:
 
     def _to_post(self, d: dict) -> Post:
         """Convert a raw dapi dict into a Post model."""
-        names = str(d.get("tags") or "").split()
+        names = list(dict.fromkeys(str(d.get("tags") or "").split()))
         return Post(
             post_id=str(d["id"]),
             md5=d.get(self.md5_key) or d.get("md5") or d.get("hash"),
