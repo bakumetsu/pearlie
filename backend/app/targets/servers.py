@@ -6,8 +6,6 @@ adapter modules themselves. Swapping a server then touches this module only.
 
 from __future__ import annotations
 
-from typing import Any
-
 from app.bookserver.base import BookDTO
 from app.library.stash_trash import StashTrash
 from app.library.stump_trash import StumpTrash
@@ -44,7 +42,6 @@ __all__ = [
     "valid_id",
     "video_detail",
     "video_item",
-    "stash_of",
     "stash_library",
 ]
 
@@ -53,7 +50,3 @@ def book_matches(book: BookDTO, post_id: str) -> bool:
     """True when a library book is the saved copy of *post_id*."""
     return StumpTarget._book_matches(book, post_id)
 
-
-def stash_of(app: Any) -> StashClient | None:
-    """The Stash client of the running app (None when Stash is not configured)."""
-    return app.state.stash
