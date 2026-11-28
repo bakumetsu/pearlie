@@ -2,18 +2,14 @@
 
 from __future__ import annotations
 
-import errno
 import hashlib
 import logging
-import os
 import posixpath
-import re
 import shutil
 import sqlite3
 import time
 from collections.abc import Callable
 from pathlib import Path
-from urllib.parse import urlparse
 
 import httpx
 
@@ -23,12 +19,12 @@ from app.config import Settings
 from app.db import connect
 from app.library.trash import TrashStore
 from app.models import Problem
-from app.sources.base import Post, Source, SourceError
-from app.sources.nhentai import CDN_HOST, NHentai
+from app.sources.base import Post, Source
+from app.sources.nhentai import NHentai
 from app.sources.throttle import Throttle
 from app.stump import Stump
-from app.targets import destinations
-from app.targets.comicinfo import build_cbz, repack_download
+from app.targets import destinations, stump_client, stump_library
+from app.targets.comicinfo import build_cbz
 from app.targets.placement import (
     IndexCache,
     NameIndex,
@@ -39,43 +35,16 @@ from app.targets.placement import (
     series_folder_name,
 )
 from app.targets.placement_name import parse_name
-from app.targets.stash import PendingScan, SaveError, SaveResult, _md5_of, _retry_after
+from app.targets.stash import PendingScan, SaveError, SaveResult, _md5_of
+from app.targets.stump_library import scan_failed_notice as scan_failed_notice
+from app.targets.stump_library import waiting_for_stump_notice as waiting_for_stump_notice
 
 logger = logging.getLogger("pearlie.stump")
 
 TEMP_PREFIX = "pearlie-"
-MAX_PAGES = 1000
-MAX_PAGE_BYTES = 8 * 1024 * 1024
-MAX_GALLERY_BYTES = 500 * 1024 * 1024
 STALE_S = 3600
 VERIFY_PAGE_SIZE = 50
-ONESHOT_AUTHOR_PAGE_SIZE = 500
-ONESHOT_AUTHOR_MAX_PAGES = 100
-AUTHOR_HIT_TTL_S = 3600.0
-AUTHOR_MISS_TTL_S = 300.0
 STALE_GRACE = "-1 day"  # Stump may not have scanned a fresh save yet
-
-
-def scan_failed_notice(label: str = "Stump") -> Problem:
-    message = f"file saved; {label} will pick it up on its next scan"
-    return Problem(code="scan_failed", message=message)
-
-
-def waiting_for_stump_notice(stump_path: str) -> Problem:
-    return Problem(
-        code="waiting_for_stump",
-        message=(
-            f"waiting for Stump: {stump_path} is not listed yet; "
-            "check the Stump path mapping and the library folder"
-        ),
-    )
-
-
-def _file_name(post: Post) -> str:
-    title = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", post.title or "gallery").strip(" .") or "gallery"
-    site, pid = (re.sub(r"[^\w.]", "", str(v)) for v in (post.source, post.post_id))
-    suffix = f" - {site}-{pid}.cbz"
-    return title[:100].rstrip(" .") + suffix
 
 
 class StumpTarget:
@@ -104,8 +73,7 @@ class StumpTarget:
         self._clock = clock
         self._sleep = sleep
         self._index_cache = IndexCache()
-        self._author_cache: dict[str, tuple[float, list[str]]] = {}
-        self._author_retry_at = 0.0
+        self._authors = stump_library.OneshotAuthorCache(clock)
 
     def set_client(self, client: Stump | None) -> None:
         self._stump = client
@@ -150,146 +118,6 @@ class StumpTarget:
         except BookServerError as e:
             raise SaveError(e.code, e.message, e.status) from None
 
-    def _check_mounted(self, folder: str, tag: str) -> None:
-        """Fail when the library root is missing on Pearlie's side.
-
-        A wrong mount or prefix map would otherwise make the save create a
-        fresh folder tree that Stump never scans.
-        """
-        mapped = destinations.to_stash_path(folder, *self._prefixes())
-        for root in self._roots():
-            root = posixpath.normpath(root.replace("\\", "/"))
-            if mapped != root and not mapped.startswith(root + "/"):
-                continue
-            local = destinations.to_pearlie_path(root, *self._prefixes())
-            if Path(local).is_dir():
-                return
-            logger.warning("STUMP %s library root missing on Pearlie side root=%s", tag, local)
-            raise SaveError(
-                "library_not_mounted",
-                f"Stump library {root} is not found at {local} in Pearlie; "
-                "check the Pearlie/Stump path mapping and the mount",
-                422,
-            )
-
-    @staticmethod
-    def _check_writable(folder: str) -> Path:
-        path = Path(folder)
-        try:
-            path.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            pass
-        if not path.is_dir() or not os.access(path, os.W_OK):
-            raise SaveError(
-                "destination_not_writable",
-                f"Pearlie cannot write to {folder}; give it write access to the Stump library",
-                422,
-            )
-        return path
-
-    def _urls(self, post: Post) -> list[str]:
-        src = self._sources.get(post.source)
-        if not isinstance(src, NHentai):
-            raise SaveError("no_source", f"{post.source} cannot be saved to Stump", 422)
-        urls = src.page_urls(post)
-        if not 1 <= len(urls) <= MAX_PAGES:
-            raise SaveError("no_file", "gallery has no downloadable pages", 422)
-        for url in urls:
-            parsed = urlparse(url)
-            if parsed.scheme not in ("http", "https") or not CDN_HOST.match(parsed.hostname or ""):
-                raise SaveError("host_not_allowed", f"file host not allowed for {post.source}", 422)
-        return urls
-
-    def _fetch(
-        self,
-        urls: list[str],
-        work: Path,
-        post: Post,
-        on_progress: Callable[[int, int], None] | None = None,
-    ) -> list[Path]:
-        src = self._sources[post.source]
-        assert isinstance(src, NHentai)
-        throttle = self._throttles.get(post.source)
-        pages: list[Path] = []
-        total = 0
-        for n, url in enumerate(urls, 1):
-            part = work / f"{n:04d}{Path(urlparse(url).path).suffix.lower()}"
-            if throttle:
-                throttle.wait()
-            written = 0
-            try:
-                with self._http.stream(
-                    "GET", url, headers=src.page_headers(), follow_redirects=False
-                ) as resp:
-                    if throttle:
-                        throttle.report(resp.status_code, _retry_after(resp))
-                    if resp.status_code != 200:
-                        raise SaveError(
-                            "download_failed", f"page {n} returned {resp.status_code}", 502
-                        )
-                    with open(part, "wb") as f:
-                        for chunk in resp.iter_bytes():
-                            written += len(chunk)
-                            total += len(chunk)
-                            if written > MAX_PAGE_BYTES or total > MAX_GALLERY_BYTES:
-                                raise SaveError("too_large", "gallery is too large", 502)
-                            f.write(chunk)
-            except httpx.HTTPError:
-                raise SaveError("download_failed", f"page {n} failed", 502) from None
-            if written == 0:
-                raise SaveError("size_mismatch", f"page {n} is empty", 502)
-            pages.append(part)
-            if on_progress:
-                on_progress(n, len(urls))
-        return pages
-
-    def _fetch_api(
-        self,
-        src: NHentai,
-        post: Post,
-        work: Path,
-        cbz: Path,
-        plan: Plan,
-        tag: str,
-        on_progress: Callable[[int, int], None] | None,
-    ) -> bool:
-        """Route B: official download link, file repacked as the CBZ. False: use route A.
-
-        Any failure (no link, bad host, non-200, too large, not a gallery zip) is logged
-        without the key or link and returns False.
-        """
-        throttle = self._throttles.get(post.source)
-        part = work / "api.zip"
-        try:
-            url = src.download_url(post.post_id)
-            if throttle:
-                throttle.wait()
-            written = 0
-            with self._http.stream(
-                "GET", url, headers=src.page_headers(), follow_redirects=False
-            ) as resp:
-                if throttle:
-                    throttle.report(resp.status_code, _retry_after(resp))
-                if resp.status_code != 200:
-                    raise SaveError("download_failed", f"file returned {resp.status_code}", 502)
-                with open(part, "wb") as f:
-                    for chunk in resp.iter_bytes():
-                        written += len(chunk)
-                        if written > MAX_GALLERY_BYTES:
-                            raise SaveError("too_large", "gallery is too large", 502)
-                        f.write(chunk)
-            count = repack_download(part, cbz, post, plan, MAX_GALLERY_BYTES)
-        except (SourceError, SaveError, ValueError, httpx.HTTPError, OSError) as e:
-            code = getattr(e, "code", type(e).__name__)
-            logger.warning("STUMP %s route=api failed (%s), falling back to gallery-dl", tag, code)
-            cbz.unlink(missing_ok=True)
-            return False
-        finally:
-            part.unlink(missing_ok=True)
-        if on_progress:
-            on_progress(count, count)
-        return True
-
     def _place_mode(self) -> str:
         conn = connect(self._settings.db_path)
         try:
@@ -331,7 +159,9 @@ class StumpTarget:
         index = self._index_cache.get(
             dest_dir,
             oneshots.name,
-            lambda names: self._oneshot_authors(dest_dir, oneshots.name or "", names, tag),
+            lambda names: self._authors.get(
+                self._books, self._lib_dir(dest_dir), oneshots.name or "", names, tag
+            ),
         )
         if index.too_large:
             notices.append(
@@ -362,86 +192,9 @@ class StumpTarget:
         )
         return plan
 
-    def _oneshot_authors(
-        self, dest_dir: Path, oneshots_name: str, names: list[str], tag: str
-    ) -> dict[str, list[str]]:
-        """Cached writer names per oneshot file; Stump is asked only for names not cached.
-
-        A found author is kept AUTHOR_HIT_TTL_S, a miss (not scanned yet) and a failed
-        call AUTHOR_MISS_TTL_S, so a later scan pairs the book and an outage is not hammered.
-        """
-        now = self._clock()
-        out: dict[str, list[str]] = {}
-        missing: list[str] = []
-        for n in names:
-            hit = self._author_cache.get(n)
-            if hit is not None and hit[0] > now:
-                out[n] = hit[1]
-            else:
-                missing.append(n)
-        if not missing:
-            return out
-        if self._author_retry_at > now:
-            return out
-        found = self._scan_oneshot_authors(dest_dir, oneshots_name, missing, tag)
-        if found is None:
-            self._author_retry_at = now + AUTHOR_MISS_TTL_S
-            return out
-        for n in missing:
-            authors = found.get(n, [])
-            ttl = AUTHOR_HIT_TTL_S if authors else AUTHOR_MISS_TTL_S
-            self._author_cache[n] = (now + ttl, authors)
-            out[n] = authors
-        return out
-
-    def _scan_oneshot_authors(
-        self, dest_dir: Path, oneshots_name: str, names: list[str], tag: str
-    ) -> dict[str, list[str]] | None:
-        """Stump writer names of the oneshot books *names* (read only; None on a failure)."""
-        lib_dir = posixpath.normpath(
-            destinations.to_stash_path(dest_dir.as_posix(), *self._prefixes())
-        )
-        wanted = set(names)
-        found: dict[str, list[str]] = {}
-        try:
-            lib_id = next(
-                (
-                    lib.id
-                    for lib in self._books.list_libraries()
-                    if lib_dir == posixpath.normpath(lib.root.replace("\\", "/"))
-                    or lib_dir.startswith(posixpath.normpath(lib.root.replace("\\", "/")) + "/")
-                ),
-                None,
-            )
-            if lib_id is None:
-                return {}
-            for page_no in range(ONESHOT_AUTHOR_MAX_PAGES):
-                page = self._books.list_books(
-                    page_no + 1,
-                    ONESHOT_AUTHOR_PAGE_SIZE,
-                    "",
-                    SORT_CREATED_DESC,
-                    library_id=lib_id,
-                )
-                for b in page.items:
-                    url = b.path.replace("\\", "/")
-                    name = posixpath.basename(url)
-                    if (
-                        name not in wanted
-                        or posixpath.basename(posixpath.dirname(url)) != oneshots_name
-                    ):
-                        continue
-                    found[name] = b.writers or b.authors
-                if len(found) == len(wanted) or not page.items:
-                    break
-                if page.last:
-                    break
-            else:
-                logger.warning("STUMP %s oneshot author scan stopped at the page cap", tag)
-        except BookServerError as e:
-            logger.warning("STUMP %s oneshot author lookup failed code=%s", tag, e.code)
-            return None
-        return found
+    def _lib_dir(self, dest_dir: Path) -> str:
+        mapped = destinations.to_stash_path(dest_dir.as_posix(), *self._prefixes())
+        return posixpath.normpath(mapped)
 
     def suggest(self, post: Post) -> Plan:
         """The plan a save would use now. Writes nothing: no folder, no file, no job."""
@@ -456,60 +209,6 @@ class StumpTarget:
             f"source={post.source} post={post.post_id}",
             absorb=True,
         )
-
-    @staticmethod
-    def _target_dir(
-        plan: Plan, dest_dir: Path, oneshots: OneshotsDir, notices: list[Problem]
-    ) -> Path:
-        if plan.kind == "series" and plan.folder:
-            sub = dest_dir / plan.folder
-        elif oneshots.name:
-            sub = dest_dir / oneshots.name
-        else:
-            notices.append(
-                Problem(
-                    code="oneshots_not_set",
-                    message="set the oneshots directory in Stump; saved flat in the folder",
-                )
-            )
-            return dest_dir
-        try:
-            sub.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            raise SaveError(
-                "destination_not_writable", f"Pearlie cannot write to {sub}", 422
-            ) from None
-        return sub
-
-    @staticmethod
-    def _move_first(
-        plan: Plan,
-        dest_dir: Path,
-        oneshots: OneshotsDir,
-        series_dir: Path,
-        tag: str,
-        notices: list[Problem],
-    ) -> None:
-        """Rename earlier oneshots of the group into the series folder; never fails the save."""
-        if not plan.move_from or not oneshots.name:
-            return
-        for name in plan.move_from:
-            old = dest_dir / oneshots.name / name
-            logger.info("STUMP %s move start from=%s to=%s", tag, name, series_dir.name)
-            if not old.exists():
-                logger.info("STUMP %s move skipped code=missing", tag)
-                notices.append(Problem(code="move_skipped", message=f"{name} is gone; not moved"))
-                continue
-            try:
-                if (series_dir / name).exists():
-                    raise FileExistsError(errno.EEXIST, "target exists")
-                os.rename(old, series_dir / name)
-            except OSError as e:
-                code = errno.errorcode.get(e.errno or 0, "OSError")
-                logger.warning("STUMP %s move failed code=%s", tag, code)
-                notices.append(Problem(code="move_failed", message="first book stays in oneshots"))
-                continue
-            logger.info("STUMP %s move done", tag)
 
     def save(
         self,
@@ -532,12 +231,12 @@ class StumpTarget:
         src = self._sources.get(post.source)
         # Route B needs a working key; the state is read once, here, for the whole job.
         use_api = isinstance(src, NHentai) and src.key_state[0] == "ok"
-        urls = [] if use_api else self._urls(post)
+        urls = [] if use_api else stump_client.page_urls(src, post)
         logger.info("STUMP %s save start route=%s", tag, "api" if use_api else "gallery-dl")
         folder = self._folder(post.source)
-        self._check_mounted(folder, tag)
+        stump_library.check_mounted(self._roots(), folder, self._prefixes(), tag)
         existed = Path(folder).is_dir()
-        dest_dir = self._check_writable(folder)
+        dest_dir = stump_library.check_writable(folder)
         if not existed:
             logger.warning(
                 "STUMP %s folder did not exist, created it folder=%s "
@@ -560,18 +259,38 @@ class StumpTarget:
                 cbz = work / "gallery.cbz.part"
                 if use_api:
                     assert isinstance(src, NHentai)
-                    use_api = self._fetch_api(src, post, work, cbz, plan, tag, on_progress)
+                    use_api = stump_client.fetch_api(
+                        self._http,
+                        src,
+                        self._throttles.get(post.source),
+                        post,
+                        work,
+                        cbz,
+                        plan,
+                        tag,
+                        on_progress,
+                    )
                 if not use_api:
-                    urls = urls or self._urls(post)
-                    pages = self._fetch(urls, work, post, on_progress)
+                    urls = urls or stump_client.page_urls(src, post)
+                    assert isinstance(src, NHentai)
+                    pages = stump_client.fetch_pages(
+                        self._http,
+                        src,
+                        self._throttles.get(post.source),
+                        urls,
+                        work,
+                        on_progress,
+                    )
                     logger.info("STUMP %s downloaded pages=%d route=gallery-dl", tag, len(pages))
                     build_cbz(cbz, pages, post, plan)
                 else:
                     logger.info("STUMP %s downloaded route=api", tag)
                 md5 = _md5_of(cbz)
                 logger.info("STUMP %s cbz built md5=%s", tag, md5)
-                place_dir = self._target_dir(plan, dest_dir, oneshots, notices)
-                target, same = self._place(cbz, place_dir, _file_name(post), md5, notices)
+                place_dir = stump_library.target_dir(plan, dest_dir, oneshots, notices)
+                target, same = stump_library.place_file(
+                    cbz, place_dir, stump_library.file_name(post), md5, notices
+                )
             except SaveError as e:
                 logger.warning("STUMP %s save failed code=%s", tag, e.code)
                 raise
@@ -583,7 +302,7 @@ class StumpTarget:
             return self._duplicate("same file already in the folder")
         logger.info("STUMP %s placed file=%s pearlie_path=%s", tag, target.name, target.as_posix())
         if plan.kind == "series":
-            self._move_first(plan, dest_dir, oneshots, place_dir, tag, notices)
+            stump_library.move_first(plan, dest_dir, oneshots, place_dir, tag, notices)
         self._index_cache.invalidate()
 
         stump_path = destinations.to_stash_path(target.as_posix(), *self._prefixes())
@@ -619,8 +338,7 @@ class StumpTarget:
         outside = False
         try:
             for lib in self._books.list_libraries():
-                root = posixpath.normpath(lib.root.replace("\\", "/"))
-                if stump_path == root or stump_path.startswith(root + "/"):
+                if stump_library.root_holds(lib.root, stump_path):
                     return lib.id, False
             outside = True
             raise BookServerError("not_found", "no library holds the folder", 404)
@@ -686,25 +404,6 @@ class StumpTarget:
         finally:
             conn.close()
 
-    @staticmethod
-    def _place(
-        temp: Path, dest_dir: Path, name: str, md5: str, notices: list[Problem]
-    ) -> tuple[Path, bool]:
-        target = dest_dir / name
-        if target.exists():
-            if _md5_of(target) == md5:
-                return target, True
-            stem, suffix, counter = target.stem, target.suffix, 2
-            while (dest_dir / f"{stem}_{counter}{suffix}").exists():
-                counter += 1
-            target = dest_dir / f"{stem}_{counter}{suffix}"
-            notices.append(Problem(code="name_clash", message=f"renamed to {target.name}"))
-        try:
-            os.replace(temp, target)
-        except OSError:
-            shutil.move(str(temp), str(target))
-        return target, False
-
     def _saved(self, post: Post) -> bool:
         conn = connect(self._settings.db_path)
         try:
@@ -719,11 +418,7 @@ class StumpTarget:
     @staticmethod
     def _book_matches(book: BookDTO, post_id: str) -> bool:
         """True when a library book is the saved copy of *post_id* (file name or Web link)."""
-        url = book.path.replace("\\", "/")
-        base = posixpath.basename(url)
-        if f"[{post_id}]" in base or posixpath.splitext(base)[0].endswith(f"-{post_id}"):
-            return True
-        return any(f"/{post_id}/" in url_.rstrip("/") + "/" for _label, url_ in book.links)
+        return stump_library.book_matches(book, post_id)
 
     def trash_token(self, source: str, post_id: str) -> str | None:
         """Token of a live trash row that holds this post (the book or its series)."""
@@ -771,7 +466,7 @@ class StumpTarget:
             logger.warning("STUMP %s stale check failed code=%s status=%s", tag, e.code, e.status)
             return False
         books = page.items
-        if any(self._book_matches(b, post_id) for b in books):
+        if any(stump_library.book_matches(b, post_id) for b in books):
             return False
         if len(books) >= VERIFY_PAGE_SIZE:
             logger.warning("STUMP %s stale check inconclusive: full result page", tag)
