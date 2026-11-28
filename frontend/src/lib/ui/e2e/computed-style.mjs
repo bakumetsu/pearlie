@@ -26,14 +26,16 @@ for (const w of [1440, 390]) {
     const root = cs(".ui-root");
     const btn = [...document.querySelectorAll(".ui-root button")].find((b) => b.textContent.trim() === "Save");
     const bs = getComputedStyle(btn);
+    const fgTok = getComputedStyle(btn).getPropertyValue("--primary-foreground").trim();
     const input = cs(".ui-root input[aria-label=Input]");
-    return { bg: root.backgroundColor, btnBg: bs.backgroundColor, btnRadius: bs.borderRadius, btnH: bs.height, inRadius: input.borderRadius, pillRadius: cs(".ui-root input[aria-label=\"Pill input\"]").borderRadius, font: root.fontFamily };
+    return { fgTok, btnColor: bs.color, btnWeight: bs.fontWeight, bg: root.backgroundColor, btnBg: bs.backgroundColor, btnRadius: bs.borderRadius, btnH: bs.height, inRadius: input.borderRadius, pillRadius: cs(".ui-root input[aria-label=\"Pill input\"]").borderRadius, font: root.fontFamily };
   });
   check(`${w}px: Button radius 6px or 8px`, ["6px", "8px"].includes(s.btnRadius), s.btnRadius);
   check(`${w}px: Button height 44px`, s.btnH === "44px", s.btnH);
   check(`${w}px: Input radius 8px`, s.inRadius === "8px", s.inRadius);
   check(`${w}px: Input shape=pill is a pill`, parseFloat(s.pillRadius) >= 22, s.pillRadius);
   check(`${w}px: Primary button uses --primary token`, s.btnBg !== s.bg && s.btnBg !== "rgba(0, 0, 0, 0)", s.btnBg);
+  check(`${w}px: Primary text uses --primary-foreground, weight 600`, s.btnColor === s.fgTok && s.btnWeight === "600", s.btnColor + " " + s.btnWeight);
   check(`${w}px: Inter font`, /Inter/.test(s.font), s.font);
   await page.close();
 }

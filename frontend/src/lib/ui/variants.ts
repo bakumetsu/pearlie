@@ -7,12 +7,12 @@ export const buttonVariants = tv({
     "disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
   variants: {
     variant: {
-      default: "rounded-md border-primary bg-primary font-semibold text-primary-foreground hover:bg-primary/90",
-      outline: "rounded-md border-input bg-transparent text-foreground hover:bg-border",
-      ghost: "rounded-md border-transparent bg-transparent text-foreground hover:bg-border",
-      destructive: "rounded-md border-transparent bg-destructive/15 text-destructive hover:bg-destructive/25",
-      pill: "rounded-pill border-border bg-card text-muted-foreground hover:text-foreground aria-pressed:border-primary aria-pressed:bg-accent aria-pressed:text-primary",
-      chip: "rounded-md border-border bg-card text-foreground aria-pressed:border-primary aria-pressed:bg-accent aria-pressed:text-primary",
+      default: "rounded-md border-primary bg-primary font-semibold! text-primary-foreground! hover:bg-primary/90",
+      outline: "rounded-md border-input bg-transparent text-foreground! hover:bg-border",
+      ghost: "rounded-md border-transparent bg-transparent text-foreground! hover:bg-border",
+      destructive: "rounded-md border-transparent bg-destructive/15 text-destructive! hover:bg-destructive/25",
+      pill: "rounded-pill border-border bg-card text-muted-foreground! hover:text-foreground! aria-pressed:border-primary aria-pressed:bg-accent aria-pressed:text-primary!",
+      chip: "rounded-md border-border bg-card text-foreground! aria-pressed:border-primary aria-pressed:bg-accent aria-pressed:text-primary!",
     },
     size: {
       default: "h-11 min-w-11 px-4",
@@ -32,4 +32,4 @@ export const menuPanelClass =
 
 export const menuItemClass =
   "flex h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left hover:bg-border " +
-  "aria-checked:bg-accent aria-checked:text-primary focus-visible:outline-2 focus-visible:outline-ring";
+  "aria-checked:bg-accent aria-checked:text-primary! focus-visible:outline-2 focus-visible:outline-ring";

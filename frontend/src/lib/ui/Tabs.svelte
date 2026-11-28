@@ -20,8 +20,8 @@
       <Tabs.Trigger
         value={t.value}
         class={cn(
-          "inline-flex h-11 min-w-11 items-center justify-center border-b-2 border-transparent px-4 text-muted-foreground",
-          "hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring data-[state=active]:border-primary data-[state=active]:text-primary",
+          "inline-flex h-11 min-w-11 items-center justify-center border-b-2 border-transparent px-4 text-muted-foreground!",
+          "hover:text-foreground! focus-visible:outline-2 focus-visible:outline-ring data-[state=active]:border-primary data-[state=active]:text-primary!",
         )}>{t.label}</Tabs.Trigger
       >
     {/each}

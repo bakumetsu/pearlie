@@ -28,14 +28,14 @@
           <a
             href={toast.href}
             onclick={() => toasts.runAction()}
-            class="inline-flex h-11 min-w-11 items-center font-semibold text-primary focus-visible:outline-2 focus-visible:outline-ring"
+            class="inline-flex h-11 min-w-11 items-center font-semibold! text-primary! focus-visible:outline-2 focus-visible:outline-ring"
             >{toast.actionLabel}</a
           >
         {:else}
           <button
             type="button"
             onclick={() => toasts.runAction()}
-            class="inline-flex h-11 min-w-11 items-center justify-center font-semibold text-primary focus-visible:outline-2 focus-visible:outline-ring"
+            class="inline-flex h-11 min-w-11 items-center justify-center font-semibold! text-primary! focus-visible:outline-2 focus-visible:outline-ring"
             >{toast.actionLabel}</button
           >
         {/if}
