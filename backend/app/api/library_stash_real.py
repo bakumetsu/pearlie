@@ -7,12 +7,13 @@ from fastapi import APIRouter, Query, Request
 from app.api.errors import ApiError
 from app.api.patch_rules import check_patch
 from app.api.trash_real import result_of
-from app.library.stash_trash import StashTrash
 from app.library.trash import TrashError
 from app.models import LibraryItem, Page, PageStats, PatchBody, TrashResult
 from app.paging import clamp_page, clamp_page_size, pages_for
-from app.targets.stash_client import StashClient, StashError
-from app.targets.stash_library import (
+from app.targets.servers import (
+    StashClient,
+    StashError,
+    StashTrash,
     image_detail,
     image_item,
     list_notice,

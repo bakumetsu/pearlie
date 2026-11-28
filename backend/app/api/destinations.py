@@ -9,7 +9,7 @@ from app.models import DestinationItem, Destinations, FolderBody, MappingBody
 from app.targets import destinations
 from app.targets.destinations import DestinationError
 from app.targets.placement import oneshots_dir_of
-from app.targets.stash_client import StashError
+from app.targets.servers import StashError
 
 router = APIRouter(prefix="/api")
 

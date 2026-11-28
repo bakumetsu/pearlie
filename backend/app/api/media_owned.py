@@ -16,9 +16,7 @@ from app.db import connect
 from app.jobs.store import JobStore
 from app.models import SavedRef
 from app.sources.base import Source
-from app.targets import stash_library
-from app.targets.stash_client import StashError
-from app.targets.stump import VERIFY_PAGE_SIZE, StumpTarget
+from app.targets.servers import VERIFY_PAGE_SIZE, StashError, book_matches, stash_library
 
 logger = logging.getLogger("pearlie.media_owned")
 
@@ -64,7 +62,7 @@ def _backfill_book(app, source: str, post_id: str) -> str | None:
     try:
         page = book_server_of(app).list_books(1, VERIFY_PAGE_SIZE, post_id, SORT_CREATED_DESC)
         books = page.items
-        match = next((b for b in books if StumpTarget._book_matches(b, post_id)), None)
+        match = next((b for b in books if book_matches(b, post_id)), None)
     except Exception:  # Stump down or odd answer: the site path stays
         match = None
     book_id = match.id if match else ""
