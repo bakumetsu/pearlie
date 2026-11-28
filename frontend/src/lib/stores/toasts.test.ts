@@ -82,4 +82,25 @@ describe("createToasts", () => {
     expect(spy).toHaveBeenCalledTimes(1);
     expect(t.current).toBeNull();
   });
+  describe("visible", () => {
+    it("is empty when nothing is shown", () => {
+      expect(createToasts().visible).toEqual([]);
+    });
+
+    it("lists current then queue, capped at 3", () => {
+      const t = createToasts();
+      for (const m of ["a", "b", "c", "d"]) t.push({ kind: "info", message: m });
+      expect(t.visible.map((x) => x.message)).toEqual(["a", "b", "c"]);
+    });
+
+    it("puts Undo toasts first without changing current or queued", () => {
+      const t = createToasts();
+      t.push({ kind: "info", message: "a" });
+      t.push({ kind: "error", message: "b" });
+      t.push({ kind: "undo", message: "u", actionLabel: "Undo" });
+      expect(t.visible.map((x) => x.message)).toEqual(["u", "a", "b"]);
+      expect(t.current?.message).toBe("a");
+      expect(t.queued).toBe(2);
+    });
+  });
 });

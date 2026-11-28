@@ -146,3 +146,16 @@ describe('ui primitives touch targets', () => {
     });
   }
 });
+
+// ── shell (class-string check) ───────────────────────────────────────────────
+
+describe('shell touch targets', () => {
+  const shellFiles: [string, RegExp][] = [
+    ['TopTabBar', /min-h-11 min-w-11/], ['PhoneBottomBar', /min-h-11 min-w-11/], ['ToastRegion', /min-h-11/], ['PhoneTopBar', /IconButton/], ['SfwEye', /IconButton/],
+  ];
+  for (const [name, re] of shellFiles) {
+    it(`${name} carries a 44 px class`, () => {
+      expect(re.test(sources[`/src/lib/shell/${name}.svelte`] ?? '')).toBe(true);
+    });
+  }
+});
