@@ -18,7 +18,7 @@
   role="group"
   aria-label={label}
   class={cn(
-    "flex min-h-11 flex-wrap items-center gap-1 rounded-pill border border-input bg-card px-3 py-1 focus-within:border-primary",
+    "flex min-h-11 flex-wrap items-center gap-1 rounded-pill border border-input bg-card px-3 focus-within:border-primary",
     className,
   )}
 >
@@ -39,7 +39,7 @@
     autocomplete="off"
     aria-label={label}
     placeholder={chips.length === 0 ? 'Search tags or "title", e.g. cat -dog artist:x' : ""}
-    class="h-9 min-w-24 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+    class="h-11 min-w-24 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
     onkeydown={(e) => {
       if (e.key === "," && hasOpenQuote(pending)) return;
       if ((e.key === "Enter" || e.key === ",") && pending.trim()) {

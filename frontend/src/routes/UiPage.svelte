@@ -69,7 +69,7 @@
     <Card class="flex flex-col gap-3 p-4">
       <h2 class="font-semibold">Buttons</h2>
       <div class="flex flex-wrap gap-2">
-        <Button>Save</Button>
+        <Button variant="default">Save</Button>
         <Button variant="outline">Outline</Button>
         <Button variant="ghost">Ghost</Button>
         <Button variant="destructive">Delete</Button>
@@ -83,6 +83,7 @@
     <Card class="flex flex-col gap-3 p-4">
       <h2 class="font-semibold">Fields</h2>
       <Input bind:value={text} placeholder="Input" aria-label="Input" />
+      <Input shape="pill" placeholder="Pill input" aria-label="Pill input" />
       <Textarea placeholder="Textarea" aria-label="Textarea" />
       <Select aria-label="Select" bind:value={menu}>
         <option value="newest">Newest</option>
