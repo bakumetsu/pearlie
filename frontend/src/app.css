@@ -1,0 +1,184 @@
+/*
+ * New UI base (D-07 / B0): Tailwind v4, shadcn-svelte token names, Ink Top values.
+ * Preflight stays OFF while old screens exist (it would reset them). New parts sit
+ * under a `.ui-root` wrapper that gets the same reset rules (see the base layer).
+ * The new tokens live under `.ui-root` because shadcn names (--accent, --muted)
+ * clash with the old tokens in tokens.css. Old screens see no change.
+ * Drop `.ui-root` and import "tailwindcss/preflight.css" when the last old screen moves.
+ */
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+
+@custom-variant dark (&:where([data-mode="dark"] *, [data-mode="dark"]));
+
+/* Dark: the Ink Top default. */
+.ui-root {
+  --background: oklch(0.151 0.004 285.9);
+  --foreground: oklch(0.947 0.004 286.3);
+  --card: oklch(0.193 0.008 285.6);
+  --card-foreground: oklch(0.947 0.004 286.3);
+  --popover: oklch(0.193 0.008 285.6);
+  --popover-foreground: oklch(0.947 0.004 286.3);
+  --muted: oklch(0.242 0.011 285.5);
+  --muted-foreground: oklch(0.69 0.017 285.9);
+  --border: oklch(0.242 0.011 285.5);
+  --border-strong: oklch(0.297 0.016 285.4);
+  --input: oklch(0.297 0.016 285.4);
+  --ring: oklch(0.733 0.143 283.2);
+  --primary: oklch(0.733 0.143 283.2);
+  --primary-foreground: oklch(0.159 0.031 282.2);
+  --accent: oklch(0.283 0.068 282.3);
+  --accent-foreground: oklch(0.947 0.004 286.3);
+  --destructive: oklch(0.712 0.181 22.8);
+  --ok: oklch(0.912 0.067 156.2);
+  --warn: oklch(0.77 0.135 63.3);
+  --progress: oklch(0.77 0.135 63.3);
+  --scrim: oklch(0 0 0 / 0.6);
+  --shadow-float: 0 8px 24px rgb(0 0 0 / 0.5);
+
+  --dur-fast: 120ms;
+  --dur-sheet: 200ms;
+}
+
+/* Light: same direction. One more theme = one more block like this one. */
+:root[data-theme="light"] .ui-root {
+  --background: oklch(0.985 0.001 0);
+  --foreground: oklch(0.202 0.008 285.7);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.202 0.008 285.7);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.202 0.008 285.7);
+  --muted: oklch(0.939 0.031 287.8 / 0.5);
+  --muted-foreground: oklch(0.479 0.019 285.7);
+  --border: oklch(0.921 0.008 286.2);
+  --border-strong: oklch(0.857 0.012 286.1);
+  --input: oklch(0.857 0.012 286.1);
+  --ring: oklch(0.548 0.209 277.9);
+  --primary: oklch(0.548 0.209 277.9);
+  --primary-foreground: oklch(1 0 0);
+  --accent: oklch(0.939 0.031 287.8);
+  --accent-foreground: oklch(0.202 0.008 285.7);
+  --destructive: oklch(0.577 0.207 26.7);
+  --ok: oklch(0.515 0.113 155.3);
+  --scrim: oklch(0 0 0 / 0.4);
+  --shadow-float: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-progress: var(--progress);
+  --color-scrim: var(--scrim);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  --font-sans: "Inter Variable", system-ui, sans-serif;
+  --ease-ui: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Scoped preflight: the reset shadcn-svelte assumes, only inside `.ui-root`. */
+@layer base {
+  :where(.ui-root),
+  :where(.ui-root) *,
+  :where(.ui-root) ::before,
+  :where(.ui-root) ::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid var(--border);
+  }
+
+  :where(.ui-root) {
+    background: var(--background);
+    color: var(--foreground);
+    font: 14px/1.5 var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  :where(.ui-root) :is(h1, h2, h3, h4, h5, h6) {
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: 1.25;
+  }
+
+  :where(.ui-root) a {
+    color: inherit;
+    text-decoration: inherit;
+  }
+
+  :where(.ui-root) :is(ol, ul, menu) {
+    list-style: none;
+  }
+
+  :where(.ui-root) :is(img, svg, video, canvas, audio, iframe, embed, object) {
+    display: block;
+    vertical-align: middle;
+  }
+
+  :where(.ui-root) :is(img, video) {
+    max-width: 100%;
+    height: auto;
+  }
+
+  :where(.ui-root) :is(button, input, select, optgroup, textarea) {
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    border-radius: 0;
+    background-color: transparent;
+    opacity: 1;
+  }
+
+  :where(.ui-root) :is(button, [role="button"]) {
+    cursor: pointer;
+  }
+
+  :where(.ui-root) :disabled {
+    cursor: default;
+  }
+
+  :where(.ui-root) :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  :where(.ui-root) table {
+    border-collapse: collapse;
+    border-color: inherit;
+    text-indent: 0;
+  }
+
+  :where(.ui-root) [hidden]:where(:not([hidden="until-found"])) {
+    display: none !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :where(.ui-root) * {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+}
