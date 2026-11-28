@@ -49,4 +49,3 @@ __all__ = [
 def book_matches(book: BookDTO, post_id: str) -> bool:
     """True when a library book is the saved copy of *post_id*."""
     return StumpTarget._book_matches(book, post_id)
-
