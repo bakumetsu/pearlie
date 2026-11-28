@@ -16,9 +16,8 @@
     e.preventDefault();
     const next = options[(i + step + options.length) % options.length];
     value = next.value;
-    (e.currentTarget as HTMLElement).parentElement
-      ?.querySelector<HTMLElement>(`[data-v="${CSS.escape(next.value)}"]`)
-      ?.focus();
+    const radios = (e.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLElement>("[data-v]");
+    Array.from(radios ?? []).find((r) => r.dataset.v === next.value)?.focus();
   }
 </script>
 

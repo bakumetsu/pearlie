@@ -127,3 +127,22 @@ describe('touch target sizes (>= 44px)', () => {
     });
   }
 });
+
+// ── ui primitives (class-string check) ───────────────────────────────────────
+
+const uiFiles: [string, RegExp][] = [
+  ['Button', /h-11/], ['IconButton', /size-11|h-11/], ['Input', /h-11/], ['Select', /h-11/],
+  ['Switch', /h-11/], ['Checkbox', /min-h-11/], ['RadioGroup', /h-11/], ['Tabs', /h-11/],
+  ['DropdownMenu', /h-11/], ['Popover', /h-11/], ['Toaster', /h-11/], ['ChipField', /size-11|min-h-11/],
+];
+
+describe('ui primitives touch targets', () => {
+  for (const [name, re] of uiFiles) {
+    it(`${name} carries a 44 px class`, () => {
+      const src = sources[`/src/lib/ui/${name}.svelte`] ?? '';
+      const shared = name === 'Button' || name === 'IconButton' || name === 'Input' || name === 'Select' || name === 'DropdownMenu';
+      const variants = (import.meta.glob('/src/lib/ui/variants.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['/src/lib/ui/variants.ts'];
+      expect(re.test(src) || (shared && re.test(variants))).toBe(true);
+    });
+  }
+});
