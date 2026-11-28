@@ -13,7 +13,7 @@
 </script>
 
 <div
-  class={cn("ui-root pointer-events-none fixed inset-x-0 z-[1100] flex flex-col items-center gap-2 px-4", bars ? "bottom-[72px] lg:bottom-4" : "bottom-4")}
+  class={cn("ui-root pointer-events-none bg-transparent! fixed inset-x-0 z-[1100] flex flex-col items-center gap-2 px-4", bars ? "bottom-[72px] lg:bottom-4" : "bottom-4")}
   role="status"
   aria-live="polite"
   aria-atomic="false"

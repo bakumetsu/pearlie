@@ -17,7 +17,7 @@
       href={tab.path}
       aria-current={active ? "page" : undefined}
       onclick={onnavigate}
-      class="relative inline-flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-1 text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring aria-[current=page]:text-primary"
+      class="relative inline-flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-1 text-muted-foreground! focus-visible:outline-2 focus-visible:outline-ring aria-[current=page]:text-primary!"
     >
       <Icon name={tab.icon} size={20} />
       <span class="text-[11px] leading-none">{tab.label}</span>
