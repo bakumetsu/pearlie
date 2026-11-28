@@ -1,3 +1,4 @@
+/* global document, console, getComputedStyle */
 // Computed-style check on /__ui (stub :8010, vite --config vite.stub.config.ts :5183). Exit 1 on a failed check.
 import { chromium } from "@playwright/test";
 import process from "node:process";

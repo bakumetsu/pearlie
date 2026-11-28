@@ -1,3 +1,4 @@
+/* global document, console, Image */
 // Pixel diff of two PNG folders: node diff.mjs <before> <after> name...  (prints differing pixel counts)
 import { chromium } from "@playwright/test";
 import { readFileSync } from "node:fs";
