@@ -107,6 +107,8 @@
       <Trash />
     {:else if match.name === "option_redirect" || match.name === "rules_redirect"}
       <!-- redirect in progress -->
+    {:else if import.meta.env.DEV && match.path === "/__ui"}
+      {#await import("./routes/UiPage.svelte") then page}<page.default />{/await}
     {:else}
       <section class="placeholder">
         <h1 tabindex="-1">Page not found</h1>
