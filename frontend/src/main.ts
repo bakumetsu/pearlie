@@ -1,3 +1,5 @@
+import "./app.css";
+import "./lib/stores/theme";
 import { mount } from "svelte";
 import App from "./App.svelte";
 
